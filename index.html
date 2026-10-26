@@ -117,7 +117,8 @@ function key(gx,gy){return gx+','+gy}
 function reset(){
   S={t:0,scrap:40,over:null,
     base:{x:520,y:3080,hp:900,maxHp:900,r:BASE_R,dest:null,locked:false,fx:0,gunCd:0},
-    troops:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],objectives:[],objIdx:0,waveT:8,spawnT:0,sel:{base:false,troops:new Set()}};
+    troops:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],objectives:[],objIdx:0,waveT:8,spawnT:0,sel:{base:false,troops:new Set()},
+    zoneWaveBase:30,wavePct:30};
   for(let i=0;i<4;i++) S.troops.push({id:i,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp:70,maxHp:70,r:TROOP_R,dest:null,target:null,node:null,carry:0,state:'idle',cd:0,hv:0});
 
   genTerrain();
@@ -429,7 +430,7 @@ function tryLockdown(){
 function skipPrep(){
   const O=S.objectives[S.objIdx];
   if(!S.base.locked||!O||O.prepT<=0)return;
-  O.prepT=0; S.waveT=2;
+  O.prepT=0; S.waveT=2; S.wavePct=S.zoneWaveBase;
   msg('Prep skipped — enemy contact imminent. Hold the line!');
   updateBuildBar();
 }
@@ -498,17 +499,21 @@ function update(dt){
   if(O&&!O.done&&B.locked){
     if(O.prepT>0){
       O.prepT=Math.max(0,O.prepT-dt);
-      if(O.prepT<=0){S.waveT=4;msg('Prep complete — enemy contact imminent. Hold the line!');updateBuildBar()}
+      if(O.prepT<=0){S.waveT=4;S.wavePct=S.zoneWaveBase;msg('Prep complete — enemy contact imminent. Hold the line!');updateBuildBar()}
     }else{
       O.prog+=dt;
       S.waveT-=dt;
       if(S.waveT<=0){
-        const n=(4+S.objIdx*3+Math.floor(O.prog/12))*20;const a=rnd(0,Math.PI*2);const sx=B.x+Math.cos(a)*820,sy=B.y+Math.sin(a)*820;
+        const maxN=(4+S.objIdx*3+Math.floor(O.prog/12))*20;
+        const n=Math.max(1,Math.round(maxN*S.wavePct/100));
+        const a=rnd(0,Math.PI*2);const sx=B.x+Math.cos(a)*820,sy=B.y+Math.sin(a)*820;
         for(let i=0;i<n;i++){const p=nearestPlain(Math.max(20,Math.min(W-20,sx+rnd(-70,70))),Math.max(20,Math.min(H-20,sy+rnd(-70,70))));spawnEnemy(p.x,p.y,'wave')}
+        S.wavePct=Math.min(100,S.wavePct+10);
         S.waveT=Math.max(7,16-S.objIdx*2.5);msg(`Wave incoming from the ${a<Math.PI?'south':'north'}${Math.cos(a)>0?'east':'west'}.`);
       }
       if(O.prog>=O.hold){
         O.done=true;B.locked=false;setBuild(null);S.objIdx++;
+        S.zoneWaveBase=Math.min(100,S.zoneWaveBase+20);
         if(S.objIdx>=S.objectives.length){S.over='win';showOverlay('Route secured','All objectives held. The Bastion rolls on.')}
         else msg(`Objective ${S.objIdx} secured. Move the Bastion to the next zone.`);
       }
