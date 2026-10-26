@@ -1,5 +1,5 @@
 <!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
-<title>Rolling Bastion</title>
+<title>Astroscraper</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <style>
 /* Layout: full-screen canvas world; HUD is a thin top strip, a build bar bottom-left, minimap bottom-right. */
@@ -32,6 +32,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 .build button .key{font-family:var(--mono);font-size:10px;color:var(--muted)}
 .build button .cost{font-family:var(--mono);font-size:11px;color:var(--scrap)}
 .build button:disabled{opacity:.45;cursor:default}
+.build button#bLock{border-color:var(--scrap)}
 .mini{position:absolute;right:max(16px,env(safe-area-inset-right,0px));bottom:max(12px,env(safe-area-inset-bottom,0px));border:1px solid var(--line);background:var(--panel);border-radius:4px;overflow:hidden;cursor:pointer}
 .mini canvas{display:block}
 .help{position:absolute;right:max(16px,env(safe-area-inset-right,0px));top:calc(env(safe-area-inset-top,0px) + 70px);background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:10px 12px;max-width:260px;font-size:12px;line-height:1.45;color:var(--muted)}
@@ -53,12 +54,13 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <div class="stat"><span class="k">Bastion</span><span class="v" id="hBase">—</span><div class="bar"><i class="hp" id="hBaseBar" style="width:100%"></i></div></div>
   <div class="stat obj"><span class="k" id="hObjK">Objective</span><span class="v" id="hObj">—</span><div class="bar"><i id="hObjBar" style="width:0%"></i></div></div>
   <div class="stat"><span class="k">Squads</span><span class="v" id="hTroops">—</span></div>
-  <div class="stat msg"><span class="v" id="hMsg">Right-click to move the Bastion toward the first objective.</span></div>
+  <div class="stat msg"><span class="v" id="hMsg">Scout the purple zone to find the mining point, then press L to lock down.</span></div>
 </div>
 
 <div class="build" id="buildBar">
   <button id="bWall" data-mode="wall"><span>Wall</span><span class="cost" id="cWall">4 scrap</span><span class="key">1</span></button>
   <button id="bTurret" data-mode="turret"><span>Turret</span><span class="cost" id="cTurret">25 scrap</span><span class="key">2</span></button>
+  <button id="bLock"><span>Lock Down</span><span class="key">L</span></button>
   <button id="bSelBase"><span>Select Bastion</span><span class="key">B</span></button>
   <button id="bSelTroops"><span>Select squads</span><span class="key">T</span></button>
 </div>
@@ -71,8 +73,9 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   Left-drag: select squads · Click Bastion: select it<br>
   Right-click: move / attack / harvest<br>
   <kbd>WASD</kbd> or edge-drag (middle mouse) pans · scroll zooms<br>
-  <kbd>1</kbd> wall · <kbd>2</kbd> turret · <kbd>Esc</kbd> cancel<br>
-  <b>Loop:</b> drive the Bastion into a purple zone. It locks there until the hold timer ends. Squads scout the fog, mine scrap nodes, and skirmish. Build inside the Bastion's dashed ring.
+  <kbd>1</kbd> wall · <kbd>2</kbd> turret · <kbd>L</kbd> lock down · <kbd>Esc</kbd> cancel<br>
+  <b>Loop:</b> drive the Bastion into a purple zone and scout it to reveal the green mining-point marker. Park the Bastion on it and press <kbd>L</kbd> to lock down — you get 90s to fortify before waves hit, then mining runs until the hold timer completes. Walls/turrets only work while locked down, and never on bare rock.<br>
+  <b>Terrain:</b> rock blocks movement and building; mud slows units but can still be crossed.
 </div>
 
 <div class="overlay" id="overlay" hidden>
@@ -91,6 +94,7 @@ const WALL_HP=220;
 const COST={wall:4,turret:25};
 const OBJ=[{x:1250,y:2450,hold:45},{x:2550,y:2300,hold:60},{x:2750,y:850,hold:80}];
 const ZONE_R=170;
+const TCELL=60, TGX=Math.ceil(W/TCELL), TGY=Math.ceil(H/TCELL), MUD_MULT=0.55, PREP_TIME=90;
 
 const cv=document.getElementById('game'), ctx=cv.getContext('2d');
 const mini=document.getElementById('mini'), mctx=mini.getContext('2d');
@@ -98,7 +102,7 @@ const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim
 const C={ally:css('--ally'),enemy:css('--enemy'),scrap:css('--scrap'),zone:css('--zone'),accent:css('--accent'),fg:css('--fg'),muted:css('--muted'),line:css('--line')};
 
 // ---------- state ----------
-let S, cam, mouse={x:0,y:0,wx:0,wy:0,down:false,drag:null,panning:false}, keys={}, buildMode=null, lastT=0, msgT=0;
+let S, cam, mouse={x:0,y:0,wx:0,wy:0,down:false,drag:null,panning:false}, keys={}, buildMode=null, lastT=0, msgT=0, terrain, terrainCv;
 let fogC=document.createElement('canvas'), fogX; const FOG_S=6; fogC.width=W/FOG_S; fogC.height=H/FOG_S; fogX=fogC.getContext('2d');
 let visC=document.createElement('canvas'), visX; visC.width=W/FOG_S; visC.height=H/FOG_S; visX=visC.getContext('2d');
 
@@ -111,23 +115,212 @@ function reset(){
     base:{x:520,y:3080,hp:900,maxHp:900,r:BASE_R,dest:null,locked:false,fx:0},
     troops:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],objectives:[],objIdx:0,waveT:8,spawnT:0,sel:{base:false,troops:new Set()}};
   for(let i=0;i<4;i++) S.troops.push({id:i,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp:70,maxHp:70,r:TROOP_R,dest:null,target:null,node:null,carry:0,state:'idle',cd:0,hv:0});
-  OBJ.forEach(o=>S.objectives.push({x:o.x,y:o.y,r:ZONE_R,hold:o.hold,prog:0,done:false}));
+
+  genTerrain();
+  OBJ.forEach(o=>{
+    const ang=rnd(0,Math.PI*2), rad=rnd(0,ZONE_R*0.55);
+    S.objectives.push({x:o.x,y:o.y,r:ZONE_R,hold:o.hold,prog:0,done:false,prepT:0,
+      mine:{x:o.x+Math.cos(ang)*rad,y:o.y+Math.sin(ang)*rad,found:false}});
+  });
+  clearDisk(S.base.x,S.base.y,240);
+  S.objectives.forEach(o=>clearDisk(o.x,o.y,ZONE_R+40));
+  ensureConnectivity([{x:S.base.x,y:S.base.y},...S.objectives.map(o=>({x:o.x,y:o.y}))]);
+  terrainCv=buildTerrainCanvas();
+
   // scrap nodes: a couple near start, rest scattered (favouring the route)
   const spots=[[700,2850],[350,2650],[1000,3250],[1150,2100],[1550,2700],[900,1900],[1900,2500],[2300,1900],[2800,2700],[2150,2850],[3100,2000],[2450,1300],[3200,1200],[2300,700],[1700,1300],[1200,800],[600,1200],[3100,400],[400,400],[1800,500]];
-  spots.forEach(([x,y])=>S.nodes.push({x:x+rnd(-80,80),y:y+rnd(-80,80),amt:Math.round(rnd(45,90)),max:90,found:false}));
+  spots.forEach(([x,y])=>{const p=nearestPlain(x+rnd(-80,80),y+rnd(-80,80));S.nodes.push({x:p.x,y:p.y,amt:Math.round(rnd(45,90)),max:90,found:false})});
   // roaming packs guard the map
-  for(let i=0;i<9;i++){const px=rnd(300,W-300),py=rnd(300,H-900);if(Math.hypot(px-520,py-3080)<700)continue;for(let j=0;j<rnd(3,6);j++)spawnEnemy(px+rnd(-50,50),py+rnd(-50,50),'roam')}
+  for(let i=0;i<9;i++){const px=rnd(300,W-300),py=rnd(300,H-900);if(Math.hypot(px-520,py-3080)<700)continue;
+    for(let j=0;j<rnd(3,6);j++){const p=nearestPlain(px+rnd(-50,50),py+rnd(-50,50));spawnEnemy(p.x,p.y,'roam')}}
   cam={x:S.base.x,y:S.base.y,z:1};
   fogX.globalCompositeOperation='source-over'; fogX.fillStyle='#000'; fogX.fillRect(0,0,fogC.width,fogC.height);
   S.sel.base=true; buildMode=null; updateBuildBar();
   document.getElementById('overlay').hidden=true;
-  msg('Right-click to move the Bastion toward the first objective.');
+  msg('Scout the purple zone to find the mining point, then press L to lock down.');
 }
 function spawnEnemy(x,y,kind){
   const big=kind==='wave'&&Math.random()<0.15+S.objIdx*0.08;
   S.enemies.push({x,y,r:big?13:8,hp:big?120:34,maxHp:big?120:34,speed:big?48:78,dmg:big?12:5,cd:0,kind,target:null,aggro:kind==='roam'?260:1e9,home:{x,y}});
 }
 function msg(s){document.getElementById('hMsg').textContent=s;msgT=S.t}
+
+// ---------- terrain & pathfinding ----------
+function genTerrain(){
+  terrain=new Uint8Array(TGX*TGY);
+  function blob(type,count,rmin,rmax,prob){
+    for(let i=0;i<count;i++){
+      const cx=rnd(0,TGX), cy=rnd(0,TGY), R=rnd(rmin,rmax);
+      const x0=Math.max(0,Math.floor(cx-R)),x1=Math.min(TGX-1,Math.ceil(cx+R));
+      const y0=Math.max(0,Math.floor(cy-R)),y1=Math.min(TGY-1,Math.ceil(cy+R));
+      for(let gy=y0;gy<=y1;gy++)for(let gx=x0;gx<=x1;gx++){
+        const d=Math.hypot(gx-cx,gy-cy)/R; if(d>1)continue;
+        if(Math.random()<prob*(1-d*0.7)){
+          const id=gy*TGX+gx;
+          if(type===2||terrain[id]===0)terrain[id]=type;
+        }
+      }
+    }
+  }
+  blob(1,16,3,7,0.85); // mud patches
+  blob(2,13,2.5,6,0.8); // rock outcrops (override mud)
+}
+function clearDisk(x,y,r){
+  const cx=Math.floor(x/TCELL),cy=Math.floor(y/TCELL),cr=Math.ceil(r/TCELL);
+  for(let gy=cy-cr;gy<=cy+cr;gy++)for(let gx=cx-cr;gx<=cx+cr;gx++){
+    if(gx<0||gy<0||gx>=TGX||gy>=TGY)continue;
+    if(Math.hypot(gx-cx,gy-cy)*TCELL<=r)terrain[gy*TGX+gx]=0;
+  }
+}
+function carveLine(x0,y0,x1,y1,w){
+  const d=Math.hypot(x1-x0,y1-y0); const steps=Math.max(1,Math.ceil(d/(TCELL*0.5)));
+  for(let i=0;i<=steps;i++){
+    const t=i/steps,x=x0+(x1-x0)*t,y=y0+(y1-y0)*t;
+    const cx=Math.floor(x/TCELL),cy=Math.floor(y/TCELL);
+    for(let dy=-w;dy<=w;dy++)for(let dx=-w;dx<=w;dx++){
+      const gx=cx+dx,gy=cy+dy; if(gx<0||gy<0||gx>=TGX||gy>=TGY)continue;
+      terrain[gy*TGX+gx]=0;
+    }
+  }
+}
+function bfsReachable(sx,sy){
+  const seen=new Uint8Array(TGX*TGY);
+  const scx=Math.floor(sx/TCELL),scy=Math.floor(sy/TCELL);
+  if(scx<0||scy<0||scx>=TGX||scy>=TGY)return seen;
+  const startId=scy*TGX+scx; seen[startId]=1;
+  const q=[startId]; let qi=0;
+  while(qi<q.length){
+    const id=q[qi++]; const cx=id%TGX, cy=(id-cx)/TGX;
+    const dirs=[[1,0],[-1,0],[0,1],[0,-1]];
+    for(const [dx,dy] of dirs){
+      const nx=cx+dx,ny=cy+dy; if(nx<0||ny<0||nx>=TGX||ny>=TGY)continue;
+      const nid=ny*TGX+nx; if(seen[nid]||terrain[nid]===2)continue;
+      seen[nid]=1; q.push(nid);
+    }
+  }
+  return seen;
+}
+function ensureConnectivity(points){
+  for(let i=1;i<points.length;i++){
+    for(let tries=0;tries<4;tries++){
+      const seen=bfsReachable(points[i-1].x,points[i-1].y);
+      const tcx=Math.floor(points[i].x/TCELL),tcy=Math.floor(points[i].y/TCELL);
+      if(seen[tcy*TGX+tcx])break;
+      carveLine(points[i-1].x,points[i-1].y,points[i].x,points[i].y,1);
+    }
+  }
+}
+function buildTerrainCanvas(){
+  const cv2=document.createElement('canvas'); cv2.width=W;cv2.height=H; const x2=cv2.getContext('2d');
+  x2.fillStyle='#10151b'; x2.fillRect(0,0,W,H);
+  for(let gy=0;gy<TGY;gy++)for(let gx=0;gx<TGX;gx++){
+    const v=terrain[gy*TGX+gx]; if(v===0)continue;
+    x2.fillStyle = v===1 ? '#352c1c' : '#363d44';
+    x2.fillRect(gx*TCELL,gy*TCELL,TCELL,TCELL);
+  }
+  x2.fillStyle='rgba(0,0,0,0.25)';
+  for(let gy=0;gy<TGY;gy++)for(let gx=0;gx<TGX;gx++){
+    if(terrain[gy*TGX+gx]!==2)continue;
+    for(let k=0;k<4;k++){const px=gx*TCELL+rnd(4,TCELL-4), py=gy*TCELL+rnd(4,TCELL-4); x2.fillRect(px,py,rnd(3,7),rnd(3,7))}
+  }
+  return cv2;
+}
+function terrainAt(x,y){
+  const cx=Math.floor(x/TCELL),cy=Math.floor(y/TCELL);
+  if(cx<0||cy<0||cx>=TGX||cy>=TGY)return 0;
+  return terrain[cy*TGX+cx];
+}
+function tcost(cx,cy){
+  if(cx<0||cy<0||cx>=TGX||cy>=TGY)return Infinity;
+  const v=terrain[cy*TGX+cx];
+  return v===2?Infinity:v===1?2.4:1;
+}
+function nearestPlain(x,y){
+  if(terrainAt(x,y)!==2)return{x,y};
+  for(let r=1;r<=12;r++)for(let a=0;a<8;a++){
+    const ang=a/8*Math.PI*2, nx=x+Math.cos(ang)*r*TCELL*0.5, ny=y+Math.sin(ang)*r*TCELL*0.5;
+    if(terrainAt(nx,ny)!==2)return{x:nx,y:ny};
+  }
+  return {x,y};
+}
+function lineClear(x0,y0,x1,y1){
+  const d=Math.hypot(x1-x0,y1-y0); const steps=Math.max(1,Math.ceil(d/(TCELL/3)));
+  for(let i=0;i<=steps;i++){const t=i/steps,x=x0+(x1-x0)*t,y=y0+(y1-y0)*t;
+    if(tcost(Math.floor(x/TCELL),Math.floor(y/TCELL))===Infinity)return false}
+  return true;
+}
+function octileXY(ax,ay,bx,by){const dx=Math.abs(ax-bx),dy=Math.abs(ay-by);return Math.max(dx,dy)+0.414*Math.min(dx,dy)}
+const NBR=[[1,0,1],[-1,0,1],[0,1,1],[0,-1,1],[1,1,1.4142],[1,-1,1.4142],[-1,1,1.4142],[-1,-1,1.4142]];
+class MinHeap{
+  constructor(){this.a=[]}
+  push(id,score){this.a.push([score,id]);let i=this.a.length-1;
+    while(i>0){const p=(i-1)>>1; if(this.a[p][0]<=this.a[i][0])break; [this.a[p],this.a[i]]=[this.a[i],this.a[p]]; i=p}}
+  pop(){const top=this.a[0]; const last=this.a.pop(); if(this.a.length){this.a[0]=last; let i=0;
+    while(true){let l=i*2+1,r=i*2+2,s=i; if(l<this.a.length&&this.a[l][0]<this.a[s][0])s=l; if(r<this.a.length&&this.a[r][0]<this.a[s][0])s=r; if(s===i)break; [this.a[s],this.a[i]]=[this.a[i],this.a[s]]; i=s}}
+    return top?top[1]:undefined}
+  empty(){return this.a.length===0}
+}
+function astar(x0,y0,x1,y1){
+  const sx=Math.floor(x0/TCELL),sy=Math.floor(y0/TCELL),gx=Math.floor(x1/TCELL),gy=Math.floor(y1/TCELL);
+  if(sx<0||sy<0||sx>=TGX||sy>=TGY||gx<0||gy<0||gx>=TGX||gy>=TGY)return null;
+  if(tcost(gx,gy)===Infinity)return null;
+  const startId=sy*TGX+sx, goalId=gy*TGX+gx;
+  if(startId===goalId)return [{x:x1,y:y1}];
+  const N=TGX*TGY;
+  const gScore=new Float64Array(N).fill(Infinity);
+  const came=new Int32Array(N).fill(-1);
+  const closed=new Uint8Array(N);
+  gScore[startId]=0;
+  const heap=new MinHeap();
+  heap.push(startId,octileXY(sx,sy,gx,gy));
+  let iter=0;
+  while(!heap.empty()&&iter++<8000){
+    const cur=heap.pop();
+    if(closed[cur])continue;
+    closed[cur]=1;
+    if(cur===goalId)break;
+    const cx=cur%TGX, cy=(cur-cx)/TGX;
+    for(const [dx,dy,base] of NBR){
+      if(dx!==0&&dy!==0&&(tcost(cx+dx,cy)===Infinity||tcost(cx,cy+dy)===Infinity))continue;
+      const nx=cx+dx,ny=cy+dy;
+      if(nx<0||ny<0||nx>=TGX||ny>=TGY)continue;
+      const cost=tcost(nx,ny); if(cost===Infinity)continue;
+      const nid=ny*TGX+nx; if(closed[nid])continue;
+      const ng=gScore[cur]+base*cost;
+      if(ng<gScore[nid]){gScore[nid]=ng;came[nid]=cur;heap.push(nid,ng+octileXY(nx,ny,gx,gy))}
+    }
+  }
+  if(came[goalId]===-1&&startId!==goalId)return null;
+  const path=[]; let cur=goalId;
+  while(cur!==startId){
+    const cx=cur%TGX, cy=(cur-cx)/TGX;
+    path.push({x:cx*TCELL+TCELL/2,y:cy*TCELL+TCELL/2});
+    cur=came[cur];
+    if(cur===-1)return null;
+  }
+  path.reverse();
+  path.push({x:x1,y:y1});
+  return path;
+}
+function waypointFor(u,tx,ty){
+  const goal={x:tx,y:ty};
+  if(!u._pg||Math.hypot(u._pg.x-goal.x,u._pg.y-goal.y)>40){
+    u._pg=goal;
+    u._path=lineClear(u.x,u.y,tx,ty)?null:astar(u.x,u.y,tx,ty);
+    u._pi=0;
+  }
+  if(u._path&&u._path.length){
+    if(u._pi>=u._path.length){u._path=null;return goal}
+    let wp=u._path[u._pi];
+    if(dist(u,wp)<12){
+      u._pi++;
+      if(u._pi<u._path.length)return u._path[u._pi];
+      u._path=null;return goal;
+    }
+    return wp;
+  }
+  return goal;
+}
 
 // ---------- input ----------
 function resize(){cv.width=cv.clientWidth*devicePixelRatio;cv.height=cv.clientHeight*devicePixelRatio;}
@@ -166,18 +359,39 @@ addEventListener('keydown',e=>{
   else if(e.key==='Escape'){setBuild(null)} else if(e.key.toLowerCase()==='b'){S.sel.troops.clear();S.sel.base=true}
   else if(e.key.toLowerCase()==='t'){S.sel.base=false;S.troops.forEach(t=>S.sel.troops.add(t.id))}
   else if(e.key.toLowerCase()==='f'){cam.x=S.base.x;cam.y=S.base.y}
+  else if(e.key.toLowerCase()==='l'){tryLockdown()}
   if(e.key===' ')e.preventDefault();
 });
 addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;keys[e.key]=false});
 document.querySelectorAll('#buildBar button[data-mode]').forEach(b=>b.addEventListener('click',()=>setBuild(buildMode===b.dataset.mode?null:b.dataset.mode)));
+document.getElementById('bLock').onclick=tryLockdown;
 document.getElementById('bSelBase').onclick=()=>{S.sel.troops.clear();S.sel.base=true};
 document.getElementById('bSelTroops').onclick=()=>{S.sel.base=false;S.troops.forEach(t=>S.sel.troops.add(t.id))};
 document.getElementById('helpClose').onclick=()=>{document.getElementById('help').hidden=true};
 document.getElementById('ovBtn').onclick=reset;
 mini.addEventListener('pointerdown',e=>{const r=mini.getBoundingClientRect();cam.x=(e.clientX-r.left)/r.width*W;cam.y=(e.clientY-r.top)/r.height*H;clampCam()});
 function setBuild(m){buildMode=m;updateBuildBar()}
-function updateBuildBar(){document.querySelectorAll('#buildBar button[data-mode]').forEach(b=>{b.classList.toggle('on',b.dataset.mode===buildMode);b.disabled=S.scrap<COST[b.dataset.mode]&&buildMode!==b.dataset.mode})}
+function updateBuildBar(){
+  document.querySelectorAll('#buildBar button[data-mode]').forEach(b=>{
+    b.classList.toggle('on',b.dataset.mode===buildMode);
+    b.disabled=!S.base.locked||(S.scrap<COST[b.dataset.mode]&&buildMode!==b.dataset.mode);
+  });
+  const lb=document.getElementById('bLock'); if(lb)lb.disabled=!canLockdown();
+}
 function clampCam(){cam.x=Math.max(0,Math.min(W,cam.x));cam.y=Math.max(0,Math.min(H,cam.y))}
+
+function canLockdown(){
+  const O=S.objectives[S.objIdx];
+  if(!O||O.done||S.base.locked)return false;
+  return dist(S.base,O.mine)<BASE_R+18;
+}
+function tryLockdown(){
+  if(!canLockdown()){msg(S.base.locked?'Already locked down and mining.':'Move the Bastion onto the mining point first.');return}
+  const O=S.objectives[S.objIdx];
+  S.base.locked=true; S.base.dest=null; O.prepT=PREP_TIME;
+  msg(`Lockdown engaged. Fortify for ${PREP_TIME}s before the enemy arrives.`);
+  updateBuildBar();
+}
 
 function rightClick(w){
   if(buildMode){setBuild(null);return}
@@ -197,7 +411,9 @@ function rightClick(w){
   });
 }
 function tryBuild(w){
+  if(!S.base.locked){msg('Lock down the Bastion before building.');return}
   if(dist(w,S.base)>BUILD_R){msg('Build inside the Bastion\'s dashed ring.');return}
+  if(terrainAt(w.x,w.y)===2){msg('Cannot build on solid rock.');return}
   if(S.scrap<COST[buildMode]){msg('Not enough scrap. Send squads to mine a node.');return}
   if(buildMode==='wall'){const gx=Math.floor(w.x/CELL),gy=Math.floor(w.y/CELL),k=key(gx,gy);const cx=gx*CELL+CELL/2,cy=gy*CELL+CELL/2;
     if(S.walls.has(k)||dist({x:cx,y:cy},S.base)<BASE_R+CELL)return;
@@ -225,36 +441,57 @@ function update(dt){
   // camera keys
   const ps=520/cam.z*dt; if(keys['w']||keys['arrowup'])cam.y-=ps; if(keys['s']||keys['arrowdown'])cam.y+=ps; if(keys['a']||keys['arrowleft'])cam.x-=ps; if(keys['d']||keys['arrowright'])cam.x+=ps; clampCam();
 
-  // objective / hold
+  // objective / lockdown / prep / hold / waves
   const O=S.objectives[S.objIdx];
-  if(O&&!O.done){
-    if(dist(B,O)<O.r-BASE_R*0.5){
-      if(!B.locked){B.locked=true;B.dest=null;S.waveT=4;msg(`Bastion locked down. Hold objective ${S.objIdx+1} for ${O.hold}s. Build!`)}
+  if(O&&!O.done&&B.locked){
+    if(O.prepT>0){
+      O.prepT=Math.max(0,O.prepT-dt);
+      if(O.prepT<=0){S.waveT=4;msg('Prep complete — enemy contact imminent. Hold the line!')}
+    }else{
       O.prog+=dt;
-      if(O.prog>=O.hold){O.done=true;B.locked=false;S.objIdx++;
+      S.waveT-=dt;
+      if(S.waveT<=0){
+        const n=4+S.objIdx*3+Math.floor(O.prog/12);const a=rnd(0,Math.PI*2);const sx=B.x+Math.cos(a)*820,sy=B.y+Math.sin(a)*820;
+        for(let i=0;i<n;i++){const p=nearestPlain(Math.max(20,Math.min(W-20,sx+rnd(-70,70))),Math.max(20,Math.min(H-20,sy+rnd(-70,70))));spawnEnemy(p.x,p.y,'wave')}
+        S.waveT=Math.max(7,16-S.objIdx*2.5);msg(`Wave incoming from the ${a<Math.PI?'south':'north'}${Math.cos(a)>0?'east':'west'}.`);
+      }
+      if(O.prog>=O.hold){
+        O.done=true;B.locked=false;setBuild(null);S.objIdx++;
         if(S.objIdx>=S.objectives.length){S.over='win';showOverlay('Route secured','All objectives held. The Bastion rolls on.')}
-        else msg(`Objective ${S.objIdx} secured. Move the Bastion to the next zone.`);}
+        else msg(`Objective ${S.objIdx} secured. Move the Bastion to the next zone.`);
+      }
     }
   }
   // base movement
-  if(B.dest&&!B.locked){const left=moveToward(B,B.dest,BASE_SPEED,dt);if(left<2)B.dest=null}
+  if(B.dest&&!B.locked){
+    const aim=waypointFor(B,B.dest.x,B.dest.y);
+    const factor=terrainAt(B.x,B.y)===1?MUD_MULT:1;
+    moveToward(B,aim,BASE_SPEED*factor,dt);
+    if(dist(B,B.dest)<3)B.dest=null;
+  }
   B.x=Math.max(40,Math.min(W-40,B.x));B.y=Math.max(40,Math.min(H-40,B.y));
   if(!S.enemies.some(e=>dist(e,B)<400))B.hp=Math.min(B.maxHp,B.hp+2*dt);
-
-  // waves while locked
-  if(B.locked){S.waveT-=dt;if(S.waveT<=0){const n=4+S.objIdx*3+Math.floor(O.prog/12);const a=rnd(0,Math.PI*2);const sx=B.x+Math.cos(a)*820,sy=B.y+Math.sin(a)*820;
-    for(let i=0;i<n;i++)spawnEnemy(Math.max(20,Math.min(W-20,sx+rnd(-70,70))),Math.max(20,Math.min(H-20,sy+rnd(-70,70))),'wave');
-    S.waveT=Math.max(7,16-S.objIdx*2.5);msg(`Wave incoming from the ${a<Math.PI?'south':'north'}${Math.cos(a)>0?'east':'west'}.`)}}
 
   // troops
   S.troops.forEach(t=>{
     t.cd-=dt;
-    if(t.state==='move'&&t.dest){if(moveToward(t,t.dest,TROOP_SPEED,dt)<3){t.dest=null;t.state='idle'}}
-    else if(t.state==='attack'){if(!t.target||t.target.hp<=0){t.target=null;t.state='idle'}else if(dist(t,t.target)>TROOP_RANGE-10)moveToward(t,t.target,TROOP_SPEED,dt)}
+    const factor=terrainAt(t.x,t.y)===1?MUD_MULT:1;
+    if(t.state==='move'&&t.dest){
+      const aim=waypointFor(t,t.dest.x,t.dest.y);
+      moveToward(t,aim,TROOP_SPEED*factor,dt);
+      if(dist(t,t.dest)<4){t.dest=null;t.state='idle'}
+    }
+    else if(t.state==='attack'){
+      if(!t.target||t.target.hp<=0){t.target=null;t.state='idle'}
+      else if(dist(t,t.target)>TROOP_RANGE-10){const aim=waypointFor(t,t.target.x,t.target.y);moveToward(t,aim,TROOP_SPEED*factor,dt)}
+    }
     else if(t.state==='harvest'){const n=t.node;
       if(!n||(n.amt<=0&&t.carry===0)){t.state='idle';t.node=null}
-      else if(t.carry>=CARRY||n.amt<=0){if(moveToward(t,B,TROOP_SPEED,dt)<B.r+22){S.scrap+=t.carry;t.carry=0;updateBuildBar();if(n.amt<=0){t.state='idle';t.node=null}}}
-      else if(dist(t,n)>22)moveToward(t,n,TROOP_SPEED,dt);
+      else if(t.carry>=CARRY||n.amt<=0){
+        const aim=waypointFor(t,B.x,B.y); moveToward(t,aim,TROOP_SPEED*factor,dt);
+        if(dist(t,B)<B.r+22){S.scrap+=t.carry;t.carry=0;updateBuildBar();if(n.amt<=0){t.state='idle';t.node=null}}
+      }
+      else if(dist(t,n)>22){const aim=waypointFor(t,n.x,n.y);moveToward(t,aim,TROOP_SPEED*factor,dt)}
       else{t.hv+=dt;if(t.hv>0.35){t.hv=0;n.amt--;t.carry++}}
     }
     // auto fire
@@ -265,6 +502,7 @@ function update(dt){
     S.nodes.forEach(n=>{if(!n.found&&dist(n,t)<TROOP_VISION)n.found=true});
   });
   S.nodes.forEach(n=>{if(!n.found&&dist(n,B)<BASE_VISION)n.found=true});
+  S.objectives.forEach(o=>{if(!o.done&&!o.mine.found&&(dist(o.mine,B)<BASE_VISION||S.troops.some(t=>dist(o.mine,t)<TROOP_VISION)))o.mine.found=true});
   // troop separation
   for(let i=0;i<S.troops.length;i++)for(let j=i+1;j<S.troops.length;j++){const a=S.troops[i],b=S.troops[j],d=dist(a,b);if(d<16&&d>0){const p=(16-d)/2,dx=(b.x-a.x)/d,dy=(b.y-a.y)/d;a.x-=dx*p;a.y-=dy*p;b.x+=dx*p;b.y+=dy*p}}
 
@@ -275,19 +513,24 @@ function update(dt){
   // enemies
   S.enemies.forEach(e=>{
     e.cd-=dt;
-    // pick target
     let tgt=null,bd=e.aggro;
     S.troops.forEach(t=>{const d=dist(t,e);if(d<bd){bd=d;tgt=t}});
-    if(e.kind==='roam'){if(!tgt){if(dist(e,B)<e.aggro+120)tgt=B;else{moveToward(e,e.home,e.speed*0.5,dt);return}}}
-    else{ if(!tgt||bd>220){ // waves: prefer base, nearby turrets
-        let bt=B,btd=dist(e,B);S.turrets.forEach(tu=>{const d=dist(e,tu);if(d<btd*0.6){bt=tu;btd=d}});tgt=bt}}
+    if(e.kind==='roam'){
+      if(!tgt){
+        if(dist(e,B)<e.aggro+120)tgt=B;
+        else{const aim=waypointFor(e,e.home.x,e.home.y);const factor=terrainAt(e.x,e.y)===1?MUD_MULT:1;moveToward(e,aim,e.speed*0.5*factor,dt);return}
+      }
+    } else {
+      if(!tgt||bd>220){let bt=B,btd=dist(e,B);S.turrets.forEach(tu=>{const d=dist(e,tu);if(d<btd*0.6){bt=tu;btd=d}});tgt=bt}
+    }
     const reach=e.r+(tgt.r||12)+4;
     if(dist(e,tgt)<=reach){if(e.cd<=0){tgt.hp-=e.dmg;e.cd=0.8}return}
-    // move, check wall ahead
-    const dx=tgt.x-e.x,dy=tgt.y-e.y,L=Math.hypot(dx,dy),nx=e.x+dx/L*(e.r+6),ny=e.y+dy/L*(e.r+6);
+    const aim=waypointFor(e,tgt.x,tgt.y);
+    const dx=aim.x-e.x,dy=aim.y-e.y,L=Math.hypot(dx,dy)||1,nx=e.x+dx/L*(e.r+6),ny=e.y+dy/L*(e.r+6);
     const w=wallAt(nx,ny);
     if(w){if(e.cd<=0){w.hp-=e.dmg*1.5;e.cd=0.8;if(w.hp<=0)S.walls.delete(key(w.gx,w.gy))}return}
-    moveToward(e,tgt,e.speed,dt);
+    const factor=terrainAt(e.x,e.y)===1?MUD_MULT:1;
+    moveToward(e,aim,e.speed*factor,dt);
   });
   // enemy separation
   for(let i=0;i<S.enemies.length;i++)for(let j=i+1;j<S.enemies.length;j++){const a=S.enemies[i],b=S.enemies[j],d=dist(a,b),m=a.r+b.r;if(d<m&&d>0){const p=(m-d)/2,dx=(b.x-a.x)/d,dy=(b.y-a.y)/d;a.x-=dx*p;a.y-=dy*p;b.x+=dx*p;b.y+=dy*p}}
@@ -318,8 +561,8 @@ function draw(){
   ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle='#0b0e12';ctx.fillRect(0,0,vw,vh);
   ctx.translate(vw/2,vh/2);ctx.scale(cam.z,cam.z);ctx.translate(-cam.x,-cam.y);
   const x0=cam.x-vw/2/cam.z,y0=cam.y-vh/2/cam.z,x1=cam.x+vw/2/cam.z,y1=cam.y+vh/2/cam.z;
-  // ground + grid
-  ctx.fillStyle='#10151b';ctx.fillRect(0,0,W,H);
+  // ground (terrain) + grid
+  ctx.drawImage(terrainCv,0,0,W,H);
   ctx.strokeStyle='rgba(255,255,255,0.035)';ctx.lineWidth=1/cam.z;ctx.beginPath();
   for(let gx=Math.floor(Math.max(0,x0)/120)*120;gx<Math.min(W,x1);gx+=120){ctx.moveTo(gx,Math.max(0,y0));ctx.lineTo(gx,Math.min(H,y1))}
   for(let gy=Math.floor(Math.max(0,y0)/120)*120;gy<Math.min(H,y1);gy+=120){ctx.moveTo(Math.max(0,x0),gy);ctx.lineTo(Math.min(W,x1),gy)}
@@ -328,8 +571,19 @@ function draw(){
   S.objectives.forEach((o,i)=>{const cur=i===S.objIdx;ctx.save();ctx.globalAlpha=o.done?0.25:cur?0.9:0.45;
     ctx.fillStyle=C.zone;ctx.globalAlpha*=0.12;ctx.beginPath();ctx.arc(o.x,o.y,o.r,0,Math.PI*2);ctx.fill();ctx.globalAlpha=o.done?0.25:cur?0.9:0.45;
     ctx.setLineDash([10,8]);ctx.lineWidth=2;ctx.strokeStyle=C.zone;ctx.beginPath();ctx.arc(o.x,o.y,o.r,0,Math.PI*2);ctx.stroke();
-    if(cur&&!o.done&&o.prog>0){ctx.setLineDash([]);ctx.lineWidth=6;ctx.beginPath();ctx.arc(o.x,o.y,o.r+10,-Math.PI/2,-Math.PI/2+Math.PI*2*o.prog/o.hold);ctx.stroke()}
-    ctx.setLineDash([]);ctx.fillStyle=C.zone;ctx.font='500 22px '+css('--mono');ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(o.done?'✓':String(i+1),o.x,o.y);ctx.restore()});
+    if(cur&&!o.done){
+      if(S.base.locked&&o.prepT>0){ctx.setLineDash([]);ctx.lineWidth=6;ctx.strokeStyle=C.accent;ctx.beginPath();ctx.arc(o.x,o.y,o.r+10,-Math.PI/2,-Math.PI/2+Math.PI*2*(1-o.prepT/PREP_TIME));ctx.stroke()}
+      else if(o.prog>0){ctx.setLineDash([]);ctx.lineWidth=6;ctx.strokeStyle=C.zone;ctx.beginPath();ctx.arc(o.x,o.y,o.r+10,-Math.PI/2,-Math.PI/2+Math.PI*2*o.prog/o.hold);ctx.stroke()}
+    }
+    ctx.setLineDash([]);ctx.fillStyle=C.zone;ctx.font='500 22px '+css('--mono');ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(o.done?'✓':String(i+1),o.x,o.y);
+    if(o.mine.found&&!o.done){
+      ctx.globalAlpha=1;ctx.save();ctx.translate(o.mine.x,o.mine.y);
+      ctx.strokeStyle=C.scrap;ctx.lineWidth=2;
+      ctx.beginPath();ctx.moveTo(-9,-9);ctx.lineTo(9,9);ctx.moveTo(9,-9);ctx.lineTo(-9,9);ctx.stroke();
+      ctx.beginPath();ctx.arc(0,0,14,0,Math.PI*2);ctx.strokeStyle='rgba(154,211,106,0.55)';ctx.lineWidth=1.5;ctx.stroke();
+      ctx.restore();
+    }
+    ctx.restore()});
   // nodes
   S.nodes.forEach(n=>{if(!n.found||n.amt<=0)return;const s=8+8*n.amt/n.max;ctx.fillStyle=C.scrap;ctx.beginPath();for(let k=0;k<6;k++){const a=k*Math.PI/3;ctx.lineTo(n.x+Math.cos(a)*s,n.y+Math.sin(a)*s)}ctx.closePath();ctx.globalAlpha=0.85;ctx.fill();ctx.globalAlpha=1;
     ctx.fillStyle='#0b0e12';ctx.font='500 9px '+css('--mono');ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(n.amt,n.x,n.y)});
@@ -366,7 +620,7 @@ function draw(){
   // map edge
   ctx.strokeStyle=C.line;ctx.lineWidth=3/cam.z;ctx.strokeRect(0,0,W,H);
   // build preview
-  if(buildMode){const ok=dist({x:mouse.wx,y:mouse.wy},B)<=BUILD_R&&S.scrap>=COST[buildMode];ctx.globalAlpha=0.6;
+  if(buildMode){const ok=S.base.locked&&dist({x:mouse.wx,y:mouse.wy},B)<=BUILD_R&&terrainAt(mouse.wx,mouse.wy)!==2&&S.scrap>=COST[buildMode];ctx.globalAlpha=0.6;
     if(buildMode==='wall'){const gx=Math.floor(mouse.wx/CELL)*CELL,gy=Math.floor(mouse.wy/CELL)*CELL;ctx.fillStyle=ok?'#8d9aa8':C.enemy;ctx.fillRect(gx+1,gy+1,CELL-2,CELL-2)}
     else{ctx.fillStyle=ok?C.accent:C.enemy;ctx.beginPath();ctx.arc(mouse.wx,mouse.wy,11,0,Math.PI*2);ctx.fill();ctx.strokeStyle=ok?C.accent:C.enemy;ctx.lineWidth=1;ctx.setLineDash([4,6]);ctx.beginPath();ctx.arc(mouse.wx,mouse.wy,TURRET_RANGE,0,Math.PI*2);ctx.stroke();ctx.setLineDash([])}
     ctx.globalAlpha=1}
@@ -384,10 +638,23 @@ function drawMini(){const s=mini.width/W;mctx.fillStyle='#10151b';mctx.fillRect(
   mctx.fillStyle=C.accent;mctx.fillRect(S.base.x*s-3,S.base.y*s-3,6,6);
   const vw=cv.width/devicePixelRatio/cam.z,vh=cv.height/devicePixelRatio/cam.z;mctx.strokeStyle='rgba(255,255,255,0.5)';mctx.lineWidth=1;mctx.strokeRect((cam.x-vw/2)*s,(cam.y-vh/2)*s,vw*s,vh*s)}
 const $=id=>document.getElementById(id);
-function hud(){const B=S.base,O=S.objectives[S.objIdx];$('hScrap').textContent=S.scrap;$('hBase').textContent=Math.ceil(B.hp)+' / '+B.maxHp;$('hBaseBar').style.width=(100*B.hp/B.maxHp)+'%';
+function hud(){
+  const B=S.base,O=S.objectives[S.objIdx];
+  $('hScrap').textContent=S.scrap;$('hBase').textContent=Math.ceil(B.hp)+' / '+B.maxHp;$('hBaseBar').style.width=(100*B.hp/B.maxHp)+'%';
   $('hObjK').textContent=O?`Objective ${S.objIdx+1} of ${S.objectives.length}`:'Objectives';
-  if(O){$('hObj').textContent=B.locked?`hold ${Math.ceil(O.hold-O.prog)}s`:O.prog>0?'cleared':'en route';$('hObjBar').style.width=(100*O.prog/O.hold)+'%'}else{$('hObj').textContent='all held';$('hObjBar').style.width='100%'}
-  $('hTroops').textContent=S.troops.length+(S.sel.troops.size?` (${S.sel.troops.size} sel)`:'');}
+  if(O){
+    if(B.locked){
+      $('hObj').textContent = O.prepT>0 ? `prep ${Math.ceil(O.prepT)}s` : `mining ${Math.ceil(O.hold-O.prog)}s`;
+      const elapsed = O.prepT>0 ? (PREP_TIME-O.prepT) : (PREP_TIME+O.prog);
+      $('hObjBar').style.width=(100*elapsed/(PREP_TIME+O.hold))+'%';
+    } else {
+      $('hObj').textContent = O.mine.found?'mining point found':'locate mining point';
+      $('hObjBar').style.width='0%';
+    }
+  } else { $('hObj').textContent='all held';$('hObjBar').style.width='100%' }
+  $('hTroops').textContent=S.troops.length+(S.sel.troops.size?` (${S.sel.troops.size} sel)`:'');
+  updateBuildBar();
+}
 
 // ---------- loop ----------
 function frame(ts){const dt=Math.min(0.05,(ts-lastT)/1000||0);lastT=ts;update(dt);draw();requestAnimationFrame(frame)}
