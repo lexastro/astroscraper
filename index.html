@@ -125,6 +125,7 @@ function reset(){
   clearDisk(S.base.x,S.base.y,240);
   S.objectives.forEach(o=>clearDisk(o.x,o.y,ZONE_R+40));
   ensureConnectivity([{x:S.base.x,y:S.base.y},...S.objectives.map(o=>({x:o.x,y:o.y}))]);
+  closeHoles(S.base.x,S.base.y);
   terrainCv=buildTerrainCanvas();
 
   // scrap nodes: a couple near start, rest scattered (favouring the route)
@@ -208,6 +209,14 @@ function ensureConnectivity(points){
       if(seen[tcy*TGX+tcx])break;
       carveLine(points[i-1].x,points[i-1].y,points[i].x,points[i].y,1);
     }
+  }
+}
+// Seal off every pocket of open ground that isn't reachable from (sx,sy) by turning it
+// to rock, so no walkable "holes" exist for troops or resource nodes to get stranded in.
+function closeHoles(sx,sy){
+  const seen=bfsReachable(sx,sy);
+  for(let id=0;id<terrain.length;id++){
+    if(terrain[id]!==2&&!seen[id])terrain[id]=2;
   }
 }
 function buildTerrainCanvas(){
@@ -306,7 +315,8 @@ function waypointFor(u,tx,ty){
   const goal={x:tx,y:ty};
   if(!u._pg||Math.hypot(u._pg.x-goal.x,u._pg.y-goal.y)>40){
     u._pg=goal;
-    u._path=lineClear(u.x,u.y,tx,ty)?null:astar(u.x,u.y,tx,ty);
+    if(lineClear(u.x,u.y,tx,ty)){u._path=null;u._blocked=false}
+    else{u._path=astar(u.x,u.y,tx,ty);u._blocked=!u._path}
     u._pi=0;
   }
   if(u._path&&u._path.length){
@@ -319,6 +329,8 @@ function waypointFor(u,tx,ty){
     }
     return wp;
   }
+  // no walkable route and no clear line of sight — hold position rather than cut through rock
+  if(u._blocked)return {x:u.x,y:u.y};
   return goal;
 }
 
@@ -665,8 +677,7 @@ function hud(){
 
 // ---------- loop ----------
 function frame(ts){const dt=Math.min(0.05,(ts-lastT)/1000||0);lastT=ts;update(dt);draw();requestAnimationFrame(frame)}
-reset();requestAnimationFrame(frame);
-})();
+reset();requestAnimationFrame(frame);})();
 </script>
 
 </body></html>
