@@ -5,7 +5,7 @@
 /* Layout: full-screen canvas world; HUD is a thin top strip, a build bar bottom-left, minimap bottom-right. */
 :root{
   --bg:#0b0e12; --panel:#141a21; --panel2:#1c242e; --fg:#d7dde5; --muted:#7f8b98;
-  --line:#2a3440; --accent:#f2b63c; --ally:#5ec8ff; --enemy:#ff5c4d; --scrap:#9ad36a; --zone:#b48bff;
+  --line:#2a3440; --accent:#f2b63c; --ally:#5ec8ff; --enemy:#ff5c4d; --scrap:#9ad36a; --zone:#b48bff; --harv:#e8935c;
   --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
   --sans:"IBM Plex Sans",system-ui,-apple-system,Segoe UI,sans-serif;
   color-scheme:dark;
@@ -33,6 +33,17 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 .build button .cost{font-family:var(--mono);font-size:11px;color:var(--scrap)}
 .build button:disabled{opacity:.45;cursor:default}
 .build button#bLock{border-color:var(--scrap)}
+.stat.selbtn{font:inherit;color:inherit;text-align:left;cursor:pointer;pointer-events:auto}
+.stat.selbtn:hover{background:var(--panel2)}
+.stat.selbtn:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.stat.selbtn.sel{border-color:var(--ally)}
+.prod{position:absolute;left:50%;transform:translateX(-50%);bottom:max(76px,calc(76px + env(safe-area-inset-bottom,0px)));background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:10px 14px;pointer-events:auto;display:flex;flex-direction:column;gap:6px;min-width:190px}
+.prod b{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.prod .prodBtn{background:var(--panel2);border:1px solid var(--line);color:var(--fg);font:inherit;padding:8px 10px;border-radius:4px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:12px}
+.prod .prodBtn:hover{border-color:var(--harv)}
+.prod .prodBtn:disabled{opacity:.45;cursor:default}
+.prod .prodBtn .cost{font-family:var(--mono);font-size:11px;color:var(--scrap)}
+.prod #prodClose{position:absolute;top:4px;right:6px;background:none;border:0;color:var(--muted);cursor:pointer;font-size:14px}
 .mini{position:absolute;right:max(16px,env(safe-area-inset-right,0px));bottom:max(12px,env(safe-area-inset-bottom,0px));border:1px solid var(--line);background:var(--panel);border-radius:4px;overflow:hidden;cursor:pointer}
 .mini canvas{display:block}
 .help{position:absolute;right:max(16px,env(safe-area-inset-right,0px));top:calc(env(safe-area-inset-top,0px) + 70px);background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:10px 12px;max-width:260px;font-size:12px;line-height:1.45;color:var(--muted)}
@@ -53,7 +64,8 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <div class="stat scrap"><span class="k">Scrap</span><span class="v" id="hScrap">0</span></div>
   <div class="stat"><span class="k">Bastion</span><span class="v" id="hBase">—</span><div class="bar"><i class="hp" id="hBaseBar" style="width:100%"></i></div></div>
   <div class="stat obj"><span class="k" id="hObjK">Objective</span><span class="v" id="hObj">—</span><div class="bar"><i id="hObjBar" style="width:0%"></i></div></div>
-  <div class="stat"><span class="k">Squads</span><span class="v" id="hTroops">—</span></div>
+  <button class="stat selbtn" id="hTroopsBtn"><span class="k">Squads</span><span class="v" id="hTroops">—</span></button>
+  <button class="stat selbtn" id="hHarvBtn"><span class="k">Harvesters</span><span class="v" id="hHarv">—</span></button>
   <div class="stat msg"><span class="v" id="hMsg">Scout the purple zone to find the mining point, then press L to lock down.</span></div>
 </div>
 
@@ -62,7 +74,13 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <button id="bTurret" data-mode="turret"><span>Turret</span><span class="cost" id="cTurret">25 scrap</span><span class="key">2</span></button>
   <button id="bLock"><span id="bLockLabel">Lock Down</span><span class="key">L</span></button>
   <button id="bSelBase"><span>Select Bastion</span><span class="key">B</span></button>
-  <button id="bSelTroops"><span>Select squads</span><span class="key">T</span></button>
+  <button id="bResumeAuto"><span>Resume Auto-Gather</span><span class="key">R</span></button>
+</div>
+
+<div class="prod" id="prodMenu" hidden>
+  <button id="prodClose" aria-label="Close">×</button>
+  <b>Build at Bastion</b>
+  <button id="bBuildHarv" class="prodBtn"><span>Harvester</span><span class="cost" id="cHarvCost">20 scrap</span></button>
 </div>
 
 <div class="mini"><canvas id="mini" width="180" height="180"></canvas></div>
@@ -70,14 +88,15 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 <div class="help" id="help">
   <button id="helpClose" aria-label="Close">×</button>
   <b>Controls</b><br>
-  Left-drag: select squads · Click Bastion: select it<br>
-  Right-click: move / attack / harvest<br>
+  Left-drag: select units · Click Bastion: select it &amp; open its build menu · Click the Squads/Harvesters count: select all of that type<br>
+  Right-click: squads move/attack · harvesters move/harvest a node/return to drop off at the Bastion<br>
   <kbd>WASD</kbd> or edge-drag (middle mouse) pans · scroll zooms<br>
-  <kbd>1</kbd> wall · <kbd>2</kbd> turret · <kbd>L</kbd> lock down / skip prep · <kbd>Esc</kbd> cancel<br>
+  <kbd>1</kbd> wall · <kbd>2</kbd> turret · <kbd>L</kbd> lock down / skip prep · <kbd>R</kbd> resume harvester auto-gather · <kbd>Esc</kbd> cancel<br>
   <b>Loop:</b> drive the Bastion into a purple zone and scout it to reveal the green mining-point marker. Park the Bastion on it and press <kbd>L</kbd> to lock down — you get 45s to fortify before waves hit, then mining runs until the hold timer completes. Press <kbd>L</kbd> again during prep to skip straight to the waves. Walls/turrets only work while locked down, and never on bare rock.<br>
   <b>Terrain:</b> rock blocks movement/building and enemies too; mud slows everyone but can still be crossed.<br>
   The Bastion fires on nearby enemies while mobile, but goes quiet the moment it locks down.<br>
-  Right-click the Bastion with squads selected to send them home and drop off scrap.<br>
+  <b>Harvesters</b> carry no weapons. Left alone they loop automatically: find the nearest resource, haul it home, repeat. Giving one a manual order pauses that loop until you select it and press Resume Auto-Gather (or <kbd>R</kbd>). Build more from the Bastion's build menu.<br>
+  Squads can no longer gather resources — that's the harvesters' job now.<br>
   <kbd>`</kbd> toggles debug: reveal the whole map and all enemies.
 </div>
 
@@ -92,10 +111,11 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 const W=3600,H=3600, CELL=24;
 const BASE_R=30, BASE_SPEED=42, BUILD_R=270, BASE_VISION=320;
 const TROOP_R=7, TROOP_SPEED=125, TROOP_VISION=240, TROOP_RANGE=165, TROOP_DMG=7, TROOP_CD=0.45, CARRY=12;
+const HARV_R=8, HARV_SPEED=105, HARV_VISION=200;
 const TURRET_RANGE=240, TURRET_DMG=14, TURRET_CD=0.65, TURRET_HP=150;
 const BASE_GUN_RANGE=260, BASE_GUN_DMG=18, BASE_GUN_CD=0.5;
 const WALL_HP=220;
-const COST={wall:4,turret:25};
+const COST={wall:4,turret:25,harvester:20};
 const OBJ=[{x:1250,y:2450,hold:45},{x:2550,y:2300,hold:60},{x:2750,y:850,hold:80}];
 const ZONE_R=170;
 const TCELL=60, TGX=Math.ceil(W/TCELL), TGY=Math.ceil(H/TCELL), MUD_MULT=0.55, PREP_TIME=45;
@@ -103,10 +123,10 @@ const TCELL=60, TGX=Math.ceil(W/TCELL), TGY=Math.ceil(H/TCELL), MUD_MULT=0.55, P
 const cv=document.getElementById('game'), ctx=cv.getContext('2d');
 const mini=document.getElementById('mini'), mctx=mini.getContext('2d');
 const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-const C={ally:css('--ally'),enemy:css('--enemy'),scrap:css('--scrap'),zone:css('--zone'),accent:css('--accent'),fg:css('--fg'),muted:css('--muted'),line:css('--line')};
+const C={ally:css('--ally'),enemy:css('--enemy'),scrap:css('--scrap'),zone:css('--zone'),accent:css('--accent'),fg:css('--fg'),muted:css('--muted'),line:css('--line'),harv:css('--harv')};
 
 // ---------- state ----------
-let S, cam, mouse={x:0,y:0,wx:0,wy:0,down:false,drag:null,panning:false}, keys={}, buildMode=null, lastT=0, msgT=0, terrain, terrainCv;
+let S, cam, mouse={x:0,y:0,wx:0,wy:0,down:false,drag:null,panning:false}, keys={}, buildMode=null, lastT=0, msgT=0, terrain, terrainCv, prodMenuOpen=false;
 let fogC=document.createElement('canvas'), fogX; const FOG_S=6; fogC.width=W/FOG_S; fogC.height=H/FOG_S; fogX=fogC.getContext('2d');
 let debugNoFog=false; // dev toggle: reveal the whole map and all enemies, bypassing fog/visibility
 
@@ -117,9 +137,11 @@ function key(gx,gy){return gx+','+gy}
 function reset(){
   S={t:0,scrap:40,over:null,
     base:{x:520,y:3080,hp:900,maxHp:900,r:BASE_R,dest:null,locked:false,fx:0,gunCd:0},
-    troops:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],objectives:[],objIdx:0,waveT:8,spawnT:0,sel:{base:false,troops:new Set()},
+    troops:[],harvesters:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],objectives:[],objIdx:0,waveT:8,spawnT:0,sel:{base:false,troops:new Set(),harv:new Set()},
     zoneWaveBase:20,wavePct:20};
-  for(let i=0;i<4;i++) S.troops.push({id:i,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp:70,maxHp:70,r:TROOP_R,dest:null,target:null,node:null,carry:0,state:'idle',cd:0,hv:0});
+  for(let i=0;i<4;i++) S.troops.push({id:i,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp:70,maxHp:70,r:TROOP_R,dest:null,target:null,state:'idle',cd:0});
+  for(let i=0;i<2;i++) S.harvesters.push({id:i,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp:50,maxHp:50,r:HARV_R,dest:null,node:null,carry:0,state:'idle',autoLoop:true,hv:0});
+  prodMenuOpen=false; document.getElementById('prodMenu').hidden=true;
 
   genTerrain();
   OBJ.forEach(o=>{
@@ -372,34 +394,56 @@ cv.addEventListener('pointermove',e=>{
 cv.addEventListener('pointerup',e=>{
   if(mouse.panning){mouse.panning=false;return}
   if(mouse.drag){const d=mouse.drag;mouse.drag=null;mouse.down=false;
-    const add=e.shiftKey; if(!add){S.sel.troops.clear();S.sel.base=false}
+    const add=e.shiftKey; if(!add){S.sel.troops.clear();S.sel.harv.clear();S.sel.base=false;closeProdMenu()}
     if(d.moved){const x0=Math.min(d.x0,d.x1),x1=Math.max(d.x0,d.x1),y0=Math.min(d.y0,d.y1),y1=Math.max(d.y0,d.y1);
       S.troops.forEach(t=>{if(t.x>=x0&&t.x<=x1&&t.y>=y0&&t.y<=y1)S.sel.troops.add(t.id)});
-      if(S.sel.troops.size===0&&S.base.x>=x0&&S.base.x<=x1&&S.base.y>=y0&&S.base.y<=y1)S.sel.base=true;
-    }else{const w={x:d.x1,y:d.y1};const t=S.troops.find(t=>dist(t,w)<t.r+8);
-      if(t)S.sel.troops.add(t.id);else if(dist(S.base,w)<S.base.r+10)S.sel.base=true;}
+      S.harvesters.forEach(h=>{if(h.x>=x0&&h.x<=x1&&h.y>=y0&&h.y<=y1)S.sel.harv.add(h.id)});
+      if(S.sel.troops.size===0&&S.sel.harv.size===0&&S.base.x>=x0&&S.base.x<=x1&&S.base.y>=y0&&S.base.y<=y1)S.sel.base=true;
+    }else{const w={x:d.x1,y:d.y1};const t=S.troops.find(t=>dist(t,w)<t.r+8);const h=!t&&S.harvesters.find(h=>dist(h,w)<h.r+8);
+      if(t)S.sel.troops.add(t.id);
+      else if(h)S.sel.harv.add(h.id);
+      else if(dist(S.base,w)<S.base.r+10){S.sel.base=true;prodMenuOpen=true}}
   }
 });
 cv.addEventListener('wheel',e=>{e.preventDefault();const w0=toWorld(e.clientX,e.clientY);cam.z=Math.min(2.2,Math.max(0.35,cam.z*(e.deltaY>0?0.9:1.1)));const w1=toWorld(e.clientX,e.clientY);cam.x+=w0.x-w1.x;cam.y+=w0.y-w1.y;clampCam()},{passive:false});
 addEventListener('keydown',e=>{
   if(e.target.tagName==='INPUT')return; keys[e.key.toLowerCase()]=true; keys[e.key]=true;
   if(e.key==='1')setBuild('wall'); else if(e.key==='2')setBuild('turret');
-  else if(e.key==='Escape'){setBuild(null)} else if(e.key.toLowerCase()==='b'){S.sel.troops.clear();S.sel.base=true}
-  else if(e.key.toLowerCase()==='t'){S.sel.base=false;S.troops.forEach(t=>S.sel.troops.add(t.id))}
+  else if(e.key==='Escape'){setBuild(null);closeProdMenu()} else if(e.key.toLowerCase()==='b'){S.sel.troops.clear();S.sel.harv.clear();S.sel.base=true}
+  else if(e.key.toLowerCase()==='t'){S.sel.base=false;S.sel.harv.clear();S.troops.forEach(t=>S.sel.troops.add(t.id))}
+  else if(e.key.toLowerCase()==='h'){S.sel.base=false;S.sel.troops.clear();S.harvesters.forEach(h=>S.sel.harv.add(h.id))}
   else if(e.key.toLowerCase()==='f'){cam.x=S.base.x;cam.y=S.base.y}
   else if(e.key.toLowerCase()==='l'){lockOrSkip()}
+  else if(e.key.toLowerCase()==='r'){resumeAutoLoop()}
   else if(e.key==='`'){debugNoFog=!debugNoFog;msg(debugNoFog?'Debug: fog of war disabled':'Debug: fog of war re-enabled')}
   if(e.key===' ')e.preventDefault();
 });
 addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;keys[e.key]=false});
 document.querySelectorAll('#buildBar button[data-mode]').forEach(b=>b.addEventListener('click',()=>setBuild(buildMode===b.dataset.mode?null:b.dataset.mode)));
 document.getElementById('bLock').onclick=lockOrSkip;
-document.getElementById('bSelBase').onclick=()=>{S.sel.troops.clear();S.sel.base=true};
-document.getElementById('bSelTroops').onclick=()=>{S.sel.base=false;S.troops.forEach(t=>S.sel.troops.add(t.id))};
+document.getElementById('bSelBase').onclick=()=>{S.sel.troops.clear();S.sel.harv.clear();S.sel.base=true};
+document.getElementById('bResumeAuto').onclick=resumeAutoLoop;
+document.getElementById('hTroopsBtn').onclick=()=>{S.sel.base=false;S.sel.harv.clear();closeProdMenu();S.troops.forEach(t=>S.sel.troops.add(t.id))};
+document.getElementById('hHarvBtn').onclick=()=>{S.sel.base=false;S.sel.troops.clear();closeProdMenu();S.harvesters.forEach(h=>S.sel.harv.add(h.id))};
+document.getElementById('prodClose').onclick=closeProdMenu;
+document.getElementById('bBuildHarv').onclick=buildHarvester;
 document.getElementById('helpClose').onclick=()=>{document.getElementById('help').hidden=true};
 document.getElementById('ovBtn').onclick=reset;
 mini.addEventListener('pointerdown',e=>{const r=mini.getBoundingClientRect();cam.x=(e.clientX-r.left)/r.width*W;cam.y=(e.clientY-r.top)/r.height*H;clampCam()});
-function setBuild(m){buildMode=m;updateBuildBar()}
+function closeProdMenu(){prodMenuOpen=false;const el=document.getElementById('prodMenu');if(el)el.hidden=true}
+function buildHarvester(){
+  if(S.scrap<COST.harvester){msg('Not enough scrap for a harvester.');return}
+  S.scrap-=COST.harvester;
+  S.harvesters.push({id:Date.now()+Math.floor(Math.random()*1000),x:S.base.x+rnd(-30,30),y:S.base.y+rnd(-30,30),hp:50,maxHp:50,r:HARV_R,dest:null,node:null,carry:0,state:'idle',autoLoop:true,hv:0});
+  msg('Harvester built.');
+  updateBuildBar();
+}
+function resumeAutoLoop(){
+  if(S.sel.harv.size===0){msg('Select harvesters to resume their auto-gather loop.');return}
+  S.harvesters.forEach(h=>{if(S.sel.harv.has(h.id))h.autoLoop=true});
+  msg('Auto-gather resumed for selected harvesters.');
+}
+function setBuild(m){buildMode=m;closeProdMenu();updateBuildBar()}
 function updateBuildBar(){
   document.querySelectorAll('#buildBar button[data-mode]').forEach(b=>{
     b.classList.toggle('on',b.dataset.mode===buildMode);
@@ -412,6 +456,9 @@ function updateBuildBar(){
     document.getElementById('bLockLabel').textContent=skipping?'Skip Prep':'Lock Down';
     lb.disabled=skipping?false:!canLockdown();
   }
+  document.getElementById('bResumeAuto').disabled=S.sel.harv.size===0;
+  const pm=document.getElementById('prodMenu');
+  if(pm){pm.hidden=!prodMenuOpen||!S.sel.base; document.getElementById('bBuildHarv').disabled=S.scrap<COST.harvester}
 }
 function clampCam(){cam.x=Math.max(0,Math.min(W,cam.x));cam.y=Math.max(0,Math.min(H,cam.y))}
 
@@ -443,31 +490,42 @@ function lockOrSkip(){
 
 function rightClick(w){
   if(buildMode){setBuild(null);return}
-  const sel=[...S.sel.troops].map(id=>S.troops.find(t=>t.id===id)).filter(Boolean);
-  if(S.sel.base&&sel.length===0){
+  const selT=[...S.sel.troops].map(id=>S.troops.find(t=>t.id===id)).filter(Boolean);
+  const selH=[...S.sel.harv].map(id=>S.harvesters.find(h=>h.id===id)).filter(Boolean);
+  if(S.sel.base&&selT.length===0&&selH.length===0){
     if(S.base.locked){msg('The Bastion is locked down until the hold completes.');return}
     S.base.dest={x:w.x,y:w.y};return;
   }
-  if(sel.length===0)return;
-  if(dist(S.base,w)<S.base.r+40){
-    sel.forEach(t=>{t.state='return';t.dest=null;t.target=null;t.node=null});
-    msg('Squads returning to drop off scrap.');
-    return;
-  }
+  if(selT.length===0&&selH.length===0)return;
   const en=S.enemies.find(e=>visible(e)&&dist(e,w)<e.r+10);
   const nd=S.nodes.find(n=>n.found&&dist(n,w)<28);
-  sel.forEach((t,i)=>{
-    const off=sel.length>1?{x:Math.cos(i*2.1)*14,y:Math.sin(i*2.1)*14}:{x:0,y:0};
-    if(en){t.state='attack';t.target=en;t.dest=null;t.node=null}
-    else if(nd){t.state='harvest';t.node=nd;t.target=null;t.dest=null}
-    else{t.state='move';t.dest={x:w.x+off.x,y:w.y+off.y};t.target=null;t.node=null}
+  const nearBase=dist(S.base,w)<S.base.r+40;
+
+  selT.forEach((t,i)=>{
+    const off=selT.length>1?{x:Math.cos(i*2.1)*14,y:Math.sin(i*2.1)*14}:{x:0,y:0};
+    if(en){t.state='attack';t.target=en;t.dest=null}
+    else{t.state='move';t.dest={x:w.x+off.x,y:w.y+off.y};t.target=null}
   });
+
+  if(selH.length){
+    if(nearBase){
+      selH.forEach(h=>{h.state='return';h.dest=null;h.autoLoop=false});
+      msg('Harvesters returning to drop off scrap — auto-gather paused.');
+    }else if(nd){
+      selH.forEach(h=>{h.state='harvest';h.node=nd;h.dest=null;h.autoLoop=false});
+      msg('Harvesters assigned to that node — auto-gather paused.');
+    }else{
+      selH.forEach((h,i)=>{const off=selH.length>1?{x:Math.cos(i*2.1)*14,y:Math.sin(i*2.1)*14}:{x:0,y:0};
+        h.state='move';h.dest={x:w.x+off.x,y:w.y+off.y};h.node=null;h.autoLoop=false});
+      msg('Harvesters moving — auto-gather paused.');
+    }
+  }
 }
 function tryBuild(w){
   if(!S.base.locked){msg('Lock down the Bastion before building.');return}
   if(dist(w,S.base)>BUILD_R){msg('Build inside the Bastion\'s dashed ring.');return}
   if(terrainAt(w.x,w.y)===2){msg('Cannot build on solid rock.');return}
-  if(S.scrap<COST[buildMode]){msg('Not enough scrap. Send squads to mine a node.');return}
+  if(S.scrap<COST[buildMode]){msg('Not enough scrap. Send harvesters to mine a node.');return}
   if(buildMode==='wall'){const gx=Math.floor(w.x/CELL),gy=Math.floor(w.y/CELL),k=key(gx,gy);const cx=gx*CELL+CELL/2,cy=gy*CELL+CELL/2;
     if(S.walls.has(k)||dist({x:cx,y:cy},S.base)<BASE_R+CELL)return;
     if(S.turrets.some(t=>dist(t,{x:cx,y:cy})<CELL))return;
@@ -481,7 +539,7 @@ function tryBuild(w){
 }
 
 // ---------- helpers ----------
-function visible(p){if(dist(p,S.base)<BASE_VISION)return true;return S.troops.some(t=>dist(t,p)<TROOP_VISION)}
+function visible(p){if(dist(p,S.base)<BASE_VISION)return true;if(S.troops.some(t=>dist(t,p)<TROOP_VISION))return true;return S.harvesters.some(h=>dist(h,p)<HARV_VISION)}
 function moveToward(o,d,sp,dt){const dx=d.x-o.x,dy=d.y-o.y,L=Math.hypot(dx,dy);if(L<1)return 0;const s=Math.min(L,sp*dt);o.x+=dx/L*s;o.y+=dy/L*s;return L-s}
 function tracer(a,b,col){S.tracers.push({x1:a.x,y1:a.y,x2:b.x,y2:b.y,t:0.12,col})}
 function damageEnemy(e,d){e.hp-=d}
@@ -538,7 +596,7 @@ function update(dt){
     if(best&&B.gunCd<=0){damageEnemy(best,BASE_GUN_DMG);tracer(B,best,C.accent);B.gunCd=BASE_GUN_CD}
   }
 
-  // troops
+  // troops (combat only — resource gathering is the harvesters' job)
   S.troops.forEach(t=>{
     t.cd-=dt;
     const factor=terrainAt(t.x,t.y)===1?MUD_MULT:1;
@@ -551,22 +609,6 @@ function update(dt){
       if(!t.target||t.target.hp<=0){t.target=null;t.state='idle'}
       else if(dist(t,t.target)>TROOP_RANGE-10){const aim=waypointFor(t,t.target.x,t.target.y);moveToward(t,aim,TROOP_SPEED*factor,dt)}
     }
-    else if(t.state==='harvest'){const n=t.node;
-      if(!n||(n.amt<=0&&t.carry===0)){t.state='idle';t.node=null}
-      else if(t.carry>=CARRY||n.amt<=0){
-        const aim=waypointFor(t,B.x,B.y); moveToward(t,aim,TROOP_SPEED*factor,dt);
-        if(dist(t,B)<B.r+22){S.scrap+=t.carry;t.carry=0;updateBuildBar();if(n.amt<=0){t.state='idle';t.node=null}}
-      }
-      else if(dist(t,n)>22){const aim=waypointFor(t,n.x,n.y);moveToward(t,aim,TROOP_SPEED*factor,dt)}
-      else{t.hv+=dt;if(t.hv>0.35){t.hv=0;n.amt--;t.carry++}}
-    }
-    else if(t.state==='return'){
-      const aim=waypointFor(t,B.x,B.y); moveToward(t,aim,TROOP_SPEED*factor,dt);
-      if(dist(t,B)<B.r+22){
-        if(t.carry>0){S.scrap+=t.carry;t.carry=0;updateBuildBar()}
-        t.state='idle';
-      }
-    }
     // auto fire
     if(t.cd<=0){let best=null,bd=TROOP_RANGE;S.enemies.forEach(e=>{const d=dist(e,t);if(d<bd){bd=d;best=e}});
       if(best){damageEnemy(best,TROOP_DMG);tracer(t,best,C.ally);t.cd=TROOP_CD;if(t.state==='idle'&&bd>TROOP_RANGE*0.7)t.target=best}}
@@ -574,20 +616,57 @@ function update(dt){
     // reveal nodes
     S.nodes.forEach(n=>{if(!n.found&&dist(n,t)<TROOP_VISION)n.found=true});
   });
+
+  // harvesters — unarmed; auto-loop to the nearest resource unless paused by a manual order
+  S.harvesters.forEach(h=>{
+    const factor=terrainAt(h.x,h.y)===1?MUD_MULT:1;
+    if(h.autoLoop&&h.state==='idle'){
+      let best=null,bd=Infinity;
+      S.nodes.forEach(n=>{if(n.amt<=0)return;const d=dist(h,n);if(d<bd){bd=d;best=n}});
+      if(best){h.node=best;h.state='harvest'}
+    }
+    if(h.state==='move'&&h.dest){
+      const aim=waypointFor(h,h.dest.x,h.dest.y);
+      moveToward(h,aim,HARV_SPEED*factor,dt);
+      if(dist(h,h.dest)<4){h.dest=null;h.state='idle'}
+    }
+    else if(h.state==='harvest'){const n=h.node;
+      if(!n||(n.amt<=0&&h.carry===0)){h.state='idle';h.node=null}
+      else if(h.carry>=CARRY||n.amt<=0){
+        const aim=waypointFor(h,B.x,B.y); moveToward(h,aim,HARV_SPEED*factor,dt);
+        if(dist(h,B)<B.r+22){S.scrap+=h.carry;h.carry=0;updateBuildBar();if(n.amt<=0){h.state='idle';h.node=null}}
+      }
+      else if(dist(h,n)>22){const aim=waypointFor(h,n.x,n.y);moveToward(h,aim,HARV_SPEED*factor,dt)}
+      else{h.hv+=dt;if(h.hv>0.35){h.hv=0;n.amt--;h.carry++}}
+    }
+    else if(h.state==='return'){
+      const aim=waypointFor(h,B.x,B.y); moveToward(h,aim,HARV_SPEED*factor,dt);
+      if(dist(h,B)<B.r+22){
+        if(h.carry>0){S.scrap+=h.carry;h.carry=0;updateBuildBar()}
+        h.state='idle';h.node=null;
+      }
+    }
+    h.x=Math.max(10,Math.min(W-10,h.x));h.y=Math.max(10,Math.min(H-10,h.y));
+    // reveal nodes
+    S.nodes.forEach(n=>{if(!n.found&&dist(n,h)<HARV_VISION)n.found=true});
+  });
+
   S.nodes.forEach(n=>{if(!n.found&&dist(n,B)<BASE_VISION)n.found=true});
-  S.objectives.forEach(o=>{if(!o.done&&!o.mine.found&&(dist(o.mine,B)<BASE_VISION||S.troops.some(t=>dist(o.mine,t)<TROOP_VISION)))o.mine.found=true});
-  // troop separation
-  for(let i=0;i<S.troops.length;i++)for(let j=i+1;j<S.troops.length;j++){const a=S.troops[i],b=S.troops[j],d=dist(a,b);if(d<16&&d>0){const p=(16-d)/2,dx=(b.x-a.x)/d,dy=(b.y-a.y)/d;a.x-=dx*p;a.y-=dy*p;b.x+=dx*p;b.y+=dy*p}}
+  S.objectives.forEach(o=>{if(!o.done&&!o.mine.found&&(dist(o.mine,B)<BASE_VISION||S.troops.some(t=>dist(o.mine,t)<TROOP_VISION)||S.harvesters.some(h=>dist(o.mine,h)<HARV_VISION)))o.mine.found=true});
+  // unit separation (troops + harvesters)
+  {const all=S.troops.concat(S.harvesters);
+  for(let i=0;i<all.length;i++)for(let j=i+1;j<all.length;j++){const a=all[i],b=all[j],d=dist(a,b);if(d<16&&d>0){const p=(16-d)/2,dx=(b.x-a.x)/d,dy=(b.y-a.y)/d;a.x-=dx*p;a.y-=dy*p;b.x+=dx*p;b.y+=dy*p}}}
 
   // turrets
   S.turrets.forEach(tu=>{tu.cd-=dt;let best=null,bd=TURRET_RANGE;S.enemies.forEach(e=>{const d=dist(e,tu);if(d<bd){bd=d;best=e}});
     if(best){tu.ang=Math.atan2(best.y-tu.y,best.x-tu.x);if(tu.cd<=0){damageEnemy(best,TURRET_DMG);tracer(tu,best,C.accent);tu.cd=TURRET_CD}}});
 
   // enemies
+  const allies=S.troops.concat(S.harvesters);
   S.enemies.forEach(e=>{
     e.cd-=dt;
     let tgt=null,bd=e.aggro;
-    S.troops.forEach(t=>{const d=dist(t,e);if(d<bd){bd=d;tgt=t}});
+    allies.forEach(t=>{const d=dist(t,e);if(d<bd){bd=d;tgt=t}});
     if(e.kind==='roam'){
       if(!tgt&&dist(e,B)<e.aggro+120)tgt=B;
     } else {
@@ -626,15 +705,16 @@ function update(dt){
   S.enemies=S.enemies.filter(e=>{if(e.hp<=0){if(Math.random()<0.25){S.scrap+=1;updateBuildBar()}return false}return true});
   S.turrets=S.turrets.filter(t=>t.hp>0);
   S.troops=S.troops.filter(t=>t.hp>0); S.troops.forEach(t=>{if(dist(t,B)<B.r+30&&!S.enemies.some(e=>dist(e,t)<200))t.hp=Math.min(t.maxHp,t.hp+6*dt)});
+  S.harvesters=S.harvesters.filter(h=>h.hp>0); S.harvesters.forEach(h=>{if(dist(h,B)<B.r+30&&!S.enemies.some(e=>dist(e,h)<200))h.hp=Math.min(h.maxHp,h.hp+6*dt)});
   if(S.troops.length===0&&!S.troopsLostMsg){S.troopsLostMsg=true;msg('All squads lost. New squads form at the Bastion in 20s.');S.respawnT=20}
-  if(S.respawnT!==undefined){S.respawnT-=dt;if(S.respawnT<=0){S.respawnT=undefined;S.troopsLostMsg=false;for(let i=0;i<2;i++)S.troops.push({id:Date.now()+i,x:B.x+rnd(-40,40),y:B.y+rnd(-40,40),hp:70,maxHp:70,r:TROOP_R,dest:null,target:null,node:null,carry:0,state:'idle',cd:0,hv:0})}}
+  if(S.respawnT!==undefined){S.respawnT-=dt;if(S.respawnT<=0){S.respawnT=undefined;S.troopsLostMsg=false;for(let i=0;i<2;i++)S.troops.push({id:Date.now()+i,x:B.x+rnd(-40,40),y:B.y+rnd(-40,40),hp:70,maxHp:70,r:TROOP_R,dest:null,target:null,state:'idle',cd:0})}}
   S.tracers=S.tracers.filter(t=>(t.t-=dt)>0);
   if(B.hp<=0){S.over='lose';showOverlay('Bastion destroyed',`Fell while holding objective ${S.objIdx+1}. Try mining more scrap before locking in.`)}
 
   // fog explore (permanent reveal — once scouted, stays visible; enemy sighting is gated separately by visible())
   fogX.globalCompositeOperation='destination-out';
   const rev=(x,y,r)=>{const g=fogX.createRadialGradient(x/FOG_S,y/FOG_S,r*0.6/FOG_S,x/FOG_S,y/FOG_S,r/FOG_S);g.addColorStop(0,'rgba(0,0,0,1)');g.addColorStop(1,'rgba(0,0,0,0)');fogX.fillStyle=g;fogX.beginPath();fogX.arc(x/FOG_S,y/FOG_S,r/FOG_S,0,Math.PI*2);fogX.fill()};
-  rev(B.x,B.y,BASE_VISION);S.troops.forEach(t=>rev(t.x,t.y,TROOP_VISION));
+  rev(B.x,B.y,BASE_VISION);S.troops.forEach(t=>rev(t.x,t.y,TROOP_VISION));S.harvesters.forEach(h=>rev(h.x,h.y,HARV_VISION));
 }
 function showOverlay(t,s){document.getElementById('ovTitle').textContent=t;document.getElementById('ovText').textContent=s;document.getElementById('overlay').hidden=false}
 
@@ -701,9 +781,15 @@ function draw(){
   // troops
   S.troops.forEach(t=>{const sel=S.sel.troops.has(t.id);if(sel){ctx.strokeStyle=C.ally;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(t.x,t.y,t.r+5,0,Math.PI*2);ctx.stroke()}
     ctx.fillStyle=C.ally;ctx.beginPath();ctx.arc(t.x,t.y,t.r,0,Math.PI*2);ctx.fill();
-    if(t.carry>0){ctx.fillStyle=C.scrap;ctx.beginPath();ctx.arc(t.x+6,t.y-6,3+t.carry/6,0,Math.PI*2);ctx.fill()}
     if(t.hp<t.maxHp)hpbar(t.x,t.y-14,16,t.hp/t.maxHp);
     if(sel&&t.dest){ctx.strokeStyle='rgba(94,200,255,0.35)';ctx.beginPath();ctx.moveTo(t.x,t.y);ctx.lineTo(t.dest.x,t.dest.y);ctx.stroke()}});
+  // harvesters
+  S.harvesters.forEach(h=>{const sel=S.sel.harv.has(h.id);if(sel){ctx.strokeStyle=C.harv;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(h.x,h.y,h.r+5,0,Math.PI*2);ctx.stroke()}
+    ctx.fillStyle=C.harv;ctx.fillRect(h.x-h.r,h.y-h.r,h.r*2,h.r*2);
+    if(!h.autoLoop){ctx.strokeStyle='rgba(255,255,255,0.6)';ctx.lineWidth=1;ctx.strokeRect(h.x-h.r,h.y-h.r,h.r*2,h.r*2)}
+    if(h.carry>0){ctx.fillStyle=C.scrap;ctx.beginPath();ctx.arc(h.x+6,h.y-6,3+h.carry/6,0,Math.PI*2);ctx.fill()}
+    if(h.hp<h.maxHp)hpbar(h.x,h.y-14,16,h.hp/h.maxHp);
+    if(sel&&h.dest){ctx.strokeStyle='rgba(232,147,92,0.35)';ctx.beginPath();ctx.moveTo(h.x,h.y);ctx.lineTo(h.dest.x,h.dest.y);ctx.stroke()}});
   // enemies (only visible)
   S.enemies.forEach(e=>{if(!debugNoFog&&!visible(e))return;const a=e.ang;ctx.fillStyle=e.kind==='roam'?'#d9775f':C.enemy;ctx.beginPath();
     ctx.moveTo(e.x+Math.cos(a)*e.r*1.3,e.y+Math.sin(a)*e.r*1.3);ctx.lineTo(e.x+Math.cos(a+2.5)*e.r,e.y+Math.sin(a+2.5)*e.r);ctx.lineTo(e.x+Math.cos(a-2.5)*e.r,e.y+Math.sin(a-2.5)*e.r);ctx.closePath();ctx.fill();
@@ -730,6 +816,7 @@ function drawMini(){const s=mini.width/W;mctx.fillStyle='#10151b';mctx.fillRect(
   S.nodes.forEach(n=>{if((n.found||debugNoFog)&&n.amt>0){mctx.fillStyle=C.scrap;mctx.fillRect(n.x*s-1.5,n.y*s-1.5,3,3)}});
   S.enemies.forEach(e=>{if(debugNoFog||visible(e)){mctx.fillStyle=C.enemy;mctx.fillRect(e.x*s-1,e.y*s-1,2,2)}});
   S.troops.forEach(t=>{mctx.fillStyle=C.ally;mctx.fillRect(t.x*s-1.5,t.y*s-1.5,3,3)});
+  S.harvesters.forEach(h=>{mctx.fillStyle=C.harv;mctx.fillRect(h.x*s-1.5,h.y*s-1.5,3,3)});
   mctx.fillStyle=C.accent;mctx.fillRect(S.base.x*s-3,S.base.y*s-3,6,6);
   const vw=cv.width/devicePixelRatio/cam.z,vh=cv.height/devicePixelRatio/cam.z;mctx.strokeStyle='rgba(255,255,255,0.5)';mctx.lineWidth=1;mctx.strokeRect((cam.x-vw/2)*s,(cam.y-vh/2)*s,vw*s,vh*s)}
 const $=id=>document.getElementById(id);
@@ -748,6 +835,9 @@ function hud(){
     }
   } else { $('hObj').textContent='all held';$('hObjBar').style.width='100%' }
   $('hTroops').textContent=S.troops.length+(S.sel.troops.size?` (${S.sel.troops.size} sel)`:'');
+  $('hHarv').textContent=S.harvesters.length+(S.sel.harv.size?` (${S.sel.harv.size} sel)`:'');
+  document.getElementById('hTroopsBtn').classList.toggle('sel',S.sel.troops.size>0);
+  document.getElementById('hHarvBtn').classList.toggle('sel',S.sel.harv.size>0);
   updateBuildBar();
 }
 
