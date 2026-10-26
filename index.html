@@ -74,8 +74,9 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   Right-click: move / attack / harvest<br>
   <kbd>WASD</kbd> or edge-drag (middle mouse) pans · scroll zooms<br>
   <kbd>1</kbd> wall · <kbd>2</kbd> turret · <kbd>L</kbd> lock down · <kbd>Esc</kbd> cancel<br>
-  <b>Loop:</b> drive the Bastion into a purple zone and scout it to reveal the green mining-point marker. Park the Bastion on it and press <kbd>L</kbd> to lock down — you get 90s to fortify before waves hit, then mining runs until the hold timer completes. Walls/turrets only work while locked down, and never on bare rock.<br>
-  <b>Terrain:</b> rock blocks movement and building; mud slows units but can still be crossed.
+  <b>Loop:</b> drive the Bastion into a purple zone and scout it to reveal the green mining-point marker. Park the Bastion on it and press <kbd>L</kbd> to lock down — you get 45s to fortify before waves hit, then mining runs until the hold timer completes. Walls/turrets only work while locked down, and never on bare rock.<br>
+  <b>Terrain:</b> rock blocks movement/building and enemies too; mud slows everyone but can still be crossed.<br>
+  Right-click the Bastion with squads selected to send them home and drop off scrap.
 </div>
 
 <div class="overlay" id="overlay" hidden>
@@ -94,7 +95,7 @@ const WALL_HP=220;
 const COST={wall:4,turret:25};
 const OBJ=[{x:1250,y:2450,hold:45},{x:2550,y:2300,hold:60},{x:2750,y:850,hold:80}];
 const ZONE_R=170;
-const TCELL=60, TGX=Math.ceil(W/TCELL), TGY=Math.ceil(H/TCELL), MUD_MULT=0.55, PREP_TIME=90;
+const TCELL=60, TGX=Math.ceil(W/TCELL), TGY=Math.ceil(H/TCELL), MUD_MULT=0.55, PREP_TIME=45;
 
 const cv=document.getElementById('game'), ctx=cv.getContext('2d');
 const mini=document.getElementById('mini'), mctx=mini.getContext('2d');
@@ -401,6 +402,11 @@ function rightClick(w){
     S.base.dest={x:w.x,y:w.y};return;
   }
   if(sel.length===0)return;
+  if(dist(S.base,w)<S.base.r+40){
+    sel.forEach(t=>{t.state='return';t.dest=null;t.target=null;t.node=null});
+    msg('Squads returning to drop off scrap.');
+    return;
+  }
   const en=S.enemies.find(e=>visible(e)&&dist(e,w)<e.r+10);
   const nd=S.nodes.find(n=>n.found&&dist(n,w)<28);
   sel.forEach((t,i)=>{
@@ -494,6 +500,13 @@ function update(dt){
       else if(dist(t,n)>22){const aim=waypointFor(t,n.x,n.y);moveToward(t,aim,TROOP_SPEED*factor,dt)}
       else{t.hv+=dt;if(t.hv>0.35){t.hv=0;n.amt--;t.carry++}}
     }
+    else if(t.state==='return'){
+      const aim=waypointFor(t,B.x,B.y); moveToward(t,aim,TROOP_SPEED*factor,dt);
+      if(dist(t,B)<B.r+22){
+        if(t.carry>0){S.scrap+=t.carry;t.carry=0;updateBuildBar()}
+        t.state='idle';
+      }
+    }
     // auto fire
     if(t.cd<=0){let best=null,bd=TROOP_RANGE;S.enemies.forEach(e=>{const d=dist(e,t);if(d<bd){bd=d;best=e}});
       if(best){damageEnemy(best,TROOP_DMG);tracer(t,best,C.ally);t.cd=TROOP_CD;if(t.state==='idle'&&bd>TROOP_RANGE*0.7)t.target=best}}
@@ -548,7 +561,7 @@ function update(dt){
   const rev=(x,y,r)=>{const g=fogX.createRadialGradient(x/FOG_S,y/FOG_S,r*0.6/FOG_S,x/FOG_S,y/FOG_S,r/FOG_S);g.addColorStop(0,'rgba(0,0,0,1)');g.addColorStop(1,'rgba(0,0,0,0)');fogX.fillStyle=g;fogX.beginPath();fogX.arc(x/FOG_S,y/FOG_S,r/FOG_S,0,Math.PI*2);fogX.fill()};
   rev(B.x,B.y,BASE_VISION);S.troops.forEach(t=>rev(t.x,t.y,TROOP_VISION));
   // current vision layer
-  visX.globalCompositeOperation='source-over';visX.fillStyle='rgba(0,0,0,0.5)';visX.fillRect(0,0,visC.width,visC.height);
+  visX.globalCompositeOperation='source-over';visX.fillStyle='rgba(0,0,0,0.32)';visX.fillRect(0,0,visC.width,visC.height);
   visX.globalCompositeOperation='destination-out';
   const cut=(x,y,r)=>{visX.beginPath();visX.arc(x/FOG_S,y/FOG_S,r/FOG_S,0,Math.PI*2);visX.fill()};visX.fillStyle='#000';
   cut(B.x,B.y,BASE_VISION);S.troops.forEach(t=>cut(t.x,t.y,TROOP_VISION));
