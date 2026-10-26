@@ -76,6 +76,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <kbd>1</kbd> wall · <kbd>2</kbd> turret · <kbd>L</kbd> lock down / skip prep · <kbd>Esc</kbd> cancel<br>
   <b>Loop:</b> drive the Bastion into a purple zone and scout it to reveal the green mining-point marker. Park the Bastion on it and press <kbd>L</kbd> to lock down — you get 45s to fortify before waves hit, then mining runs until the hold timer completes. Press <kbd>L</kbd> again during prep to skip straight to the waves. Walls/turrets only work while locked down, and never on bare rock.<br>
   <b>Terrain:</b> rock blocks movement/building and enemies too; mud slows everyone but can still be crossed.<br>
+  The Bastion fires on nearby enemies while mobile, but goes quiet the moment it locks down.<br>
   Right-click the Bastion with squads selected to send them home and drop off scrap.<br>
   <kbd>`</kbd> toggles debug: reveal the whole map and all enemies.
 </div>
@@ -92,6 +93,7 @@ const W=3600,H=3600, CELL=24;
 const BASE_R=30, BASE_SPEED=42, BUILD_R=270, BASE_VISION=320;
 const TROOP_R=7, TROOP_SPEED=125, TROOP_VISION=240, TROOP_RANGE=165, TROOP_DMG=7, TROOP_CD=0.45, CARRY=12;
 const TURRET_RANGE=240, TURRET_DMG=14, TURRET_CD=0.65, TURRET_HP=150;
+const BASE_GUN_RANGE=260, BASE_GUN_DMG=18, BASE_GUN_CD=0.5;
 const WALL_HP=220;
 const COST={wall:4,turret:25};
 const OBJ=[{x:1250,y:2450,hold:45},{x:2550,y:2300,hold:60},{x:2750,y:850,hold:80}];
@@ -114,7 +116,7 @@ function key(gx,gy){return gx+','+gy}
 
 function reset(){
   S={t:0,scrap:40,over:null,
-    base:{x:520,y:3080,hp:900,maxHp:900,r:BASE_R,dest:null,locked:false,fx:0},
+    base:{x:520,y:3080,hp:900,maxHp:900,r:BASE_R,dest:null,locked:false,fx:0,gunCd:0},
     troops:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],objectives:[],objIdx:0,waveT:8,spawnT:0,sel:{base:false,troops:new Set()}};
   for(let i=0;i<4;i++) S.troops.push({id:i,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp:70,maxHp:70,r:TROOP_R,dest:null,target:null,node:null,carry:0,state:'idle',cd:0,hv:0});
 
@@ -133,9 +135,15 @@ function reset(){
   // scrap nodes: a couple near start, rest scattered (favouring the route)
   const spots=[[700,2850],[350,2650],[1000,3250],[1150,2100],[1550,2700],[900,1900],[1900,2500],[2300,1900],[2800,2700],[2150,2850],[3100,2000],[2450,1300],[3200,1200],[2300,700],[1700,1300],[1200,800],[600,1200],[3100,400],[400,400],[1800,500]];
   spots.forEach(([x,y])=>{const p=nearestPlain(x+rnd(-80,80),y+rnd(-80,80));S.nodes.push({x:p.x,y:p.y,amt:Math.round(rnd(45,90)),max:90,found:false})});
-  // roaming packs patrol/idle across the map
+  // roaming packs patrol/idle across the map; some walk a back-and-forth beat together
   for(let i=0;i<20;i++){const px=rnd(300,W-300),py=rnd(300,H-900);if(Math.hypot(px-520,py-3080)<700)continue;
-    for(let j=0;j<rnd(4,8);j++){const p=nearestPlain(px+rnd(-60,60),py+rnd(-60,60));spawnEnemy(p.x,p.y,'roam')}}
+    let patrol=null;
+    if(Math.random()<0.35){
+      const ang=rnd(0,Math.PI*2),len=rnd(400,900);
+      const bx=Math.max(150,Math.min(W-150,px+Math.cos(ang)*len)),by=Math.max(150,Math.min(H-150,py+Math.sin(ang)*len));
+      patrol={a:{x:px,y:py},b:{x:bx,y:by},dir:1};
+    }
+    for(let j=0;j<rnd(4,8);j++){const p=nearestPlain(px+rnd(-60,60),py+rnd(-60,60));spawnEnemy(p.x,p.y,'roam');if(patrol)S.enemies[S.enemies.length-1].patrol=patrol}}
   // a large guard cluster camps each purple objective zone
   S.objectives.forEach(o=>{
     for(let i=0;i<rnd(10,16);i++){const ang=rnd(0,Math.PI*2),rad=rnd(0,o.r*0.85);
@@ -149,7 +157,7 @@ function reset(){
 }
 function spawnEnemy(x,y,kind){
   const big=kind==='wave'&&Math.random()<0.15+S.objIdx*0.08;
-  S.enemies.push({x,y,r:big?13:8,hp:big?120:34,maxHp:big?120:34,speed:big?48:78,dmg:big?12:5,cd:0,kind,target:null,aggro:kind==='roam'?260:1e9,home:{x,y}});
+  S.enemies.push({x,y,r:big?13:8,hp:big?120:34,maxHp:big?120:34,speed:big?48:78,dmg:big?12:5,cd:0,kind,target:null,aggro:kind==='roam'?260:1e9,home:{x,y},ang:rnd(0,Math.PI*2),faceT:rnd(1,3)});
 }
 function msg(s){document.getElementById('hMsg').textContent=s;msgT=S.t}
 
@@ -515,6 +523,12 @@ function update(dt){
   }
   B.x=Math.max(40,Math.min(W-40,B.x));B.y=Math.max(40,Math.min(H-40,B.y));
   if(!S.enemies.some(e=>dist(e,B)<400))B.hp=Math.min(B.maxHp,B.hp+2*dt);
+  // bastion gun — only while mobile; it goes quiet once locked down and leans on built defenses instead
+  B.gunCd-=dt;
+  if(!B.locked){
+    let best=null,bd=BASE_GUN_RANGE;S.enemies.forEach(e=>{const d=dist(e,B);if(d<bd){bd=d;best=e}});
+    if(best&&B.gunCd<=0){damageEnemy(best,BASE_GUN_DMG);tracer(B,best,C.accent);B.gunCd=BASE_GUN_CD}
+  }
 
   // troops
   S.troops.forEach(t=>{
@@ -567,12 +581,26 @@ function update(dt){
     let tgt=null,bd=e.aggro;
     S.troops.forEach(t=>{const d=dist(t,e);if(d<bd){bd=d;tgt=t}});
     if(e.kind==='roam'){
-      if(!tgt){
-        if(dist(e,B)<e.aggro+120)tgt=B;
-        else{const aim=waypointFor(e,e.home.x,e.home.y);const factor=terrainAt(e.x,e.y)===1?MUD_MULT:1;moveToward(e,aim,e.speed*0.5*factor,dt);return}
-      }
+      if(!tgt&&dist(e,B)<e.aggro+120)tgt=B;
     } else {
       if(!tgt||bd>220){let bt=B,btd=dist(e,B);S.turrets.forEach(tu=>{const d=dist(e,tu);if(d<btd*0.6){bt=tu;btd=d}});tgt=bt}
+    }
+    e.target=tgt;
+    // face whoever they're engaging; otherwise idle fidget with a random heading
+    if(tgt)e.ang=Math.atan2(tgt.y-e.y,tgt.x-e.x);
+    else{e.faceT-=dt;if(e.faceT<=0){e.ang=rnd(0,Math.PI*2);e.faceT=rnd(1.5,3.5)}}
+    if(e.kind==='roam'&&!tgt){
+      const factor=terrainAt(e.x,e.y)===1?MUD_MULT:1;
+      if(e.patrol){
+        const P=e.patrol, dest=P.dir>0?P.b:P.a;
+        const aim=waypointFor(e,dest.x,dest.y);
+        moveToward(e,aim,e.speed*0.55*factor,dt);
+        if(P.dir>0&&dist(e,P.b)<40)P.dir=-1; else if(P.dir<0&&dist(e,P.a)<40)P.dir=1;
+      }else{
+        const aim=waypointFor(e,e.home.x,e.home.y);
+        moveToward(e,aim,e.speed*0.5*factor,dt);
+      }
+      return;
     }
     const reach=e.r+(tgt.r||12)+4;
     if(dist(e,tgt)<=reach){if(e.cd<=0){tgt.hp-=e.dmg;e.cd=0.8}return}
@@ -656,7 +684,7 @@ function draw(){
     if(t.hp<t.maxHp)hpbar(t.x,t.y-14,16,t.hp/t.maxHp);
     if(sel&&t.dest){ctx.strokeStyle='rgba(94,200,255,0.35)';ctx.beginPath();ctx.moveTo(t.x,t.y);ctx.lineTo(t.dest.x,t.dest.y);ctx.stroke()}});
   // enemies (only visible)
-  S.enemies.forEach(e=>{if(!debugNoFog&&!visible(e))return;const a=Math.atan2((e.target?e.target.y:B.y)-e.y,(e.target?e.target.x:B.x)-e.x);ctx.fillStyle=e.kind==='roam'?'#d9775f':C.enemy;ctx.beginPath();
+  S.enemies.forEach(e=>{if(!debugNoFog&&!visible(e))return;const a=e.ang;ctx.fillStyle=e.kind==='roam'?'#d9775f':C.enemy;ctx.beginPath();
     ctx.moveTo(e.x+Math.cos(a)*e.r*1.3,e.y+Math.sin(a)*e.r*1.3);ctx.lineTo(e.x+Math.cos(a+2.5)*e.r,e.y+Math.sin(a+2.5)*e.r);ctx.lineTo(e.x+Math.cos(a-2.5)*e.r,e.y+Math.sin(a-2.5)*e.r);ctx.closePath();ctx.fill();
     if(e.hp<e.maxHp)hpbar(e.x,e.y-e.r-8,e.r*2+4,e.hp/e.maxHp)});
   // tracers
