@@ -668,9 +668,14 @@ function update(dt){
 
   S.nodes.forEach(n=>{if(!n.found&&dist(n,B)<BASE_VISION)n.found=true});
   S.objectives.forEach(o=>{if(!o.done&&!o.mine.found&&(dist(o.mine,B)<BASE_VISION||S.troops.some(t=>dist(o.mine,t)<TROOP_VISION)||S.harvesters.some(h=>dist(o.mine,h)<HARV_VISION)))o.mine.found=true});
-  // unit separation (troops + harvesters)
+  // unit separation (troops + harvesters) — don't let crowding shove anyone through a wall
   {const all=S.troops.concat(S.harvesters);
-  for(let i=0;i<all.length;i++)for(let j=i+1;j<all.length;j++){const a=all[i],b=all[j],d=dist(a,b);if(d<16&&d>0){const p=(16-d)/2,dx=(b.x-a.x)/d,dy=(b.y-a.y)/d;a.x-=dx*p;a.y-=dy*p;b.x+=dx*p;b.y+=dy*p}}}
+  for(let i=0;i<all.length;i++)for(let j=i+1;j<all.length;j++){const a=all[i],b=all[j],d=dist(a,b);
+    if(d<16&&d>0.5){const p=(16-d)/2,dx=(b.x-a.x)/d,dy=(b.y-a.y)/d;
+      const anx=a.x-dx*p,any=a.y-dy*p,bnx=b.x+dx*p,bny=b.y+dy*p;
+      if(!wallAt(anx,any)){a.x=anx;a.y=any}
+      if(!wallAt(bnx,bny)){b.x=bnx;b.y=bny}
+    }}}
 
   // turrets
   S.turrets.forEach(tu=>{tu.cd-=dt;let best=null,bd=TURRET_RANGE;S.enemies.forEach(e=>{const d=dist(e,tu);if(d<bd){bd=d;best=e}});
@@ -714,8 +719,13 @@ function update(dt){
     const factor=terrainAt(e.x,e.y)===1?MUD_MULT:1;
     moveToward(e,aim,e.speed*factor,dt);
   });
-  // enemy separation
-  for(let i=0;i<S.enemies.length;i++)for(let j=i+1;j<S.enemies.length;j++){const a=S.enemies[i],b=S.enemies[j],d=dist(a,b),m=a.r+b.r;if(d<m&&d>0){const p=(m-d)/2,dx=(b.x-a.x)/d,dy=(b.y-a.y)/d;a.x-=dx*p;a.y-=dy*p;b.x+=dx*p;b.y+=dy*p}}
+  // enemy separation — crowd pressure must not shove anyone clean through a wall
+  for(let i=0;i<S.enemies.length;i++)for(let j=i+1;j<S.enemies.length;j++){const a=S.enemies[i],b=S.enemies[j],d=dist(a,b),m=a.r+b.r;
+    if(d<m&&d>0.5){const p=(m-d)/2,dx=(b.x-a.x)/d,dy=(b.y-a.y)/d;
+      const anx=a.x-dx*p,any=a.y-dy*p,bnx=b.x+dx*p,bny=b.y+dy*p;
+      if(!wallAt(anx,any)){a.x=anx;a.y=any}
+      if(!wallAt(bnx,bny)){b.x=bnx;b.y=bny}
+    }}
   // deaths
   S.enemies=S.enemies.filter(e=>{if(e.hp<=0){if(Math.random()<0.25){S.scrap+=1;updateBuildBar()}return false}return true});
   S.turrets=S.turrets.filter(t=>t.hp>0);
