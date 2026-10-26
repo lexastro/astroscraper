@@ -105,7 +105,6 @@ const C={ally:css('--ally'),enemy:css('--enemy'),scrap:css('--scrap'),zone:css('
 // ---------- state ----------
 let S, cam, mouse={x:0,y:0,wx:0,wy:0,down:false,drag:null,panning:false}, keys={}, buildMode=null, lastT=0, msgT=0, terrain, terrainCv;
 let fogC=document.createElement('canvas'), fogX; const FOG_S=6; fogC.width=W/FOG_S; fogC.height=H/FOG_S; fogX=fogC.getContext('2d');
-let visC=document.createElement('canvas'), visX; visC.width=W/FOG_S; visC.height=H/FOG_S; visX=visC.getContext('2d');
 
 function rnd(a,b){return a+Math.random()*(b-a)}
 function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
@@ -556,15 +555,10 @@ function update(dt){
   S.tracers=S.tracers.filter(t=>(t.t-=dt)>0);
   if(B.hp<=0){S.over='lose';showOverlay('Bastion destroyed',`Fell while holding objective ${S.objIdx+1}. Try mining more scrap before locking in.`)}
 
-  // fog explore (persistent)
+  // fog explore (permanent reveal — once scouted, stays visible; enemy sighting is gated separately by visible())
   fogX.globalCompositeOperation='destination-out';
   const rev=(x,y,r)=>{const g=fogX.createRadialGradient(x/FOG_S,y/FOG_S,r*0.6/FOG_S,x/FOG_S,y/FOG_S,r/FOG_S);g.addColorStop(0,'rgba(0,0,0,1)');g.addColorStop(1,'rgba(0,0,0,0)');fogX.fillStyle=g;fogX.beginPath();fogX.arc(x/FOG_S,y/FOG_S,r/FOG_S,0,Math.PI*2);fogX.fill()};
   rev(B.x,B.y,BASE_VISION);S.troops.forEach(t=>rev(t.x,t.y,TROOP_VISION));
-  // current vision layer
-  visX.globalCompositeOperation='source-over';visX.fillStyle='rgba(0,0,0,0.32)';visX.fillRect(0,0,visC.width,visC.height);
-  visX.globalCompositeOperation='destination-out';
-  const cut=(x,y,r)=>{visX.beginPath();visX.arc(x/FOG_S,y/FOG_S,r/FOG_S,0,Math.PI*2);visX.fill()};visX.fillStyle='#000';
-  cut(B.x,B.y,BASE_VISION);S.troops.forEach(t=>cut(t.x,t.y,TROOP_VISION));
 }
 function showOverlay(t,s){document.getElementById('ovTitle').textContent=t;document.getElementById('ovText').textContent=s;document.getElementById('overlay').hidden=false}
 
@@ -629,7 +623,7 @@ function draw(){
   // tracers
   S.tracers.forEach(t=>{ctx.strokeStyle=t.col;ctx.globalAlpha=t.t/0.12;ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(t.x1,t.y1);ctx.lineTo(t.x2,t.y2);ctx.stroke()});ctx.globalAlpha=1;
   // fog
-  ctx.imageSmoothingEnabled=true;ctx.drawImage(visC,0,0,W,H);ctx.drawImage(fogC,0,0,W,H);
+  ctx.imageSmoothingEnabled=true;ctx.drawImage(fogC,0,0,W,H);
   // map edge
   ctx.strokeStyle=C.line;ctx.lineWidth=3/cam.z;ctx.strokeRect(0,0,W,H);
   // build preview
