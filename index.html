@@ -118,7 +118,7 @@ function reset(){
   S={t:0,scrap:40,over:null,
     base:{x:520,y:3080,hp:900,maxHp:900,r:BASE_R,dest:null,locked:false,fx:0,gunCd:0},
     troops:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],objectives:[],objIdx:0,waveT:8,spawnT:0,sel:{base:false,troops:new Set()},
-    zoneWaveBase:30,wavePct:30};
+    zoneWaveBase:20,wavePct:20};
   for(let i=0;i<4;i++) S.troops.push({id:i,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp:70,maxHp:70,r:TROOP_R,dest:null,target:null,node:null,carry:0,state:'idle',cd:0,hv:0});
 
   genTerrain();
@@ -423,7 +423,7 @@ function canLockdown(){
 function tryLockdown(){
   if(!canLockdown()){msg(S.base.locked?'Already locked down and mining.':'Move the Bastion onto the mining point first.');return}
   const O=S.objectives[S.objIdx];
-  S.base.locked=true; S.base.dest=null; O.prepT=PREP_TIME;
+  S.base.locked=true; S.base.dest=null; O.prepT=PREP_TIME; O.waveDir=rnd(0,Math.PI*2);
   msg(`Lockdown engaged. Fortify for ${PREP_TIME}s before the enemy arrives.`);
   updateBuildBar();
 }
@@ -486,6 +486,9 @@ function moveToward(o,d,sp,dt){const dx=d.x-o.x,dy=d.y-o.y,L=Math.hypot(dx,dy);i
 function tracer(a,b,col){S.tracers.push({x1:a.x,y1:a.y,x2:b.x,y2:b.y,t:0.12,col})}
 function damageEnemy(e,d){e.hp-=d}
 function wallAt(x,y){return S.walls.get(key(Math.floor(x/CELL),Math.floor(y/CELL)))}
+function wallBetween(a,b){const d=dist(a,b);const steps=Math.max(1,Math.ceil(d/(CELL*0.6)));
+  for(let s=0;s<=steps;s++){const t=s/steps;if(wallAt(a.x+(b.x-a.x)*t,a.y+(b.y-a.y)*t))return true}
+  return false}
 
 // ---------- update ----------
 function update(dt){
@@ -506,7 +509,7 @@ function update(dt){
       if(S.waveT<=0){
         const maxN=(4+S.objIdx*3+Math.floor(O.prog/12))*20;
         const n=Math.max(1,Math.round(maxN*S.wavePct/100));
-        const a=rnd(0,Math.PI*2);const sx=B.x+Math.cos(a)*820,sy=B.y+Math.sin(a)*820;
+        const a=O.waveDir!=null?O.waveDir:rnd(0,Math.PI*2);O.waveDir=null;const sx=B.x+Math.cos(a)*820,sy=B.y+Math.sin(a)*820;
         for(let i=0;i<n;i++){const p=nearestPlain(Math.max(20,Math.min(W-20,sx+rnd(-70,70))),Math.max(20,Math.min(H-20,sy+rnd(-70,70))));spawnEnemy(p.x,p.y,'wave')}
         S.wavePct=Math.min(100,S.wavePct+10);
         S.waveT=Math.max(7,16-S.objIdx*2.5);msg(`Wave incoming from the ${a<Math.PI?'south':'north'}${Math.cos(a)>0?'east':'west'}.`);
@@ -608,10 +611,11 @@ function update(dt){
       return;
     }
     const reach=e.r+(tgt.r||12)+4;
-    if(dist(e,tgt)<=reach){if(e.cd<=0){tgt.hp-=e.dmg;e.cd=0.8}return}
+    if(dist(e,tgt)<=reach&&!wallBetween(e,tgt)){if(e.cd<=0){tgt.hp-=e.dmg;e.cd=0.8}return}
     const aim=waypointFor(e,tgt.x,tgt.y);
-    const dx=aim.x-e.x,dy=aim.y-e.y,L=Math.hypot(dx,dy)||1,nx=e.x+dx/L*(e.r+6),ny=e.y+dy/L*(e.r+6);
-    const w=wallAt(nx,ny);
+    const dx=aim.x-e.x,dy=aim.y-e.y,L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L,look=e.r+6,perp=e.r*0.6;
+    const probes=[{x:e.x+ux*look,y:e.y+uy*look},{x:e.x+ux*look-uy*perp,y:e.y+uy*look+ux*perp},{x:e.x+ux*look+uy*perp,y:e.y+uy*look-ux*perp}];
+    let w=null; for(const pt of probes){w=wallAt(pt.x,pt.y); if(w)break}
     if(w){if(e.cd<=0){w.hp-=e.dmg*1.5;e.cd=0.8;if(w.hp<=0)S.walls.delete(key(w.gx,w.gy))}return}
     const factor=terrainAt(e.x,e.y)===1?MUD_MULT:1;
     moveToward(e,aim,e.speed*factor,dt);
@@ -651,7 +655,19 @@ function draw(){
     ctx.fillStyle=C.zone;ctx.globalAlpha*=0.12;ctx.beginPath();ctx.arc(o.x,o.y,o.r,0,Math.PI*2);ctx.fill();ctx.globalAlpha=o.done?0.25:cur?0.9:0.45;
     ctx.setLineDash([10,8]);ctx.lineWidth=2;ctx.strokeStyle=C.zone;ctx.beginPath();ctx.arc(o.x,o.y,o.r,0,Math.PI*2);ctx.stroke();
     if(cur&&!o.done){
-      if(S.base.locked&&o.prepT>0){ctx.setLineDash([]);ctx.lineWidth=6;ctx.strokeStyle=C.accent;ctx.beginPath();ctx.arc(o.x,o.y,o.r+10,-Math.PI/2,-Math.PI/2+Math.PI*2*(1-o.prepT/PREP_TIME));ctx.stroke()}
+      if(S.base.locked&&o.prepT>0){
+        ctx.setLineDash([]);ctx.lineWidth=6;ctx.strokeStyle=C.accent;ctx.beginPath();ctx.arc(o.x,o.y,o.r+10,-Math.PI/2,-Math.PI/2+Math.PI*2*(1-o.prepT/PREP_TIME));ctx.stroke();
+        if(o.waveDir!=null){
+          const pulse=0.65+0.35*Math.sin(S.t*4);
+          const ex=o.x+Math.cos(o.waveDir)*(o.r+6),ey=o.y+Math.sin(o.waveDir)*(o.r+6);
+          const tx=o.x+Math.cos(o.waveDir)*(o.r+44),ty=o.y+Math.sin(o.waveDir)*(o.r+44);
+          ctx.globalAlpha=pulse;ctx.strokeStyle=C.enemy;ctx.lineWidth=3;ctx.setLineDash([5,6]);
+          ctx.beginPath();ctx.moveTo(ex,ey);ctx.lineTo(tx,ty);ctx.stroke();ctx.setLineDash([]);
+          ctx.save();ctx.translate(tx,ty);ctx.rotate(o.waveDir);
+          ctx.fillStyle=C.enemy;ctx.beginPath();ctx.moveTo(16,0);ctx.lineTo(-9,9);ctx.lineTo(-9,-9);ctx.closePath();ctx.fill();
+          ctx.restore();ctx.globalAlpha=1;
+        }
+      }
       else if(o.prog>0){ctx.setLineDash([]);ctx.lineWidth=6;ctx.strokeStyle=C.zone;ctx.beginPath();ctx.arc(o.x,o.y,o.r+10,-Math.PI/2,-Math.PI/2+Math.PI*2*o.prog/o.hold);ctx.stroke()}
     }
     ctx.setLineDash([]);ctx.fillStyle=C.zone;ctx.font='500 22px '+css('--mono');ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(o.done?'✓':String(i+1),o.x,o.y);
