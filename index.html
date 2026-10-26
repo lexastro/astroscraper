@@ -60,7 +60,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 <div class="build" id="buildBar">
   <button id="bWall" data-mode="wall"><span>Wall</span><span class="cost" id="cWall">4 scrap</span><span class="key">1</span></button>
   <button id="bTurret" data-mode="turret"><span>Turret</span><span class="cost" id="cTurret">25 scrap</span><span class="key">2</span></button>
-  <button id="bLock"><span>Lock Down</span><span class="key">L</span></button>
+  <button id="bLock"><span id="bLockLabel">Lock Down</span><span class="key">L</span></button>
   <button id="bSelBase"><span>Select Bastion</span><span class="key">B</span></button>
   <button id="bSelTroops"><span>Select squads</span><span class="key">T</span></button>
 </div>
@@ -73,8 +73,8 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   Left-drag: select squads · Click Bastion: select it<br>
   Right-click: move / attack / harvest<br>
   <kbd>WASD</kbd> or edge-drag (middle mouse) pans · scroll zooms<br>
-  <kbd>1</kbd> wall · <kbd>2</kbd> turret · <kbd>L</kbd> lock down · <kbd>Esc</kbd> cancel<br>
-  <b>Loop:</b> drive the Bastion into a purple zone and scout it to reveal the green mining-point marker. Park the Bastion on it and press <kbd>L</kbd> to lock down — you get 45s to fortify before waves hit, then mining runs until the hold timer completes. Walls/turrets only work while locked down, and never on bare rock.<br>
+  <kbd>1</kbd> wall · <kbd>2</kbd> turret · <kbd>L</kbd> lock down / skip prep · <kbd>Esc</kbd> cancel<br>
+  <b>Loop:</b> drive the Bastion into a purple zone and scout it to reveal the green mining-point marker. Park the Bastion on it and press <kbd>L</kbd> to lock down — you get 45s to fortify before waves hit, then mining runs until the hold timer completes. Press <kbd>L</kbd> again during prep to skip straight to the waves. Walls/turrets only work while locked down, and never on bare rock.<br>
   <b>Terrain:</b> rock blocks movement/building and enemies too; mud slows everyone but can still be crossed.<br>
   Right-click the Bastion with squads selected to send them home and drop off scrap.<br>
   <kbd>`</kbd> toggles debug: reveal the whole map and all enemies.
@@ -133,9 +133,14 @@ function reset(){
   // scrap nodes: a couple near start, rest scattered (favouring the route)
   const spots=[[700,2850],[350,2650],[1000,3250],[1150,2100],[1550,2700],[900,1900],[1900,2500],[2300,1900],[2800,2700],[2150,2850],[3100,2000],[2450,1300],[3200,1200],[2300,700],[1700,1300],[1200,800],[600,1200],[3100,400],[400,400],[1800,500]];
   spots.forEach(([x,y])=>{const p=nearestPlain(x+rnd(-80,80),y+rnd(-80,80));S.nodes.push({x:p.x,y:p.y,amt:Math.round(rnd(45,90)),max:90,found:false})});
-  // roaming packs guard the map
-  for(let i=0;i<9;i++){const px=rnd(300,W-300),py=rnd(300,H-900);if(Math.hypot(px-520,py-3080)<700)continue;
-    for(let j=0;j<rnd(3,6);j++){const p=nearestPlain(px+rnd(-50,50),py+rnd(-50,50));spawnEnemy(p.x,p.y,'roam')}}
+  // roaming packs patrol/idle across the map
+  for(let i=0;i<20;i++){const px=rnd(300,W-300),py=rnd(300,H-900);if(Math.hypot(px-520,py-3080)<700)continue;
+    for(let j=0;j<rnd(4,8);j++){const p=nearestPlain(px+rnd(-60,60),py+rnd(-60,60));spawnEnemy(p.x,p.y,'roam')}}
+  // a large guard cluster camps each purple objective zone
+  S.objectives.forEach(o=>{
+    for(let i=0;i<rnd(10,16);i++){const ang=rnd(0,Math.PI*2),rad=rnd(0,o.r*0.85);
+      const p=nearestPlain(o.x+Math.cos(ang)*rad,o.y+Math.sin(ang)*rad);spawnEnemy(p.x,p.y,'roam')}
+  });
   cam={x:S.base.x,y:S.base.y,z:1};
   fogX.globalCompositeOperation='source-over'; fogX.fillStyle='#000'; fogX.fillRect(0,0,fogC.width,fogC.height);
   S.sel.base=true; buildMode=null; updateBuildBar();
@@ -373,13 +378,13 @@ addEventListener('keydown',e=>{
   else if(e.key==='Escape'){setBuild(null)} else if(e.key.toLowerCase()==='b'){S.sel.troops.clear();S.sel.base=true}
   else if(e.key.toLowerCase()==='t'){S.sel.base=false;S.troops.forEach(t=>S.sel.troops.add(t.id))}
   else if(e.key.toLowerCase()==='f'){cam.x=S.base.x;cam.y=S.base.y}
-  else if(e.key.toLowerCase()==='l'){tryLockdown()}
+  else if(e.key.toLowerCase()==='l'){lockOrSkip()}
   else if(e.key==='`'){debugNoFog=!debugNoFog;msg(debugNoFog?'Debug: fog of war disabled':'Debug: fog of war re-enabled')}
   if(e.key===' ')e.preventDefault();
 });
 addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;keys[e.key]=false});
 document.querySelectorAll('#buildBar button[data-mode]').forEach(b=>b.addEventListener('click',()=>setBuild(buildMode===b.dataset.mode?null:b.dataset.mode)));
-document.getElementById('bLock').onclick=tryLockdown;
+document.getElementById('bLock').onclick=lockOrSkip;
 document.getElementById('bSelBase').onclick=()=>{S.sel.troops.clear();S.sel.base=true};
 document.getElementById('bSelTroops').onclick=()=>{S.sel.base=false;S.troops.forEach(t=>S.sel.troops.add(t.id))};
 document.getElementById('helpClose').onclick=()=>{document.getElementById('help').hidden=true};
@@ -391,7 +396,13 @@ function updateBuildBar(){
     b.classList.toggle('on',b.dataset.mode===buildMode);
     b.disabled=!S.base.locked||(S.scrap<COST[b.dataset.mode]&&buildMode!==b.dataset.mode);
   });
-  const lb=document.getElementById('bLock'); if(lb)lb.disabled=!canLockdown();
+  const lb=document.getElementById('bLock');
+  if(lb){
+    const O=S.objectives[S.objIdx];
+    const skipping=S.base.locked&&O&&O.prepT>0;
+    document.getElementById('bLockLabel').textContent=skipping?'Skip Prep':'Lock Down';
+    lb.disabled=skipping?false:!canLockdown();
+  }
 }
 function clampCam(){cam.x=Math.max(0,Math.min(W,cam.x));cam.y=Math.max(0,Math.min(H,cam.y))}
 
@@ -406,6 +417,19 @@ function tryLockdown(){
   S.base.locked=true; S.base.dest=null; O.prepT=PREP_TIME;
   msg(`Lockdown engaged. Fortify for ${PREP_TIME}s before the enemy arrives.`);
   updateBuildBar();
+}
+function skipPrep(){
+  const O=S.objectives[S.objIdx];
+  if(!S.base.locked||!O||O.prepT<=0)return;
+  O.prepT=0; S.waveT=2;
+  msg('Prep skipped — enemy contact imminent. Hold the line!');
+  updateBuildBar();
+}
+function lockOrSkip(){
+  if(!S.base.locked){tryLockdown();return}
+  const O=S.objectives[S.objIdx];
+  if(O&&O.prepT>0)skipPrep();
+  else msg('Already locked down and mining.');
 }
 
 function rightClick(w){
@@ -466,12 +490,12 @@ function update(dt){
   if(O&&!O.done&&B.locked){
     if(O.prepT>0){
       O.prepT=Math.max(0,O.prepT-dt);
-      if(O.prepT<=0){S.waveT=4;msg('Prep complete — enemy contact imminent. Hold the line!')}
+      if(O.prepT<=0){S.waveT=4;msg('Prep complete — enemy contact imminent. Hold the line!');updateBuildBar()}
     }else{
       O.prog+=dt;
       S.waveT-=dt;
       if(S.waveT<=0){
-        const n=4+S.objIdx*3+Math.floor(O.prog/12);const a=rnd(0,Math.PI*2);const sx=B.x+Math.cos(a)*820,sy=B.y+Math.sin(a)*820;
+        const n=(4+S.objIdx*3+Math.floor(O.prog/12))*20;const a=rnd(0,Math.PI*2);const sx=B.x+Math.cos(a)*820,sy=B.y+Math.sin(a)*820;
         for(let i=0;i<n;i++){const p=nearestPlain(Math.max(20,Math.min(W-20,sx+rnd(-70,70))),Math.max(20,Math.min(H-20,sy+rnd(-70,70))));spawnEnemy(p.x,p.y,'wave')}
         S.waveT=Math.max(7,16-S.objIdx*2.5);msg(`Wave incoming from the ${a<Math.PI?'south':'north'}${Math.cos(a)>0?'east':'west'}.`);
       }
@@ -680,7 +704,8 @@ function hud(){
 
 // ---------- loop ----------
 function frame(ts){const dt=Math.min(0.05,(ts-lastT)/1000||0);lastT=ts;update(dt);draw();requestAnimationFrame(frame)}
-reset();requestAnimationFrame(frame);})();
+reset();requestAnimationFrame(frame);
+})();
 </script>
 
 </body></html>
