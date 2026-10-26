@@ -70,8 +70,8 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 </div>
 
 <div class="build" id="buildBar">
-  <button id="bWall" data-mode="wall"><span>Wall</span><span class="cost" id="cWall">4 scrap</span><span class="key">1</span></button>
-  <button id="bTurret" data-mode="turret"><span>Turret</span><span class="cost" id="cTurret">25 scrap</span><span class="key">2</span></button>
+  <button id="bWall" data-mode="wall"><span>Wall</span><span class="cost" id="cWall">5 scrap</span><span class="key">1</span></button>
+  <button id="bTurret" data-mode="turret"><span>Turret</span><span class="cost" id="cTurret">50 scrap</span><span class="key">2</span></button>
   <button id="bLock"><span id="bLockLabel">Lock Down</span><span class="key">L</span></button>
   <button id="bSelBase"><span>Select Bastion</span><span class="key">B</span></button>
   <button id="bResumeAuto"><span>Resume Auto-Gather</span><span class="key">R</span></button>
@@ -109,13 +109,13 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 'use strict';
 // ---------- constants ----------
 const W=3600,H=3600, CELL=24;
-const BASE_R=30, BASE_SPEED=42, BUILD_R=270, BASE_VISION=320;
-const TROOP_R=7, TROOP_SPEED=125, TROOP_VISION=240, TROOP_RANGE=165, TROOP_DMG=7, TROOP_CD=0.45, CARRY=12;
-const HARV_R=8, HARV_SPEED=105, HARV_VISION=200;
+const BASE_R=30, BASE_SPEED=42, BUILD_R=270, BASE_VISION=450;
+const TROOP_R=7, TROOP_SPEED=125, TROOP_VISION=340, TROOP_RANGE=165, TROOP_DMG=7, TROOP_CD=0.45, CARRY=12;
+const HARV_R=8, HARV_SPEED=105, HARV_VISION=280;
 const TURRET_RANGE=240, TURRET_DMG=14, TURRET_CD=0.65, TURRET_HP=150;
 const BASE_GUN_RANGE=260, BASE_GUN_DMG=18, BASE_GUN_CD=0.5;
 const WALL_HP=220;
-const COST={wall:4,turret:25,harvester:20};
+const COST={wall:5,turret:50,harvester:20};
 const OBJ=[{x:1250,y:2450,hold:45},{x:2550,y:2300,hold:60},{x:2750,y:850,hold:80}];
 const ZONE_R=170;
 const TCELL=60, TGX=Math.ceil(W/TCELL), TGY=Math.ceil(H/TCELL), MUD_MULT=0.55, PREP_TIME=45;
@@ -543,7 +543,22 @@ function visible(p){if(dist(p,S.base)<BASE_VISION)return true;if(S.troops.some(t
 function moveToward(o,d,sp,dt){const dx=d.x-o.x,dy=d.y-o.y,L=Math.hypot(dx,dy);if(L<1)return 0;const s=Math.min(L,sp*dt);o.x+=dx/L*s;o.y+=dy/L*s;return L-s}
 function tracer(a,b,col){S.tracers.push({x1:a.x,y1:a.y,x2:b.x,y2:b.y,t:0.12,col})}
 function damageEnemy(e,d){e.hp-=d}
-function wallAt(x,y){return S.walls.get(key(Math.floor(x/CELL),Math.floor(y/CELL)))}
+function wallAt(x,y){
+  const direct=S.walls.get(key(Math.floor(x/CELL),Math.floor(y/CELL)));
+  if(direct)return direct;
+  return cornerSealed(x,y);
+}
+// Two walls touching only at a shared corner (with the other two cells at that corner empty) should
+// seal that corner like a solid wall — otherwise enemies squeeze through the diagonal gap between them.
+function cornerSealed(x,y){
+  const cgx=Math.round(x/CELL), cgy=Math.round(y/CELL);
+  if(Math.abs(x/CELL-cgx)>0.3||Math.abs(y/CELL-cgy)>0.3)return undefined;
+  const a=S.walls.get(key(cgx-1,cgy-1)), b=S.walls.get(key(cgx,cgy));
+  const c=S.walls.get(key(cgx,cgy-1)), d=S.walls.get(key(cgx-1,cgy));
+  if(a&&b&&!c&&!d)return a;
+  if(c&&d&&!a&&!b)return c;
+  return undefined;
+}
 function wallBetween(a,b){const d=dist(a,b);const steps=Math.max(1,Math.ceil(d/(CELL*0.6)));
   for(let s=0;s<=steps;s++){const t=s/steps;if(wallAt(a.x+(b.x-a.x)*t,a.y+(b.y-a.y)*t))return true}
   return false}
