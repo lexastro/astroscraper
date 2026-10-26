@@ -5,7 +5,7 @@
 /* Layout: full-screen canvas world; HUD is a thin top strip, a build bar bottom-left, minimap bottom-right. */
 :root{
   --bg:#0b0e12; --panel:#141a21; --panel2:#1c242e; --fg:#d7dde5; --muted:#7f8b98;
-  --line:#2a3440; --accent:#f2b63c; --ally:#5ec8ff; --enemy:#ff5c4d; --scrap:#9ad36a; --zone:#b48bff; --harv:#e8935c;
+  --line:#2a3440; --accent:#f2b63c; --ally:#5ec8ff; --enemy:#ff5c4d; --scrap:#9ad36a; --zone:#b48bff; --harv:#e8935c; --builder:#4fd1c5;
   --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
   --sans:"IBM Plex Sans",system-ui,-apple-system,Segoe UI,sans-serif;
   color-scheme:dark;
@@ -66,6 +66,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <div class="stat obj"><span class="k" id="hObjK">Objective</span><span class="v" id="hObj">—</span><div class="bar"><i id="hObjBar" style="width:0%"></i></div></div>
   <button class="stat selbtn" id="hTroopsBtn"><span class="k">Squads</span><span class="v" id="hTroops">—</span></button>
   <button class="stat selbtn" id="hHarvBtn"><span class="k">Harvesters</span><span class="v" id="hHarv">—</span></button>
+  <button class="stat selbtn" id="hBuildersBtn"><span class="k">Builders</span><span class="v" id="hBuilders">—</span></button>
   <div class="stat msg"><span class="v" id="hMsg">Scout the purple zone to find the mining point, then press L to lock down.</span></div>
 </div>
 
@@ -75,12 +76,15 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <button id="bLock"><span id="bLockLabel">Lock Down</span><span class="key">L</span></button>
   <button id="bSelBase"><span>Select Bastion</span><span class="key">B</span></button>
   <button id="bResumeAuto"><span>Resume Auto-Gather</span><span class="key">R</span></button>
+  <button id="bToggleRepair"><span id="bRepairLabel">Repair Mode</span><span class="key">G</span></button>
 </div>
 
 <div class="prod" id="prodMenu" hidden>
   <button id="prodClose" aria-label="Close">×</button>
   <b>Build at Bastion</b>
+  <button id="bBuildTroop" class="prodBtn"><span>Squad</span><span class="cost" id="cTroopCost">30 scrap</span></button>
   <button id="bBuildHarv" class="prodBtn"><span>Harvester</span><span class="cost" id="cHarvCost">20 scrap</span></button>
+  <button id="bBuildBuilder" class="prodBtn"><span>Builder</span><span class="cost" id="cBuilderCost">75 scrap</span></button>
 </div>
 
 <div class="mini"><canvas id="mini" width="180" height="180"></canvas></div>
@@ -88,15 +92,16 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 <div class="help" id="help">
   <button id="helpClose" aria-label="Close">×</button>
   <b>Controls</b><br>
-  Left-drag: select units · Click Bastion: select it &amp; open its build menu · Click the Squads/Harvesters count: select all of that type<br>
-  Right-click: squads move/attack · harvesters move/harvest a node/return to drop off at the Bastion<br>
+  Left-drag: select units · Click Bastion: select it &amp; open its build menu · Click a Squads/Harvesters/Builders count: select all of that type<br>
+  Right-click: squads move/attack · harvesters move/harvest a node/return to drop off · builders move<br>
   <kbd>WASD</kbd> or edge-drag (middle mouse) pans · scroll zooms<br>
-  <kbd>1</kbd> wall · <kbd>2</kbd> turret · <kbd>L</kbd> lock down / skip prep · <kbd>R</kbd> resume harvester auto-gather · <kbd>Esc</kbd> cancel<br>
+  <kbd>1</kbd> wall · <kbd>2</kbd> turret · <kbd>L</kbd> lock down / skip prep · <kbd>R</kbd> resume harvester auto-gather · <kbd>G</kbd> toggle builder repair mode · <kbd>Esc</kbd> cancel<br>
   <b>Loop:</b> drive the Bastion into a purple zone and scout it to reveal the green mining-point marker. Park the Bastion on it and press <kbd>L</kbd> to lock down — you get 45s to fortify before waves hit, then mining runs until the hold timer completes. Press <kbd>L</kbd> again during prep to skip straight to the waves. Walls/turrets only work while locked down, and never on bare rock.<br>
   <b>Terrain:</b> rock blocks movement/building and enemies too; mud slows everyone but can still be crossed.<br>
   The Bastion fires on nearby enemies while mobile, but goes quiet the moment it locks down.<br>
   <b>Harvesters</b> carry no weapons. Left alone they loop automatically: find the nearest resource, haul it home, repeat. Giving one a manual order pauses that loop until you select it and press Resume Auto-Gather (or <kbd>R</kbd>). Build more from the Bastion's build menu.<br>
-  Squads can no longer gather resources — that's the harvesters' job now.<br>
+  Squads can no longer gather resources — that's the harvesters' job now. Recruit more squads from the build menu too.<br>
+  <b>Builders</b> place but don't fight: placing a wall or turret only queues a ghost site, and a builder has to walk over and work it (walls 1s, turrets 5s) before it's real. Toggle selected builders to repair mode (button or <kbd>G</kbd>) and they'll auto-seek damaged walls/turrets and mend them for a trickle of scrap/sec instead. Idle builders head back to dock at the Bastion.<br>
   <kbd>`</kbd> toggles debug: reveal the whole map and all enemies.
 </div>
 
@@ -112,10 +117,12 @@ const W=3600,H=3600, CELL=24;
 const BASE_R=30, BASE_SPEED=42, BUILD_R=270, BASE_VISION=450;
 const TROOP_R=7, TROOP_SPEED=125, TROOP_VISION=340, TROOP_RANGE=165, TROOP_DMG=7, TROOP_CD=0.45, CARRY=12;
 const HARV_R=8, HARV_SPEED=105, HARV_VISION=280;
+const BUILDER_R=7, BUILDER_SPEED=100, BUILDER_VISION=200;
+const WALL_BUILD_T=1, TURRET_BUILD_T=5, REPAIR_HPS=25, REPAIR_SCRAP_PER_SEC=1;
 const TURRET_RANGE=240, TURRET_DMG=14, TURRET_CD=0.65, TURRET_HP=150;
 const BASE_GUN_RANGE=260, BASE_GUN_DMG=18, BASE_GUN_CD=0.5;
 const WALL_HP=220;
-const COST={wall:5,turret:50,harvester:20};
+const COST={wall:5,turret:50,harvester:20,troop:30,builder:75};
 const OBJ=[{x:1250,y:2450,hold:45},{x:2550,y:2300,hold:60},{x:2750,y:850,hold:80}];
 const ZONE_R=170;
 const TCELL=60, TGX=Math.ceil(W/TCELL), TGY=Math.ceil(H/TCELL), MUD_MULT=0.55, PREP_TIME=45;
@@ -123,7 +130,7 @@ const TCELL=60, TGX=Math.ceil(W/TCELL), TGY=Math.ceil(H/TCELL), MUD_MULT=0.55, P
 const cv=document.getElementById('game'), ctx=cv.getContext('2d');
 const mini=document.getElementById('mini'), mctx=mini.getContext('2d');
 const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-const C={ally:css('--ally'),enemy:css('--enemy'),scrap:css('--scrap'),zone:css('--zone'),accent:css('--accent'),fg:css('--fg'),muted:css('--muted'),line:css('--line'),harv:css('--harv')};
+const C={ally:css('--ally'),enemy:css('--enemy'),scrap:css('--scrap'),zone:css('--zone'),accent:css('--accent'),fg:css('--fg'),muted:css('--muted'),line:css('--line'),harv:css('--harv'),builder:css('--builder')};
 
 // ---------- state ----------
 let S, cam, mouse={x:0,y:0,wx:0,wy:0,down:false,drag:null,panning:false}, keys={}, buildMode=null, lastT=0, msgT=0, terrain, terrainCv, prodMenuOpen=false;
@@ -137,10 +144,11 @@ function key(gx,gy){return gx+','+gy}
 function reset(){
   S={t:0,scrap:40,over:null,
     base:{x:520,y:3080,hp:900,maxHp:900,r:BASE_R,dest:null,locked:false,fx:0,gunCd:0},
-    troops:[],harvesters:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],objectives:[],objIdx:0,waveT:8,spawnT:0,sel:{base:false,troops:new Set(),harv:new Set()},
+    troops:[],harvesters:[],builders:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],objectives:[],objIdx:0,waveT:8,spawnT:0,sel:{base:false,troops:new Set(),harv:new Set(),bu:new Set()},
     zoneWaveBase:20,wavePct:20};
   for(let i=0;i<4;i++) S.troops.push({id:i,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp:70,maxHp:70,r:TROOP_R,dest:null,target:null,state:'idle',cd:0});
   for(let i=0;i<2;i++) S.harvesters.push({id:i,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp:50,maxHp:50,r:HARV_R,dest:null,node:null,carry:0,state:'idle',autoLoop:true,hv:0});
+  for(let i=0;i<2;i++) S.builders.push({id:i,x:S.base.x+rnd(-30,30),y:S.base.y+rnd(-30,30),hp:40,maxHp:40,r:BUILDER_R,dest:null,state:'idle',mode:'build',target:null});
   prodMenuOpen=false; document.getElementById('prodMenu').hidden=true;
 
   genTerrain();
@@ -394,14 +402,16 @@ cv.addEventListener('pointermove',e=>{
 cv.addEventListener('pointerup',e=>{
   if(mouse.panning){mouse.panning=false;return}
   if(mouse.drag){const d=mouse.drag;mouse.drag=null;mouse.down=false;
-    const add=e.shiftKey; if(!add){S.sel.troops.clear();S.sel.harv.clear();S.sel.base=false;closeProdMenu()}
+    const add=e.shiftKey; if(!add){S.sel.troops.clear();S.sel.harv.clear();S.sel.bu.clear();S.sel.base=false;closeProdMenu()}
     if(d.moved){const x0=Math.min(d.x0,d.x1),x1=Math.max(d.x0,d.x1),y0=Math.min(d.y0,d.y1),y1=Math.max(d.y0,d.y1);
       S.troops.forEach(t=>{if(t.x>=x0&&t.x<=x1&&t.y>=y0&&t.y<=y1)S.sel.troops.add(t.id)});
       S.harvesters.forEach(h=>{if(h.x>=x0&&h.x<=x1&&h.y>=y0&&h.y<=y1)S.sel.harv.add(h.id)});
-      if(S.sel.troops.size===0&&S.sel.harv.size===0&&S.base.x>=x0&&S.base.x<=x1&&S.base.y>=y0&&S.base.y<=y1)S.sel.base=true;
-    }else{const w={x:d.x1,y:d.y1};const t=S.troops.find(t=>dist(t,w)<t.r+8);const h=!t&&S.harvesters.find(h=>dist(h,w)<h.r+8);
+      S.builders.forEach(bu=>{if(bu.x>=x0&&bu.x<=x1&&bu.y>=y0&&bu.y<=y1)S.sel.bu.add(bu.id)});
+      if(S.sel.troops.size===0&&S.sel.harv.size===0&&S.sel.bu.size===0&&S.base.x>=x0&&S.base.x<=x1&&S.base.y>=y0&&S.base.y<=y1)S.sel.base=true;
+    }else{const w={x:d.x1,y:d.y1};const t=S.troops.find(t=>dist(t,w)<t.r+8);const h=!t&&S.harvesters.find(h=>dist(h,w)<h.r+8);const bu=!t&&!h&&S.builders.find(bu=>bu.state!=='dock'&&dist(bu,w)<bu.r+8);
       if(t)S.sel.troops.add(t.id);
       else if(h)S.sel.harv.add(h.id);
+      else if(bu)S.sel.bu.add(bu.id);
       else if(dist(S.base,w)<S.base.r+10){S.sel.base=true;prodMenuOpen=true}}
   }
 });
@@ -409,28 +419,41 @@ cv.addEventListener('wheel',e=>{e.preventDefault();const w0=toWorld(e.clientX,e.
 addEventListener('keydown',e=>{
   if(e.target.tagName==='INPUT')return; keys[e.key.toLowerCase()]=true; keys[e.key]=true;
   if(e.key==='1')setBuild('wall'); else if(e.key==='2')setBuild('turret');
-  else if(e.key==='Escape'){setBuild(null);closeProdMenu()} else if(e.key.toLowerCase()==='b'){S.sel.troops.clear();S.sel.harv.clear();S.sel.base=true}
-  else if(e.key.toLowerCase()==='t'){S.sel.base=false;S.sel.harv.clear();S.troops.forEach(t=>S.sel.troops.add(t.id))}
-  else if(e.key.toLowerCase()==='h'){S.sel.base=false;S.sel.troops.clear();S.harvesters.forEach(h=>S.sel.harv.add(h.id))}
+  else if(e.key==='Escape'){setBuild(null);closeProdMenu()} else if(e.key.toLowerCase()==='b'){S.sel.troops.clear();S.sel.harv.clear();S.sel.bu.clear();S.sel.base=true}
+  else if(e.key.toLowerCase()==='t'){S.sel.base=false;S.sel.harv.clear();S.sel.bu.clear();S.troops.forEach(t=>S.sel.troops.add(t.id))}
+  else if(e.key.toLowerCase()==='h'){S.sel.base=false;S.sel.troops.clear();S.sel.bu.clear();S.harvesters.forEach(h=>S.sel.harv.add(h.id))}
+  else if(e.key.toLowerCase()==='u'){S.sel.base=false;S.sel.troops.clear();S.sel.harv.clear();S.builders.forEach(bu=>S.sel.bu.add(bu.id))}
   else if(e.key.toLowerCase()==='f'){cam.x=S.base.x;cam.y=S.base.y}
   else if(e.key.toLowerCase()==='l'){lockOrSkip()}
   else if(e.key.toLowerCase()==='r'){resumeAutoLoop()}
+  else if(e.key.toLowerCase()==='g'){toggleRepairMode()}
   else if(e.key==='`'){debugNoFog=!debugNoFog;msg(debugNoFog?'Debug: fog of war disabled':'Debug: fog of war re-enabled')}
   if(e.key===' ')e.preventDefault();
 });
 addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;keys[e.key]=false});
 document.querySelectorAll('#buildBar button[data-mode]').forEach(b=>b.addEventListener('click',()=>setBuild(buildMode===b.dataset.mode?null:b.dataset.mode)));
 document.getElementById('bLock').onclick=lockOrSkip;
-document.getElementById('bSelBase').onclick=()=>{S.sel.troops.clear();S.sel.harv.clear();S.sel.base=true};
+document.getElementById('bSelBase').onclick=()=>{S.sel.troops.clear();S.sel.harv.clear();S.sel.bu.clear();S.sel.base=true};
 document.getElementById('bResumeAuto').onclick=resumeAutoLoop;
-document.getElementById('hTroopsBtn').onclick=()=>{S.sel.base=false;S.sel.harv.clear();closeProdMenu();S.troops.forEach(t=>S.sel.troops.add(t.id))};
-document.getElementById('hHarvBtn').onclick=()=>{S.sel.base=false;S.sel.troops.clear();closeProdMenu();S.harvesters.forEach(h=>S.sel.harv.add(h.id))};
+document.getElementById('bToggleRepair').onclick=toggleRepairMode;
+document.getElementById('hTroopsBtn').onclick=()=>{S.sel.base=false;S.sel.harv.clear();S.sel.bu.clear();closeProdMenu();S.troops.forEach(t=>S.sel.troops.add(t.id))};
+document.getElementById('hHarvBtn').onclick=()=>{S.sel.base=false;S.sel.troops.clear();S.sel.bu.clear();closeProdMenu();S.harvesters.forEach(h=>S.sel.harv.add(h.id))};
+document.getElementById('hBuildersBtn').onclick=()=>{S.sel.base=false;S.sel.troops.clear();S.sel.harv.clear();closeProdMenu();S.builders.forEach(bu=>S.sel.bu.add(bu.id))};
 document.getElementById('prodClose').onclick=closeProdMenu;
+document.getElementById('bBuildTroop').onclick=buildTroop;
 document.getElementById('bBuildHarv').onclick=buildHarvester;
+document.getElementById('bBuildBuilder').onclick=buildBuilderUnit;
 document.getElementById('helpClose').onclick=()=>{document.getElementById('help').hidden=true};
 document.getElementById('ovBtn').onclick=reset;
 mini.addEventListener('pointerdown',e=>{const r=mini.getBoundingClientRect();cam.x=(e.clientX-r.left)/r.width*W;cam.y=(e.clientY-r.top)/r.height*H;clampCam()});
 function closeProdMenu(){prodMenuOpen=false;const el=document.getElementById('prodMenu');if(el)el.hidden=true}
+function buildTroop(){
+  if(S.scrap<COST.troop){msg('Not enough scrap for a new squad.');return}
+  S.scrap-=COST.troop;
+  S.troops.push({id:Date.now()+Math.floor(Math.random()*1000),x:S.base.x+rnd(-30,30),y:S.base.y+rnd(-30,30),hp:70,maxHp:70,r:TROOP_R,dest:null,target:null,state:'idle',cd:0});
+  msg('Squad recruited.');
+  updateBuildBar();
+}
 function buildHarvester(){
   if(S.scrap<COST.harvester){msg('Not enough scrap for a harvester.');return}
   S.scrap-=COST.harvester;
@@ -438,10 +461,30 @@ function buildHarvester(){
   msg('Harvester built.');
   updateBuildBar();
 }
+function buildBuilderUnit(){
+  if(S.scrap<COST.builder){msg('Not enough scrap for a builder.');return}
+  S.scrap-=COST.builder;
+  S.builders.push({id:Date.now()+Math.floor(Math.random()*1000),x:S.base.x+rnd(-30,30),y:S.base.y+rnd(-30,30),hp:40,maxHp:40,r:BUILDER_R,dest:null,state:'idle',mode:'build',target:null});
+  msg('Builder constructed.');
+  updateBuildBar();
+}
 function resumeAutoLoop(){
   if(S.sel.harv.size===0){msg('Select harvesters to resume their auto-gather loop.');return}
   S.harvesters.forEach(h=>{if(S.sel.harv.has(h.id))h.autoLoop=true});
   msg('Auto-gather resumed for selected harvesters.');
+}
+function releaseBuilderClaim(bu){
+  if(!bu.target)return;
+  if(bu.target.builder===bu)bu.target.builder=null;
+  if(bu.target.repairer===bu)bu.target.repairer=null;
+}
+function toggleRepairMode(){
+  if(S.sel.bu.size===0){msg('Select builders to toggle their mode.');return}
+  const anyRepair=S.builders.some(b=>S.sel.bu.has(b.id)&&b.mode==='repair');
+  const newMode=anyRepair?'build':'repair';
+  S.builders.forEach(b=>{if(S.sel.bu.has(b.id)){releaseBuilderClaim(b);b.mode=newMode;b.state='idle';b.target=null}});
+  msg(newMode==='repair'?'Selected builders switched to repair mode.':'Selected builders switched to build mode.');
+  updateBuildBar();
 }
 function setBuild(m){buildMode=m;closeProdMenu();updateBuildBar()}
 function updateBuildBar(){
@@ -457,8 +500,17 @@ function updateBuildBar(){
     lb.disabled=skipping?false:!canLockdown();
   }
   document.getElementById('bResumeAuto').disabled=S.sel.harv.size===0;
+  const rb=document.getElementById('bToggleRepair');
+  rb.disabled=S.sel.bu.size===0;
+  const anyRepairSel=S.builders.some(b=>S.sel.bu.has(b.id)&&b.mode==='repair');
+  document.getElementById('bRepairLabel').textContent=anyRepairSel?'Build Mode':'Repair Mode';
   const pm=document.getElementById('prodMenu');
-  if(pm){pm.hidden=!prodMenuOpen||!S.sel.base; document.getElementById('bBuildHarv').disabled=S.scrap<COST.harvester}
+  if(pm){
+    pm.hidden=!prodMenuOpen||!S.sel.base;
+    document.getElementById('bBuildTroop').disabled=S.scrap<COST.troop;
+    document.getElementById('bBuildHarv').disabled=S.scrap<COST.harvester;
+    document.getElementById('bBuildBuilder').disabled=S.scrap<COST.builder;
+  }
 }
 function clampCam(){cam.x=Math.max(0,Math.min(W,cam.x));cam.y=Math.max(0,Math.min(H,cam.y))}
 
@@ -492,11 +544,12 @@ function rightClick(w){
   if(buildMode){setBuild(null);return}
   const selT=[...S.sel.troops].map(id=>S.troops.find(t=>t.id===id)).filter(Boolean);
   const selH=[...S.sel.harv].map(id=>S.harvesters.find(h=>h.id===id)).filter(Boolean);
-  if(S.sel.base&&selT.length===0&&selH.length===0){
+  const selBu=[...S.sel.bu].map(id=>S.builders.find(b=>b.id===id)).filter(Boolean);
+  if(S.sel.base&&selT.length===0&&selH.length===0&&selBu.length===0){
     if(S.base.locked){msg('The Bastion is locked down until the hold completes.');return}
     S.base.dest={x:w.x,y:w.y};return;
   }
-  if(selT.length===0&&selH.length===0)return;
+  if(selT.length===0&&selH.length===0&&selBu.length===0)return;
   const en=S.enemies.find(e=>visible(e)&&dist(e,w)<e.r+10);
   const nd=S.nodes.find(n=>n.found&&dist(n,w)<28);
   const nearBase=dist(S.base,w)<S.base.r+40;
@@ -520,6 +573,14 @@ function rightClick(w){
       msg('Harvesters moving — auto-gather paused.');
     }
   }
+
+  if(selBu.length){
+    selBu.forEach((bu,i)=>{
+      releaseBuilderClaim(bu);
+      const off=selBu.length>1?{x:Math.cos(i*2.1)*14,y:Math.sin(i*2.1)*14}:{x:0,y:0};
+      bu.state='move';bu.dest={x:w.x+off.x,y:w.y+off.y};bu.target=null;
+    });
+  }
 }
 function tryBuild(w){
   if(!S.base.locked){msg('Lock down the Bastion before building.');return}
@@ -529,23 +590,26 @@ function tryBuild(w){
   if(buildMode==='wall'){const gx=Math.floor(w.x/CELL),gy=Math.floor(w.y/CELL),k=key(gx,gy);const cx=gx*CELL+CELL/2,cy=gy*CELL+CELL/2;
     if(S.walls.has(k)||dist({x:cx,y:cy},S.base)<BASE_R+CELL)return;
     if(S.turrets.some(t=>dist(t,{x:cx,y:cy})<CELL))return;
-    S.walls.set(k,{gx,gy,x:cx,y:cy,hp:WALL_HP});S.scrap-=COST.wall;
+    S.walls.set(k,{gx,gy,x:cx,y:cy,hp:WALL_HP,maxHp:WALL_HP,kind:'wall',built:false,buildT:0,buildTotal:WALL_BUILD_T,builder:null,repairer:null});S.scrap-=COST.wall;
+    msg('Wall queued — a builder needs to finish it.');
   }else{
     if(dist(w,S.base)<BASE_R+14||S.turrets.some(t=>dist(t,w)<26))return;
     const k=key(Math.floor(w.x/CELL),Math.floor(w.y/CELL));if(S.walls.has(k))return;
-    S.turrets.push({x:w.x,y:w.y,hp:TURRET_HP,maxHp:TURRET_HP,cd:0,ang:0});S.scrap-=COST.turret;
+    S.turrets.push({x:w.x,y:w.y,hp:TURRET_HP,maxHp:TURRET_HP,cd:0,ang:0,kind:'turret',built:false,buildT:0,buildTotal:TURRET_BUILD_T,builder:null,repairer:null});S.scrap-=COST.turret;
+    msg('Turret queued — a builder needs to finish it.');
   }
   updateBuildBar();
 }
 
 // ---------- helpers ----------
-function visible(p){if(dist(p,S.base)<BASE_VISION)return true;if(S.troops.some(t=>dist(t,p)<TROOP_VISION))return true;return S.harvesters.some(h=>dist(h,p)<HARV_VISION)}
+function visible(p){if(dist(p,S.base)<BASE_VISION)return true;if(S.troops.some(t=>dist(t,p)<TROOP_VISION))return true;if(S.harvesters.some(h=>dist(h,p)<HARV_VISION))return true;return S.builders.some(b=>dist(b,p)<BUILDER_VISION)}
 function moveToward(o,d,sp,dt){const dx=d.x-o.x,dy=d.y-o.y,L=Math.hypot(dx,dy);if(L<1)return 0;const s=Math.min(L,sp*dt);o.x+=dx/L*s;o.y+=dy/L*s;return L-s}
 function tracer(a,b,col){S.tracers.push({x1:a.x,y1:a.y,x2:b.x,y2:b.y,t:0.12,col})}
 function damageEnemy(e,d){e.hp-=d}
+// Only a FINISHED wall is a solid obstacle — a queued/under-construction site is just a ghost preview.
 function wallAt(x,y){
   const direct=S.walls.get(key(Math.floor(x/CELL),Math.floor(y/CELL)));
-  if(direct)return direct;
+  if(direct&&direct.built)return direct;
   return cornerSealed(x,y);
 }
 // Two walls touching only at a shared corner (with the other two cells at that corner empty) should
@@ -553,8 +617,9 @@ function wallAt(x,y){
 function cornerSealed(x,y){
   const cgx=Math.round(x/CELL), cgy=Math.round(y/CELL);
   if(Math.abs(x/CELL-cgx)>0.3||Math.abs(y/CELL-cgy)>0.3)return undefined;
-  const a=S.walls.get(key(cgx-1,cgy-1)), b=S.walls.get(key(cgx,cgy));
-  const c=S.walls.get(key(cgx,cgy-1)), d=S.walls.get(key(cgx-1,cgy));
+  const get=(gx,gy)=>{const w=S.walls.get(key(gx,gy));return (w&&w.built)?w:undefined};
+  const a=get(cgx-1,cgy-1), b=get(cgx,cgy);
+  const c=get(cgx,cgy-1), d=get(cgx-1,cgy);
   if(a&&b&&!c&&!d)return a;
   if(c&&d&&!a&&!b)return c;
   return undefined;
@@ -562,6 +627,11 @@ function cornerSealed(x,y){
 function wallBetween(a,b){const d=dist(a,b);const steps=Math.max(1,Math.ceil(d/(CELL*0.6)));
   for(let s=0;s<=steps;s++){const t=s/steps;if(wallAt(a.x+(b.x-a.x)*t,a.y+(b.y-a.y)*t))return true}
   return false}
+// A wall/turret site can be destroyed by enemies mid-build; confirm it's still the live object before a builder keeps working it.
+function siteStillValid(site){
+  if(site.kind==='wall')return S.walls.get(key(site.gx,site.gy))===site;
+  return S.turrets.includes(site);
+}
 
 // ---------- update ----------
 function update(dt){
@@ -666,10 +736,57 @@ function update(dt){
     S.nodes.forEach(n=>{if(!n.found&&dist(n,h)<HARV_VISION)n.found=true});
   });
 
+  // builders — unarmed; auto-build queued sites, or (repair mode) auto-heal damaged ones; dock at the Bastion when idle
+  S.builders.forEach(bu=>{
+    const factor=terrainAt(bu.x,bu.y)===1?MUD_MULT:1;
+    if(bu.state==='idle'||bu.state==='dock'){
+      let found=null,bd=Infinity;
+      if(bu.mode==='build'){
+        S.walls.forEach(w=>{if(w.built||(w.builder&&w.builder!==bu))return;const d=dist(bu,w);if(d<bd){bd=d;found=w}});
+        S.turrets.forEach(t=>{if(t.built||(t.builder&&t.builder!==bu))return;const d=dist(bu,t);if(d<bd){bd=d;found=t}});
+        if(found){found.builder=bu;bu.target=found;bu.state='build'}
+      }else{
+        S.walls.forEach(w=>{if(!w.built||w.hp>=w.maxHp||(w.repairer&&w.repairer!==bu))return;const d=dist(bu,w);if(d<bd){bd=d;found=w}});
+        S.turrets.forEach(t=>{if(!t.built||t.hp>=t.maxHp||(t.repairer&&t.repairer!==bu))return;const d=dist(bu,t);if(d<bd){bd=d;found=t}});
+        if(found){found.repairer=bu;bu.target=found;bu.state='repair'}
+      }
+      if(!found&&bu.state!=='dock'){bu.state='dock';bu.dest=null}
+    }
+    if(bu.state==='move'&&bu.dest){
+      const aim=waypointFor(bu,bu.dest.x,bu.dest.y);
+      moveToward(bu,aim,BUILDER_SPEED*factor,dt);
+      if(dist(bu,bu.dest)<4){bu.dest=null;bu.state='idle'}
+    }
+    else if(bu.state==='dock'){
+      const aim=waypointFor(bu,B.x,B.y);
+      moveToward(bu,aim,BUILDER_SPEED*factor,dt);
+    }
+    else if(bu.state==='build'){
+      const site=bu.target;
+      if(!site||!siteStillValid(site)||site.built){bu.target=null;bu.state='idle'}
+      else if(dist(bu,site)>26){const aim=waypointFor(bu,site.x,site.y);moveToward(bu,aim,BUILDER_SPEED*factor,dt)}
+      else{
+        site.buildT+=dt;
+        if(site.buildT>=site.buildTotal){site.built=true;site.builder=null;bu.target=null;bu.state='idle';msg(site.kind==='wall'?'Wall built.':'Turret built.')}
+      }
+    }
+    else if(bu.state==='repair'){
+      const site=bu.target;
+      if(!site||!siteStillValid(site)||!site.built||site.hp>=site.maxHp){if(site)site.repairer=null;bu.target=null;bu.state='idle'}
+      else if(dist(bu,site)>26){const aim=waypointFor(bu,site.x,site.y);moveToward(bu,aim,BUILDER_SPEED*factor,dt)}
+      else if(S.scrap>=REPAIR_SCRAP_PER_SEC*dt){
+        S.scrap-=REPAIR_SCRAP_PER_SEC*dt;
+        site.hp=Math.min(site.maxHp,site.hp+REPAIR_HPS*dt);
+        updateBuildBar();
+      }
+    }
+    bu.x=Math.max(10,Math.min(W-10,bu.x));bu.y=Math.max(10,Math.min(H-10,bu.y));
+  });
+
   S.nodes.forEach(n=>{if(!n.found&&dist(n,B)<BASE_VISION)n.found=true});
-  S.objectives.forEach(o=>{if(!o.done&&!o.mine.found&&(dist(o.mine,B)<BASE_VISION||S.troops.some(t=>dist(o.mine,t)<TROOP_VISION)||S.harvesters.some(h=>dist(o.mine,h)<HARV_VISION)))o.mine.found=true});
-  // unit separation (troops + harvesters) — don't let crowding shove anyone through a wall
-  {const all=S.troops.concat(S.harvesters);
+  S.objectives.forEach(o=>{if(!o.done&&!o.mine.found&&(dist(o.mine,B)<BASE_VISION||S.troops.some(t=>dist(o.mine,t)<TROOP_VISION)||S.harvesters.some(h=>dist(o.mine,h)<HARV_VISION)||S.builders.some(bu=>dist(o.mine,bu)<BUILDER_VISION)))o.mine.found=true});
+  // unit separation (troops + harvesters + builders) — don't let crowding shove anyone through a wall
+  {const all=S.troops.concat(S.harvesters).concat(S.builders);
   for(let i=0;i<all.length;i++)for(let j=i+1;j<all.length;j++){const a=all[i],b=all[j],d=dist(a,b);
     if(d<16&&d>0.5){const p=(16-d)/2,dx=(b.x-a.x)/d,dy=(b.y-a.y)/d;
       const anx=a.x-dx*p,any=a.y-dy*p,bnx=b.x+dx*p,bny=b.y+dy*p;
@@ -677,12 +794,12 @@ function update(dt){
       if(!wallAt(bnx,bny)){b.x=bnx;b.y=bny}
     }}}
 
-  // turrets
-  S.turrets.forEach(tu=>{tu.cd-=dt;let best=null,bd=TURRET_RANGE;S.enemies.forEach(e=>{const d=dist(e,tu);if(d<bd){bd=d;best=e}});
+  // turrets (only once finished — an unbuilt site is just a ghost)
+  S.turrets.forEach(tu=>{if(!tu.built)return;tu.cd-=dt;let best=null,bd=TURRET_RANGE;S.enemies.forEach(e=>{const d=dist(e,tu);if(d<bd){bd=d;best=e}});
     if(best){tu.ang=Math.atan2(best.y-tu.y,best.x-tu.x);if(tu.cd<=0){damageEnemy(best,TURRET_DMG);tracer(tu,best,C.accent);tu.cd=TURRET_CD}}});
 
   // enemies
-  const allies=S.troops.concat(S.harvesters);
+  const allies=S.troops.concat(S.harvesters).concat(S.builders);
   S.enemies.forEach(e=>{
     e.cd-=dt;
     let tgt=null,bd=e.aggro;
@@ -690,7 +807,7 @@ function update(dt){
     if(e.kind==='roam'){
       if(!tgt&&dist(e,B)<e.aggro+120)tgt=B;
     } else {
-      if(!tgt||bd>220){let bt=B,btd=dist(e,B);S.turrets.forEach(tu=>{const d=dist(e,tu);if(d<btd*0.6){bt=tu;btd=d}});tgt=bt}
+      if(!tgt||bd>220){let bt=B,btd=dist(e,B);S.turrets.forEach(tu=>{if(!tu.built)return;const d=dist(e,tu);if(d<btd*0.6){bt=tu;btd=d}});tgt=bt}
     }
     e.target=tgt;
     // face whoever they're engaging; otherwise idle fidget with a random heading
@@ -731,6 +848,8 @@ function update(dt){
   S.turrets=S.turrets.filter(t=>t.hp>0);
   S.troops=S.troops.filter(t=>t.hp>0); S.troops.forEach(t=>{if(dist(t,B)<B.r+30&&!S.enemies.some(e=>dist(e,t)<200))t.hp=Math.min(t.maxHp,t.hp+6*dt)});
   S.harvesters=S.harvesters.filter(h=>h.hp>0); S.harvesters.forEach(h=>{if(dist(h,B)<B.r+30&&!S.enemies.some(e=>dist(e,h)<200))h.hp=Math.min(h.maxHp,h.hp+6*dt)});
+  S.builders.forEach(bu=>{if(bu.hp<=0)releaseBuilderClaim(bu)});
+  S.builders=S.builders.filter(bu=>bu.hp>0); S.builders.forEach(bu=>{if(dist(bu,B)<B.r+30&&!S.enemies.some(e=>dist(e,bu)<200))bu.hp=Math.min(bu.maxHp,bu.hp+6*dt)});
   if(S.troops.length===0&&!S.troopsLostMsg){S.troopsLostMsg=true;msg('All squads lost. New squads form at the Bastion in 20s.');S.respawnT=20}
   if(S.respawnT!==undefined){S.respawnT-=dt;if(S.respawnT<=0){S.respawnT=undefined;S.troopsLostMsg=false;for(let i=0;i<2;i++)S.troops.push({id:Date.now()+i,x:B.x+rnd(-40,40),y:B.y+rnd(-40,40),hp:70,maxHp:70,r:TROOP_R,dest:null,target:null,state:'idle',cd:0})}}
   S.tracers=S.tracers.filter(t=>(t.t-=dt)>0);
@@ -739,7 +858,7 @@ function update(dt){
   // fog explore (permanent reveal — once scouted, stays visible; enemy sighting is gated separately by visible())
   fogX.globalCompositeOperation='destination-out';
   const rev=(x,y,r)=>{const g=fogX.createRadialGradient(x/FOG_S,y/FOG_S,r*0.6/FOG_S,x/FOG_S,y/FOG_S,r/FOG_S);g.addColorStop(0,'rgba(0,0,0,1)');g.addColorStop(1,'rgba(0,0,0,0)');fogX.fillStyle=g;fogX.beginPath();fogX.arc(x/FOG_S,y/FOG_S,r/FOG_S,0,Math.PI*2);fogX.fill()};
-  rev(B.x,B.y,BASE_VISION);S.troops.forEach(t=>rev(t.x,t.y,TROOP_VISION));S.harvesters.forEach(h=>rev(h.x,h.y,HARV_VISION));
+  rev(B.x,B.y,BASE_VISION);S.troops.forEach(t=>rev(t.x,t.y,TROOP_VISION));S.harvesters.forEach(h=>rev(h.x,h.y,HARV_VISION));S.builders.forEach(bu=>rev(bu.x,bu.y,BUILDER_VISION));
 }
 function showOverlay(t,s){document.getElementById('ovTitle').textContent=t;document.getElementById('ovText').textContent=s;document.getElementById('overlay').hidden=false}
 
@@ -790,10 +909,32 @@ function draw(){
   // build ring
   ctx.setLineDash([6,10]);ctx.strokeStyle='rgba(242,182,60,0.35)';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(B.x,B.y,BUILD_R,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
   // walls
-  S.walls.forEach(w=>{ctx.fillStyle='#8d9aa8';ctx.fillRect(w.x-CELL/2+1,w.y-CELL/2+1,CELL-2,CELL-2);ctx.fillStyle='#55626f';ctx.fillRect(w.x-CELL/2+4,w.y-CELL/2+4,CELL-8,CELL-8);
-    if(w.hp<WALL_HP){ctx.fillStyle='rgba(255,92,77,0.6)';ctx.fillRect(w.x-CELL/2+1,w.y+CELL/2-4,(CELL-2)*(1-w.hp/WALL_HP),3)}});
+  S.walls.forEach(w=>{
+    if(!w.built){
+      const pulse=0.55+0.25*Math.sin(S.t*5);
+      ctx.fillStyle=C.builder;ctx.globalAlpha=0.22;ctx.fillRect(w.x-CELL/2+1,w.y-CELL/2+1,CELL-2,CELL-2);
+      ctx.globalAlpha=pulse;ctx.strokeStyle=C.builder;ctx.lineWidth=2.5;ctx.setLineDash([5,4]);
+      ctx.strokeRect(w.x-CELL/2+1,w.y-CELL/2+1,CELL-2,CELL-2);ctx.setLineDash([]);
+      ctx.globalAlpha=1;
+      ctx.fillStyle='rgba(0,0,0,0.6)';ctx.fillRect(w.x-CELL/2+2,w.y+CELL/2-5,CELL-4,3);
+      ctx.fillStyle=C.builder;ctx.fillRect(w.x-CELL/2+2,w.y+CELL/2-5,(CELL-4)*(w.buildT/w.buildTotal),3);
+      return;
+    }
+    ctx.fillStyle='#8d9aa8';ctx.fillRect(w.x-CELL/2+1,w.y-CELL/2+1,CELL-2,CELL-2);ctx.fillStyle='#55626f';ctx.fillRect(w.x-CELL/2+4,w.y-CELL/2+4,CELL-8,CELL-8);
+    if(w.hp<w.maxHp){ctx.fillStyle='rgba(255,92,77,0.6)';ctx.fillRect(w.x-CELL/2+1,w.y+CELL/2-4,(CELL-2)*(1-w.hp/w.maxHp),3)}});
   // turrets
-  S.turrets.forEach(t=>{ctx.fillStyle='#3b4652';ctx.beginPath();ctx.arc(t.x,t.y,11,0,Math.PI*2);ctx.fill();ctx.strokeStyle=C.accent;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(t.x,t.y);ctx.lineTo(t.x+Math.cos(t.ang)*15,t.y+Math.sin(t.ang)*15);ctx.stroke();hpbar(t.x,t.y-18,22,t.hp/t.maxHp)});
+  S.turrets.forEach(t=>{
+    if(!t.built){
+      const pulse=0.55+0.25*Math.sin(S.t*5);
+      ctx.fillStyle=C.builder;ctx.globalAlpha=0.22;ctx.beginPath();ctx.arc(t.x,t.y,11,0,Math.PI*2);ctx.fill();
+      ctx.globalAlpha=pulse;ctx.strokeStyle=C.builder;ctx.lineWidth=2.5;ctx.setLineDash([5,4]);
+      ctx.beginPath();ctx.arc(t.x,t.y,11,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
+      ctx.globalAlpha=1;
+      ctx.fillStyle='rgba(0,0,0,0.6)';ctx.fillRect(t.x-11,t.y+15,22,3);
+      ctx.fillStyle=C.builder;ctx.fillRect(t.x-11,t.y+15,22*(t.buildT/t.buildTotal),3);
+      return;
+    }
+    ctx.fillStyle='#3b4652';ctx.beginPath();ctx.arc(t.x,t.y,11,0,Math.PI*2);ctx.fill();ctx.strokeStyle=C.accent;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(t.x,t.y);ctx.lineTo(t.x+Math.cos(t.ang)*15,t.y+Math.sin(t.ang)*15);ctx.stroke();hpbar(t.x,t.y-18,22,t.hp/t.maxHp)});
   // base
   ctx.save();ctx.translate(B.x,B.y);ctx.fillStyle=B.locked?'#4a3a1c':'#2b3745';ctx.strokeStyle=B.locked?C.accent:C.ally;ctx.lineWidth=2.5;
   ctx.beginPath();ctx.rect(-B.r,-B.r*0.7,B.r*2,B.r*1.4);ctx.fill();ctx.stroke();
@@ -815,6 +956,12 @@ function draw(){
     if(h.carry>0){ctx.fillStyle=C.scrap;ctx.beginPath();ctx.arc(h.x+6,h.y-6,3+h.carry/6,0,Math.PI*2);ctx.fill()}
     if(h.hp<h.maxHp)hpbar(h.x,h.y-14,16,h.hp/h.maxHp);
     if(sel&&h.dest){ctx.strokeStyle='rgba(232,147,92,0.35)';ctx.beginPath();ctx.moveTo(h.x,h.y);ctx.lineTo(h.dest.x,h.dest.y);ctx.stroke()}});
+  // builders
+  S.builders.forEach(bu=>{const sel=S.sel.bu.has(bu.id);if(sel){ctx.strokeStyle=C.builder;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(bu.x,bu.y,bu.r+5,0,Math.PI*2);ctx.stroke()}
+    ctx.fillStyle=C.builder;ctx.beginPath();ctx.moveTo(bu.x,bu.y-bu.r);ctx.lineTo(bu.x+bu.r,bu.y+bu.r*0.7);ctx.lineTo(bu.x-bu.r,bu.y+bu.r*0.7);ctx.closePath();ctx.fill();
+    if(bu.mode==='repair'){ctx.strokeStyle='#fff';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(bu.x-4,bu.y+2);ctx.lineTo(bu.x+4,bu.y+2);ctx.moveTo(bu.x,bu.y-2);ctx.lineTo(bu.x,bu.y+6);ctx.stroke()}
+    if(bu.hp<bu.maxHp)hpbar(bu.x,bu.y-14,16,bu.hp/bu.maxHp);
+    if(sel&&bu.dest){ctx.strokeStyle='rgba(79,209,197,0.35)';ctx.beginPath();ctx.moveTo(bu.x,bu.y);ctx.lineTo(bu.dest.x,bu.dest.y);ctx.stroke()}});
   // enemies (only visible)
   S.enemies.forEach(e=>{if(!debugNoFog&&!visible(e))return;const a=e.ang;ctx.fillStyle=e.kind==='roam'?'#d9775f':C.enemy;ctx.beginPath();
     ctx.moveTo(e.x+Math.cos(a)*e.r*1.3,e.y+Math.sin(a)*e.r*1.3);ctx.lineTo(e.x+Math.cos(a+2.5)*e.r,e.y+Math.sin(a+2.5)*e.r);ctx.lineTo(e.x+Math.cos(a-2.5)*e.r,e.y+Math.sin(a-2.5)*e.r);ctx.closePath();ctx.fill();
@@ -842,6 +989,7 @@ function drawMini(){const s=mini.width/W;mctx.fillStyle='#10151b';mctx.fillRect(
   S.enemies.forEach(e=>{if(debugNoFog||visible(e)){mctx.fillStyle=C.enemy;mctx.fillRect(e.x*s-1,e.y*s-1,2,2)}});
   S.troops.forEach(t=>{mctx.fillStyle=C.ally;mctx.fillRect(t.x*s-1.5,t.y*s-1.5,3,3)});
   S.harvesters.forEach(h=>{mctx.fillStyle=C.harv;mctx.fillRect(h.x*s-1.5,h.y*s-1.5,3,3)});
+  S.builders.forEach(bu=>{mctx.fillStyle=C.builder;mctx.fillRect(bu.x*s-1.5,bu.y*s-1.5,3,3)});
   mctx.fillStyle=C.accent;mctx.fillRect(S.base.x*s-3,S.base.y*s-3,6,6);
   const vw=cv.width/devicePixelRatio/cam.z,vh=cv.height/devicePixelRatio/cam.z;mctx.strokeStyle='rgba(255,255,255,0.5)';mctx.lineWidth=1;mctx.strokeRect((cam.x-vw/2)*s,(cam.y-vh/2)*s,vw*s,vh*s)}
 const $=id=>document.getElementById(id);
@@ -861,8 +1009,10 @@ function hud(){
   } else { $('hObj').textContent='all held';$('hObjBar').style.width='100%' }
   $('hTroops').textContent=S.troops.length+(S.sel.troops.size?` (${S.sel.troops.size} sel)`:'');
   $('hHarv').textContent=S.harvesters.length+(S.sel.harv.size?` (${S.sel.harv.size} sel)`:'');
+  $('hBuilders').textContent=S.builders.length+(S.sel.bu.size?` (${S.sel.bu.size} sel)`:'');
   document.getElementById('hTroopsBtn').classList.toggle('sel',S.sel.troops.size>0);
   document.getElementById('hHarvBtn').classList.toggle('sel',S.sel.harv.size>0);
+  document.getElementById('hBuildersBtn').classList.toggle('sel',S.sel.bu.size>0);
   updateBuildBar();
 }
 
