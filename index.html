@@ -1,0 +1,398 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Rolling Bastion</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: full-screen canvas world; HUD is a thin top strip, a build bar bottom-left, minimap bottom-right. */
+:root{
+  --bg:#0b0e12; --panel:#141a21; --panel2:#1c242e; --fg:#d7dde5; --muted:#7f8b98;
+  --line:#2a3440; --accent:#f2b63c; --ally:#5ec8ff; --enemy:#ff5c4d; --scrap:#9ad36a; --zone:#b48bff;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,Segoe UI,sans-serif;
+  color-scheme:dark;
+}
+html,body{height:100%;margin:0;overflow:hidden}
+body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:13px;position:relative;
+  padding-left:max(0px,env(safe-area-inset-left,0px));padding-right:max(0px,env(safe-area-inset-right,0px))}
+canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:none}
+.hud{position:absolute;top:env(safe-area-inset-top,0px);left:0;right:0;display:flex;gap:10px;align-items:stretch;
+  padding:8px max(16px,env(safe-area-inset-right,0px)) 0 max(16px,env(safe-area-inset-left,0px));pointer-events:none;flex-wrap:wrap}
+.stat{background:var(--panel);border:1px solid var(--line);padding:6px 10px;border-radius:4px;display:flex;flex-direction:column;gap:2px;min-width:92px}
+.stat .k{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.stat .v{font-family:var(--mono);font-size:16px;font-variant-numeric:tabular-nums}
+.stat.scrap .v{color:var(--scrap)} .stat.obj .v{color:var(--zone)}
+.bar{height:5px;background:var(--panel2);border-radius:2px;overflow:hidden;margin-top:3px}
+.bar i{display:block;height:100%;background:var(--ally)}
+.bar i.hp{background:var(--accent)}
+.stat.msg{flex:1;min-width:0;justify-content:center;color:var(--fg)}
+.stat.msg .v{font-size:13px;font-family:var(--sans)}
+.build{position:absolute;left:max(16px,env(safe-area-inset-left,0px));bottom:max(12px,env(safe-area-inset-bottom,0px));display:flex;gap:6px;pointer-events:auto;flex-wrap:wrap}
+.build button{background:var(--panel);border:1px solid var(--line);color:var(--fg);font:inherit;padding:8px 10px;border-radius:4px;cursor:pointer;display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:86px}
+.build button:hover{background:var(--panel2)} .build button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.build button.on{border-color:var(--accent);background:var(--panel2)}
+.build button .key{font-family:var(--mono);font-size:10px;color:var(--muted)}
+.build button .cost{font-family:var(--mono);font-size:11px;color:var(--scrap)}
+.build button:disabled{opacity:.45;cursor:default}
+.mini{position:absolute;right:max(16px,env(safe-area-inset-right,0px));bottom:max(12px,env(safe-area-inset-bottom,0px));border:1px solid var(--line);background:var(--panel);border-radius:4px;overflow:hidden;cursor:pointer}
+.mini canvas{display:block}
+.help{position:absolute;right:max(16px,env(safe-area-inset-right,0px));top:calc(env(safe-area-inset-top,0px) + 70px);background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:10px 12px;max-width:260px;font-size:12px;line-height:1.45;color:var(--muted)}
+.help b{color:var(--fg);font-weight:600} .help kbd{font-family:var(--mono);background:var(--panel2);padding:0 4px;border-radius:3px;color:var(--fg)}
+.help button{position:absolute;top:4px;right:6px;background:none;border:0;color:var(--muted);cursor:pointer;font-size:14px}
+.overlay{position:absolute;inset:0;background:rgba(5,7,10,.78);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;text-align:center;padding:24px}
+.overlay h1{font-family:var(--mono);font-weight:500;font-size:26px;margin:0;letter-spacing:.04em;text-wrap:balance}
+.overlay p{margin:0;color:var(--muted);max-width:40ch}
+.overlay button{background:var(--accent);color:#1a1200;border:0;font:inherit;font-weight:600;padding:10px 18px;border-radius:4px;cursor:pointer}
+@media (max-width:600px){.help{display:none}.stat{min-width:70px}.stat .v{font-size:14px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;600&display=swap">
+
+<canvas id="game"></canvas>
+
+<div class="hud">
+  <div class="stat scrap"><span class="k">Scrap</span><span class="v" id="hScrap">0</span></div>
+  <div class="stat"><span class="k">Bastion</span><span class="v" id="hBase">—</span><div class="bar"><i class="hp" id="hBaseBar" style="width:100%"></i></div></div>
+  <div class="stat obj"><span class="k" id="hObjK">Objective</span><span class="v" id="hObj">—</span><div class="bar"><i id="hObjBar" style="width:0%"></i></div></div>
+  <div class="stat"><span class="k">Squads</span><span class="v" id="hTroops">—</span></div>
+  <div class="stat msg"><span class="v" id="hMsg">Right-click to move the Bastion toward the first objective.</span></div>
+</div>
+
+<div class="build" id="buildBar">
+  <button id="bWall" data-mode="wall"><span>Wall</span><span class="cost" id="cWall">4 scrap</span><span class="key">1</span></button>
+  <button id="bTurret" data-mode="turret"><span>Turret</span><span class="cost" id="cTurret">25 scrap</span><span class="key">2</span></button>
+  <button id="bSelBase"><span>Select Bastion</span><span class="key">B</span></button>
+  <button id="bSelTroops"><span>Select squads</span><span class="key">T</span></button>
+</div>
+
+<div class="mini"><canvas id="mini" width="180" height="180"></canvas></div>
+
+<div class="help" id="help">
+  <button id="helpClose" aria-label="Close">×</button>
+  <b>Controls</b><br>
+  Left-drag: select squads · Click Bastion: select it<br>
+  Right-click: move / attack / harvest<br>
+  <kbd>WASD</kbd> or edge-drag (middle mouse) pans · scroll zooms<br>
+  <kbd>1</kbd> wall · <kbd>2</kbd> turret · <kbd>Esc</kbd> cancel<br>
+  <b>Loop:</b> drive the Bastion into a purple zone. It locks there until the hold timer ends. Squads scout the fog, mine scrap nodes, and skirmish. Build inside the Bastion's dashed ring.
+</div>
+
+<div class="overlay" id="overlay" hidden>
+  <h1 id="ovTitle"></h1><p id="ovText"></p><button id="ovBtn">Restart</button>
+</div>
+
+<script>
+(() => {
+'use strict';
+// ---------- constants ----------
+const W=3600,H=3600, CELL=24;
+const BASE_R=30, BASE_SPEED=42, BUILD_R=270, BASE_VISION=320;
+const TROOP_R=7, TROOP_SPEED=125, TROOP_VISION=240, TROOP_RANGE=165, TROOP_DMG=7, TROOP_CD=0.45, CARRY=12;
+const TURRET_RANGE=240, TURRET_DMG=14, TURRET_CD=0.65, TURRET_HP=150;
+const WALL_HP=220;
+const COST={wall:4,turret:25};
+const OBJ=[{x:1250,y:2450,hold:45},{x:2550,y:2300,hold:60},{x:2750,y:850,hold:80}];
+const ZONE_R=170;
+
+const cv=document.getElementById('game'), ctx=cv.getContext('2d');
+const mini=document.getElementById('mini'), mctx=mini.getContext('2d');
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const C={ally:css('--ally'),enemy:css('--enemy'),scrap:css('--scrap'),zone:css('--zone'),accent:css('--accent'),fg:css('--fg'),muted:css('--muted'),line:css('--line')};
+
+// ---------- state ----------
+let S, cam, mouse={x:0,y:0,wx:0,wy:0,down:false,drag:null,panning:false}, keys={}, buildMode=null, lastT=0, msgT=0;
+let fogC=document.createElement('canvas'), fogX; const FOG_S=6; fogC.width=W/FOG_S; fogC.height=H/FOG_S; fogX=fogC.getContext('2d');
+let visC=document.createElement('canvas'), visX; visC.width=W/FOG_S; visC.height=H/FOG_S; visX=visC.getContext('2d');
+
+function rnd(a,b){return a+Math.random()*(b-a)}
+function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
+function key(gx,gy){return gx+','+gy}
+
+function reset(){
+  S={t:0,scrap:40,over:null,
+    base:{x:520,y:3080,hp:900,maxHp:900,r:BASE_R,dest:null,locked:false,fx:0},
+    troops:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],objectives:[],objIdx:0,waveT:8,spawnT:0,sel:{base:false,troops:new Set()}};
+  for(let i=0;i<4;i++) S.troops.push({id:i,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp:70,maxHp:70,r:TROOP_R,dest:null,target:null,node:null,carry:0,state:'idle',cd:0,hv:0});
+  OBJ.forEach(o=>S.objectives.push({x:o.x,y:o.y,r:ZONE_R,hold:o.hold,prog:0,done:false}));
+  // scrap nodes: a couple near start, rest scattered (favouring the route)
+  const spots=[[700,2850],[350,2650],[1000,3250],[1150,2100],[1550,2700],[900,1900],[1900,2500],[2300,1900],[2800,2700],[2150,2850],[3100,2000],[2450,1300],[3200,1200],[2300,700],[1700,1300],[1200,800],[600,1200],[3100,400],[400,400],[1800,500]];
+  spots.forEach(([x,y])=>S.nodes.push({x:x+rnd(-80,80),y:y+rnd(-80,80),amt:Math.round(rnd(45,90)),max:90,found:false}));
+  // roaming packs guard the map
+  for(let i=0;i<9;i++){const px=rnd(300,W-300),py=rnd(300,H-900);if(Math.hypot(px-520,py-3080)<700)continue;for(let j=0;j<rnd(3,6);j++)spawnEnemy(px+rnd(-50,50),py+rnd(-50,50),'roam')}
+  cam={x:S.base.x,y:S.base.y,z:1};
+  fogX.globalCompositeOperation='source-over'; fogX.fillStyle='#000'; fogX.fillRect(0,0,fogC.width,fogC.height);
+  S.sel.base=true; buildMode=null; updateBuildBar();
+  document.getElementById('overlay').hidden=true;
+  msg('Right-click to move the Bastion toward the first objective.');
+}
+function spawnEnemy(x,y,kind){
+  const big=kind==='wave'&&Math.random()<0.15+S.objIdx*0.08;
+  S.enemies.push({x,y,r:big?13:8,hp:big?120:34,maxHp:big?120:34,speed:big?48:78,dmg:big?12:5,cd:0,kind,target:null,aggro:kind==='roam'?260:1e9,home:{x,y}});
+}
+function msg(s){document.getElementById('hMsg').textContent=s;msgT=S.t}
+
+// ---------- input ----------
+function resize(){cv.width=cv.clientWidth*devicePixelRatio;cv.height=cv.clientHeight*devicePixelRatio;}
+addEventListener('resize',resize);resize();
+function toWorld(sx,sy){const r=cv.getBoundingClientRect();return{x:(sx-r.left-r.width/2)/cam.z+cam.x,y:(sy-r.top-r.height/2)/cam.z+cam.y}}
+cv.addEventListener('contextmenu',e=>e.preventDefault());
+cv.addEventListener('pointerdown',e=>{
+  cv.setPointerCapture(e.pointerId);const w=toWorld(e.clientX,e.clientY);mouse.wx=w.x;mouse.wy=w.y;
+  if(e.button===1||(e.button===0&&keys[' '])){mouse.panning=true;mouse.x=e.clientX;mouse.y=e.clientY;return}
+  if(e.button===2){rightClick(w);return}
+  if(e.button===0){
+    if(buildMode){tryBuild(w);return}
+    mouse.down=true;mouse.drag={x0:w.x,y0:w.y,x1:w.x,y1:w.y,moved:false};
+  }
+});
+cv.addEventListener('pointermove',e=>{
+  const w=toWorld(e.clientX,e.clientY);mouse.wx=w.x;mouse.wy=w.y;
+  if(mouse.panning){cam.x-=(e.clientX-mouse.x)/cam.z;cam.y-=(e.clientY-mouse.y)/cam.z;mouse.x=e.clientX;mouse.y=e.clientY;clampCam();return}
+  if(mouse.drag){mouse.drag.x1=w.x;mouse.drag.y1=w.y;if(Math.abs(w.x-mouse.drag.x0)+Math.abs(w.y-mouse.drag.y0)>6)mouse.drag.moved=true}
+});
+cv.addEventListener('pointerup',e=>{
+  if(mouse.panning){mouse.panning=false;return}
+  if(mouse.drag){const d=mouse.drag;mouse.drag=null;mouse.down=false;
+    const add=e.shiftKey; if(!add){S.sel.troops.clear();S.sel.base=false}
+    if(d.moved){const x0=Math.min(d.x0,d.x1),x1=Math.max(d.x0,d.x1),y0=Math.min(d.y0,d.y1),y1=Math.max(d.y0,d.y1);
+      S.troops.forEach(t=>{if(t.x>=x0&&t.x<=x1&&t.y>=y0&&t.y<=y1)S.sel.troops.add(t.id)});
+      if(S.sel.troops.size===0&&S.base.x>=x0&&S.base.x<=x1&&S.base.y>=y0&&S.base.y<=y1)S.sel.base=true;
+    }else{const w={x:d.x1,y:d.y1};const t=S.troops.find(t=>dist(t,w)<t.r+8);
+      if(t)S.sel.troops.add(t.id);else if(dist(S.base,w)<S.base.r+10)S.sel.base=true;}
+  }
+});
+cv.addEventListener('wheel',e=>{e.preventDefault();const w0=toWorld(e.clientX,e.clientY);cam.z=Math.min(2.2,Math.max(0.35,cam.z*(e.deltaY>0?0.9:1.1)));const w1=toWorld(e.clientX,e.clientY);cam.x+=w0.x-w1.x;cam.y+=w0.y-w1.y;clampCam()},{passive:false});
+addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT')return; keys[e.key.toLowerCase()]=true; keys[e.key]=true;
+  if(e.key==='1')setBuild('wall'); else if(e.key==='2')setBuild('turret');
+  else if(e.key==='Escape'){setBuild(null)} else if(e.key.toLowerCase()==='b'){S.sel.troops.clear();S.sel.base=true}
+  else if(e.key.toLowerCase()==='t'){S.sel.base=false;S.troops.forEach(t=>S.sel.troops.add(t.id))}
+  else if(e.key.toLowerCase()==='f'){cam.x=S.base.x;cam.y=S.base.y}
+  if(e.key===' ')e.preventDefault();
+});
+addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;keys[e.key]=false});
+document.querySelectorAll('#buildBar button[data-mode]').forEach(b=>b.addEventListener('click',()=>setBuild(buildMode===b.dataset.mode?null:b.dataset.mode)));
+document.getElementById('bSelBase').onclick=()=>{S.sel.troops.clear();S.sel.base=true};
+document.getElementById('bSelTroops').onclick=()=>{S.sel.base=false;S.troops.forEach(t=>S.sel.troops.add(t.id))};
+document.getElementById('helpClose').onclick=()=>{document.getElementById('help').hidden=true};
+document.getElementById('ovBtn').onclick=reset;
+mini.addEventListener('pointerdown',e=>{const r=mini.getBoundingClientRect();cam.x=(e.clientX-r.left)/r.width*W;cam.y=(e.clientY-r.top)/r.height*H;clampCam()});
+function setBuild(m){buildMode=m;updateBuildBar()}
+function updateBuildBar(){document.querySelectorAll('#buildBar button[data-mode]').forEach(b=>{b.classList.toggle('on',b.dataset.mode===buildMode);b.disabled=S.scrap<COST[b.dataset.mode]&&buildMode!==b.dataset.mode})}
+function clampCam(){cam.x=Math.max(0,Math.min(W,cam.x));cam.y=Math.max(0,Math.min(H,cam.y))}
+
+function rightClick(w){
+  if(buildMode){setBuild(null);return}
+  const sel=[...S.sel.troops].map(id=>S.troops.find(t=>t.id===id)).filter(Boolean);
+  if(S.sel.base&&sel.length===0){
+    if(S.base.locked){msg('The Bastion is locked down until the hold completes.');return}
+    S.base.dest={x:w.x,y:w.y};return;
+  }
+  if(sel.length===0)return;
+  const en=S.enemies.find(e=>visible(e)&&dist(e,w)<e.r+10);
+  const nd=S.nodes.find(n=>n.found&&dist(n,w)<28);
+  sel.forEach((t,i)=>{
+    const off=sel.length>1?{x:Math.cos(i*2.1)*14,y:Math.sin(i*2.1)*14}:{x:0,y:0};
+    if(en){t.state='attack';t.target=en;t.dest=null;t.node=null}
+    else if(nd){t.state='harvest';t.node=nd;t.target=null;t.dest=null}
+    else{t.state='move';t.dest={x:w.x+off.x,y:w.y+off.y};t.target=null;t.node=null}
+  });
+}
+function tryBuild(w){
+  if(dist(w,S.base)>BUILD_R){msg('Build inside the Bastion\'s dashed ring.');return}
+  if(S.scrap<COST[buildMode]){msg('Not enough scrap. Send squads to mine a node.');return}
+  if(buildMode==='wall'){const gx=Math.floor(w.x/CELL),gy=Math.floor(w.y/CELL),k=key(gx,gy);const cx=gx*CELL+CELL/2,cy=gy*CELL+CELL/2;
+    if(S.walls.has(k)||dist({x:cx,y:cy},S.base)<BASE_R+CELL)return;
+    if(S.turrets.some(t=>dist(t,{x:cx,y:cy})<CELL))return;
+    S.walls.set(k,{gx,gy,x:cx,y:cy,hp:WALL_HP});S.scrap-=COST.wall;
+  }else{
+    if(dist(w,S.base)<BASE_R+14||S.turrets.some(t=>dist(t,w)<26))return;
+    const k=key(Math.floor(w.x/CELL),Math.floor(w.y/CELL));if(S.walls.has(k))return;
+    S.turrets.push({x:w.x,y:w.y,hp:TURRET_HP,maxHp:TURRET_HP,cd:0,ang:0});S.scrap-=COST.turret;
+  }
+  updateBuildBar();
+}
+
+// ---------- helpers ----------
+function visible(p){if(dist(p,S.base)<BASE_VISION)return true;return S.troops.some(t=>dist(t,p)<TROOP_VISION)}
+function moveToward(o,d,sp,dt){const dx=d.x-o.x,dy=d.y-o.y,L=Math.hypot(dx,dy);if(L<1)return 0;const s=Math.min(L,sp*dt);o.x+=dx/L*s;o.y+=dy/L*s;return L-s}
+function tracer(a,b,col){S.tracers.push({x1:a.x,y1:a.y,x2:b.x,y2:b.y,t:0.12,col})}
+function damageEnemy(e,d){e.hp-=d}
+function wallAt(x,y){return S.walls.get(key(Math.floor(x/CELL),Math.floor(y/CELL)))}
+
+// ---------- update ----------
+function update(dt){
+  if(S.over)return; S.t+=dt;
+  const B=S.base;
+  // camera keys
+  const ps=520/cam.z*dt; if(keys['w']||keys['arrowup'])cam.y-=ps; if(keys['s']||keys['arrowdown'])cam.y+=ps; if(keys['a']||keys['arrowleft'])cam.x-=ps; if(keys['d']||keys['arrowright'])cam.x+=ps; clampCam();
+
+  // objective / hold
+  const O=S.objectives[S.objIdx];
+  if(O&&!O.done){
+    if(dist(B,O)<O.r-BASE_R*0.5){
+      if(!B.locked){B.locked=true;B.dest=null;S.waveT=4;msg(`Bastion locked down. Hold objective ${S.objIdx+1} for ${O.hold}s. Build!`)}
+      O.prog+=dt;
+      if(O.prog>=O.hold){O.done=true;B.locked=false;S.objIdx++;
+        if(S.objIdx>=S.objectives.length){S.over='win';showOverlay('Route secured','All objectives held. The Bastion rolls on.')}
+        else msg(`Objective ${S.objIdx} secured. Move the Bastion to the next zone.`);}
+    }
+  }
+  // base movement
+  if(B.dest&&!B.locked){const left=moveToward(B,B.dest,BASE_SPEED,dt);if(left<2)B.dest=null}
+  B.x=Math.max(40,Math.min(W-40,B.x));B.y=Math.max(40,Math.min(H-40,B.y));
+  if(!S.enemies.some(e=>dist(e,B)<400))B.hp=Math.min(B.maxHp,B.hp+2*dt);
+
+  // waves while locked
+  if(B.locked){S.waveT-=dt;if(S.waveT<=0){const n=4+S.objIdx*3+Math.floor(O.prog/12);const a=rnd(0,Math.PI*2);const sx=B.x+Math.cos(a)*820,sy=B.y+Math.sin(a)*820;
+    for(let i=0;i<n;i++)spawnEnemy(Math.max(20,Math.min(W-20,sx+rnd(-70,70))),Math.max(20,Math.min(H-20,sy+rnd(-70,70))),'wave');
+    S.waveT=Math.max(7,16-S.objIdx*2.5);msg(`Wave incoming from the ${a<Math.PI?'south':'north'}${Math.cos(a)>0?'east':'west'}.`)}}
+
+  // troops
+  S.troops.forEach(t=>{
+    t.cd-=dt;
+    if(t.state==='move'&&t.dest){if(moveToward(t,t.dest,TROOP_SPEED,dt)<3){t.dest=null;t.state='idle'}}
+    else if(t.state==='attack'){if(!t.target||t.target.hp<=0){t.target=null;t.state='idle'}else if(dist(t,t.target)>TROOP_RANGE-10)moveToward(t,t.target,TROOP_SPEED,dt)}
+    else if(t.state==='harvest'){const n=t.node;
+      if(!n||(n.amt<=0&&t.carry===0)){t.state='idle';t.node=null}
+      else if(t.carry>=CARRY||n.amt<=0){if(moveToward(t,B,TROOP_SPEED,dt)<B.r+22){S.scrap+=t.carry;t.carry=0;updateBuildBar();if(n.amt<=0){t.state='idle';t.node=null}}}
+      else if(dist(t,n)>22)moveToward(t,n,TROOP_SPEED,dt);
+      else{t.hv+=dt;if(t.hv>0.35){t.hv=0;n.amt--;t.carry++}}
+    }
+    // auto fire
+    if(t.cd<=0){let best=null,bd=TROOP_RANGE;S.enemies.forEach(e=>{const d=dist(e,t);if(d<bd){bd=d;best=e}});
+      if(best){damageEnemy(best,TROOP_DMG);tracer(t,best,C.ally);t.cd=TROOP_CD;if(t.state==='idle'&&bd>TROOP_RANGE*0.7)t.target=best}}
+    t.x=Math.max(10,Math.min(W-10,t.x));t.y=Math.max(10,Math.min(H-10,t.y));
+    // reveal nodes
+    S.nodes.forEach(n=>{if(!n.found&&dist(n,t)<TROOP_VISION)n.found=true});
+  });
+  S.nodes.forEach(n=>{if(!n.found&&dist(n,B)<BASE_VISION)n.found=true});
+  // troop separation
+  for(let i=0;i<S.troops.length;i++)for(let j=i+1;j<S.troops.length;j++){const a=S.troops[i],b=S.troops[j],d=dist(a,b);if(d<16&&d>0){const p=(16-d)/2,dx=(b.x-a.x)/d,dy=(b.y-a.y)/d;a.x-=dx*p;a.y-=dy*p;b.x+=dx*p;b.y+=dy*p}}
+
+  // turrets
+  S.turrets.forEach(tu=>{tu.cd-=dt;let best=null,bd=TURRET_RANGE;S.enemies.forEach(e=>{const d=dist(e,tu);if(d<bd){bd=d;best=e}});
+    if(best){tu.ang=Math.atan2(best.y-tu.y,best.x-tu.x);if(tu.cd<=0){damageEnemy(best,TURRET_DMG);tracer(tu,best,C.accent);tu.cd=TURRET_CD}}});
+
+  // enemies
+  S.enemies.forEach(e=>{
+    e.cd-=dt;
+    // pick target
+    let tgt=null,bd=e.aggro;
+    S.troops.forEach(t=>{const d=dist(t,e);if(d<bd){bd=d;tgt=t}});
+    if(e.kind==='roam'){if(!tgt){if(dist(e,B)<e.aggro+120)tgt=B;else{moveToward(e,e.home,e.speed*0.5,dt);return}}}
+    else{ if(!tgt||bd>220){ // waves: prefer base, nearby turrets
+        let bt=B,btd=dist(e,B);S.turrets.forEach(tu=>{const d=dist(e,tu);if(d<btd*0.6){bt=tu;btd=d}});tgt=bt}}
+    const reach=e.r+(tgt.r||12)+4;
+    if(dist(e,tgt)<=reach){if(e.cd<=0){tgt.hp-=e.dmg;e.cd=0.8}return}
+    // move, check wall ahead
+    const dx=tgt.x-e.x,dy=tgt.y-e.y,L=Math.hypot(dx,dy),nx=e.x+dx/L*(e.r+6),ny=e.y+dy/L*(e.r+6);
+    const w=wallAt(nx,ny);
+    if(w){if(e.cd<=0){w.hp-=e.dmg*1.5;e.cd=0.8;if(w.hp<=0)S.walls.delete(key(w.gx,w.gy))}return}
+    moveToward(e,tgt,e.speed,dt);
+  });
+  // enemy separation
+  for(let i=0;i<S.enemies.length;i++)for(let j=i+1;j<S.enemies.length;j++){const a=S.enemies[i],b=S.enemies[j],d=dist(a,b),m=a.r+b.r;if(d<m&&d>0){const p=(m-d)/2,dx=(b.x-a.x)/d,dy=(b.y-a.y)/d;a.x-=dx*p;a.y-=dy*p;b.x+=dx*p;b.y+=dy*p}}
+  // deaths
+  S.enemies=S.enemies.filter(e=>{if(e.hp<=0){if(Math.random()<0.25){S.scrap+=1;updateBuildBar()}return false}return true});
+  S.turrets=S.turrets.filter(t=>t.hp>0);
+  S.troops=S.troops.filter(t=>t.hp>0); S.troops.forEach(t=>{if(dist(t,B)<B.r+30&&!S.enemies.some(e=>dist(e,t)<200))t.hp=Math.min(t.maxHp,t.hp+6*dt)});
+  if(S.troops.length===0&&!S.troopsLostMsg){S.troopsLostMsg=true;msg('All squads lost. New squads form at the Bastion in 20s.');S.respawnT=20}
+  if(S.respawnT!==undefined){S.respawnT-=dt;if(S.respawnT<=0){S.respawnT=undefined;S.troopsLostMsg=false;for(let i=0;i<2;i++)S.troops.push({id:Date.now()+i,x:B.x+rnd(-40,40),y:B.y+rnd(-40,40),hp:70,maxHp:70,r:TROOP_R,dest:null,target:null,node:null,carry:0,state:'idle',cd:0,hv:0})}}
+  S.tracers=S.tracers.filter(t=>(t.t-=dt)>0);
+  if(B.hp<=0){S.over='lose';showOverlay('Bastion destroyed',`Fell while holding objective ${S.objIdx+1}. Try mining more scrap before locking in.`)}
+
+  // fog explore (persistent)
+  fogX.globalCompositeOperation='destination-out';
+  const rev=(x,y,r)=>{const g=fogX.createRadialGradient(x/FOG_S,y/FOG_S,r*0.6/FOG_S,x/FOG_S,y/FOG_S,r/FOG_S);g.addColorStop(0,'rgba(0,0,0,1)');g.addColorStop(1,'rgba(0,0,0,0)');fogX.fillStyle=g;fogX.beginPath();fogX.arc(x/FOG_S,y/FOG_S,r/FOG_S,0,Math.PI*2);fogX.fill()};
+  rev(B.x,B.y,BASE_VISION);S.troops.forEach(t=>rev(t.x,t.y,TROOP_VISION));
+  // current vision layer
+  visX.globalCompositeOperation='source-over';visX.fillStyle='rgba(0,0,0,0.5)';visX.fillRect(0,0,visC.width,visC.height);
+  visX.globalCompositeOperation='destination-out';
+  const cut=(x,y,r)=>{visX.beginPath();visX.arc(x/FOG_S,y/FOG_S,r/FOG_S,0,Math.PI*2);visX.fill()};visX.fillStyle='#000';
+  cut(B.x,B.y,BASE_VISION);S.troops.forEach(t=>cut(t.x,t.y,TROOP_VISION));
+}
+function showOverlay(t,s){document.getElementById('ovTitle').textContent=t;document.getElementById('ovText').textContent=s;document.getElementById('overlay').hidden=false}
+
+// ---------- draw ----------
+function draw(){
+  const B=S.base,dpr=devicePixelRatio,vw=cv.width/dpr,vh=cv.height/dpr;
+  ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle='#0b0e12';ctx.fillRect(0,0,vw,vh);
+  ctx.translate(vw/2,vh/2);ctx.scale(cam.z,cam.z);ctx.translate(-cam.x,-cam.y);
+  const x0=cam.x-vw/2/cam.z,y0=cam.y-vh/2/cam.z,x1=cam.x+vw/2/cam.z,y1=cam.y+vh/2/cam.z;
+  // ground + grid
+  ctx.fillStyle='#10151b';ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle='rgba(255,255,255,0.035)';ctx.lineWidth=1/cam.z;ctx.beginPath();
+  for(let gx=Math.floor(Math.max(0,x0)/120)*120;gx<Math.min(W,x1);gx+=120){ctx.moveTo(gx,Math.max(0,y0));ctx.lineTo(gx,Math.min(H,y1))}
+  for(let gy=Math.floor(Math.max(0,y0)/120)*120;gy<Math.min(H,y1);gy+=120){ctx.moveTo(Math.max(0,x0),gy);ctx.lineTo(Math.min(W,x1),gy)}
+  ctx.stroke();
+  // objectives
+  S.objectives.forEach((o,i)=>{const cur=i===S.objIdx;ctx.save();ctx.globalAlpha=o.done?0.25:cur?0.9:0.45;
+    ctx.fillStyle=C.zone;ctx.globalAlpha*=0.12;ctx.beginPath();ctx.arc(o.x,o.y,o.r,0,Math.PI*2);ctx.fill();ctx.globalAlpha=o.done?0.25:cur?0.9:0.45;
+    ctx.setLineDash([10,8]);ctx.lineWidth=2;ctx.strokeStyle=C.zone;ctx.beginPath();ctx.arc(o.x,o.y,o.r,0,Math.PI*2);ctx.stroke();
+    if(cur&&!o.done&&o.prog>0){ctx.setLineDash([]);ctx.lineWidth=6;ctx.beginPath();ctx.arc(o.x,o.y,o.r+10,-Math.PI/2,-Math.PI/2+Math.PI*2*o.prog/o.hold);ctx.stroke()}
+    ctx.setLineDash([]);ctx.fillStyle=C.zone;ctx.font='500 22px '+css('--mono');ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(o.done?'✓':String(i+1),o.x,o.y);ctx.restore()});
+  // nodes
+  S.nodes.forEach(n=>{if(!n.found||n.amt<=0)return;const s=8+8*n.amt/n.max;ctx.fillStyle=C.scrap;ctx.beginPath();for(let k=0;k<6;k++){const a=k*Math.PI/3;ctx.lineTo(n.x+Math.cos(a)*s,n.y+Math.sin(a)*s)}ctx.closePath();ctx.globalAlpha=0.85;ctx.fill();ctx.globalAlpha=1;
+    ctx.fillStyle='#0b0e12';ctx.font='500 9px '+css('--mono');ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(n.amt,n.x,n.y)});
+  // build ring
+  ctx.setLineDash([6,10]);ctx.strokeStyle='rgba(242,182,60,0.35)';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(B.x,B.y,BUILD_R,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
+  // walls
+  S.walls.forEach(w=>{ctx.fillStyle='#8d9aa8';ctx.fillRect(w.x-CELL/2+1,w.y-CELL/2+1,CELL-2,CELL-2);ctx.fillStyle='#55626f';ctx.fillRect(w.x-CELL/2+4,w.y-CELL/2+4,CELL-8,CELL-8);
+    if(w.hp<WALL_HP){ctx.fillStyle='rgba(255,92,77,0.6)';ctx.fillRect(w.x-CELL/2+1,w.y+CELL/2-4,(CELL-2)*(1-w.hp/WALL_HP),3)}});
+  // turrets
+  S.turrets.forEach(t=>{ctx.fillStyle='#3b4652';ctx.beginPath();ctx.arc(t.x,t.y,11,0,Math.PI*2);ctx.fill();ctx.strokeStyle=C.accent;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(t.x,t.y);ctx.lineTo(t.x+Math.cos(t.ang)*15,t.y+Math.sin(t.ang)*15);ctx.stroke();hpbar(t.x,t.y-18,22,t.hp/t.maxHp)});
+  // base
+  ctx.save();ctx.translate(B.x,B.y);ctx.fillStyle=B.locked?'#4a3a1c':'#2b3745';ctx.strokeStyle=B.locked?C.accent:C.ally;ctx.lineWidth=2.5;
+  ctx.beginPath();ctx.rect(-B.r,-B.r*0.7,B.r*2,B.r*1.4);ctx.fill();ctx.stroke();
+  ctx.fillStyle='#8d9aa8';for(let i=-1;i<=1;i++){ctx.fillRect(i*18-6,-B.r*0.7-6,12,6);ctx.fillRect(i*18-6,B.r*0.7,12,6)}
+  ctx.fillStyle=C.accent;ctx.beginPath();ctx.arc(0,0,9,0,Math.PI*2);ctx.fill();
+  if(B.locked){ctx.strokeStyle=C.accent;ctx.lineWidth=2;for(let i=0;i<4;i++){const a=i*Math.PI/2+Math.PI/4;ctx.beginPath();ctx.moveTo(Math.cos(a)*B.r*1.1,Math.sin(a)*B.r*1.1);ctx.lineTo(Math.cos(a)*B.r*1.5,Math.sin(a)*B.r*1.5);ctx.stroke()}}
+  ctx.restore();hpbar(B.x,B.y-B.r-12,B.r*2,B.hp/B.maxHp);
+  if(S.sel.base){ctx.strokeStyle=C.ally;ctx.lineWidth=1.5;ctx.setLineDash([4,4]);ctx.beginPath();ctx.arc(B.x,B.y,B.r+10,0,Math.PI*2);ctx.stroke();ctx.setLineDash([])}
+  if(B.dest){ctx.strokeStyle='rgba(94,200,255,0.5)';ctx.setLineDash([6,6]);ctx.beginPath();ctx.moveTo(B.x,B.y);ctx.lineTo(B.dest.x,B.dest.y);ctx.stroke();ctx.setLineDash([])}
+  // troops
+  S.troops.forEach(t=>{const sel=S.sel.troops.has(t.id);if(sel){ctx.strokeStyle=C.ally;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(t.x,t.y,t.r+5,0,Math.PI*2);ctx.stroke()}
+    ctx.fillStyle=C.ally;ctx.beginPath();ctx.arc(t.x,t.y,t.r,0,Math.PI*2);ctx.fill();
+    if(t.carry>0){ctx.fillStyle=C.scrap;ctx.beginPath();ctx.arc(t.x+6,t.y-6,3+t.carry/6,0,Math.PI*2);ctx.fill()}
+    if(t.hp<t.maxHp)hpbar(t.x,t.y-14,16,t.hp/t.maxHp);
+    if(sel&&t.dest){ctx.strokeStyle='rgba(94,200,255,0.35)';ctx.beginPath();ctx.moveTo(t.x,t.y);ctx.lineTo(t.dest.x,t.dest.y);ctx.stroke()}});
+  // enemies (only visible)
+  S.enemies.forEach(e=>{if(!visible(e))return;const a=Math.atan2((e.target?e.target.y:B.y)-e.y,(e.target?e.target.x:B.x)-e.x);ctx.fillStyle=e.kind==='roam'?'#d9775f':C.enemy;ctx.beginPath();
+    ctx.moveTo(e.x+Math.cos(a)*e.r*1.3,e.y+Math.sin(a)*e.r*1.3);ctx.lineTo(e.x+Math.cos(a+2.5)*e.r,e.y+Math.sin(a+2.5)*e.r);ctx.lineTo(e.x+Math.cos(a-2.5)*e.r,e.y+Math.sin(a-2.5)*e.r);ctx.closePath();ctx.fill();
+    if(e.hp<e.maxHp)hpbar(e.x,e.y-e.r-8,e.r*2+4,e.hp/e.maxHp)});
+  // tracers
+  S.tracers.forEach(t=>{ctx.strokeStyle=t.col;ctx.globalAlpha=t.t/0.12;ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(t.x1,t.y1);ctx.lineTo(t.x2,t.y2);ctx.stroke()});ctx.globalAlpha=1;
+  // fog
+  ctx.imageSmoothingEnabled=true;ctx.drawImage(visC,0,0,W,H);ctx.drawImage(fogC,0,0,W,H);
+  // map edge
+  ctx.strokeStyle=C.line;ctx.lineWidth=3/cam.z;ctx.strokeRect(0,0,W,H);
+  // build preview
+  if(buildMode){const ok=dist({x:mouse.wx,y:mouse.wy},B)<=BUILD_R&&S.scrap>=COST[buildMode];ctx.globalAlpha=0.6;
+    if(buildMode==='wall'){const gx=Math.floor(mouse.wx/CELL)*CELL,gy=Math.floor(mouse.wy/CELL)*CELL;ctx.fillStyle=ok?'#8d9aa8':C.enemy;ctx.fillRect(gx+1,gy+1,CELL-2,CELL-2)}
+    else{ctx.fillStyle=ok?C.accent:C.enemy;ctx.beginPath();ctx.arc(mouse.wx,mouse.wy,11,0,Math.PI*2);ctx.fill();ctx.strokeStyle=ok?C.accent:C.enemy;ctx.lineWidth=1;ctx.setLineDash([4,6]);ctx.beginPath();ctx.arc(mouse.wx,mouse.wy,TURRET_RANGE,0,Math.PI*2);ctx.stroke();ctx.setLineDash([])}
+    ctx.globalAlpha=1}
+  // selection box
+  if(mouse.drag&&mouse.drag.moved){const d=mouse.drag;ctx.strokeStyle=C.ally;ctx.fillStyle='rgba(94,200,255,0.1)';ctx.lineWidth=1/cam.z;ctx.fillRect(d.x0,d.y0,d.x1-d.x0,d.y1-d.y0);ctx.strokeRect(d.x0,d.y0,d.x1-d.x0,d.y1-d.y0)}
+  drawMini();hud();
+}
+function hpbar(x,y,w,f){ctx.fillStyle='rgba(0,0,0,0.6)';ctx.fillRect(x-w/2,y,w,3);ctx.fillStyle=f>0.5?C.scrap:f>0.25?C.accent:C.enemy;ctx.fillRect(x-w/2,y,w*Math.max(0,f),3)}
+function drawMini(){const s=mini.width/W;mctx.fillStyle='#10151b';mctx.fillRect(0,0,mini.width,mini.height);
+  mctx.save();mctx.scale(s,s);mctx.drawImage(fogC,0,0,W,H);mctx.restore();
+  S.objectives.forEach((o,i)=>{mctx.strokeStyle=C.zone;mctx.globalAlpha=o.done?0.3:1;mctx.beginPath();mctx.arc(o.x*s,o.y*s,o.r*s,0,Math.PI*2);mctx.stroke();mctx.globalAlpha=1});
+  S.nodes.forEach(n=>{if(n.found&&n.amt>0){mctx.fillStyle=C.scrap;mctx.fillRect(n.x*s-1.5,n.y*s-1.5,3,3)}});
+  S.enemies.forEach(e=>{if(visible(e)){mctx.fillStyle=C.enemy;mctx.fillRect(e.x*s-1,e.y*s-1,2,2)}});
+  S.troops.forEach(t=>{mctx.fillStyle=C.ally;mctx.fillRect(t.x*s-1.5,t.y*s-1.5,3,3)});
+  mctx.fillStyle=C.accent;mctx.fillRect(S.base.x*s-3,S.base.y*s-3,6,6);
+  const vw=cv.width/devicePixelRatio/cam.z,vh=cv.height/devicePixelRatio/cam.z;mctx.strokeStyle='rgba(255,255,255,0.5)';mctx.lineWidth=1;mctx.strokeRect((cam.x-vw/2)*s,(cam.y-vh/2)*s,vw*s,vh*s)}
+const $=id=>document.getElementById(id);
+function hud(){const B=S.base,O=S.objectives[S.objIdx];$('hScrap').textContent=S.scrap;$('hBase').textContent=Math.ceil(B.hp)+' / '+B.maxHp;$('hBaseBar').style.width=(100*B.hp/B.maxHp)+'%';
+  $('hObjK').textContent=O?`Objective ${S.objIdx+1} of ${S.objectives.length}`:'Objectives';
+  if(O){$('hObj').textContent=B.locked?`hold ${Math.ceil(O.hold-O.prog)}s`:O.prog>0?'cleared':'en route';$('hObjBar').style.width=(100*O.prog/O.hold)+'%'}else{$('hObj').textContent='all held';$('hObjBar').style.width='100%'}
+  $('hTroops').textContent=S.troops.length+(S.sel.troops.size?` (${S.sel.troops.size} sel)`:'');}
+
+// ---------- loop ----------
+function frame(ts){const dt=Math.min(0.05,(ts-lastT)/1000||0);lastT=ts;update(dt);draw();requestAnimationFrame(frame)}
+reset();requestAnimationFrame(frame);
+})();
+</script>
+
+</body></html>
