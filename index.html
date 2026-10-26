@@ -509,7 +509,7 @@ function update(dt){
       if(S.waveT<=0){
         const maxN=(4+S.objIdx*3+Math.floor(O.prog/12))*20;
         const n=Math.max(1,Math.round(maxN*S.wavePct/100));
-        const a=O.waveDir!=null?O.waveDir:rnd(0,Math.PI*2);O.waveDir=null;const sx=B.x+Math.cos(a)*820,sy=B.y+Math.sin(a)*820;
+        const a=O.waveDir;const sx=B.x+Math.cos(a)*820,sy=B.y+Math.sin(a)*820;
         for(let i=0;i<n;i++){const p=nearestPlain(Math.max(20,Math.min(W-20,sx+rnd(-70,70))),Math.max(20,Math.min(H-20,sy+rnd(-70,70))));spawnEnemy(p.x,p.y,'wave')}
         S.wavePct=Math.min(100,S.wavePct+10);
         S.waveT=Math.max(7,16-S.objIdx*2.5);msg(`Wave incoming from the ${a<Math.PI?'south':'north'}${Math.cos(a)>0?'east':'west'}.`);
