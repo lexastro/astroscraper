@@ -76,7 +76,8 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <kbd>1</kbd> wall · <kbd>2</kbd> turret · <kbd>L</kbd> lock down · <kbd>Esc</kbd> cancel<br>
   <b>Loop:</b> drive the Bastion into a purple zone and scout it to reveal the green mining-point marker. Park the Bastion on it and press <kbd>L</kbd> to lock down — you get 45s to fortify before waves hit, then mining runs until the hold timer completes. Walls/turrets only work while locked down, and never on bare rock.<br>
   <b>Terrain:</b> rock blocks movement/building and enemies too; mud slows everyone but can still be crossed.<br>
-  Right-click the Bastion with squads selected to send them home and drop off scrap.
+  Right-click the Bastion with squads selected to send them home and drop off scrap.<br>
+  <kbd>`</kbd> toggles debug: reveal the whole map and all enemies.
 </div>
 
 <div class="overlay" id="overlay" hidden>
@@ -105,6 +106,7 @@ const C={ally:css('--ally'),enemy:css('--enemy'),scrap:css('--scrap'),zone:css('
 // ---------- state ----------
 let S, cam, mouse={x:0,y:0,wx:0,wy:0,down:false,drag:null,panning:false}, keys={}, buildMode=null, lastT=0, msgT=0, terrain, terrainCv;
 let fogC=document.createElement('canvas'), fogX; const FOG_S=6; fogC.width=W/FOG_S; fogC.height=H/FOG_S; fogX=fogC.getContext('2d');
+let debugNoFog=false; // dev toggle: reveal the whole map and all enemies, bypassing fog/visibility
 
 function rnd(a,b){return a+Math.random()*(b-a)}
 function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
@@ -372,6 +374,7 @@ addEventListener('keydown',e=>{
   else if(e.key.toLowerCase()==='t'){S.sel.base=false;S.troops.forEach(t=>S.sel.troops.add(t.id))}
   else if(e.key.toLowerCase()==='f'){cam.x=S.base.x;cam.y=S.base.y}
   else if(e.key.toLowerCase()==='l'){tryLockdown()}
+  else if(e.key==='`'){debugNoFog=!debugNoFog;msg(debugNoFog?'Debug: fog of war disabled':'Debug: fog of war re-enabled')}
   if(e.key===' ')e.preventDefault();
 });
 addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;keys[e.key]=false});
@@ -595,7 +598,7 @@ function draw(){
       else if(o.prog>0){ctx.setLineDash([]);ctx.lineWidth=6;ctx.strokeStyle=C.zone;ctx.beginPath();ctx.arc(o.x,o.y,o.r+10,-Math.PI/2,-Math.PI/2+Math.PI*2*o.prog/o.hold);ctx.stroke()}
     }
     ctx.setLineDash([]);ctx.fillStyle=C.zone;ctx.font='500 22px '+css('--mono');ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(o.done?'✓':String(i+1),o.x,o.y);
-    if(o.mine.found&&!o.done){
+    if((o.mine.found||debugNoFog)&&!o.done){
       ctx.globalAlpha=1;ctx.save();ctx.translate(o.mine.x,o.mine.y);
       ctx.strokeStyle=C.scrap;ctx.lineWidth=2;
       ctx.beginPath();ctx.moveTo(-9,-9);ctx.lineTo(9,9);ctx.moveTo(9,-9);ctx.lineTo(-9,9);ctx.stroke();
@@ -604,7 +607,7 @@ function draw(){
     }
     ctx.restore()});
   // nodes
-  S.nodes.forEach(n=>{if(!n.found||n.amt<=0)return;const s=8+8*n.amt/n.max;ctx.fillStyle=C.scrap;ctx.beginPath();for(let k=0;k<6;k++){const a=k*Math.PI/3;ctx.lineTo(n.x+Math.cos(a)*s,n.y+Math.sin(a)*s)}ctx.closePath();ctx.globalAlpha=0.85;ctx.fill();ctx.globalAlpha=1;
+  S.nodes.forEach(n=>{if((!n.found&&!debugNoFog)||n.amt<=0)return;const s=8+8*n.amt/n.max;ctx.fillStyle=C.scrap;ctx.beginPath();for(let k=0;k<6;k++){const a=k*Math.PI/3;ctx.lineTo(n.x+Math.cos(a)*s,n.y+Math.sin(a)*s)}ctx.closePath();ctx.globalAlpha=0.85;ctx.fill();ctx.globalAlpha=1;
     ctx.fillStyle='#0b0e12';ctx.font='500 9px '+css('--mono');ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(n.amt,n.x,n.y)});
   // build ring
   ctx.setLineDash([6,10]);ctx.strokeStyle='rgba(242,182,60,0.35)';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(B.x,B.y,BUILD_R,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
@@ -629,13 +632,13 @@ function draw(){
     if(t.hp<t.maxHp)hpbar(t.x,t.y-14,16,t.hp/t.maxHp);
     if(sel&&t.dest){ctx.strokeStyle='rgba(94,200,255,0.35)';ctx.beginPath();ctx.moveTo(t.x,t.y);ctx.lineTo(t.dest.x,t.dest.y);ctx.stroke()}});
   // enemies (only visible)
-  S.enemies.forEach(e=>{if(!visible(e))return;const a=Math.atan2((e.target?e.target.y:B.y)-e.y,(e.target?e.target.x:B.x)-e.x);ctx.fillStyle=e.kind==='roam'?'#d9775f':C.enemy;ctx.beginPath();
+  S.enemies.forEach(e=>{if(!debugNoFog&&!visible(e))return;const a=Math.atan2((e.target?e.target.y:B.y)-e.y,(e.target?e.target.x:B.x)-e.x);ctx.fillStyle=e.kind==='roam'?'#d9775f':C.enemy;ctx.beginPath();
     ctx.moveTo(e.x+Math.cos(a)*e.r*1.3,e.y+Math.sin(a)*e.r*1.3);ctx.lineTo(e.x+Math.cos(a+2.5)*e.r,e.y+Math.sin(a+2.5)*e.r);ctx.lineTo(e.x+Math.cos(a-2.5)*e.r,e.y+Math.sin(a-2.5)*e.r);ctx.closePath();ctx.fill();
     if(e.hp<e.maxHp)hpbar(e.x,e.y-e.r-8,e.r*2+4,e.hp/e.maxHp)});
   // tracers
   S.tracers.forEach(t=>{ctx.strokeStyle=t.col;ctx.globalAlpha=t.t/0.12;ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(t.x1,t.y1);ctx.lineTo(t.x2,t.y2);ctx.stroke()});ctx.globalAlpha=1;
   // fog
-  ctx.imageSmoothingEnabled=true;ctx.drawImage(fogC,0,0,W,H);
+  if(!debugNoFog){ctx.imageSmoothingEnabled=true;ctx.drawImage(fogC,0,0,W,H)}
   // map edge
   ctx.strokeStyle=C.line;ctx.lineWidth=3/cam.z;ctx.strokeRect(0,0,W,H);
   // build preview
@@ -649,10 +652,10 @@ function draw(){
 }
 function hpbar(x,y,w,f){ctx.fillStyle='rgba(0,0,0,0.6)';ctx.fillRect(x-w/2,y,w,3);ctx.fillStyle=f>0.5?C.scrap:f>0.25?C.accent:C.enemy;ctx.fillRect(x-w/2,y,w*Math.max(0,f),3)}
 function drawMini(){const s=mini.width/W;mctx.fillStyle='#10151b';mctx.fillRect(0,0,mini.width,mini.height);
-  mctx.save();mctx.scale(s,s);mctx.drawImage(fogC,0,0,W,H);mctx.restore();
+  if(!debugNoFog){mctx.save();mctx.scale(s,s);mctx.drawImage(fogC,0,0,W,H);mctx.restore()}
   S.objectives.forEach((o,i)=>{mctx.strokeStyle=C.zone;mctx.globalAlpha=o.done?0.3:1;mctx.beginPath();mctx.arc(o.x*s,o.y*s,o.r*s,0,Math.PI*2);mctx.stroke();mctx.globalAlpha=1});
-  S.nodes.forEach(n=>{if(n.found&&n.amt>0){mctx.fillStyle=C.scrap;mctx.fillRect(n.x*s-1.5,n.y*s-1.5,3,3)}});
-  S.enemies.forEach(e=>{if(visible(e)){mctx.fillStyle=C.enemy;mctx.fillRect(e.x*s-1,e.y*s-1,2,2)}});
+  S.nodes.forEach(n=>{if((n.found||debugNoFog)&&n.amt>0){mctx.fillStyle=C.scrap;mctx.fillRect(n.x*s-1.5,n.y*s-1.5,3,3)}});
+  S.enemies.forEach(e=>{if(debugNoFog||visible(e)){mctx.fillStyle=C.enemy;mctx.fillRect(e.x*s-1,e.y*s-1,2,2)}});
   S.troops.forEach(t=>{mctx.fillStyle=C.ally;mctx.fillRect(t.x*s-1.5,t.y*s-1.5,3,3)});
   mctx.fillStyle=C.accent;mctx.fillRect(S.base.x*s-3,S.base.y*s-3,6,6);
   const vw=cv.width/devicePixelRatio/cam.z,vh=cv.height/devicePixelRatio/cam.z;mctx.strokeStyle='rgba(255,255,255,0.5)';mctx.lineWidth=1;mctx.strokeRect((cam.x-vw/2)*s,(cam.y-vh/2)*s,vw*s,vh*s)}
