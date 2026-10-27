@@ -113,7 +113,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <kbd>WASD</kbd> or edge-drag (middle mouse) pans · scroll zooms<br>
   <kbd>1</kbd> wall · <kbd>2</kbd> turret · <kbd>3</kbd> relay · <kbd>L</kbd> begin drilling · <kbd>R</kbd> resume harvester auto-gather · <kbd>G</kbd> toggle builder repair mode · <kbd>U</kbd> select builders · <kbd>Esc</kbd> cancel<br>
   <b>The zone:</b> a Black Flame disaster site radiates out from a dead epicenter. The outer Rim is mild and wireless works fine. Push into the violet Dense Field and then the red Flame Core and both the crystal and the monsters get a lot more serious.<br>
-  <b>Tether:</b> beyond a short wireless range around the Bastion (or a built Relay), squads/harvesters/builders can only take orders through a physical cable that pays out behind them as they walk. Monsters that get close to a cable chew through it — a severed unit goes dark (no orders, autonomous retreat toward the nearest anchor) until it reconnects.<br>
+  <b>Tether:</b> beyond a short wireless range around the Bastion (or a built Relay), squads/harvesters/builders can only take orders through a physical cable that pays out behind them as they walk. Monsters that get close to a cable chew through it — a severed unit goes dark (no orders, autonomous retreat toward the nearest anchor) until it reconnects. Cable only runs so far (400 units) — at the end of it a unit just stops; build a Relay further out to extend reach.<br>
   <b>Drilling:</b> park the Bastion on a found vein's marker and press <kbd>L</kbd>. There's no fixed prep phase — throttle the drill (Slow/Normal/Fast, shown once locked in) to trade speed against how much noise it makes. Draining the marked Flame Core vein wins the run.<br>
   The Bastion fires on nearby enemies while mobile, but goes quiet the moment it locks down to drill.<br>
   <b>Harvesters</b> carry no weapons. Left alone they loop automatically: find the nearest Dat Crystal deposit, haul it home, repeat. A manual order pauses that loop until you select them and press Resume Auto-Gather (or <kbd>R</kbd>).<br>
@@ -148,6 +148,9 @@ const TCELL=60, TGX=Math.ceil(W/TCELL), TGY=Math.ceil(H/TCELL), MUD_MULT=0.55;
 // anchor (Bastion or built Relay); in the core you always need a live physical cable.
 const WIRELESS_TOL_DENSE=90, WIRELESS_TOL_CORE=0;
 const CABLE_HP_MAX=40, CABLE_SEG_MIN=24, CABLE_HIT_RANGE=16, CABLE_DMG=6, CABLE_CD=0.8;
+// How far a unit can pay cable out before an anchor (Bastion or Relay) before it physically
+// runs out of line — it just stops there until a closer anchor is built or it walks back in.
+const MAX_CABLE_LEN=400;
 const DRILL_RATE=1, THROTTLES=[0.5,1,1.8];
 const BASE_SPAWN_INTERVAL={rim:24,dense:15,core:9};
 const AMBIENT_INTERVAL={rim:45,dense:22,core:11};
@@ -177,9 +180,9 @@ function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
 function key(gx,gy){return gx+','+gy}
 function bandAt(x,y){const d=dist({x,y},EPI);return d<=CORE_R?'core':d<=DENSE_R?'dense':'rim'}
 
-function mkTroop(id){return {id,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp:70,maxHp:70,r:TROOP_R,dest:null,target:null,state:'idle',cd:0,tetherOk:true,trail:null,cableHp:0}}
-function mkHarv(id){return {id,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp:50,maxHp:50,r:HARV_R,dest:null,node:null,carry:0,state:'idle',autoLoop:true,hv:0,tetherOk:true,trail:null,cableHp:0}}
-function mkBuilder(id){return {id,x:S.base.x+rnd(-30,30),y:S.base.y+rnd(-30,30),hp:40,maxHp:40,r:BUILDER_R,dest:null,state:'idle',mode:'build',target:null,tetherOk:true,trail:null,cableHp:0}}
+function mkTroop(id){return {id,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp:70,maxHp:70,r:TROOP_R,dest:null,target:null,state:'idle',cd:0,tetherOk:true,trail:null,cableHp:0,cableMaxed:false}}
+function mkHarv(id){return {id,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp:50,maxHp:50,r:HARV_R,dest:null,node:null,carry:0,state:'idle',autoLoop:true,hv:0,tetherOk:true,trail:null,cableHp:0,cableMaxed:false}}
+function mkBuilder(id){return {id,x:S.base.x+rnd(-30,30),y:S.base.y+rnd(-30,30),hp:40,maxHp:40,r:BUILDER_R,dest:null,state:'idle',mode:'build',target:null,tetherOk:true,trail:null,cableHp:0,cableMaxed:false}}
 
 function reset(){
   S={t:0,dat:40,living:0,over:null,
@@ -466,11 +469,27 @@ function tetherPass(units,speed,dt){
       moveToward(u,aim,speed*factor,dt);
       return;
     }
-    if(nd<=tol){u.tetherOk=true;u.trail=null;return}
+    if(nd<=tol){u.tetherOk=true;u.trail=null;u.cableMaxed=false;return}
     if(!u.trail){u.trail=[{x:bestA.x,y:bestA.y}];u.cableHp=CABLE_HP_MAX}
     const last=u.trail[u.trail.length-1];
     if(dist(last,u)>=CABLE_SEG_MIN)u.trail.push({x:u.x,y:u.y});
     u.tetherOk=true;
+  });
+}
+// Keeps a unit from wandering more than MAX_CABLE_LEN from the nearest anchor (straight-line,
+// same measure as the wireless tolerance check above) — it just stops at the edge of its reach
+// until a closer anchor gets built or it walks back in. Runs after movement, before severing.
+function cableLenPass(units){
+  const anchors=anchorsList();
+  units.forEach(u=>{
+    if(!u.trail||u.trail.length===0){u.cableMaxed=false;return}
+    let bestA=null,nd=Infinity;
+    anchors.forEach(a=>{const d=dist(u,a);if(d<nd){nd=d;bestA=a}});
+    if(nd>MAX_CABLE_LEN){
+      const dx=u.x-bestA.x,dy=u.y-bestA.y,L=Math.hypot(dx,dy);
+      if(L>1e-6){u.x=bestA.x+dx/L*MAX_CABLE_LEN;u.y=bestA.y+dy/L*MAX_CABLE_LEN}
+      u.cableMaxed=true;
+    } else u.cableMaxed=false;
   });
 }
 // Enemies opportunistically chew through any cable they wander near, independent of whatever
@@ -493,7 +512,7 @@ function cableSeverPass(allUnits,dt){
   allUnits.forEach(u=>{
     if(u.trail&&u.cableHp<=0){
       releaseBuilderClaim(u);
-      u.state='cut';u.tetherOk=false;u.trail=null;u.target=null;u.dest=null;u.node=null;
+      u.state='cut';u.tetherOk=false;u.trail=null;u.cableMaxed=false;u.target=null;u.dest=null;u.node=null;
       anySevered=true;
     }
   });
@@ -985,6 +1004,7 @@ function update(dt){
       if(!wallAt(bnx,bny)){b.x=bnx;b.y=bny}
     }}
 
+  cableLenPass(allies);
   cableSeverPass(allies,dt);
 
   // deaths
@@ -1011,7 +1031,8 @@ function showOverlay(t,s){document.getElementById('ovTitle').textContent=t;docum
 function drawCable(u,col){
   if(!u.trail||u.trail.length===0)return;
   const alpha=0.4+0.5*Math.max(0,u.cableHp/CABLE_HP_MAX);
-  ctx.globalAlpha=alpha;ctx.strokeStyle=col;ctx.lineWidth=1.8;ctx.setLineDash([3,3]);
+  ctx.globalAlpha=u.cableMaxed?1:alpha;ctx.strokeStyle=u.cableMaxed?C.enemy:col;ctx.lineWidth=u.cableMaxed?2.4:1.8;
+  if(!u.cableMaxed)ctx.setLineDash([3,3]);
   ctx.beginPath();ctx.moveTo(u.trail[0].x,u.trail[0].y);
   for(let i=1;i<u.trail.length;i++)ctx.lineTo(u.trail[i].x,u.trail[i].y);
   ctx.lineTo(u.x,u.y);ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1;
