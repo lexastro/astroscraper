@@ -180,9 +180,9 @@ function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
 function key(gx,gy){return gx+','+gy}
 function bandAt(x,y){const d=dist({x,y},EPI);return d<=CORE_R?'core':d<=DENSE_R?'dense':'rim'}
 
-function mkTroop(id){return {id,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp:70,maxHp:70,r:TROOP_R,dest:null,target:null,state:'idle',cd:0,tetherOk:true,trail:null,cableHp:0,cableMaxed:false}}
-function mkHarv(id){return {id,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp:50,maxHp:50,r:HARV_R,dest:null,node:null,carry:0,state:'idle',autoLoop:true,hv:0,tetherOk:true,trail:null,cableHp:0,cableMaxed:false}}
-function mkBuilder(id){return {id,x:S.base.x+rnd(-30,30),y:S.base.y+rnd(-30,30),hp:40,maxHp:40,r:BUILDER_R,dest:null,state:'idle',mode:'build',target:null,tetherOk:true,trail:null,cableHp:0,cableMaxed:false}}
+function mkTroop(id){return {id,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp:70,maxHp:70,r:TROOP_R,dest:null,target:null,state:'idle',cd:0,tetherOk:true,trail:null,cableHp:0,cableLen:0,cableMaxed:false}}
+function mkHarv(id){return {id,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp:50,maxHp:50,r:HARV_R,dest:null,node:null,carry:0,state:'idle',autoLoop:true,hv:0,tetherOk:true,trail:null,cableHp:0,cableLen:0,cableMaxed:false}}
+function mkBuilder(id){return {id,x:S.base.x+rnd(-30,30),y:S.base.y+rnd(-30,30),hp:40,maxHp:40,r:BUILDER_R,dest:null,state:'idle',mode:'build',target:null,tetherOk:true,trail:null,cableHp:0,cableLen:0,cableMaxed:false}}
 
 function reset(){
   S={t:0,dat:40,living:0,over:null,
@@ -469,25 +469,38 @@ function tetherPass(units,speed,dt){
       moveToward(u,aim,speed*factor,dt);
       return;
     }
-    if(nd<=tol){u.tetherOk=true;u.trail=null;u.cableMaxed=false;return}
-    if(!u.trail){u.trail=[{x:bestA.x,y:bestA.y}];u.cableHp=CABLE_HP_MAX}
-    const last=u.trail[u.trail.length-1];
-    if(dist(last,u)>=CABLE_SEG_MIN)u.trail.push({x:u.x,y:u.y});
+    if(nd<=tol){u.tetherOk=true;u.trail=null;u.cableLen=0;u.cableMaxed=false;return}
+    if(!u.trail){u.trail=[{x:bestA.x,y:bestA.y}];u.cableHp=CABLE_HP_MAX;u.cableLen=0}
+    spoolTrail(u);
     u.tetherOk=true;
   });
 }
-// Keeps a unit from wandering more than MAX_CABLE_LEN from the nearest anchor (straight-line,
-// same measure as the wireless tolerance check above) — it just stops at the edge of its reach
-// until a closer anchor gets built or it walks back in. Runs after movement, before severing.
+// Models the trail as real cable paid out behind the unit: walking into new ground pays more
+// out (appended once it clears CABLE_SEG_MIN of slack); walking back over ground already
+// covered reels the matching length back in instead of piling up more. Keeps u.cableLen as the
+// length actually deployed right now, not the total ever walked.
+function spoolTrail(u){
+  while(u.trail.length>=2){
+    const last=u.trail[u.trail.length-1], prev=u.trail[u.trail.length-2];
+    if(dist(prev,u)<dist(prev,last)-0.5){u.cableLen-=dist(prev,last);u.trail.pop()}
+    else break;
+  }
+  const last=u.trail[u.trail.length-1];
+  const tail=dist(last,u);
+  if(tail>=CABLE_SEG_MIN){u.trail.push({x:u.x,y:u.y});u.cableLen+=tail}
+}
+// Keeps a unit from paying out more cable than MAX_CABLE_LEN: once its deployed trail plus its
+// live run back to the last trail point hits the cap, it's pulled back to exactly that length —
+// a hard stop, not a snap to the anchor. Runs after movement, before severing.
 function cableLenPass(units){
-  const anchors=anchorsList();
   units.forEach(u=>{
     if(!u.trail||u.trail.length===0){u.cableMaxed=false;return}
-    let bestA=null,nd=Infinity;
-    anchors.forEach(a=>{const d=dist(u,a);if(d<nd){nd=d;bestA=a}});
-    if(nd>MAX_CABLE_LEN){
-      const dx=u.x-bestA.x,dy=u.y-bestA.y,L=Math.hypot(dx,dy);
-      if(L>1e-6){u.x=bestA.x+dx/L*MAX_CABLE_LEN;u.y=bestA.y+dy/L*MAX_CABLE_LEN}
+    const last=u.trail[u.trail.length-1];
+    const tail=dist(last,u);
+    if(u.cableLen+tail>MAX_CABLE_LEN){
+      const allowed=Math.max(0,MAX_CABLE_LEN-u.cableLen);
+      const dx=u.x-last.x,dy=u.y-last.y,L=Math.hypot(dx,dy);
+      if(L>1e-6){u.x=last.x+dx/L*allowed;u.y=last.y+dy/L*allowed}
       u.cableMaxed=true;
     } else u.cableMaxed=false;
   });
@@ -512,7 +525,7 @@ function cableSeverPass(allUnits,dt){
   allUnits.forEach(u=>{
     if(u.trail&&u.cableHp<=0){
       releaseBuilderClaim(u);
-      u.state='cut';u.tetherOk=false;u.trail=null;u.cableMaxed=false;u.target=null;u.dest=null;u.node=null;
+      u.state='cut';u.tetherOk=false;u.trail=null;u.cableLen=0;u.cableMaxed=false;u.target=null;u.dest=null;u.node=null;
       anySevered=true;
     }
   });
