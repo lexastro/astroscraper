@@ -113,7 +113,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <kbd>WASD</kbd> or edge-drag (middle mouse) pans · scroll zooms<br>
   <kbd>1</kbd> wall · <kbd>2</kbd> turret · <kbd>3</kbd> relay · <kbd>L</kbd> begin drilling · <kbd>R</kbd> resume harvester auto-gather · <kbd>G</kbd> toggle builder repair mode · <kbd>U</kbd> select builders · <kbd>Esc</kbd> cancel<br>
   <b>The zone:</b> a Black Flame disaster site radiates out from a dead epicenter. The outer Rim is mild and wireless works fine. Push into the violet Dense Field and then the red Flame Core and both the crystal and the monsters get a lot more serious.<br>
-  <b>Tether:</b> beyond a short wireless range around the Bastion (or a built Relay), squads/harvesters/builders can only take orders through a physical cable that pays out behind them as they walk. Monsters that get close to a cable chew through it — a severed unit goes dark (no orders, autonomous retreat toward the nearest anchor) until it reconnects. Cable only runs so far (400 units) — at the end of it a unit just stops; build a Relay further out to extend reach.<br>
+  <b>Tether:</b> beyond a short wireless range around the Bastion (or a built Relay), squads/harvesters/builders can only take orders through a physical cable that pays out behind them as they walk. Monsters that get close to a cable chew through it — a severed unit goes dark (no orders, autonomous retreat toward the nearest anchor) until it reconnects. Cable only runs so far (400 units) — at the end of it a unit just stops; build a Relay further out to extend reach. The Bastion itself is the anchor, so driving it toward a deployed cable reels the slack back in and frees up range.<br>
   <b>Drilling:</b> park the Bastion on a found vein's marker and press <kbd>L</kbd>. There's no fixed prep phase — throttle the drill (Slow/Normal/Fast, shown once locked in) to trade speed against how much noise it makes. Draining the marked Flame Core vein wins the run.<br>
   The Bastion fires on nearby enemies while mobile, but goes quiet the moment it locks down to drill.<br>
   <b>Harvesters</b> carry no weapons. Left alone they loop automatically: find the nearest Dat Crystal deposit, haul it home, repeat. A manual order pauses that loop until you select them and press Resume Auto-Gather (or <kbd>R</kbd>).<br>
@@ -470,24 +470,37 @@ function tetherPass(units,speed,dt){
       return;
     }
     if(nd<=tol){u.tetherOk=true;u.trail=null;u.cableLen=0;u.cableMaxed=false;return}
-    if(!u.trail){u.trail=[{x:bestA.x,y:bestA.y}];u.cableHp=CABLE_HP_MAX;u.cableLen=0}
-    spoolTrail(u);
+    if(!u.trail){u.trail=[{x:bestA.x,y:bestA.y}];u.cableHp=CABLE_HP_MAX}
+    spoolTrail(u,bestA);
     u.tetherOk=true;
   });
 }
-// Models the trail as real cable paid out behind the unit: walking into new ground pays more
-// out (appended once it clears CABLE_SEG_MIN of slack); walking back over ground already
-// covered reels the matching length back in instead of piling up more. Keeps u.cableLen as the
-// length actually deployed right now, not the total ever walked.
-function spoolTrail(u){
+function trailLen(trail){let L=0;for(let i=0;i+1<trail.length;i++)L+=dist(trail[i],trail[i+1]);return L}
+// Models the trail as real cable paid out between two moving ends: the anchor (trail[0], which
+// tracks the Bastion/Relay live — so it follows the Bastion as it drives around) and the unit's
+// current position (the implicit tip past trail[last]). Either end walking back over ground
+// already covered reels that length back in instead of piling up more; either end pushing into
+// new ground pays more out. u.cableLen is always the live total, recomputed off the trail array.
+function spoolTrail(u,anchor){
+  // the anchor end can jump straight to whichever recorded point lets it reel in the most
+  // slack right now, not just the next link in line — so driving the Bastion near the line
+  // anywhere along its length (not only back to its very start) hands that slack back.
+  if(u.trail.length>=2){
+    const suf=new Array(u.trail.length).fill(0);
+    for(let i=u.trail.length-2;i>=1;i--)suf[i]=suf[i+1]+dist(u.trail[i],u.trail[i+1]);
+    let bestJ=1,bestCost=Infinity;
+    for(let j=1;j<u.trail.length;j++){const c=dist(anchor,u.trail[j])+suf[j];if(c<bestCost){bestCost=c;bestJ=j}}
+    if(bestJ>1)u.trail.splice(1,bestJ-1);
+  }
+  u.trail[0]={x:anchor.x,y:anchor.y};
   while(u.trail.length>=2){
-    const last=u.trail[u.trail.length-1], prev=u.trail[u.trail.length-2];
-    if(dist(prev,u)<dist(prev,last)-0.5){u.cableLen-=dist(prev,last);u.trail.pop()}
+    const last=u.trail[u.trail.length-1],prev=u.trail[u.trail.length-2];
+    if(dist(prev,u)<dist(prev,last)-0.5)u.trail.pop();
     else break;
   }
   const last=u.trail[u.trail.length-1];
-  const tail=dist(last,u);
-  if(tail>=CABLE_SEG_MIN){u.trail.push({x:u.x,y:u.y});u.cableLen+=tail}
+  if(dist(last,u)>=CABLE_SEG_MIN)u.trail.push({x:u.x,y:u.y});
+  u.cableLen=trailLen(u.trail);
 }
 // Keeps a unit from paying out more cable than MAX_CABLE_LEN: once its deployed trail plus its
 // live run back to the last trail point hits the cap, it's pulled back to exactly that length —
@@ -501,6 +514,7 @@ function cableLenPass(units){
       const allowed=Math.max(0,MAX_CABLE_LEN-u.cableLen);
       const dx=u.x-last.x,dy=u.y-last.y,L=Math.hypot(dx,dy);
       if(L>1e-6){u.x=last.x+dx/L*allowed;u.y=last.y+dy/L*allowed}
+      if(terrainAt(u.x,u.y)===2){const p=nearestPlain(u.x,u.y);u.x=p.x;u.y=p.y}
       u.cableMaxed=true;
     } else u.cableMaxed=false;
   });
