@@ -62,6 +62,13 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 .overlay h1{font-family:var(--mono);font-weight:500;font-size:26px;margin:0;letter-spacing:.04em;text-wrap:balance}
 .overlay p{margin:0;color:var(--muted);max-width:40ch}
 .overlay button{background:var(--accent);color:#1a1200;border:0;font:inherit;font-weight:600;padding:10px 18px;border-radius:4px;cursor:pointer}
+.rewardCards{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;max-width:900px}
+.rewardCard{width:190px;min-height:210px;background:var(--panel2);border:2px solid var(--line);border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:8px;cursor:pointer;text-align:left;color:var(--fg);font:inherit;transition:transform .12s ease}
+.rewardCard:hover{transform:translateY(-5px)}
+.rewardCard.trade{border-style:dashed;background:var(--panel)}
+.rewardCard .rcTier{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.09em;font-weight:700}
+.rewardCard .rcName{font-weight:600;font-size:15px;line-height:1.25}
+.rewardCard .rcDesc{font-size:12px;color:var(--muted);line-height:1.42;flex:1}
 @media (max-width:600px){.help{display:none}.stat{min-width:70px}.stat .v{font-size:14px}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -121,7 +128,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <kbd>1</kbd> wall · <kbd>2</kbd> turret · <kbd>3</kbd> relay · <kbd>L</kbd> begin drilling · <kbd>R</kbd> resume harvester auto-gather · <kbd>G</kbd> toggle builder repair mode · <kbd>U</kbd> select builders · <kbd>Esc</kbd> cancel<br>
   <b>The zone:</b> a Black Flame disaster site radiates out from a dead epicenter. The outer Rim is mild, wireless works fine, and Dat Crystal is scattered in small, common deposits. Push into the violet Dense Field and deposits get rarer but come in big clusters worth securing. Push further into the red Flame Core and both the crystal and the monsters get a lot more serious still.<br>
   <b>Tether:</b> beyond a short wireless range around the Bastion (or a built Relay), squads/harvesters/builders can only take orders through a physical cable that pays out behind them as they walk. Monsters that get close to a cable chew through it — a severed unit goes dark (no orders, autonomous retreat toward the nearest anchor) until it reconnects. Cable only runs so far (400 units) — at the end of it a unit just stops; build a Relay further out to extend reach. The Bastion itself is the anchor, so driving it toward a deployed cable reels the slack back in and frees up range. A Relay needs the same live tether back to the network to work at all — chain them (each can be built within range of the Bastion <i>or</i> of an already-finished Relay) and if one in the chain gets severed, everything past it goes dark too until the line is restored. A Relay destroyed outright doesn't vanish either — it just goes fully dark until a repair-mode builder brings its HP back up, same as mending any other structure.<br>
-  <b>Drilling:</b> a scouted vein's reward starts at a loot tier (gold Legendary, purple Epic, blue Rare, grey Common — shown as a colored gem and countdown above the zone) that quietly drops a tier every minute it sits undrilled, floored at its band's minimum (Rim: Epic→Rare→Common; deeper zones: Legendary→Epic→Rare) — so don't scout a vein and then sit on it. Park the Bastion on a found vein's marker and the throttle panel comes up as a prompt: pick Slow/Normal/Fast (or just press <kbd>L</kbd> for Normal) to lock in that speed and start drilling — there's no fixed prep phase otherwise, and the speed can't be changed once chosen. The drill also burns Dat Crystal per second to run, faster at higher throttle — run dry and it stalls until more comes in, so keep harvesters feeding it. The loot-tier clock isn't done the moment you start, either: it only freezes while the drill is actually making progress, so pausing (<kbd>P</kbd>, or the Pause button) or stalling out of Dat sets it ticking again — the gem reappears — and the tier that's showing when the vein finally drains is the one you get paid at. Pausing still freezes progress and Dat burn entirely (no wave or Saboteur clock either) if you'd rather bank up a stockpile than have it eaten the instant a harvester drops it off — it just costs you loot tier if you leave it paused too long. Draining a vein pays Condensed Crystal too, more the faster you finished it, so speed pays for itself twice over; the throttle panel shows the live Dat burn rate and projected Condensed Crystal payoff for whichever setting is selected. Waves while drilling always roll in from one fixed direction per vein (the red dashed arrow) — far enough out to see them coming. A separate swarm of tiny amber Saboteurs also spawns periodically — individually one hit from dying, but beelining in a pack for your nearest built Relay and its cable instead of the Bastion. They spawn out past the Relay so you can see the swarm coming, and bigger packs show up the faster you're drilling. Draining the marked Flame Core vein wins the run.<br>
+  <b>Drilling:</b> a scouted vein's reward starts at a loot tier (gold Legendary, purple Epic, blue Rare, grey Common — shown as a colored gem and countdown above the zone) that quietly drops a tier every minute it sits undrilled, floored at its band's minimum (Rim: Epic→Rare→Common; deeper zones: Legendary→Epic→Rare) — so don't scout a vein and then sit on it. Park the Bastion on a found vein's marker and the throttle panel comes up as a prompt: pick Slow/Normal/Fast (or just press <kbd>L</kbd> for Normal) to lock in that speed and start drilling — there's no fixed prep phase otherwise, and the speed can't be changed once chosen. The drill also burns Dat Crystal per second to run, faster at higher throttle — run dry and it stalls until more comes in, so keep harvesters feeding it. The loot-tier clock isn't done the moment you start, either: it only freezes while the drill is actually making progress, so pausing (<kbd>P</kbd>, or the Pause button) or stalling out of Dat sets it ticking again — the gem reappears — and the tier that's showing when the vein finally drains is the one you get paid at. Pausing still freezes progress and Dat burn entirely (no wave or Saboteur clock either) if you'd rather bank up a stockpile than have it eaten the instant a harvester drops it off — it just costs you loot tier if you leave it paused too long. Draining a vein pays Condensed Crystal too, more the faster you finished it, so speed pays for itself twice over; the throttle panel shows the live Dat burn rate and projected Condensed Crystal payoff for whichever setting is selected. Drain a non-contract vein and the run pauses for a reward pick: three run-only upgrade cards at the tier the vein paid out, plus a fourth option to bank a chunk of Dat Crystal instead — gold Legendary cards only ever show up out of a Dense/Core vein, never off a Rim one, since the card tier always matches whatever the vein's own loot-tier clock left it at. Waves while drilling always roll in from one fixed direction per vein (the red dashed arrow) — far enough out to see them coming. A separate swarm of tiny amber Saboteurs also spawns periodically — individually one hit from dying, but beelining in a pack for your nearest built Relay and its cable instead of the Bastion. They spawn out past the Relay so you can see the swarm coming, and bigger packs show up the faster you're drilling. Draining the marked Flame Core vein wins the run.<br>
   The Bastion fires on nearby enemies while mobile, but goes quiet the moment it locks down to drill.<br>
   <b>Harvesters</b> carry no weapons. Left alone they loop automatically: find the nearest Dat Crystal deposit, haul it home, repeat. A manual order pauses that loop until you select them and press Resume Auto-Gather (or <kbd>R</kbd>). Dead enemies sometimes drop a few loose Dat Crystal shards — small green triangles scattered where they fell — that any squad, harvester, or builder scoops up on contact, straight into the stockpile, no trip home required.<br>
   <b>Builders</b> place but don't fight: a wall/turret/relay order only queues a ghost site until a builder walks over and finishes it (wall 1s, turret 5s, relay 3s). Walls and turrets need the Bastion locked down drilling; Relays can be queued any time, even while the Bastion is still mobile, so you can push a chain of them ahead of you as you scout. Any of the three can be placed within range of the Bastion <i>or</i> of an already-built Relay, so your defenses can ring a forward Relay, not just the Bastion itself — but a Turret only fires while a live Relay (or the Bastion) is actually in power range; sever or destroy the Relay it leans on and it goes dark with it. Toggle repair mode (button or <kbd>G</kbd>) and they'll auto-seek damaged structures and mend them for a trickle of Dat Crystal/sec instead — including a Relay whose tether got severed: a repair-mode builder will walk up and splice it back in (a few seconds, no Dat cost) even if the Relay itself is at full HP, since the cable and the structure are separate things to break. Idle builders dock at the Bastion.<br>
@@ -130,6 +137,11 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 
 <div class="overlay" id="overlay" hidden>
   <h1 id="ovTitle"></h1><p id="ovText"></p><button id="ovBtn">Restart</button>
+</div>
+
+<div class="overlay rewardOverlay" id="rewardOverlay" hidden>
+  <h1 id="rewardTitle">Choose a Reward</h1>
+  <div class="rewardCards" id="rewardCards"></div>
 </div>
 
 <script>
@@ -191,12 +203,47 @@ const VEIN_DEFS=[
 const DENSE_CLUSTERS=[[1150,2100],[1900,2500],[2300,700],[1700,1300]];
 // A found vein's loot tier decays one step every TIER_DECAY_T seconds it sits undrilled, down
 // to its band's floor — sitting on a discovered vein instead of moving to drill it is the thing
-// this is meant to punish. Whatever tier is current the moment the Bastion locks onto it is
-// locked in for that drill's reward; dawdling after that point no longer costs anything, since
-// the player has already committed.
+// this is meant to punish. The clock only freezes while the vein is actively, unpaused,
+// un-stalled being drilled — pausing or stalling out of Dat sets it ticking again, so the tier
+// paid out when the vein finally drains is whatever's current at that moment, not whatever it
+// was back at lockdown.
 const TIER_MULT={Common:0.6,Rare:1,Epic:1.5,Legendary:2};
 const TIER_LADDER={rim:['Epic','Rare','Common'],dense:['Legendary','Epic','Rare'],core:['Legendary','Epic','Rare']};
 const TIER_DECAY_T=60;
+// Draining a vein (other than the contract one, which ends the run) offers a choice of 3
+// upgrades at that vein's tier, plus a 4th option to cash it in for Dat instead — every upgrade
+// is a flat multiplier/bonus on an existing stat, applied immediately and only for this run
+// (reset() rebuilds S.mods from scratch, so nothing persists to the next game). A vein's band
+// already caps which tiers it can ever pay out at (see TIER_LADDER above), so a Rim vein can
+// never offer a Legendary card — there's no separate restriction to maintain here, the existing
+// tier-decay ladder does it for free.
+const TIER_TRADE_DAT={Common:60,Rare:140,Epic:260,Legendary:450};
+const UPGRADES={
+  Common:[
+    {id:'carry1',name:'Reinforced Haulers',desc:'Harvester carry capacity +25%.',apply:()=>{S.mods.carryMult*=1.25}},
+    {id:'dmg1',name:'Battle Drills',desc:'Squad damage +20%.',apply:()=>{S.mods.troopDmgMult*=1.2}},
+    {id:'spd1',name:'Quick March',desc:'Harvester & Builder move speed +20%.',apply:()=>{S.mods.moveSpeedMult*=1.2}},
+    {id:'vis1',name:"Surveyor's Eye",desc:'Vision radius +20% for every unit.',apply:()=>{S.mods.visionMult*=1.2}},
+  ],
+  Rare:[
+    {id:'tol1',name:'Signal Boost',desc:'Wireless tether range +35% (Bastion & Relays).',apply:()=>{S.mods.relayTolMult*=1.35}},
+    {id:'burn1',name:'Efficient Drill',desc:'Drill Dat Crystal burn rate −25%.',apply:()=>{S.mods.drillBurnMult*=0.75}},
+    {id:'cable1',name:'Spooled Cable',desc:'Max tether cable length +150.',apply:()=>{S.mods.cableLenAdd+=150}},
+    {id:'recruit1',name:'Fresh Recruit',desc:'+1 free Squad, right now.',apply:()=>{S.troops.push(mkTroop(Date.now()+Math.floor(Math.random()*1000)))}},
+  ],
+  Epic:[
+    {id:'relay1',name:'Prefab Relay',desc:'Your next Relay costs no Dat Crystal.',apply:()=>{S.mods.freeRelayCharges+=1}},
+    {id:'cond1',name:'Refined Extraction',desc:'Condensed Crystal rate +35%.',apply:()=>{S.mods.condensedMult*=1.35}},
+    {id:'cablehp1',name:'Reinforced Cabling',desc:'All tether cable HP +75%.',apply:()=>{S.mods.cableHpMult*=1.75}},
+    {id:'carry2',name:'Double Haul',desc:'Harvester carry capacity +50% more.',apply:()=>{S.mods.carryMult*=1.5}},
+  ],
+  Legendary:[
+    {id:'overdrive',name:'Overdrive Capacitor',desc:'Fast throttle is dramatically faster (burns and pays out more to match).',apply:()=>{S.mods.fastBonus+=1.0}},
+    {id:'cablehp2',name:'Hardened Network',desc:'All tether cable HP +150% more.',apply:()=>{S.mods.cableHpMult*=2.5}},
+    {id:'living1',name:'Rich Vein Memory',desc:'Living Crystal yield ×2 for the rest of the run.',apply:()=>{S.mods.livingMult*=2}},
+    {id:'map1',name:'Zone Mapping',desc:'Permanently reveals a wide area around the Bastion.',apply:()=>{revealCircle(S.base.x,S.base.y,1400)}},
+  ],
+};
 
 const cv=document.getElementById('game'), ctx=cv.getContext('2d');
 const mini=document.getElementById('mini'), mctx=mini.getContext('2d');
@@ -238,6 +285,11 @@ function reset(){
     troops:[],harvesters:[],builders:[],relays:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],shards:[],
     veins:[],activeVein:null,throttleMul:1,ambientT:30,
     particles:[],floaters:[],shake:{t:0,dur:0,mag:0},
+    // run-only upgrade modifiers — every stat multiplier/bonus a reward card can grant, all
+    // reset back to baseline (1 / 0 / false) by a fresh reset(), never persisted between runs.
+    mods:{carryMult:1,troopDmgMult:1,moveSpeedMult:1,visionMult:1,relayTolMult:1,drillBurnMult:1,
+      cableLenAdd:0,cableHpMult:1,condensedMult:1,livingMult:1,fastBonus:0,freeRelayCharges:0},
+    rewardChoice:null,
     sel:{base:false,troops:new Set(),harv:new Set(),bu:new Set()}};
   for(let i=0;i<4;i++) S.troops.push(mkTroop(i));
   for(let i=0;i<2;i++) S.harvesters.push(mkHarv(i));
@@ -523,7 +575,7 @@ function waypointFor(u,tx,ty){
 // a relay cut off from the Bastion (or a chain back to it) is just dead weight until it
 // reconnects.
 function anchorsList(){return [S.base,...S.relays.filter(r=>r.built&&r.tetherOk)]}
-function wirelessTol(band){return band==='rim'?Infinity:band==='dense'?WIRELESS_TOL_DENSE:WIRELESS_TOL_CORE}
+function wirelessTol(band){return band==='rim'?Infinity:band==='dense'?WIRELESS_TOL_DENSE*S.mods.relayTolMult:WIRELESS_TOL_CORE}
 function pointSegDist(p,a,b){
   const dx=b.x-a.x,dy=b.y-a.y, len2=dx*dx+dy*dy;
   if(len2<1e-6)return dist(p,a);
@@ -549,7 +601,7 @@ function tetherPass(units,speed,dt){
       return;
     }
     if(nd<=tol){u.tetherOk=true;u.trail=null;u.cableLen=0;u.cableMaxed=false;return}
-    if(!u.trail){u.trail=[{x:bestA.x,y:bestA.y}];u.cableHp=CABLE_HP_MAX}
+    if(!u.trail){u.trail=[{x:bestA.x,y:bestA.y}];u.cableHp=CABLE_HP_MAX*S.mods.cableHpMult}
     spoolTrail(u,bestA);
     u.tetherOk=true;
   });
@@ -574,7 +626,7 @@ function relayTetherPass(){
     hops.forEach(r=>{
       if(reached.includes(r))return;
       const tol=wirelessTol(bandAt(r.x,r.y));
-      if(reached.some(a=>{const d=dist(r,a);return d<=tol||d<=MAX_CABLE_LEN})){reached.push(r);grew=true}
+      if(reached.some(a=>{const d=dist(r,a);return d<=tol||d<=MAX_CABLE_LEN+S.mods.cableLenAdd})){reached.push(r);grew=true}
     });
   }
   S.relays.forEach(r=>{
@@ -592,7 +644,7 @@ function relayTetherPass(){
     reached.forEach(a=>{if(a===r)return;const d=dist(r,a);if(d<nd){nd=d;bestA=a}});
     const tol=wirelessTol(bandAt(r.x,r.y));
     if(nd<=tol){r.tetherOk=true;r.trail=null;r.cableLen=0;r.cableMaxed=false;return}
-    if(!r.trail){r.trail=[{x:bestA.x,y:bestA.y}];r.cableHp=CABLE_HP_MAX}
+    if(!r.trail){r.trail=[{x:bestA.x,y:bestA.y}];r.cableHp=CABLE_HP_MAX*S.mods.cableHpMult}
     spoolTrail(r,bestA);
     r.tetherOk=true; // already confirmed reachable by the flood-fill above
   });
@@ -632,8 +684,9 @@ function cableLenPass(units){
     if(!u.trail||u.trail.length===0){u.cableMaxed=false;return}
     const last=u.trail[u.trail.length-1];
     const tail=dist(last,u);
-    if(u.cableLen+tail>MAX_CABLE_LEN){
-      const allowed=Math.max(0,MAX_CABLE_LEN-u.cableLen);
+    const maxCableLen=MAX_CABLE_LEN+S.mods.cableLenAdd;
+    if(u.cableLen+tail>maxCableLen){
+      const allowed=Math.max(0,maxCableLen-u.cableLen);
       const dx=u.x-last.x,dy=u.y-last.y,L=Math.hypot(dx,dy);
       if(L>1e-6){u.x=last.x+dx/L*allowed;u.y=last.y+dy/L*allowed}
       if(terrainAt(u.x,u.y)===2){const p=nearestPlain(u.x,u.y);u.x=p.x;u.y=p.y}
@@ -735,7 +788,7 @@ document.getElementById('bBuildHarv').onclick=buildHarvester;
 document.getElementById('bBuildBuilder').onclick=buildBuilderUnit;
 document.querySelectorAll('#throttlePanel button[data-th]').forEach(b=>b.onclick=()=>{
   if(S.base.locked)return; // speed is locked in for the drill once it's started
-  tryLockdown(THROTTLES[+b.dataset.th]);
+  tryLockdown(throttleValue(+b.dataset.th));
 });
 document.getElementById('bPause').onclick=toggleDrillPause;
 document.getElementById('helpClose').onclick=()=>{document.getElementById('help').hidden=true};
@@ -787,8 +840,11 @@ function setBuild(m){buildMode=m;closeProdMenu();updateBuildBar()}
 function updateBuildBar(){
   document.querySelectorAll('#buildBar button[data-mode]').forEach(b=>{
     b.classList.toggle('on',b.dataset.mode===buildMode);
-    b.disabled=(!S.base.locked&&b.dataset.mode!=='relay')||(S.dat<COST[b.dataset.mode]&&buildMode!==b.dataset.mode);
+    const cost=b.dataset.mode==='relay'&&S.mods.freeRelayCharges>0?0:COST[b.dataset.mode];
+    b.disabled=(!S.base.locked&&b.dataset.mode!=='relay')||(S.dat<cost&&buildMode!==b.dataset.mode);
   });
+  const crEl=document.getElementById('cRelay');
+  if(crEl)crEl.textContent=S.mods.freeRelayCharges>0?`FREE ×${S.mods.freeRelayCharges}`:`${COST.relay} dat`;
   const lb=document.getElementById('bLock');
   if(lb){
     document.getElementById('bLockLabel').textContent=S.base.locked?'Drilling…':'Begin Drilling';
@@ -813,7 +869,7 @@ function updateBuildBar(){
   const tp=document.getElementById('throttlePanel');
   tp.hidden=!S.base.locked&&!readyToStart;
   document.querySelectorAll('#throttlePanel button[data-th]').forEach(b=>{
-    b.classList.toggle('on',THROTTLES[+b.dataset.th]===S.throttleMul&&S.base.locked);
+    b.classList.toggle('on',throttleValue(+b.dataset.th)===S.throttleMul&&S.base.locked);
     b.disabled=S.base.locked;
   });
   const pb=document.getElementById('bPause');
@@ -831,6 +887,9 @@ function canLockdown(){
   if(S.base.locked)return null;
   return S.veins.find(v=>!v.done&&dist(S.base,v.mine)<BASE_R+18)||null;
 }
+// the Overdrive Capacitor upgrade makes Fast (index 2) faster still — every other throttle is
+// unaffected.
+function throttleValue(idx){return THROTTLES[idx]+(idx===2?S.mods.fastBonus:0)}
 // Drill speed is picked once, right here, and locked for the whole drill — no more nudging the
 // throttle mid-run. throttle is a THROTTLES value (0.5/1/1.8); omitted (e.g. the L shortcut)
 // defaults to Normal.
@@ -920,33 +979,44 @@ function tryBuild(w){
   if(!S.base.locked&&buildMode!=='relay'){msg('Lock down the Bastion (begin drilling) before building.');return}
   if(!inBuildRange(w)){msg('Build inside the Bastion\'s dashed ring.');return}
   if(terrainAt(w.x,w.y)===2){msg('Cannot build on solid rock.');return}
-  if(S.dat<COST[buildMode]){msg('Not enough Dat Crystal. Send harvesters to a deposit.');return}
+  const freeRelay=buildMode==='relay'&&S.mods.freeRelayCharges>0;
+  const cost=freeRelay?0:COST[buildMode];
+  if(S.dat<cost){msg('Not enough Dat Crystal. Send harvesters to a deposit.');return}
   if(buildMode==='wall'){const gx=Math.floor(w.x/CELL),gy=Math.floor(w.y/CELL),k=key(gx,gy);const cx=gx*CELL+CELL/2,cy=gy*CELL+CELL/2;
     if(S.walls.has(k)||dist({x:cx,y:cy},S.base)<BASE_R+CELL)return;
     if(S.turrets.some(t=>dist(t,{x:cx,y:cy})<CELL)||S.relays.some(r=>dist(r,{x:cx,y:cy})<CELL))return;
-    S.walls.set(k,{gx,gy,x:cx,y:cy,hp:WALL_HP,maxHp:WALL_HP,kind:'wall',built:false,buildT:0,buildTotal:WALL_BUILD_T,builder:null,repairer:null});S.dat-=COST.wall;
+    S.walls.set(k,{gx,gy,x:cx,y:cy,hp:WALL_HP,maxHp:WALL_HP,kind:'wall',built:false,buildT:0,buildTotal:WALL_BUILD_T,builder:null,repairer:null});S.dat-=cost;
     msg('Wall queued — a builder needs to finish it.');
   }else if(buildMode==='turret'){
     if(dist(w,S.base)<BASE_R+14||S.turrets.some(t=>dist(t,w)<26)||S.relays.some(r=>dist(r,w)<26))return;
     const k=key(Math.floor(w.x/CELL),Math.floor(w.y/CELL));if(S.walls.has(k))return;
-    S.turrets.push({x:w.x,y:w.y,hp:TURRET_HP,maxHp:TURRET_HP,cd:0,ang:0,kind:'turret',built:false,buildT:0,buildTotal:TURRET_BUILD_T,builder:null,repairer:null});S.dat-=COST.turret;
+    S.turrets.push({x:w.x,y:w.y,hp:TURRET_HP,maxHp:TURRET_HP,cd:0,ang:0,kind:'turret',built:false,buildT:0,buildTotal:TURRET_BUILD_T,builder:null,repairer:null});S.dat-=cost;
     msg('Turret queued — a builder needs to finish it.');
   }else{
     if(dist(w,S.base)<BASE_R+14||S.turrets.some(t=>dist(t,w)<26)||S.relays.some(r=>dist(r,w)<40))return;
     const k=key(Math.floor(w.x/CELL),Math.floor(w.y/CELL));if(S.walls.has(k))return;
     S.relays.push({x:w.x,y:w.y,hp:RELAY_HP,maxHp:RELAY_HP,kind:'relay',built:false,buildT:0,buildTotal:RELAY_BUILD_T,builder:null,repairer:null,
-      state:null,tetherOk:false,trail:null,cableHp:0,cableLen:0,cableMaxed:false,reconnectT:0});S.dat-=COST.relay;
-    msg('Relay queued — a builder needs to finish it.');
+      state:null,tetherOk:false,trail:null,cableHp:0,cableLen:0,cableMaxed:false,reconnectT:0});S.dat-=cost;
+    if(freeRelay){S.mods.freeRelayCharges--;msg('Relay queued for free — a builder needs to finish it.')}
+    else msg('Relay queued — a builder needs to finish it.');
   }
   sfx.click();
   updateBuildBar();
 }
 
 // ---------- helpers ----------
-function visible(p){if(dist(p,S.base)<BASE_VISION)return true;if(S.troops.some(t=>dist(t,p)<TROOP_VISION))return true;if(S.harvesters.some(h=>dist(h,p)<HARV_VISION))return true;return S.builders.some(b=>dist(b,p)<BUILDER_VISION)}
+function visible(p){const vm=S.mods.visionMult;if(dist(p,S.base)<BASE_VISION*vm)return true;if(S.troops.some(t=>dist(t,p)<TROOP_VISION*vm))return true;if(S.harvesters.some(h=>dist(h,p)<HARV_VISION*vm))return true;return S.builders.some(b=>dist(b,p)<BUILDER_VISION*vm)}
 function moveToward(o,d,sp,dt){const dx=d.x-o.x,dy=d.y-o.y,L=Math.hypot(dx,dy);if(L<1)return 0;const s=Math.min(L,sp*dt);o.x+=dx/L*s;o.y+=dy/L*s;return L-s}
 function tracer(a,b,col){S.tracers.push({x1:a.x,y1:a.y,x2:b.x,y2:b.y,t:0.12,col})}
 function hitFlash(o){o.flashT=0.12}
+// Standalone, one-shot version of the per-frame fog reveal below — used by the Zone Mapping
+// reward to permanently clear a wide area in one go, outside the normal per-unit vision loop.
+function revealCircle(x,y,r){
+  fogX.globalCompositeOperation='destination-out';
+  const g=fogX.createRadialGradient(x/FOG_S,y/FOG_S,r*0.6/FOG_S,x/FOG_S,y/FOG_S,r/FOG_S);
+  g.addColorStop(0,'rgba(0,0,0,1)');g.addColorStop(1,'rgba(0,0,0,0)');
+  fogX.fillStyle=g;fogX.beginPath();fogX.arc(x/FOG_S,y/FOG_S,r/FOG_S,0,Math.PI*2);fogX.fill();
+}
 function damageEnemy(e,d){e.hp-=d;hitFlash(e);spark(e.x,e.y,C.accent,2)}
 // ---------- juice: particles, floating text, screen shake ----------
 function burst(x,y,col,count,speed,life){
@@ -1028,7 +1098,7 @@ function needsRepair(site){return site.hp<site.maxHp||(site.kind==='relay'&&site
 
 // ---------- update ----------
 function update(dt){
-  if(S.over)return; S.t+=dt;
+  if(S.over||S.rewardChoice)return; S.t+=dt;
   const B=S.base;
   // camera keys
   const ps=520/cam.z*dt; if(keys['w']||keys['arrowup'])cam.y-=ps; if(keys['s']||keys['arrowdown'])cam.y+=ps; if(keys['a']||keys['arrowleft'])cam.x-=ps; if(keys['d']||keys['arrowright'])cam.x+=ps; clampCam();
@@ -1036,7 +1106,7 @@ function update(dt){
   // drilling: no fixed prep phase — the throttle is the whole speed/noise trade-off
   if(B.locked&&S.activeVein&&!S.activeVein.done&&!S.activeVein.paused){
     const v=S.activeVein;
-    const need=DRILL_DAT_COST*S.throttleMul*dt;
+    const need=DRILL_DAT_COST*S.mods.drillBurnMult*S.throttleMul*dt;
     if(S.dat>=need){
       if(v.stalled){v.stalled=false;msg('Dat Crystal flowing again — drilling resumed.');sfx.resume()}
       S.dat-=need;
@@ -1087,16 +1157,16 @@ function update(dt){
       // decaying it, so leaving the drill stopped for too long can still cost you a tier even
       // after you've started.
       const tier=currentTier(v), tierMult=TIER_MULT[tier];
-      const condensedEarned=Math.max(1,Math.round(v.richness*CONDENSED_RATE*speedRatio*tierMult));
+      const condensedEarned=Math.max(1,Math.round(v.richness*CONDENSED_RATE*S.mods.condensedMult*speedRatio*tierMult));
       const datEarned=Math.round((v.reward.dat||0)*tierMult);
-      const livingEarned=Math.round((v.reward.living||0)*tierMult);
+      const livingEarned=Math.round((v.reward.living||0)*tierMult*S.mods.livingMult);
       S.dat+=datEarned; S.living+=livingEarned; S.condensed+=condensedEarned;
       burst(v.x,v.y,TIER_COLOR[tier],24,140,0.7);
       if(datEarned)floatText(v.x,v.y-16,'+'+datEarned+' Dat',C.dat);
       if(livingEarned)floatText(v.x,v.y-34,'+'+livingEarned+' Living',C.living);
       floatText(v.x,v.y+(datEarned||livingEarned?2:-16),'+'+condensedEarned+' Condensed',C.condensed);
       if(v.contract){S.over='win';sfx.win();shakeScreen(6,0.5);showOverlay('Living Crystal Extracted',`The contract vein is drained at ${tier} tier. Datascraper crew, mission complete. +${condensedEarned} Condensed Crystal.`)}
-      else{msg(`Vein drained at ${tier} tier — +${condensedEarned} Condensed Crystal. Move the Bastion to another vein when ready.`);sfx.veinDone();shakeScreen(4,0.3)}
+      else{msg(`Vein drained at ${tier} tier — +${condensedEarned} Condensed Crystal. Move the Bastion to another vein when ready.`);shakeScreen(4,0.3);showRewardChoice(tier)}
     }
   }
   // ambient: the zone is alive even when nobody's drilling, scaled by how deep the Bastion sits
@@ -1131,8 +1201,8 @@ function update(dt){
   relayTetherPass();
   // tether maintenance + autonomous retreat for already-cut units, ahead of each type's own loop
   tetherPass(S.troops,TROOP_SPEED,dt);
-  tetherPass(S.harvesters,HARV_SPEED,dt);
-  tetherPass(S.builders,BUILDER_SPEED,dt);
+  tetherPass(S.harvesters,HARV_SPEED*S.mods.moveSpeedMult,dt);
+  tetherPass(S.builders,BUILDER_SPEED*S.mods.moveSpeedMult,dt);
 
   // troops (combat only — resource gathering is the harvesters' job). 'cut' troops skip the
   // state machine below (no branch matches) but still auto-fire and reveal vision.
@@ -1150,9 +1220,9 @@ function update(dt){
     }
     // auto fire
     if(t.cd<=0){let best=null,bd=TROOP_RANGE;S.enemies.forEach(e=>{const d=dist(e,t);if(d<bd){bd=d;best=e}});
-      if(best){damageEnemy(best,TROOP_DMG);tracer(t,best,C.ally);t.cd=TROOP_CD;if(t.state==='idle'&&bd>TROOP_RANGE*0.7)t.target=best}}
+      if(best){damageEnemy(best,TROOP_DMG*S.mods.troopDmgMult);tracer(t,best,C.ally);t.cd=TROOP_CD;if(t.state==='idle'&&bd>TROOP_RANGE*0.7)t.target=best}}
     t.x=Math.max(10,Math.min(W-10,t.x));t.y=Math.max(10,Math.min(H-10,t.y));
-    S.nodes.forEach(n=>{if(!n.found&&dist(n,t)<TROOP_VISION)n.found=true});
+    S.nodes.forEach(n=>{if(!n.found&&dist(n,t)<TROOP_VISION*S.mods.visionMult)n.found=true});
   });
 
   // harvesters — unarmed; auto-loop to the nearest resource unless paused by a manual order or cut
@@ -1169,27 +1239,27 @@ function update(dt){
     }
     if(h.state==='move'&&h.dest){
       const aim=waypointFor(h,h.dest.x,h.dest.y);
-      moveToward(h,aim,HARV_SPEED*factor,dt);
+      moveToward(h,aim,HARV_SPEED*S.mods.moveSpeedMult*factor,dt);
       if(dist(h,h.dest)<4){h.dest=null;h.state='idle'}
     }
     else if(h.state==='harvest'){const n=h.node;
       if(!n||(n.amt<=0&&h.carry===0)){h.state='idle';h.node=null}
-      else if(h.carry>=CARRY||n.amt<=0){
-        const aim=waypointFor(h,B.x,B.y); moveToward(h,aim,HARV_SPEED*factor,dt);
+      else if(h.carry>=CARRY*S.mods.carryMult||n.amt<=0){
+        const aim=waypointFor(h,B.x,B.y); moveToward(h,aim,HARV_SPEED*S.mods.moveSpeedMult*factor,dt);
         if(dist(h,B)<B.r+22){if(h.carry>0){floatText(h.x,h.y-14,'+'+h.carry,C.dat);sfx.gather()}S.dat+=h.carry;h.carry=0;updateBuildBar();if(n.amt<=0){h.state='idle';h.node=null}}
       }
-      else if(dist(h,n)>22){const aim=waypointFor(h,n.x,n.y);moveToward(h,aim,HARV_SPEED*factor,dt)}
+      else if(dist(h,n)>22){const aim=waypointFor(h,n.x,n.y);moveToward(h,aim,HARV_SPEED*S.mods.moveSpeedMult*factor,dt)}
       else{h.hv+=dt;if(h.hv>0.35){h.hv=0;n.amt--;h.carry++}}
     }
     else if(h.state==='return'){
-      const aim=waypointFor(h,B.x,B.y); moveToward(h,aim,HARV_SPEED*factor,dt);
+      const aim=waypointFor(h,B.x,B.y); moveToward(h,aim,HARV_SPEED*S.mods.moveSpeedMult*factor,dt);
       if(dist(h,B)<B.r+22){
         if(h.carry>0){floatText(h.x,h.y-14,'+'+h.carry,C.dat);sfx.gather();S.dat+=h.carry;h.carry=0;updateBuildBar()}
         h.state='idle';h.node=null;
       }
     }
     h.x=Math.max(10,Math.min(W-10,h.x));h.y=Math.max(10,Math.min(H-10,h.y));
-    S.nodes.forEach(n=>{if(!n.found&&dist(n,h)<HARV_VISION)n.found=true});
+    S.nodes.forEach(n=>{if(!n.found&&dist(n,h)<HARV_VISION*S.mods.visionMult)n.found=true});
   });
 
   // builders — unarmed; auto-build queued sites, or (repair mode) auto-heal damaged ones; dock at
@@ -1213,17 +1283,17 @@ function update(dt){
     }
     if(bu.state==='move'&&bu.dest){
       const aim=waypointFor(bu,bu.dest.x,bu.dest.y);
-      moveToward(bu,aim,BUILDER_SPEED*factor,dt);
+      moveToward(bu,aim,BUILDER_SPEED*S.mods.moveSpeedMult*factor,dt);
       if(dist(bu,bu.dest)<4){bu.dest=null;bu.state='idle'}
     }
     else if(bu.state==='dock'){
       const aim=waypointFor(bu,B.x,B.y);
-      moveToward(bu,aim,BUILDER_SPEED*factor,dt);
+      moveToward(bu,aim,BUILDER_SPEED*S.mods.moveSpeedMult*factor,dt);
     }
     else if(bu.state==='build'){
       const site=bu.target;
       if(!site||!siteStillValid(site)||site.built){bu.target=null;bu.state='idle'}
-      else if(dist(bu,site)>26){const aim=waypointFor(bu,site.x,site.y);moveToward(bu,aim,BUILDER_SPEED*factor,dt)}
+      else if(dist(bu,site)>26){const aim=waypointFor(bu,site.x,site.y);moveToward(bu,aim,BUILDER_SPEED*S.mods.moveSpeedMult*factor,dt)}
       else{
         site.buildT+=dt;
         if(site.buildT>=site.buildTotal){site.built=true;site.builder=null;bu.target=null;bu.state='idle';msg(site.kind==='wall'?'Wall built.':site.kind==='turret'?'Turret built.':'Relay built.');sfx.build();spark(site.x,site.y,C.builder,8)}
@@ -1232,7 +1302,7 @@ function update(dt){
     else if(bu.state==='repair'){
       const site=bu.target;
       if(!site||!siteStillValid(site)||!site.built||!needsRepair(site)){if(site)site.repairer=null;bu.target=null;bu.state='idle'}
-      else if(dist(bu,site)>26){const aim=waypointFor(bu,site.x,site.y);moveToward(bu,aim,BUILDER_SPEED*factor,dt)}
+      else if(dist(bu,site)>26){const aim=waypointFor(bu,site.x,site.y);moveToward(bu,aim,BUILDER_SPEED*S.mods.moveSpeedMult*factor,dt)}
       else{
         if(site.hp<site.maxHp&&S.dat>=REPAIR_DAT_PER_SEC*dt){
           S.dat-=REPAIR_DAT_PER_SEC*dt;
@@ -1251,8 +1321,9 @@ function update(dt){
     bu.x=Math.max(10,Math.min(W-10,bu.x));bu.y=Math.max(10,Math.min(H-10,bu.y));
   });
 
-  S.nodes.forEach(n=>{if(!n.found&&dist(n,B)<BASE_VISION)n.found=true});
-  S.veins.forEach(v=>{if(!v.done&&!v.mine.found&&(dist(v.mine,B)<BASE_VISION||S.troops.some(t=>dist(v.mine,t)<TROOP_VISION)||S.harvesters.some(h=>dist(v.mine,h)<HARV_VISION)||S.builders.some(bu=>dist(v.mine,bu)<BUILDER_VISION))){v.mine.found=true;v.decayElapsed=0}});
+  {const vm=S.mods.visionMult;
+  S.nodes.forEach(n=>{if(!n.found&&dist(n,B)<BASE_VISION*vm)n.found=true});
+  S.veins.forEach(v=>{if(!v.done&&!v.mine.found&&(dist(v.mine,B)<BASE_VISION*vm||S.troops.some(t=>dist(v.mine,t)<TROOP_VISION*vm)||S.harvesters.some(h=>dist(v.mine,h)<HARV_VISION*vm)||S.builders.some(bu=>dist(v.mine,bu)<BUILDER_VISION*vm))){v.mine.found=true;v.decayElapsed=0}});}
   // the loot-tier clock only runs while this vein ISN'T being actively drilled — parked-but-
   // undrilled, paused, and stalled all count as "stopped" and let it keep decaying; only real,
   // running progress freezes it in place.
@@ -1390,7 +1461,8 @@ function update(dt){
   // fog explore (permanent reveal — once scouted, stays visible; enemy sighting is gated separately by visible())
   fogX.globalCompositeOperation='destination-out';
   const rev=(x,y,r)=>{const g=fogX.createRadialGradient(x/FOG_S,y/FOG_S,r*0.6/FOG_S,x/FOG_S,y/FOG_S,r/FOG_S);g.addColorStop(0,'rgba(0,0,0,1)');g.addColorStop(1,'rgba(0,0,0,0)');fogX.fillStyle=g;fogX.beginPath();fogX.arc(x/FOG_S,y/FOG_S,r/FOG_S,0,Math.PI*2);fogX.fill()};
-  rev(B.x,B.y,BASE_VISION);S.troops.forEach(t=>rev(t.x,t.y,TROOP_VISION));S.harvesters.forEach(h=>rev(h.x,h.y,HARV_VISION));S.builders.forEach(bu=>rev(bu.x,bu.y,BUILDER_VISION));
+  {const vm=S.mods.visionMult;
+  rev(B.x,B.y,BASE_VISION*vm);S.troops.forEach(t=>rev(t.x,t.y,TROOP_VISION*vm));S.harvesters.forEach(h=>rev(h.x,h.y,HARV_VISION*vm));S.builders.forEach(bu=>rev(bu.x,bu.y,BUILDER_VISION*vm));}
 
   // dim veil, rebuilt fresh every frame: dark over everything, then punched fully clear around
   // current vision sources (same radii as the permanent reveal above).
@@ -1398,14 +1470,59 @@ function update(dt){
   dimX.globalCompositeOperation='source-over'; dimX.fillStyle='rgba(0,0,0,0.44)'; dimX.fillRect(0,0,dimC.width,dimC.height);
   dimX.globalCompositeOperation='destination-out';
   const unveil=(x,y,r)=>{const g=dimX.createRadialGradient(x/FOG_S,y/FOG_S,r*0.6/FOG_S,x/FOG_S,y/FOG_S,r/FOG_S);g.addColorStop(0,'rgba(0,0,0,1)');g.addColorStop(1,'rgba(0,0,0,0)');dimX.fillStyle=g;dimX.beginPath();dimX.arc(x/FOG_S,y/FOG_S,r/FOG_S,0,Math.PI*2);dimX.fill()};
-  unveil(B.x,B.y,BASE_VISION);S.troops.forEach(t=>unveil(t.x,t.y,TROOP_VISION));S.harvesters.forEach(h=>unveil(h.x,h.y,HARV_VISION));S.builders.forEach(bu=>unveil(bu.x,bu.y,BUILDER_VISION));
+  {const vm=S.mods.visionMult;
+  unveil(B.x,B.y,BASE_VISION*vm);S.troops.forEach(t=>unveil(t.x,t.y,TROOP_VISION*vm));S.harvesters.forEach(h=>unveil(h.x,h.y,HARV_VISION*vm));S.builders.forEach(bu=>unveil(bu.x,bu.y,BUILDER_VISION*vm));}
 }
 function showOverlay(t,s){document.getElementById('ovTitle').textContent=t;document.getElementById('ovText').textContent=s;document.getElementById('overlay').hidden=false}
+// 3 upgrade cards at the vein's drained tier, shuffled from that tier's pool, plus a 4th card to
+// cash the whole reward in for a flat chunk of Dat instead.
+function rollRewardCards(tier){
+  const pool=[...UPGRADES[tier]];
+  for(let i=pool.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[pool[i],pool[j]]=[pool[j],pool[i]]}
+  const picks=pool.slice(0,3).map(u=>({kind:'upgrade',tier,...u}));
+  picks.push({kind:'trade',tier,name:'Sell the Reward',desc:`Skip the upgrade — bank +${TIER_TRADE_DAT[tier]} Dat Crystal instead.`,amt:TIER_TRADE_DAT[tier]});
+  return picks;
+}
+// Pauses the whole sim (update() bails out while S.rewardChoice is set) and shows the pick.
+function showRewardChoice(tier){
+  const cards=rollRewardCards(tier);
+  S.rewardChoice={tier,cards};
+  document.getElementById('rewardTitle').textContent=`Choose a Reward — ${tier} Tier`;
+  const host=document.getElementById('rewardCards');
+  host.innerHTML='';
+  cards.forEach((c,i)=>{
+    const col=c.kind==='trade'?C.dat:TIER_COLOR[c.tier];
+    const btn=document.createElement('button');
+    btn.className='rewardCard'+(c.kind==='trade'?' trade':'');
+    btn.style.borderColor=col;
+    btn.innerHTML=`<span class="rcTier" style="color:${col}">${c.kind==='trade'?'Trade':c.tier}</span><span class="rcName">${c.name}</span><span class="rcDesc">${c.desc}</span>`;
+    btn.onclick=()=>pickReward(i);
+    host.appendChild(btn);
+  });
+  document.getElementById('rewardOverlay').hidden=false;
+  sfx.veinDone();
+}
+function pickReward(i){
+  const choice=S.rewardChoice;
+  if(!choice)return;
+  const c=choice.cards[i];
+  if(c.kind==='trade'){
+    S.dat+=c.amt; floatText(S.base.x,S.base.y-40,'+'+c.amt+' Dat',C.dat);
+    msg(`Traded the ${choice.tier} reward for +${c.amt} Dat Crystal.`);
+  }else{
+    c.apply();
+    msg(`${c.name} acquired — ${c.desc}`);
+  }
+  sfx.click();
+  document.getElementById('rewardOverlay').hidden=true;
+  S.rewardChoice=null;
+  updateBuildBar();
+}
 
 // ---------- draw ----------
 function drawCable(u,col){
   if(!u.trail||u.trail.length===0)return;
-  const alpha=0.4+0.5*Math.max(0,u.cableHp/CABLE_HP_MAX);
+  const alpha=0.4+0.5*Math.max(0,u.cableHp/(CABLE_HP_MAX*S.mods.cableHpMult));
   ctx.globalAlpha=u.cableMaxed?1:alpha;ctx.strokeStyle=u.cableMaxed?C.enemy:col;ctx.lineWidth=u.cableMaxed?2.4:1.8;
   if(!u.cableMaxed)ctx.setLineDash([3,3]);
   ctx.beginPath();ctx.moveTo(u.trail[0].x,u.trail[0].y);
@@ -1531,7 +1648,7 @@ function draw(){
     }
     if(r.tetherOk){
       const pulse=0.5+0.5*Math.sin(S.t*2.2);
-      ctx.strokeStyle=C.cable;ctx.globalAlpha=0.25*pulse;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(r.x,r.y,WIRELESS_TOL_DENSE,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;
+      ctx.strokeStyle=C.cable;ctx.globalAlpha=0.25*pulse;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(r.x,r.y,WIRELESS_TOL_DENSE*S.mods.relayTolMult,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;
     }
     ctx.fillStyle=r.flashT>0?'#fff':(r.tetherOk?'#3b4652':'#2a2d31');ctx.strokeStyle=r.tetherOk?C.cable:C.enemy;ctx.lineWidth=2;
     ctx.beginPath();ctx.moveTo(r.x,r.y-12);ctx.lineTo(r.x+9,r.y+8);ctx.lineTo(r.x-9,r.y+8);ctx.closePath();ctx.fill();ctx.stroke();
@@ -1550,7 +1667,7 @@ function draw(){
   if(B.locked){ctx.strokeStyle=C.accent;ctx.lineWidth=2;for(let i=0;i<4;i++){const a=i*Math.PI/2+Math.PI/4;ctx.beginPath();ctx.moveTo(Math.cos(a)*B.r*1.1,Math.sin(a)*B.r*1.1);ctx.lineTo(Math.cos(a)*B.r*1.5,Math.sin(a)*B.r*1.5);ctx.stroke()}}
   ctx.restore();hpbar(B.x,B.y-B.r-12,B.r*2,B.hp/B.maxHp);
   const bwt=0.5+0.5*Math.sin(S.t*2.2);
-  ctx.strokeStyle=C.cable;ctx.globalAlpha=0.2*bwt;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(B.x,B.y,WIRELESS_TOL_DENSE,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;
+  ctx.strokeStyle=C.cable;ctx.globalAlpha=0.2*bwt;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(B.x,B.y,WIRELESS_TOL_DENSE*S.mods.relayTolMult,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;
   if(S.sel.base){ctx.strokeStyle=C.ally;ctx.lineWidth=1.5;ctx.setLineDash([4,4]);ctx.beginPath();ctx.arc(B.x,B.y,B.r+10,0,Math.PI*2);ctx.stroke();ctx.setLineDash([])}
   if(B.dest){ctx.strokeStyle='rgba(94,200,255,0.5)';ctx.setLineDash([6,6]);ctx.beginPath();ctx.moveTo(B.x,B.y);ctx.lineTo(B.dest.x,B.dest.y);ctx.stroke();ctx.setLineDash([])}
   // cables (drawn under the units they belong to)
@@ -1596,7 +1713,7 @@ function draw(){
   // build preview
   if(buildMode){const ok=(B.locked||buildMode==='relay')&&inBuildRange({x:mouse.wx,y:mouse.wy})&&terrainAt(mouse.wx,mouse.wy)!==2&&S.dat>=COST[buildMode];ctx.globalAlpha=0.6;
     if(buildMode==='wall'){const gx=Math.floor(mouse.wx/CELL)*CELL,gy=Math.floor(mouse.wy/CELL)*CELL;ctx.fillStyle=ok?'#8d9aa8':C.enemy;ctx.fillRect(gx+1,gy+1,CELL-2,CELL-2)}
-    else{const rng=buildMode==='turret'?TURRET_RANGE:WIRELESS_TOL_DENSE;ctx.fillStyle=ok?C.accent:C.enemy;ctx.beginPath();ctx.arc(mouse.wx,mouse.wy,11,0,Math.PI*2);ctx.fill();ctx.strokeStyle=ok?C.accent:C.enemy;ctx.lineWidth=1;ctx.setLineDash([4,6]);ctx.beginPath();ctx.arc(mouse.wx,mouse.wy,rng,0,Math.PI*2);ctx.stroke();ctx.setLineDash([])}
+    else{const rng=buildMode==='turret'?TURRET_RANGE:WIRELESS_TOL_DENSE*S.mods.relayTolMult;ctx.fillStyle=ok?C.accent:C.enemy;ctx.beginPath();ctx.arc(mouse.wx,mouse.wy,11,0,Math.PI*2);ctx.fill();ctx.strokeStyle=ok?C.accent:C.enemy;ctx.lineWidth=1;ctx.setLineDash([4,6]);ctx.beginPath();ctx.arc(mouse.wx,mouse.wy,rng,0,Math.PI*2);ctx.stroke();ctx.setLineDash([])}
     ctx.globalAlpha=1}
   // selection box
   if(mouse.drag&&mouse.drag.moved){const d=mouse.drag;ctx.strokeStyle=C.ally;ctx.fillStyle='rgba(94,200,255,0.1)';ctx.lineWidth=1/cam.z;ctx.fillRect(d.x0,d.y0,d.x1-d.x0,d.y1-d.y0);ctx.strokeRect(d.x0,d.y0,d.x1-d.x0,d.y1-d.y0)}
@@ -1634,9 +1751,9 @@ function hud(){
       $('thBurn').textContent='paused';
       $('thRate').textContent='paused';
     }else{
-      const burnRate=DRILL_DAT_COST*S.throttleMul;
+      const burnRate=DRILL_DAT_COST*S.mods.drillBurnMult*S.throttleMul;
       $('thBurn').textContent=`−${burnRate.toFixed(1)} dat/s`;
-      const condensedRatePerMin=60*CONDENSED_RATE*DRILL_RATE*S.throttleMul*S.throttleMul;
+      const condensedRatePerMin=60*CONDENSED_RATE*S.mods.condensedMult*DRILL_RATE*S.throttleMul*S.throttleMul;
       $('thRate').textContent=`+${condensedRatePerMin.toFixed(1)} cond/min`;
     }
   }else{
