@@ -119,7 +119,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <kbd>1</kbd> wall · <kbd>2</kbd> turret · <kbd>3</kbd> relay · <kbd>L</kbd> begin drilling · <kbd>R</kbd> resume harvester auto-gather · <kbd>G</kbd> toggle builder repair mode · <kbd>U</kbd> select builders · <kbd>Esc</kbd> cancel<br>
   <b>The zone:</b> a Black Flame disaster site radiates out from a dead epicenter. The outer Rim is mild, wireless works fine, and Dat Crystal is scattered in small, common deposits. Push into the violet Dense Field and deposits get rarer but come in big clusters worth securing. Push further into the red Flame Core and both the crystal and the monsters get a lot more serious still.<br>
   <b>Tether:</b> beyond a short wireless range around the Bastion (or a built Relay), squads/harvesters/builders can only take orders through a physical cable that pays out behind them as they walk. Monsters that get close to a cable chew through it — a severed unit goes dark (no orders, autonomous retreat toward the nearest anchor) until it reconnects. Cable only runs so far (400 units) — at the end of it a unit just stops; build a Relay further out to extend reach. The Bastion itself is the anchor, so driving it toward a deployed cable reels the slack back in and frees up range. A Relay needs the same live tether back to the network to work at all — chain them (each can be built within range of the Bastion <i>or</i> of an already-finished Relay) and if one in the chain gets severed, everything past it goes dark too until the line is restored. A Relay destroyed outright doesn't vanish either — it just goes fully dark until a repair-mode builder brings its HP back up, same as mending any other structure.<br>
-  <b>Drilling:</b> park the Bastion on a found vein's marker and press <kbd>L</kbd>. There's no fixed prep phase — throttle the drill (Slow/Normal/Fast, shown once locked in) to trade speed against how much noise it makes. The drill also burns Dat Crystal per second to run, faster at higher throttle — run dry and it stalls until more comes in, so keep harvesters feeding it. Draining a vein pays Condensed Crystal too, more the faster you finished it, so speed pays for itself twice over; the throttle panel shows the live Dat burn rate and projected Condensed Crystal payoff for whichever setting is selected. Waves while drilling always roll in from one fixed direction per vein (the red dashed arrow) — far enough out to see them coming. A smaller, separate band of amber Saboteurs also spawns periodically, beelining for your nearest built Relay and its cable instead of the Bastion — they spawn out past the Relay so you can see them coming too, and more of them show up the faster you're drilling. Draining the marked Flame Core vein wins the run.<br>
+  <b>Drilling:</b> park the Bastion on a found vein's marker and press <kbd>L</kbd>. There's no fixed prep phase — throttle the drill (Slow/Normal/Fast, shown once locked in) to trade speed against how much noise it makes. The drill also burns Dat Crystal per second to run, faster at higher throttle — run dry and it stalls until more comes in, so keep harvesters feeding it. Draining a vein pays Condensed Crystal too, more the faster you finished it, so speed pays for itself twice over; the throttle panel shows the live Dat burn rate and projected Condensed Crystal payoff for whichever setting is selected. Waves while drilling always roll in from one fixed direction per vein (the red dashed arrow) — far enough out to see them coming. A separate swarm of tiny amber Saboteurs also spawns periodically — individually one hit from dying, but beelining in a pack for your nearest built Relay and its cable instead of the Bastion. They spawn out past the Relay so you can see the swarm coming, and bigger packs show up the faster you're drilling. Draining the marked Flame Core vein wins the run.<br>
   The Bastion fires on nearby enemies while mobile, but goes quiet the moment it locks down to drill.<br>
   <b>Harvesters</b> carry no weapons. Left alone they loop automatically: find the nearest Dat Crystal deposit, haul it home, repeat. A manual order pauses that loop until you select them and press Resume Auto-Gather (or <kbd>R</kbd>).<br>
   <b>Builders</b> place but don't fight: a wall/turret/relay order only queues a ghost site until a builder walks over and finishes it (wall 1s, turret 5s, relay 3s). Walls and turrets need the Bastion locked down drilling; Relays can be queued any time, even while the Bastion is still mobile, so you can push a chain of them ahead of you as you scout. Toggle repair mode (button or <kbd>G</kbd>) and they'll auto-seek damaged structures and mend them for a trickle of Dat Crystal/sec instead — including a Relay whose tether got severed: a repair-mode builder will walk up and splice it back in (a few seconds, no Dat cost) even if the Relay itself is at full HP, since the cable and the structure are separate things to break. Idle builders dock at the Bastion.<br>
@@ -164,11 +164,13 @@ const AMBIENT_INTERVAL={rim:45,dense:22,core:11};
 // not a random spot each time — far enough out that you can see them coming and react, not just
 // react to them already being on top of you.
 const WAVE_SPAWN_DIST=820, WAVE_BASE_N={rim:5,dense:10,core:16};
-// Saboteurs are a smaller, separate threat while drilling: they beeline for whichever built
-// Relay is nearest the vein (and opportunistically chew its cable on the way there, same as any
-// enemy near a cable), rather than joining the main wave's raid. They spawn out past the Relay
-// itself, on the far side from the vein, so they're visible closing in before they arrive.
-const SABOTEUR_INTERVAL={rim:40,dense:26,core:16}, SABOTEUR_SPAWN_DIST=500, SABOTEUR_BASE_N={rim:1,dense:2,core:3};
+// Saboteurs are a separate threat while drilling: tiny, individually-fragile swarms that beeline
+// for whichever built Relay is nearest the vein (and opportunistically chew its cable on the way
+// there, same as any enemy near a cable), rather than joining the main wave's raid. A single one
+// dies to a stray hit; a whole pack left unchecked still shreds a cable fast. They spawn out past
+// the Relay itself, on the far side from the vein, so the swarm is visible closing in before it
+// arrives.
+const SABOTEUR_INTERVAL={rim:40,dense:26,core:16}, SABOTEUR_SPAWN_DIST=500, SABOTEUR_BASE_N={rim:4,dense:7,core:10};
 // The drill burns Dat Crystal per second to run — the rate scales with throttle (so the TOTAL
 // cost to finish a vein is throttle-invariant, but a faster throttle demands a faster supply of
 // Dat or the drill literally stalls). CONDENSED_RATE converts how much faster than baseline
@@ -289,7 +291,7 @@ function reset(){
 function spawnEnemy(x,y,kind){
   const big=kind==='wave'&&Math.random()<0.2;
   const sab=kind==='saboteur';
-  S.enemies.push({x,y,r:big?13:sab?7:8,hp:big?120:sab?24:34,maxHp:big?120:sab?24:34,speed:big?48:sab?95:78,dmg:big?12:5,cd:0,kind,target:null,aggro:kind==='roam'?260:1e9,home:{x,y},ang:rnd(0,Math.PI*2),faceT:rnd(1,3)});
+  S.enemies.push({x,y,r:big?13:sab?4:8,hp:big?120:sab?8:34,maxHp:big?120:sab?8:34,speed:big?48:sab?105:78,dmg:big?12:sab?3:5,cd:0,kind,target:null,aggro:kind==='roam'?260:1e9,home:{x,y},ang:rnd(0,Math.PI*2),faceT:rnd(1,3)});
 }
 function msg(s){document.getElementById('hMsg').textContent=s;msgT=S.t}
 
@@ -917,7 +919,7 @@ function update(dt){
     v.saboteurT-=dt;
     if(v.saboteurT<=0){
       v.saboteurT=SABOTEUR_INTERVAL[v.band]/S.throttleMul;
-      const liveRelays=S.relays.filter(r=>r.built);
+      const liveRelays=S.relays.filter(r=>r.built&&r.hp>0);
       if(liveRelays.length){
         let target=liveRelays[0],rbd=dist(v,target);
         liveRelays.forEach(r=>{const d=dist(v,r);if(d<rbd){rbd=d;target=r}});
@@ -925,10 +927,10 @@ function update(dt){
         const sx=target.x+ux*SABOTEUR_SPAWN_DIST, sy=target.y+uy*SABOTEUR_SPAWN_DIST;
         const n=Math.max(1,Math.round(SABOTEUR_BASE_N[v.band]*(0.7+0.3*S.throttleMul)));
         for(let i=0;i<n;i++){
-          const p=nearestPlain(Math.max(20,Math.min(W-20,sx+rnd(-60,60))),Math.max(20,Math.min(H-20,sy+rnd(-60,60))));
+          const p=nearestPlain(Math.max(20,Math.min(W-20,sx+rnd(-100,100))),Math.max(20,Math.min(H-20,sy+rnd(-100,100))));
           spawnEnemy(p.x,p.y,'saboteur');
         }
-        msg('Saboteurs spotted — they\'re making for a Relay\'s cable.');
+        msg('A saboteur swarm is massing on a Relay\'s cable.');
       }
     }
     if(v.drillProg>=v.richness){
