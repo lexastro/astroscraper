@@ -535,20 +535,42 @@ function tetherPass(units,speed,dt){
 // troop, a relay can't walk itself back into range once cut, so it just sits dark until the
 // network comes back to it (another anchor moves/gets built close enough) or its cable regrows
 // because something upstream reeled in and shortened the run back below MAX_CABLE_LEN.
+//
+// Reachability is recomputed from scratch each tick as a flood-fill out from the Bastion, rather
+// than each relay just checking its nearest neighbor's tetherOk flag — the latter lets a relay
+// cut off from the Bastion stay lit forever by mutually re-validating with an equally orphaned
+// neighbor (each one's stale/same-tick "true" propping up the other's), since neither ever gets
+// re-checked against the actual root. A fresh graph search from Base has no such blind spot: a
+// relay is only ever tetherOk if something in the search actually traced back to the Bastion.
 function relayTetherPass(){
+  const hops=S.relays.filter(r=>r.built&&r.hp>0&&r.state!=='cut');
+  const reached=[S.base];
+  for(let grew=true;grew;){
+    grew=false;
+    hops.forEach(r=>{
+      if(reached.includes(r))return;
+      const tol=wirelessTol(bandAt(r.x,r.y));
+      if(reached.some(a=>{const d=dist(r,a);return d<=tol||d<=MAX_CABLE_LEN})){reached.push(r);grew=true}
+    });
+  }
   S.relays.forEach(r=>{
     if(!r.built||r.hp<=0)return; // destroyed — can't anchor anything until repaired back above 0
-    const anchors=[S.base,...S.relays.filter(o=>o!==r&&o.built&&o.tetherOk)];
-    const band=bandAt(r.x,r.y);
-    const tol=wirelessTol(band);
+    if(r.state==='cut'){
+      const tol=wirelessTol(bandAt(r.x,r.y));
+      if(reached.some(a=>dist(r,a)<=tol)){r.state=null;r.tetherOk=true;r.trail=null;r.cableLen=0;r.cableMaxed=false;r.reconnectT=0}
+      return; // otherwise still waits — can't walk back, and a cable needs a builder or real proximity
+    }
+    if(!reached.includes(r)){
+      if(r.tetherOk||r.trail){r.tetherOk=false;r.trail=null;r.cableLen=0;r.cableMaxed=false}
+      return;
+    }
     let bestA=null,nd=Infinity;
-    anchors.forEach(a=>{const d=dist(r,a);if(d<nd){nd=d;bestA=a}});
-    if(nd<=tol){r.state=null;r.tetherOk=true;r.trail=null;r.cableLen=0;r.cableMaxed=false;r.reconnectT=0;return}
-    if(r.state==='cut')return; // can't walk back — waits for the network to come to it, or a builder to splice it
-    if(!bestA){r.tetherOk=false;return}
+    reached.forEach(a=>{if(a===r)return;const d=dist(r,a);if(d<nd){nd=d;bestA=a}});
+    const tol=wirelessTol(bandAt(r.x,r.y));
+    if(nd<=tol){r.tetherOk=true;r.trail=null;r.cableLen=0;r.cableMaxed=false;return}
     if(!r.trail){r.trail=[{x:bestA.x,y:bestA.y}];r.cableHp=CABLE_HP_MAX}
     spoolTrail(r,bestA);
-    r.tetherOk=r.cableLen<=MAX_CABLE_LEN;
+    r.tetherOk=true; // already confirmed reachable by the flood-fill above
   });
 }
 function trailLen(trail){let L=0;for(let i=0;i+1<trail.length;i++)L+=dist(trail[i],trail[i+1]);return L}
