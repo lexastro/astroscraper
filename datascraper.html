@@ -118,7 +118,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <b>Drilling:</b> park the Bastion on a found vein's marker and press <kbd>L</kbd>. There's no fixed prep phase — throttle the drill (Slow/Normal/Fast, shown once locked in) to trade speed against how much noise it makes. The drill also burns Dat Crystal per second to run, faster at higher throttle — run dry and it stalls until more comes in, so keep harvesters feeding it. Draining a vein pays Condensed Crystal too, more the faster you finished it, so speed pays for itself twice over. Draining the marked Flame Core vein wins the run.<br>
   The Bastion fires on nearby enemies while mobile, but goes quiet the moment it locks down to drill.<br>
   <b>Harvesters</b> carry no weapons. Left alone they loop automatically: find the nearest Dat Crystal deposit, haul it home, repeat. A manual order pauses that loop until you select them and press Resume Auto-Gather (or <kbd>R</kbd>).<br>
-  <b>Builders</b> place but don't fight: a wall/turret/relay order only queues a ghost site until a builder walks over and finishes it (wall 1s, turret 5s, relay 3s). Walls and turrets need the Bastion locked down drilling; Relays can be queued any time, even while the Bastion is still mobile, so you can push a chain of them ahead of you as you scout. Toggle repair mode (button or <kbd>G</kbd>) and they'll auto-seek damaged structures and mend them for a trickle of Dat Crystal/sec instead. Idle builders dock at the Bastion.<br>
+  <b>Builders</b> place but don't fight: a wall/turret/relay order only queues a ghost site until a builder walks over and finishes it (wall 1s, turret 5s, relay 3s). Walls and turrets need the Bastion locked down drilling; Relays can be queued any time, even while the Bastion is still mobile, so you can push a chain of them ahead of you as you scout. Toggle repair mode (button or <kbd>G</kbd>) and they'll auto-seek damaged structures and mend them for a trickle of Dat Crystal/sec instead — including a Relay whose tether got severed: a repair-mode builder will walk up and splice it back in (a few seconds, no Dat cost) even if the Relay itself is at full HP, since the cable and the structure are separate things to break. Idle builders dock at the Bastion.<br>
   <kbd>`</kbd> toggles debug: reveal the whole map and all enemies.
 </div>
 
@@ -138,6 +138,7 @@ const TROOP_R=7, TROOP_SPEED=125, TROOP_VISION=340, TROOP_RANGE=165, TROOP_DMG=7
 const HARV_R=8, HARV_SPEED=105, HARV_VISION=280, CARRY=12;
 const BUILDER_R=7, BUILDER_SPEED=100, BUILDER_VISION=200;
 const WALL_BUILD_T=1, TURRET_BUILD_T=5, RELAY_BUILD_T=3, REPAIR_HPS=25, REPAIR_DAT_PER_SEC=1;
+const RELAY_RECONNECT_T=2.5;
 const TURRET_RANGE=240, TURRET_DMG=14, TURRET_CD=0.65, TURRET_HP=150;
 const RELAY_HP=100;
 const BASE_GUN_RANGE=260, BASE_GUN_DMG=18, BASE_GUN_CD=0.5;
@@ -526,8 +527,8 @@ function relayTetherPass(){
     const tol=wirelessTol(band);
     let bestA=null,nd=Infinity;
     anchors.forEach(a=>{const d=dist(r,a);if(d<nd){nd=d;bestA=a}});
-    if(nd<=tol){r.state=null;r.tetherOk=true;r.trail=null;r.cableLen=0;r.cableMaxed=false;return}
-    if(r.state==='cut')return; // can't walk back — waits for the network to come to it
+    if(nd<=tol){r.state=null;r.tetherOk=true;r.trail=null;r.cableLen=0;r.cableMaxed=false;r.reconnectT=0;return}
+    if(r.state==='cut')return; // can't walk back — waits for the network to come to it, or a builder to splice it
     if(!bestA){r.tetherOk=false;return}
     if(!r.trail){r.trail=[{x:bestA.x,y:bestA.y}];r.cableHp=CABLE_HP_MAX}
     spoolTrail(r,bestA);
@@ -825,7 +826,7 @@ function tryBuild(w){
     if(dist(w,S.base)<BASE_R+14||S.turrets.some(t=>dist(t,w)<26)||S.relays.some(r=>dist(r,w)<40))return;
     const k=key(Math.floor(w.x/CELL),Math.floor(w.y/CELL));if(S.walls.has(k))return;
     S.relays.push({x:w.x,y:w.y,hp:RELAY_HP,maxHp:RELAY_HP,kind:'relay',built:false,buildT:0,buildTotal:RELAY_BUILD_T,builder:null,repairer:null,
-      state:null,tetherOk:false,trail:null,cableHp:0,cableLen:0,cableMaxed:false});S.dat-=COST.relay;
+      state:null,tetherOk:false,trail:null,cableHp:0,cableLen:0,cableMaxed:false,reconnectT:0});S.dat-=COST.relay;
     msg('Relay queued — a builder needs to finish it.');
   }
   updateBuildBar();
@@ -864,6 +865,9 @@ function siteStillValid(site){
   if(site.kind==='relay')return S.relays.includes(site);
   return S.turrets.includes(site);
 }
+// A relay needs a repair-mode builder's attention either because it's damaged, or because its
+// own tether back to the network got severed (a structurally fine relay can still be dark).
+function needsRepair(site){return site.hp<site.maxHp||(site.kind==='relay'&&site.state==='cut')}
 
 // ---------- update ----------
 function update(dt){
@@ -1007,9 +1011,9 @@ function update(dt){
         S.relays.forEach(r=>{if(r.built||(r.builder&&r.builder!==bu))return;const d=dist(bu,r);if(d<bd){bd=d;found=r}});
         if(found){found.builder=bu;bu.target=found;bu.state='build'}
       }else{
-        S.walls.forEach(w=>{if(!w.built||w.hp>=w.maxHp||(w.repairer&&w.repairer!==bu))return;const d=dist(bu,w);if(d<bd){bd=d;found=w}});
-        S.turrets.forEach(t=>{if(!t.built||t.hp>=t.maxHp||(t.repairer&&t.repairer!==bu))return;const d=dist(bu,t);if(d<bd){bd=d;found=t}});
-        S.relays.forEach(r=>{if(!r.built||r.hp>=r.maxHp||(r.repairer&&r.repairer!==bu))return;const d=dist(bu,r);if(d<bd){bd=d;found=r}});
+        S.walls.forEach(w=>{if(!w.built||!needsRepair(w)||(w.repairer&&w.repairer!==bu))return;const d=dist(bu,w);if(d<bd){bd=d;found=w}});
+        S.turrets.forEach(t=>{if(!t.built||!needsRepair(t)||(t.repairer&&t.repairer!==bu))return;const d=dist(bu,t);if(d<bd){bd=d;found=t}});
+        S.relays.forEach(r=>{if(!r.built||!needsRepair(r)||(r.repairer&&r.repairer!==bu))return;const d=dist(bu,r);if(d<bd){bd=d;found=r}});
         if(found){found.repairer=bu;bu.target=found;bu.state='repair'}
       }
       if(!found&&bu.state!=='dock'){bu.state='dock';bu.dest=null}
@@ -1034,12 +1038,21 @@ function update(dt){
     }
     else if(bu.state==='repair'){
       const site=bu.target;
-      if(!site||!siteStillValid(site)||!site.built||site.hp>=site.maxHp){if(site)site.repairer=null;bu.target=null;bu.state='idle'}
+      if(!site||!siteStillValid(site)||!site.built||!needsRepair(site)){if(site)site.repairer=null;bu.target=null;bu.state='idle'}
       else if(dist(bu,site)>26){const aim=waypointFor(bu,site.x,site.y);moveToward(bu,aim,BUILDER_SPEED*factor,dt)}
-      else if(S.dat>=REPAIR_DAT_PER_SEC*dt){
-        S.dat-=REPAIR_DAT_PER_SEC*dt;
-        site.hp=Math.min(site.maxHp,site.hp+REPAIR_HPS*dt);
-        updateBuildBar();
+      else{
+        if(site.hp<site.maxHp&&S.dat>=REPAIR_DAT_PER_SEC*dt){
+          S.dat-=REPAIR_DAT_PER_SEC*dt;
+          site.hp=Math.min(site.maxHp,site.hp+REPAIR_HPS*dt);
+          updateBuildBar();
+        }
+        if(site.kind==='relay'&&site.state==='cut'){
+          site.reconnectT+=dt;
+          if(site.reconnectT>=RELAY_RECONNECT_T){
+            site.state=null; site.reconnectT=0;
+            msg('Relay tether spliced — reconnecting to the network.');
+          }
+        }
       }
     }
     bu.x=Math.max(10,Math.min(W-10,bu.x));bu.y=Math.max(10,Math.min(H-10,bu.y));
@@ -1224,6 +1237,10 @@ function draw(){
     ctx.fillStyle=r.tetherOk?'#3b4652':'#2a2d31';ctx.strokeStyle=r.tetherOk?C.cable:C.enemy;ctx.lineWidth=2;
     ctx.beginPath();ctx.moveTo(r.x,r.y-12);ctx.lineTo(r.x+9,r.y+8);ctx.lineTo(r.x-9,r.y+8);ctx.closePath();ctx.fill();ctx.stroke();
     if(!r.tetherOk)drawCutGlyph(r.x,r.y);
+    if(r.state==='cut'&&r.reconnectT>0){
+      ctx.fillStyle='rgba(0,0,0,0.6)';ctx.fillRect(r.x-11,r.y+15,22,3);
+      ctx.fillStyle=C.builder;ctx.fillRect(r.x-11,r.y+15,22*(r.reconnectT/RELAY_RECONNECT_T),3);
+    }
     if(r.hp<r.maxHp)hpbar(r.x,r.y-20,20,r.hp/r.maxHp);
   });
   // base
