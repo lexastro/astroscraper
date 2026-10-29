@@ -121,7 +121,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <kbd>1</kbd> wall · <kbd>2</kbd> turret · <kbd>3</kbd> relay · <kbd>L</kbd> begin drilling · <kbd>R</kbd> resume harvester auto-gather · <kbd>G</kbd> toggle builder repair mode · <kbd>U</kbd> select builders · <kbd>Esc</kbd> cancel<br>
   <b>The zone:</b> a Black Flame disaster site radiates out from a dead epicenter. The outer Rim is mild, wireless works fine, and Dat Crystal is scattered in small, common deposits. Push into the violet Dense Field and deposits get rarer but come in big clusters worth securing. Push further into the red Flame Core and both the crystal and the monsters get a lot more serious still.<br>
   <b>Tether:</b> beyond a short wireless range around the Bastion (or a built Relay), squads/harvesters/builders can only take orders through a physical cable that pays out behind them as they walk. Monsters that get close to a cable chew through it — a severed unit goes dark (no orders, autonomous retreat toward the nearest anchor) until it reconnects. Cable only runs so far (400 units) — at the end of it a unit just stops; build a Relay further out to extend reach. The Bastion itself is the anchor, so driving it toward a deployed cable reels the slack back in and frees up range. A Relay needs the same live tether back to the network to work at all — chain them (each can be built within range of the Bastion <i>or</i> of an already-finished Relay) and if one in the chain gets severed, everything past it goes dark too until the line is restored. A Relay destroyed outright doesn't vanish either — it just goes fully dark until a repair-mode builder brings its HP back up, same as mending any other structure.<br>
-  <b>Drilling:</b> park the Bastion on a found vein's marker and press <kbd>L</kbd>. There's no fixed prep phase — throttle the drill (Slow/Normal/Fast, shown once locked in) to trade speed against how much noise it makes. The drill also burns Dat Crystal per second to run, faster at higher throttle — run dry and it stalls until more comes in, so keep harvesters feeding it. Press <kbd>P</kbd> (or the Pause button) to freeze the drill entirely — no progress, no Dat burn, no wave or Saboteur clock ticking — if you'd rather bank up a stockpile than have it eaten the instant a harvester drops it off. Draining a vein pays Condensed Crystal too, more the faster you finished it, so speed pays for itself twice over; the throttle panel shows the live Dat burn rate and projected Condensed Crystal payoff for whichever setting is selected. Waves while drilling always roll in from one fixed direction per vein (the red dashed arrow) — far enough out to see them coming. A separate swarm of tiny amber Saboteurs also spawns periodically — individually one hit from dying, but beelining in a pack for your nearest built Relay and its cable instead of the Bastion. They spawn out past the Relay so you can see the swarm coming, and bigger packs show up the faster you're drilling. Draining the marked Flame Core vein wins the run.<br>
+  <b>Drilling:</b> a scouted vein's reward starts at a loot tier (gold Legendary, purple Epic, blue Rare, grey Common — shown as a colored gem and countdown above the zone) that quietly drops a tier every minute it sits undrilled, floored at its band's minimum (Rim: Epic→Rare→Common; deeper zones: Legendary→Epic→Rare) — so don't scout a vein and then sit on it. Whatever tier is showing the moment the Bastion locks onto it is locked in for that drill, and the gem disappears once it is. Park the Bastion on a found vein's marker and press <kbd>L</kbd>. There's no fixed prep phase — throttle the drill (Slow/Normal/Fast, shown once locked in) to trade speed against how much noise it makes. The drill also burns Dat Crystal per second to run, faster at higher throttle — run dry and it stalls until more comes in, so keep harvesters feeding it. Press <kbd>P</kbd> (or the Pause button) to freeze the drill entirely — no progress, no Dat burn, no wave or Saboteur clock ticking — if you'd rather bank up a stockpile than have it eaten the instant a harvester drops it off. Draining a vein pays Condensed Crystal too, more the faster you finished it, so speed pays for itself twice over; the throttle panel shows the live Dat burn rate and projected Condensed Crystal payoff for whichever setting is selected. Waves while drilling always roll in from one fixed direction per vein (the red dashed arrow) — far enough out to see them coming. A separate swarm of tiny amber Saboteurs also spawns periodically — individually one hit from dying, but beelining in a pack for your nearest built Relay and its cable instead of the Bastion. They spawn out past the Relay so you can see the swarm coming, and bigger packs show up the faster you're drilling. Draining the marked Flame Core vein wins the run.<br>
   The Bastion fires on nearby enemies while mobile, but goes quiet the moment it locks down to drill.<br>
   <b>Harvesters</b> carry no weapons. Left alone they loop automatically: find the nearest Dat Crystal deposit, haul it home, repeat. A manual order pauses that loop until you select them and press Resume Auto-Gather (or <kbd>R</kbd>). Dead enemies sometimes drop a few loose Dat Crystal shards — small green triangles scattered where they fell — that any squad, harvester, or builder scoops up on contact, straight into the stockpile, no trip home required.<br>
   <b>Builders</b> place but don't fight: a wall/turret/relay order only queues a ghost site until a builder walks over and finishes it (wall 1s, turret 5s, relay 3s). Walls and turrets need the Bastion locked down drilling; Relays can be queued any time, even while the Bastion is still mobile, so you can push a chain of them ahead of you as you scout. Any of the three can be placed within range of the Bastion <i>or</i> of an already-built Relay, so your defenses can ring a forward Relay, not just the Bastion itself — but a Turret only fires while a live Relay (or the Bastion) is actually in power range; sever or destroy the Relay it leans on and it goes dark with it. Toggle repair mode (button or <kbd>G</kbd>) and they'll auto-seek damaged structures and mend them for a trickle of Dat Crystal/sec instead — including a Relay whose tether got severed: a repair-mode builder will walk up and splice it back in (a few seconds, no Dat cost) even if the Relay itself is at full HP, since the cable and the structure are separate things to break. Idle builders dock at the Bastion.<br>
@@ -189,6 +189,14 @@ const VEIN_DEFS=[
 // Dense Field Dat deposits come in a few rich clusters rather than many scattered nodes — rarer
 // to find, but worth parking a harvester squad on for a while once you do.
 const DENSE_CLUSTERS=[[1150,2100],[1900,2500],[2300,700],[1700,1300]];
+// A found vein's loot tier decays one step every TIER_DECAY_T seconds it sits undrilled, down
+// to its band's floor — sitting on a discovered vein instead of moving to drill it is the thing
+// this is meant to punish. Whatever tier is current the moment the Bastion locks onto it is
+// locked in for that drill's reward; dawdling after that point no longer costs anything, since
+// the player has already committed.
+const TIER_MULT={Common:0.6,Rare:1,Epic:1.5,Legendary:2};
+const TIER_LADDER={rim:['Epic','Rare','Common'],dense:['Legendary','Epic','Rare'],core:['Legendary','Epic','Rare']};
+const TIER_DECAY_T=60;
 
 const cv=document.getElementById('game'), ctx=cv.getContext('2d');
 const mini=document.getElementById('mini'), mctx=mini.getContext('2d');
@@ -196,6 +204,15 @@ const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim
 const C={ally:css('--ally'),enemy:css('--enemy'),dat:css('--dat'),living:css('--living'),zone:css('--zone'),
   accent:css('--accent'),fg:css('--fg'),muted:css('--muted'),line:css('--line'),harv:css('--harv'),
   builder:css('--builder'),cable:css('--cable'),condensed:css('--condensed')};
+// Tier colors reuse existing semantic tokens rather than inventing new ones: gold/accent for
+// Legendary, the zone purple for Epic, ally blue for Rare, muted grey for Common.
+const TIER_COLOR={Legendary:C.accent,Epic:C.zone,Rare:C.ally,Common:C.muted};
+function currentTier(v){
+  if(v.lockedTier)return v.lockedTier;
+  const ladder=TIER_LADDER[v.band];
+  const elapsed=Math.max(0,S.t-(v.discoverT||S.t));
+  return ladder[Math.min(ladder.length-1,Math.floor(elapsed/TIER_DECAY_T))];
+}
 
 // ---------- state ----------
 let S, cam, mouse={x:0,y:0,wx:0,wy:0,down:false,drag:null,panning:false}, keys={}, buildMode=null, lastT=0, msgT=0, terrain, terrainCv, prodMenuOpen=false;
@@ -809,7 +826,8 @@ function tryLockdown(){
   S.base.locked=true; S.base.dest=null;
   S.activeVein=v; v.drillProg=0; v.waveT=BASE_SPAWN_INTERVAL[v.band]/S.throttleMul; v.startT=S.t; v.stalled=false; v.waveDir=rnd(0,Math.PI*2);
   v.saboteurT=SABOTEUR_INTERVAL[v.band]/S.throttleMul; v.paused=false;
-  msg(`Drilling the ${v.band} vein. Throttle controls speed vs. the noise it makes — and how much Dat Crystal it burns.`);
+  v.lockedTier=currentTier(v);
+  msg(`Drilling the ${v.band} vein at ${v.lockedTier} tier. Throttle controls speed vs. the noise it makes — and how much Dat Crystal it burns.`);
   sfx.build();
   updateBuildBar();
 }
@@ -1049,14 +1067,19 @@ function update(dt){
       // is normalized to throttle 1 regardless of DRILL_RATE, so tuning drill speed doesn't by
       // itself change payouts.
       const elapsed=Math.max(0.001,S.t-v.startT), speedRatio=(v.richness/DRILL_RATE)/elapsed;
-      const condensedEarned=Math.max(1,Math.round(v.richness*CONDENSED_RATE*speedRatio));
-      S.dat+=v.reward.dat||0; S.living+=v.reward.living||0; S.condensed+=condensedEarned;
-      burst(v.x,v.y,C.accent,24,140,0.7);
-      if(v.reward.dat)floatText(v.x,v.y-16,'+'+v.reward.dat+' Dat',C.dat);
-      if(v.reward.living)floatText(v.x,v.y-34,'+'+v.reward.living+' Living',C.living);
-      floatText(v.x,v.y+(v.reward.dat||v.reward.living?2:-16),'+'+condensedEarned+' Condensed',C.condensed);
-      if(v.contract){S.over='win';sfx.win();shakeScreen(6,0.5);showOverlay('Living Crystal Extracted',`The contract vein is drained. Datascraper crew, mission complete. +${condensedEarned} Condensed Crystal.`)}
-      else{msg(`Vein drained — +${condensedEarned} Condensed Crystal. Move the Bastion to another vein when ready.`);sfx.veinDone();shakeScreen(4,0.3)}
+      // the loot tier locked in when drilling began (decayed by how long the vein sat scouted
+      // but undrilled) scales every reward from this vein.
+      const tierMult=TIER_MULT[v.lockedTier||currentTier(v)];
+      const condensedEarned=Math.max(1,Math.round(v.richness*CONDENSED_RATE*speedRatio*tierMult));
+      const datEarned=Math.round((v.reward.dat||0)*tierMult);
+      const livingEarned=Math.round((v.reward.living||0)*tierMult);
+      S.dat+=datEarned; S.living+=livingEarned; S.condensed+=condensedEarned;
+      burst(v.x,v.y,TIER_COLOR[v.lockedTier]||C.accent,24,140,0.7);
+      if(datEarned)floatText(v.x,v.y-16,'+'+datEarned+' Dat',C.dat);
+      if(livingEarned)floatText(v.x,v.y-34,'+'+livingEarned+' Living',C.living);
+      floatText(v.x,v.y+(datEarned||livingEarned?2:-16),'+'+condensedEarned+' Condensed',C.condensed);
+      if(v.contract){S.over='win';sfx.win();shakeScreen(6,0.5);showOverlay('Living Crystal Extracted',`The contract vein is drained at ${v.lockedTier} tier. Datascraper crew, mission complete. +${condensedEarned} Condensed Crystal.`)}
+      else{msg(`Vein drained at ${v.lockedTier} tier — +${condensedEarned} Condensed Crystal. Move the Bastion to another vein when ready.`);sfx.veinDone();shakeScreen(4,0.3)}
     }
   }
   // ambient: the zone is alive even when nobody's drilling, scaled by how deep the Bastion sits
@@ -1212,7 +1235,7 @@ function update(dt){
   });
 
   S.nodes.forEach(n=>{if(!n.found&&dist(n,B)<BASE_VISION)n.found=true});
-  S.veins.forEach(v=>{if(!v.done&&!v.mine.found&&(dist(v.mine,B)<BASE_VISION||S.troops.some(t=>dist(v.mine,t)<TROOP_VISION)||S.harvesters.some(h=>dist(v.mine,h)<HARV_VISION)||S.builders.some(bu=>dist(v.mine,bu)<BUILDER_VISION)))v.mine.found=true});
+  S.veins.forEach(v=>{if(!v.done&&!v.mine.found&&(dist(v.mine,B)<BASE_VISION||S.troops.some(t=>dist(v.mine,t)<TROOP_VISION)||S.harvesters.some(h=>dist(v.mine,h)<HARV_VISION)||S.builders.some(bu=>dist(v.mine,bu)<BUILDER_VISION))){v.mine.found=true;v.discoverT=S.t}});
   // unit separation (troops + harvesters + builders) — don't let crowding shove anyone through a wall
   {const all=S.troops.concat(S.harvesters).concat(S.builders);
   for(let i=0;i<all.length;i++)for(let j=i+1;j<all.length;j++){const a=all[i],b=all[j],d=dist(a,b);
@@ -1406,6 +1429,24 @@ function draw(){
       ctx.beginPath();ctx.moveTo(-9,-9);ctx.lineTo(9,9);ctx.moveTo(9,-9);ctx.lineTo(-9,9);ctx.stroke();
       ctx.beginPath();ctx.arc(0,0,14,0,Math.PI*2);ctx.strokeStyle='rgba(154,211,106,0.55)';ctx.lineWidth=1.5;ctx.stroke();
       ctx.restore();
+    }
+    // loot-tier countdown: once a vein's been scouted, its reward quietly decays a tier every
+    // minute it sits undrilled — shown as a colored loot gem + timer above the zone. Disappears
+    // the moment the Bastion locks onto it (the tier's locked in by then, so the clock stops
+    // mattering).
+    if(v.mine.found&&!v.done&&!v.lockedTier){
+      ctx.globalAlpha=1;
+      const tier=currentTier(v), col=TIER_COLOR[tier];
+      const elapsed=Math.max(0,S.t-(v.discoverT||S.t));
+      const remaining=Math.max(0,TIER_DECAY_T*TIER_LADDER[v.band].length-elapsed);
+      const ix=v.x, iy=v.y-v.r-28;
+      ctx.save();ctx.translate(ix,iy);
+      ctx.fillStyle=col;ctx.strokeStyle='rgba(0,0,0,0.55)';ctx.lineWidth=1.2;
+      ctx.beginPath();ctx.moveTo(0,-8);ctx.lineTo(6,0);ctx.lineTo(0,8);ctx.lineTo(-6,0);ctx.closePath();ctx.fill();ctx.stroke();
+      ctx.restore();
+      ctx.fillStyle=col;ctx.font='700 10px '+css('--mono');ctx.textAlign='center';ctx.textBaseline='middle';
+      const mm=Math.floor(remaining/60), ss=Math.floor(remaining%60);
+      ctx.fillText(remaining>0?`${tier} ${mm}:${ss.toString().padStart(2,'0')}`:tier, ix, iy-15);
     }
     ctx.restore()});
   // Dat Crystal deposits
