@@ -7,7 +7,7 @@
 :root{
   --bg:#0b0e12; --panel:#141a21; --panel2:#1c242e; --fg:#d7dde5; --muted:#7f8b98;
   --line:#2a3440; --accent:#f2b63c; --ally:#5ec8ff; --enemy:#ff5c4d; --dat:#9ad36a; --living:#ff6fd8;
-  --zone:#b48bff; --harv:#e8935c; --builder:#4fd1c5; --cable:#c98b4a;
+  --zone:#b48bff; --harv:#e8935c; --builder:#4fd1c5; --cable:#c98b4a; --condensed:#7c5cff;
   --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
   --sans:"IBM Plex Sans",system-ui,-apple-system,Segoe UI,sans-serif;
   color-scheme:dark;
@@ -21,7 +21,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 .stat{background:var(--panel);border:1px solid var(--line);padding:6px 10px;border-radius:4px;display:flex;flex-direction:column;gap:2px;min-width:92px}
 .stat .k{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .stat .v{font-family:var(--mono);font-size:16px;font-variant-numeric:tabular-nums}
-.stat.dat .v{color:var(--dat)} .stat.living .v{color:var(--living)} .stat.obj .v{color:var(--zone)}
+.stat.dat .v{color:var(--dat)} .stat.living .v{color:var(--living)} .stat.obj .v{color:var(--zone)} .stat.condensed .v{color:var(--condensed)}
 .bar{height:5px;background:var(--panel2);border-radius:2px;overflow:hidden;margin-top:3px}
 .bar i{display:block;height:100%;background:var(--ally)}
 .bar i.hp{background:var(--accent)}
@@ -69,6 +69,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 <div class="hud">
   <div class="stat dat"><span class="k">Dat Crystal</span><span class="v" id="hDat">0</span></div>
   <div class="stat living"><span class="k">Living Crystal</span><span class="v" id="hLiving">0</span></div>
+  <div class="stat condensed"><span class="k">Condensed Crystal</span><span class="v" id="hCondensed">0</span></div>
   <div class="stat"><span class="k">Bastion</span><span class="v" id="hBase">—</span><div class="bar"><i class="hp" id="hBaseBar" style="width:100%"></i></div></div>
   <div class="stat"><span class="k">Zone</span><span class="v" id="hZone">Rim</span></div>
   <div class="stat obj"><span class="k" id="hObjK">Veins</span><span class="v" id="hObj">—</span><div class="bar"><i id="hObjBar" style="width:0%"></i></div></div>
@@ -112,9 +113,9 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   Right-click: squads move/attack · harvesters move/harvest a deposit/return to drop off · builders move<br>
   <kbd>WASD</kbd> or edge-drag (middle mouse) pans · scroll zooms<br>
   <kbd>1</kbd> wall · <kbd>2</kbd> turret · <kbd>3</kbd> relay · <kbd>L</kbd> begin drilling · <kbd>R</kbd> resume harvester auto-gather · <kbd>G</kbd> toggle builder repair mode · <kbd>U</kbd> select builders · <kbd>Esc</kbd> cancel<br>
-  <b>The zone:</b> a Black Flame disaster site radiates out from a dead epicenter. The outer Rim is mild and wireless works fine. Push into the violet Dense Field and then the red Flame Core and both the crystal and the monsters get a lot more serious.<br>
+  <b>The zone:</b> a Black Flame disaster site radiates out from a dead epicenter. The outer Rim is mild, wireless works fine, and Dat Crystal is scattered in small, common deposits. Push into the violet Dense Field and deposits get rarer but come in big clusters worth securing. Push further into the red Flame Core and both the crystal and the monsters get a lot more serious still.<br>
   <b>Tether:</b> beyond a short wireless range around the Bastion (or a built Relay), squads/harvesters/builders can only take orders through a physical cable that pays out behind them as they walk. Monsters that get close to a cable chew through it — a severed unit goes dark (no orders, autonomous retreat toward the nearest anchor) until it reconnects. Cable only runs so far (400 units) — at the end of it a unit just stops; build a Relay further out to extend reach. The Bastion itself is the anchor, so driving it toward a deployed cable reels the slack back in and frees up range. A Relay needs the same live tether back to the network to work at all — chain them (each can be built within range of the Bastion <i>or</i> of an already-finished Relay) and if one in the chain gets severed, everything past it goes dark too until the line is restored.<br>
-  <b>Drilling:</b> park the Bastion on a found vein's marker and press <kbd>L</kbd>. There's no fixed prep phase — throttle the drill (Slow/Normal/Fast, shown once locked in) to trade speed against how much noise it makes. Draining the marked Flame Core vein wins the run.<br>
+  <b>Drilling:</b> park the Bastion on a found vein's marker and press <kbd>L</kbd>. There's no fixed prep phase — throttle the drill (Slow/Normal/Fast, shown once locked in) to trade speed against how much noise it makes. The drill also burns Dat Crystal per second to run, faster at higher throttle — run dry and it stalls until more comes in, so keep harvesters feeding it. Draining a vein pays Condensed Crystal too, more the faster you finished it, so speed pays for itself twice over. Draining the marked Flame Core vein wins the run.<br>
   The Bastion fires on nearby enemies while mobile, but goes quiet the moment it locks down to drill.<br>
   <b>Harvesters</b> carry no weapons. Left alone they loop automatically: find the nearest Dat Crystal deposit, haul it home, repeat. A manual order pauses that loop until you select them and press Resume Auto-Gather (or <kbd>R</kbd>).<br>
   <b>Builders</b> place but don't fight: a wall/turret/relay order only queues a ghost site until a builder walks over and finishes it (wall 1s, turret 5s, relay 3s). Walls and turrets need the Bastion locked down drilling; Relays can be queued any time, even while the Bastion is still mobile, so you can push a chain of them ahead of you as you scout. Toggle repair mode (button or <kbd>G</kbd>) and they'll auto-seek damaged structures and mend them for a trickle of Dat Crystal/sec instead. Idle builders dock at the Bastion.<br>
@@ -154,6 +155,11 @@ const MAX_CABLE_LEN=400;
 const DRILL_RATE=1, THROTTLES=[0.5,1,1.8];
 const BASE_SPAWN_INTERVAL={rim:24,dense:15,core:9};
 const AMBIENT_INTERVAL={rim:45,dense:22,core:11};
+// The drill burns Dat Crystal per second to run — the rate scales with throttle (so the TOTAL
+// cost to finish a vein is throttle-invariant, but a faster throttle demands a faster supply of
+// Dat or the drill literally stalls). CONDENSED_RATE converts how much faster than baseline
+// (throttle 1) a vein was drilled into bonus Condensed Crystal, so speed is its own reward too.
+const DRILL_DAT_COST=3, CONDENSED_RATE=0.12;
 // Veins scattered by band: the deeper ones pay more. The last one (contract) is the win condition.
 const VEIN_DEFS=[
   {x:900,y:2700,richness:40},
@@ -162,13 +168,16 @@ const VEIN_DEFS=[
   {x:2550,y:2500,richness:90},
   {x:1800,y:1500,richness:140,contract:true},
 ];
+// Dense Field Dat deposits come in a few rich clusters rather than many scattered nodes — rarer
+// to find, but worth parking a harvester squad on for a while once you do.
+const DENSE_CLUSTERS=[[1150,2100],[1900,2500],[2300,700],[1700,1300]];
 
 const cv=document.getElementById('game'), ctx=cv.getContext('2d');
 const mini=document.getElementById('mini'), mctx=mini.getContext('2d');
 const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const C={ally:css('--ally'),enemy:css('--enemy'),dat:css('--dat'),living:css('--living'),zone:css('--zone'),
   accent:css('--accent'),fg:css('--fg'),muted:css('--muted'),line:css('--line'),harv:css('--harv'),
-  builder:css('--builder'),cable:css('--cable')};
+  builder:css('--builder'),cable:css('--cable'),condensed:css('--condensed')};
 
 // ---------- state ----------
 let S, cam, mouse={x:0,y:0,wx:0,wy:0,down:false,drag:null,panning:false}, keys={}, buildMode=null, lastT=0, msgT=0, terrain, terrainCv, prodMenuOpen=false;
@@ -185,7 +194,7 @@ function mkHarv(id){return {id,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp:
 function mkBuilder(id){return {id,x:S.base.x+rnd(-30,30),y:S.base.y+rnd(-30,30),hp:40,maxHp:40,r:BUILDER_R,dest:null,state:'idle',mode:'build',target:null,tetherOk:true,trail:null,cableHp:0,cableLen:0,cableMaxed:false}}
 
 function reset(){
-  S={t:0,dat:40,living:0,over:null,
+  S={t:0,dat:40,living:0,condensed:0,over:null,
     base:{x:400,y:3200,hp:900,maxHp:900,r:BASE_R,dest:null,locked:false,gunCd:0},
     troops:[],harvesters:[],builders:[],relays:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],
     veins:[],activeVein:null,throttleMul:1,ambientT:30,
@@ -209,9 +218,18 @@ function reset(){
   closeHoles(S.base.x,S.base.y);
   terrainCv=buildTerrainCanvas();
 
-  // Dat Crystal deposits: scattered across the whole zone, same everywhere (it's the common fuel).
-  const spots=[[700,2850],[350,2650],[1000,3250],[1150,2100],[1550,2700],[900,1900],[1900,2500],[2300,1900],[2800,2700],[2150,2850],[3100,2000],[2450,1300],[3200,1200],[2300,700],[1700,1300],[1200,800],[600,1200],[3100,400],[400,400],[1800,500]];
+  // Dat Crystal deposits: plain scattered single nodes out on the Rim, same as ever.
+  const spots=[[700,2850],[350,2650],[1000,3250],[2800,2700],[3100,2000],[3200,1200],[600,1200],[3100,400],[400,400],[1800,500]];
   spots.forEach(([x,y])=>{const p=nearestPlain(x+rnd(-80,80),y+rnd(-80,80));S.nodes.push({x:p.x,y:p.y,amt:Math.round(rnd(45,90)),max:90,found:false})});
+  // In the Dense Field deposits are rarer to find but pay off big: a handful of tight clusters
+  // instead of nodes scattered everywhere.
+  DENSE_CLUSTERS.forEach(([cx,cy])=>{
+    for(let i=0;i<4;i++){
+      const ang=rnd(0,Math.PI*2), rad=rnd(0,90);
+      const p=nearestPlain(cx+Math.cos(ang)*rad,cy+Math.sin(ang)*rad);
+      S.nodes.push({x:p.x,y:p.y,amt:Math.round(rnd(110,180)),max:180,found:false});
+    }
+  });
 
   // roaming packs patrol/idle across the map; denser and more aggressive the deeper their patch is
   for(let i=0;i<20;i++){const px=rnd(300,W-300),py=rnd(300,H-300);if(Math.hypot(px-S.base.x,py-S.base.y)<700)continue;
@@ -715,8 +733,8 @@ function tryLockdown(){
   const v=canLockdown();
   if(!v){msg('Move the Bastion onto a found vein\'s marker first.');return}
   S.base.locked=true; S.base.dest=null;
-  S.activeVein=v; v.drillProg=0; v.waveT=BASE_SPAWN_INTERVAL[v.band]/S.throttleMul;
-  msg(`Drilling the ${v.band} vein. Throttle controls speed vs. the noise it makes.`);
+  S.activeVein=v; v.drillProg=0; v.waveT=BASE_SPAWN_INTERVAL[v.band]/S.throttleMul; v.startT=S.t; v.stalled=false;
+  msg(`Drilling the ${v.band} vein. Throttle controls speed vs. the noise it makes — and how much Dat Crystal it burns.`);
   updateBuildBar();
 }
 
@@ -840,7 +858,15 @@ function update(dt){
   // drilling: no fixed prep phase — the throttle is the whole speed/noise trade-off
   if(B.locked&&S.activeVein&&!S.activeVein.done){
     const v=S.activeVein;
-    v.drillProg+=DRILL_RATE*S.throttleMul*dt;
+    const need=DRILL_DAT_COST*S.throttleMul*dt;
+    if(S.dat>=need){
+      if(v.stalled){v.stalled=false;msg('Dat Crystal flowing again — drilling resumed.')}
+      S.dat-=need;
+      v.drillProg+=DRILL_RATE*S.throttleMul*dt;
+    } else if(!v.stalled){
+      v.stalled=true;
+      msg('Out of Dat Crystal — drilling has stalled. Bring more in to keep going.');
+    }
     v.waveT-=dt;
     if(v.waveT<=0){
       const n=Math.round((v.band==='core'?10:v.band==='dense'?6:3)*(0.7+0.3*S.throttleMul));
@@ -854,9 +880,13 @@ function update(dt){
     }
     if(v.drillProg>=v.richness){
       v.done=true; B.locked=false; setBuild(null); S.activeVein=null;
-      S.dat+=v.reward.dat||0; S.living+=v.reward.living||0;
-      if(v.contract){S.over='win';showOverlay('Living Crystal Extracted','The contract vein is drained. Datascraper crew, mission complete.')}
-      else msg('Vein drained. Move the Bastion to another vein when ready.');
+      // reward scales with how fast it was actually drilled (richness/elapsed ~ average throttle
+      // sustained) — stalling out of Dat drags this down, finishing early drives it up.
+      const elapsed=Math.max(0.001,S.t-v.startT), speedRatio=v.richness/elapsed;
+      const condensedEarned=Math.max(1,Math.round(v.richness*CONDENSED_RATE*speedRatio));
+      S.dat+=v.reward.dat||0; S.living+=v.reward.living||0; S.condensed+=condensedEarned;
+      if(v.contract){S.over='win';showOverlay('Living Crystal Extracted',`The contract vein is drained. Datascraper crew, mission complete. +${condensedEarned} Condensed Crystal.`)}
+      else msg(`Vein drained — +${condensedEarned} Condensed Crystal. Move the Bastion to another vein when ready.`);
     }
   }
   // ambient: the zone is alive even when nobody's drilling, scaled by how deep the Bastion sits
@@ -1251,14 +1281,14 @@ function drawMini(){const s=mini.width/W;mctx.fillStyle='#10151b';mctx.fillRect(
 const $=id=>document.getElementById(id);
 function hud(){
   const B=S.base;
-  $('hDat').textContent=Math.floor(S.dat);$('hLiving').textContent=S.living;
+  $('hDat').textContent=Math.floor(S.dat);$('hLiving').textContent=S.living;$('hCondensed').textContent=S.condensed;
   $('hBase').textContent=Math.ceil(B.hp)+' / '+B.maxHp;$('hBaseBar').style.width=(100*B.hp/B.maxHp)+'%';
   const band=bandAt(B.x,B.y);
   $('hZone').textContent=band[0].toUpperCase()+band.slice(1);
   const doneCount=S.veins.filter(v=>v.done).length;
   if(B.locked&&S.activeVein){
     const v=S.activeVein;
-    $('hObj').textContent=`drilling ${v.band} ${Math.floor(100*v.drillProg/v.richness)}%`;
+    $('hObj').textContent=`drilling ${v.band} ${Math.floor(100*v.drillProg/v.richness)}%${v.stalled?' — STALLED':''}`;
     $('hObjBar').style.width=(100*v.drillProg/v.richness)+'%';
   }else{
     $('hObj').textContent=`${doneCount}/${S.veins.length} secured`;
