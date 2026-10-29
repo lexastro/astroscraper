@@ -1145,6 +1145,8 @@ function update(dt){
   S.builders=S.builders.filter(bu=>bu.hp>0); S.builders.forEach(bu=>{if(dist(bu,B)<B.r+30&&!S.enemies.some(e=>dist(e,bu)<200))bu.hp=Math.min(bu.maxHp,bu.hp+6*dt)});
   if(S.troops.length===0&&!S.troopsLostMsg){S.troopsLostMsg=true;msg('All squads lost. New squads form at the Bastion in 20s.');S.respawnT=20}
   if(S.respawnT!==undefined){S.respawnT-=dt;if(S.respawnT<=0){S.respawnT=undefined;S.troopsLostMsg=false;for(let i=0;i<2;i++)S.troops.push(mkTroop(Date.now()+i))}}
+  if(S.harvesters.length===0&&!S.harvLostMsg){S.harvLostMsg=true;msg('All harvesters lost. A free one forms at the Bastion in 45s.');S.harvRespawnT=45}
+  if(S.harvRespawnT!==undefined){S.harvRespawnT-=dt;if(S.harvRespawnT<=0){S.harvRespawnT=undefined;S.harvLostMsg=false;S.harvesters.push(mkHarv(Date.now()))}}
   S.tracers=S.tracers.filter(t=>(t.t-=dt)>0);
   if(B.hp<=0){S.over='lose';showOverlay('Bastion destroyed','The crew and the crystal are lost to the zone. Try fortifying before you push deeper.')}
 
