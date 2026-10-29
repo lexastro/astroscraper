@@ -50,6 +50,8 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 .throttle b{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-right:4px}
 .throttle button{background:var(--panel2);border:1px solid var(--line);color:var(--fg);font:inherit;padding:6px 10px;border-radius:4px;cursor:pointer}
 .throttle button.on{border-color:var(--accent);color:var(--accent)}
+.throttle .thStat{font-family:var(--mono);font-size:11px;white-space:nowrap;margin-left:4px}
+.throttle .thStat.dat{color:var(--dat)} .throttle .thStat.condensed{color:var(--condensed)}
 .mini{position:absolute;right:max(16px,env(safe-area-inset-right,0px));bottom:max(12px,env(safe-area-inset-bottom,0px));border:1px solid var(--line);background:var(--panel);border-radius:4px;overflow:hidden;cursor:pointer}
 .mini canvas{display:block}
 .help{position:absolute;right:max(16px,env(safe-area-inset-right,0px));top:calc(env(safe-area-inset-top,0px) + 70px);background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:10px 12px;max-width:270px;font-size:12px;line-height:1.45;color:var(--muted)}
@@ -94,6 +96,8 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <button data-th="0" id="bThSlow">Slow</button>
   <button data-th="1" id="bThNorm">Normal</button>
   <button data-th="2" id="bThFast">Fast</button>
+  <span class="thStat dat" id="thBurn">−0 dat/s</span>
+  <span class="thStat condensed" id="thRate">+0 cond/min</span>
 </div>
 
 <div class="prod" id="prodMenu" hidden>
@@ -115,7 +119,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <kbd>1</kbd> wall · <kbd>2</kbd> turret · <kbd>3</kbd> relay · <kbd>L</kbd> begin drilling · <kbd>R</kbd> resume harvester auto-gather · <kbd>G</kbd> toggle builder repair mode · <kbd>U</kbd> select builders · <kbd>Esc</kbd> cancel<br>
   <b>The zone:</b> a Black Flame disaster site radiates out from a dead epicenter. The outer Rim is mild, wireless works fine, and Dat Crystal is scattered in small, common deposits. Push into the violet Dense Field and deposits get rarer but come in big clusters worth securing. Push further into the red Flame Core and both the crystal and the monsters get a lot more serious still.<br>
   <b>Tether:</b> beyond a short wireless range around the Bastion (or a built Relay), squads/harvesters/builders can only take orders through a physical cable that pays out behind them as they walk. Monsters that get close to a cable chew through it — a severed unit goes dark (no orders, autonomous retreat toward the nearest anchor) until it reconnects. Cable only runs so far (400 units) — at the end of it a unit just stops; build a Relay further out to extend reach. The Bastion itself is the anchor, so driving it toward a deployed cable reels the slack back in and frees up range. A Relay needs the same live tether back to the network to work at all — chain them (each can be built within range of the Bastion <i>or</i> of an already-finished Relay) and if one in the chain gets severed, everything past it goes dark too until the line is restored.<br>
-  <b>Drilling:</b> park the Bastion on a found vein's marker and press <kbd>L</kbd>. There's no fixed prep phase — throttle the drill (Slow/Normal/Fast, shown once locked in) to trade speed against how much noise it makes. The drill also burns Dat Crystal per second to run, faster at higher throttle — run dry and it stalls until more comes in, so keep harvesters feeding it. Draining a vein pays Condensed Crystal too, more the faster you finished it, so speed pays for itself twice over. Draining the marked Flame Core vein wins the run.<br>
+  <b>Drilling:</b> park the Bastion on a found vein's marker and press <kbd>L</kbd>. There's no fixed prep phase — throttle the drill (Slow/Normal/Fast, shown once locked in) to trade speed against how much noise it makes. The drill also burns Dat Crystal per second to run, faster at higher throttle — run dry and it stalls until more comes in, so keep harvesters feeding it. Draining a vein pays Condensed Crystal too, more the faster you finished it, so speed pays for itself twice over; the throttle panel shows the live Dat burn rate and projected Condensed Crystal payoff for whichever setting is selected. Waves while drilling always roll in from one fixed direction per vein (the red dashed arrow) — far enough out to see them coming. Draining the marked Flame Core vein wins the run.<br>
   The Bastion fires on nearby enemies while mobile, but goes quiet the moment it locks down to drill.<br>
   <b>Harvesters</b> carry no weapons. Left alone they loop automatically: find the nearest Dat Crystal deposit, haul it home, repeat. A manual order pauses that loop until you select them and press Resume Auto-Gather (or <kbd>R</kbd>).<br>
   <b>Builders</b> place but don't fight: a wall/turret/relay order only queues a ghost site until a builder walks over and finishes it (wall 1s, turret 5s, relay 3s). Walls and turrets need the Bastion locked down drilling; Relays can be queued any time, even while the Bastion is still mobile, so you can push a chain of them ahead of you as you scout. Toggle repair mode (button or <kbd>G</kbd>) and they'll auto-seek damaged structures and mend them for a trickle of Dat Crystal/sec instead — including a Relay whose tether got severed: a repair-mode builder will walk up and splice it back in (a few seconds, no Dat cost) even if the Relay itself is at full HP, since the cable and the structure are separate things to break. Idle builders dock at the Bastion.<br>
@@ -153,9 +157,13 @@ const CABLE_HP_MAX=40, CABLE_SEG_MIN=24, CABLE_HIT_RANGE=16, CABLE_DMG=6, CABLE_
 // How far a unit can pay cable out before an anchor (Bastion or Relay) before it physically
 // runs out of line — it just stops there until a closer anchor is built or it walks back in.
 const MAX_CABLE_LEN=400;
-const DRILL_RATE=1, THROTTLES=[0.5,1,1.8];
+const DRILL_RATE=0.5, THROTTLES=[0.5,1,1.8];
 const BASE_SPAWN_INTERVAL={rim:24,dense:15,core:9};
 const AMBIENT_INTERVAL={rim:45,dense:22,core:11};
+// Waves for the vein being drilled always come from one fixed direction (rolled at lockdown),
+// not a random spot each time — far enough out that you can see them coming and react, not just
+// react to them already being on top of you.
+const WAVE_SPAWN_DIST=820, WAVE_BASE_N={rim:5,dense:10,core:16};
 // The drill burns Dat Crystal per second to run — the rate scales with throttle (so the TOTAL
 // cost to finish a vein is throttle-invariant, but a faster throttle demands a faster supply of
 // Dat or the drill literally stalls). CONDENSED_RATE converts how much faster than baseline
@@ -751,7 +759,7 @@ function tryLockdown(){
   const v=canLockdown();
   if(!v){msg('Move the Bastion onto a found vein\'s marker first.');return}
   S.base.locked=true; S.base.dest=null;
-  S.activeVein=v; v.drillProg=0; v.waveT=BASE_SPAWN_INTERVAL[v.band]/S.throttleMul; v.startT=S.t; v.stalled=false;
+  S.activeVein=v; v.drillProg=0; v.waveT=BASE_SPAWN_INTERVAL[v.band]/S.throttleMul; v.startT=S.t; v.stalled=false; v.waveDir=rnd(0,Math.PI*2);
   msg(`Drilling the ${v.band} vein. Throttle controls speed vs. the noise it makes — and how much Dat Crystal it burns.`);
   updateBuildBar();
 }
@@ -890,20 +898,22 @@ function update(dt){
     }
     v.waveT-=dt;
     if(v.waveT<=0){
-      const n=Math.round((v.band==='core'?10:v.band==='dense'?6:3)*(0.7+0.3*S.throttleMul));
+      const n=Math.round(WAVE_BASE_N[v.band]*(0.7+0.3*S.throttleMul));
+      const a=v.waveDir, sx=v.x+Math.cos(a)*WAVE_SPAWN_DIST, sy=v.y+Math.sin(a)*WAVE_SPAWN_DIST;
       for(let i=0;i<n;i++){
-        const ang=rnd(0,Math.PI*2),rad=rnd(150,260);
-        const p=nearestPlain(Math.max(20,Math.min(W-20,v.x+Math.cos(ang)*rad)),Math.max(20,Math.min(H-20,v.y+Math.sin(ang)*rad)));
+        const p=nearestPlain(Math.max(20,Math.min(W-20,sx+rnd(-90,90))),Math.max(20,Math.min(H-20,sy+rnd(-90,90))));
         spawnEnemy(p.x,p.y,'wave');
       }
       v.waveT=BASE_SPAWN_INTERVAL[v.band]/S.throttleMul;
-      msg('The drill noise draws a wave.');
+      msg(`Wave incoming from the ${a<Math.PI?'south':'north'}${Math.cos(a)>0?'east':'west'}.`);
     }
     if(v.drillProg>=v.richness){
       v.done=true; B.locked=false; setBuild(null); S.activeVein=null;
-      // reward scales with how fast it was actually drilled (richness/elapsed ~ average throttle
-      // sustained) — stalling out of Dat drags this down, finishing early drives it up.
-      const elapsed=Math.max(0.001,S.t-v.startT), speedRatio=v.richness/elapsed;
+      // reward scales with how fast it was actually drilled (baseline/elapsed ~ average throttle
+      // sustained) — stalling out of Dat drags this down, finishing early drives it up. Baseline
+      // is normalized to throttle 1 regardless of DRILL_RATE, so tuning drill speed doesn't by
+      // itself change payouts.
+      const elapsed=Math.max(0.001,S.t-v.startT), speedRatio=(v.richness/DRILL_RATE)/elapsed;
       const condensedEarned=Math.max(1,Math.round(v.richness*CONDENSED_RATE*speedRatio));
       S.dat+=v.reward.dat||0; S.living+=v.reward.living||0; S.condensed+=condensedEarned;
       if(v.contract){S.over='win';showOverlay('Living Crystal Extracted',`The contract vein is drained. Datascraper crew, mission complete. +${condensedEarned} Condensed Crystal.`)}
@@ -1175,7 +1185,19 @@ function draw(){
   S.veins.forEach((v,i)=>{const cur=S.activeVein===v;ctx.save();ctx.globalAlpha=v.done?0.25:cur?0.9:0.45;
     ctx.fillStyle=C.zone;ctx.globalAlpha*=0.12;ctx.beginPath();ctx.arc(v.x,v.y,v.r,0,Math.PI*2);ctx.fill();ctx.globalAlpha=v.done?0.25:cur?0.9:0.45;
     ctx.setLineDash(v.contract?[]:[10,8]);ctx.lineWidth=v.contract?3:2;ctx.strokeStyle=v.contract?C.living:C.zone;ctx.beginPath();ctx.arc(v.x,v.y,v.r,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
-    if(cur&&!v.done){ctx.lineWidth=6;ctx.strokeStyle=C.accent;ctx.beginPath();ctx.arc(v.x,v.y,v.r+10,-Math.PI/2,-Math.PI/2+Math.PI*2*v.drillProg/v.richness);ctx.stroke()}
+    if(cur&&!v.done){
+      ctx.lineWidth=6;ctx.strokeStyle=C.accent;ctx.beginPath();ctx.arc(v.x,v.y,v.r+10,-Math.PI/2,-Math.PI/2+Math.PI*2*v.drillProg/v.richness);ctx.stroke();
+      if(v.waveDir!=null){
+        const pulse=0.65+0.35*Math.sin(S.t*4);
+        const ex=v.x+Math.cos(v.waveDir)*(v.r+6),ey=v.y+Math.sin(v.waveDir)*(v.r+6);
+        const tx=v.x+Math.cos(v.waveDir)*(v.r+44),ty=v.y+Math.sin(v.waveDir)*(v.r+44);
+        ctx.globalAlpha=pulse;ctx.strokeStyle=C.enemy;ctx.lineWidth=3;ctx.setLineDash([5,6]);
+        ctx.beginPath();ctx.moveTo(ex,ey);ctx.lineTo(tx,ty);ctx.stroke();ctx.setLineDash([]);
+        ctx.save();ctx.translate(tx,ty);ctx.rotate(v.waveDir);
+        ctx.fillStyle=C.enemy;ctx.beginPath();ctx.moveTo(16,0);ctx.lineTo(-9,9);ctx.lineTo(-9,-9);ctx.closePath();ctx.fill();
+        ctx.restore();ctx.globalAlpha=0.9;
+      }
+    }
     ctx.fillStyle=v.contract?C.living:C.zone;ctx.font='500 22px '+css('--mono');ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(v.done?'✓':String(i+1),v.x,v.y);
     if((v.mine.found||debugNoFog)&&!v.done){
       ctx.globalAlpha=1;ctx.save();ctx.translate(v.mine.x,v.mine.y);
@@ -1324,6 +1346,12 @@ function hud(){
     const v=S.activeVein;
     $('hObj').textContent=`drilling ${v.band} ${Math.floor(100*v.drillProg/v.richness)}%${v.stalled?' — STALLED':''}`;
     $('hObjBar').style.width=(100*v.drillProg/v.richness)+'%';
+    // live burn rate and projected Condensed Crystal payoff — both update instantly with throttle,
+    // so the tradeoff is visible before you commit to a setting, not just after the fact.
+    const burnRate=DRILL_DAT_COST*S.throttleMul;
+    $('thBurn').textContent=`−${burnRate.toFixed(1)} dat/s`;
+    const condensedRatePerMin=60*CONDENSED_RATE*DRILL_RATE*S.throttleMul*S.throttleMul;
+    $('thRate').textContent=`+${condensedRatePerMin.toFixed(1)} cond/min`;
   }else{
     $('hObj').textContent=`${doneCount}/${S.veins.length} secured`;
     $('hObjBar').style.width=(100*doneCount/S.veins.length)+'%';
