@@ -117,7 +117,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <b>Drilling:</b> park the Bastion on a found vein's marker and press <kbd>L</kbd>. There's no fixed prep phase — throttle the drill (Slow/Normal/Fast, shown once locked in) to trade speed against how much noise it makes. Draining the marked Flame Core vein wins the run.<br>
   The Bastion fires on nearby enemies while mobile, but goes quiet the moment it locks down to drill.<br>
   <b>Harvesters</b> carry no weapons. Left alone they loop automatically: find the nearest Dat Crystal deposit, haul it home, repeat. A manual order pauses that loop until you select them and press Resume Auto-Gather (or <kbd>R</kbd>).<br>
-  <b>Builders</b> place but don't fight: a wall/turret/relay order only queues a ghost site until a builder walks over and finishes it (wall 1s, turret 5s, relay 3s). Toggle repair mode (button or <kbd>G</kbd>) and they'll auto-seek damaged structures and mend them for a trickle of Dat Crystal/sec instead. Idle builders dock at the Bastion.<br>
+  <b>Builders</b> place but don't fight: a wall/turret/relay order only queues a ghost site until a builder walks over and finishes it (wall 1s, turret 5s, relay 3s). Walls and turrets need the Bastion locked down drilling; Relays can be queued any time, even while the Bastion is still mobile, so you can push a chain of them ahead of you as you scout. Toggle repair mode (button or <kbd>G</kbd>) and they'll auto-seek damaged structures and mend them for a trickle of Dat Crystal/sec instead. Idle builders dock at the Bastion.<br>
   <kbd>`</kbd> toggles debug: reveal the whole map and all enemies.
 </div>
 
@@ -657,7 +657,7 @@ function setBuild(m){buildMode=m;closeProdMenu();updateBuildBar()}
 function updateBuildBar(){
   document.querySelectorAll('#buildBar button[data-mode]').forEach(b=>{
     b.classList.toggle('on',b.dataset.mode===buildMode);
-    b.disabled=!S.base.locked||(S.dat<COST[b.dataset.mode]&&buildMode!==b.dataset.mode);
+    b.disabled=(!S.base.locked&&b.dataset.mode!=='relay')||(S.dat<COST[b.dataset.mode]&&buildMode!==b.dataset.mode);
   });
   const lb=document.getElementById('bLock');
   if(lb){
@@ -744,7 +744,7 @@ function rightClick(w){
   }
 }
 function tryBuild(w){
-  if(!S.base.locked){msg('Lock down the Bastion (begin drilling) before building.');return}
+  if(!S.base.locked&&buildMode!=='relay'){msg('Lock down the Bastion (begin drilling) before building.');return}
   if(dist(w,S.base)>BUILD_R){msg('Build inside the Bastion\'s dashed ring.');return}
   if(terrainAt(w.x,w.y)===2){msg('Cannot build on solid rock.');return}
   if(S.dat<COST[buildMode]){msg('Not enough Dat Crystal. Send harvesters to a deposit.');return}
@@ -1191,7 +1191,7 @@ function draw(){
   // map edge
   ctx.strokeStyle=C.line;ctx.lineWidth=3/cam.z;ctx.strokeRect(0,0,W,H);
   // build preview
-  if(buildMode){const ok=S.base.locked&&dist({x:mouse.wx,y:mouse.wy},B)<=BUILD_R&&terrainAt(mouse.wx,mouse.wy)!==2&&S.dat>=COST[buildMode];ctx.globalAlpha=0.6;
+  if(buildMode){const ok=(B.locked||buildMode==='relay')&&dist({x:mouse.wx,y:mouse.wy},B)<=BUILD_R&&terrainAt(mouse.wx,mouse.wy)!==2&&S.dat>=COST[buildMode];ctx.globalAlpha=0.6;
     if(buildMode==='wall'){const gx=Math.floor(mouse.wx/CELL)*CELL,gy=Math.floor(mouse.wy/CELL)*CELL;ctx.fillStyle=ok?'#8d9aa8':C.enemy;ctx.fillRect(gx+1,gy+1,CELL-2,CELL-2)}
     else{const rng=buildMode==='turret'?TURRET_RANGE:WIRELESS_TOL_DENSE;ctx.fillStyle=ok?C.accent:C.enemy;ctx.beginPath();ctx.arc(mouse.wx,mouse.wy,11,0,Math.PI*2);ctx.fill();ctx.strokeStyle=ok?C.accent:C.enemy;ctx.lineWidth=1;ctx.setLineDash([4,6]);ctx.beginPath();ctx.arc(mouse.wx,mouse.wy,rng,0,Math.PI*2);ctx.stroke();ctx.setLineDash([])}
     ctx.globalAlpha=1}
