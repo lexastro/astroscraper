@@ -118,7 +118,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <kbd>WASD</kbd> or edge-drag (middle mouse) pans · scroll zooms<br>
   <kbd>1</kbd> wall · <kbd>2</kbd> turret · <kbd>3</kbd> relay · <kbd>L</kbd> begin drilling · <kbd>R</kbd> resume harvester auto-gather · <kbd>G</kbd> toggle builder repair mode · <kbd>U</kbd> select builders · <kbd>Esc</kbd> cancel<br>
   <b>The zone:</b> a Black Flame disaster site radiates out from a dead epicenter. The outer Rim is mild, wireless works fine, and Dat Crystal is scattered in small, common deposits. Push into the violet Dense Field and deposits get rarer but come in big clusters worth securing. Push further into the red Flame Core and both the crystal and the monsters get a lot more serious still.<br>
-  <b>Tether:</b> beyond a short wireless range around the Bastion (or a built Relay), squads/harvesters/builders can only take orders through a physical cable that pays out behind them as they walk. Monsters that get close to a cable chew through it — a severed unit goes dark (no orders, autonomous retreat toward the nearest anchor) until it reconnects. Cable only runs so far (400 units) — at the end of it a unit just stops; build a Relay further out to extend reach. The Bastion itself is the anchor, so driving it toward a deployed cable reels the slack back in and frees up range. A Relay needs the same live tether back to the network to work at all — chain them (each can be built within range of the Bastion <i>or</i> of an already-finished Relay) and if one in the chain gets severed, everything past it goes dark too until the line is restored.<br>
+  <b>Tether:</b> beyond a short wireless range around the Bastion (or a built Relay), squads/harvesters/builders can only take orders through a physical cable that pays out behind them as they walk. Monsters that get close to a cable chew through it — a severed unit goes dark (no orders, autonomous retreat toward the nearest anchor) until it reconnects. Cable only runs so far (400 units) — at the end of it a unit just stops; build a Relay further out to extend reach. The Bastion itself is the anchor, so driving it toward a deployed cable reels the slack back in and frees up range. A Relay needs the same live tether back to the network to work at all — chain them (each can be built within range of the Bastion <i>or</i> of an already-finished Relay) and if one in the chain gets severed, everything past it goes dark too until the line is restored. A Relay destroyed outright doesn't vanish either — it just goes fully dark until a repair-mode builder brings its HP back up, same as mending any other structure.<br>
   <b>Drilling:</b> park the Bastion on a found vein's marker and press <kbd>L</kbd>. There's no fixed prep phase — throttle the drill (Slow/Normal/Fast, shown once locked in) to trade speed against how much noise it makes. The drill also burns Dat Crystal per second to run, faster at higher throttle — run dry and it stalls until more comes in, so keep harvesters feeding it. Draining a vein pays Condensed Crystal too, more the faster you finished it, so speed pays for itself twice over; the throttle panel shows the live Dat burn rate and projected Condensed Crystal payoff for whichever setting is selected. Waves while drilling always roll in from one fixed direction per vein (the red dashed arrow) — far enough out to see them coming. A smaller, separate band of amber Saboteurs also spawns periodically, beelining for your nearest built Relay and its cable instead of the Bastion — they spawn out past the Relay so you can see them coming too, and more of them show up the faster you're drilling. Draining the marked Flame Core vein wins the run.<br>
   The Bastion fires on nearby enemies while mobile, but goes quiet the moment it locks down to drill.<br>
   <b>Harvesters</b> carry no weapons. Left alone they loop automatically: find the nearest Dat Crystal deposit, haul it home, repeat. A manual order pauses that loop until you select them and press Resume Auto-Gather (or <kbd>R</kbd>).<br>
@@ -535,7 +535,7 @@ function tetherPass(units,speed,dt){
 // because something upstream reeled in and shortened the run back below MAX_CABLE_LEN.
 function relayTetherPass(){
   S.relays.forEach(r=>{
-    if(!r.built)return;
+    if(!r.built||r.hp<=0)return; // destroyed — can't anchor anything until repaired back above 0
     const anchors=[S.base,...S.relays.filter(o=>o!==r&&o.built&&o.tetherOk)];
     const band=bandAt(r.x,r.y);
     const tol=wirelessTol(band);
@@ -1116,7 +1116,7 @@ function update(dt){
       // single-minded: ignore allies entirely, always make for whichever built Relay is nearest
       // right now (opportunistically chewing its cable along the way via cableSeverPass).
       let bestR=null,brd=Infinity;
-      S.relays.forEach(r=>{if(!r.built)return;const d=dist(e,r);if(d<brd){brd=d;bestR=r}});
+      S.relays.forEach(r=>{if(!r.built||r.hp<=0)return;const d=dist(e,r);if(d<brd){brd=d;bestR=r}});
       tgt=bestR||B;
     } else {
       allies.forEach(t=>{const d=dist(t,e);if(d<bd){bd=d;tgt=t}});
@@ -1126,7 +1126,7 @@ function update(dt){
     } else if(e.kind!=='saboteur'){
       if(!tgt||bd>220){let bt=B,btd=dist(e,B);
         S.turrets.forEach(tu=>{if(!tu.built)return;const d=dist(e,tu);if(d<btd*0.6){bt=tu;btd=d}});
-        S.relays.forEach(r=>{if(!r.built)return;const d=dist(e,r);if(d<btd*0.6){bt=r;btd=d}});
+        S.relays.forEach(r=>{if(!r.built||r.hp<=0)return;const d=dist(e,r);if(d<btd*0.6){bt=r;btd=d}});
         tgt=bt;}
     }
     e.target=tgt;
@@ -1170,7 +1170,13 @@ function update(dt){
   // deaths
   S.enemies=S.enemies.filter(e=>{if(e.hp<=0){if(Math.random()<0.25){S.dat+=1;updateBuildBar()}return false}return true});
   S.turrets=S.turrets.filter(t=>t.hp>0);
-  S.relays=S.relays.filter(r=>r.hp>0);
+  // a destroyed Relay stays put instead of vanishing — it just goes fully dark (no tether, no
+  // anchoring for anyone) until a repair-mode builder brings its HP back above zero.
+  S.relays.forEach(r=>{
+    if(r.hp<=0){
+      if(!r.wasDestroyed){r.wasDestroyed=true;r.tetherOk=false;r.trail=null;r.cableLen=0;r.cableMaxed=false;r.state=null;r.reconnectT=0;msg('A Relay was destroyed — repair it to bring it back online.')}
+    } else if(r.wasDestroyed)r.wasDestroyed=false;
+  });
   S.troops=S.troops.filter(t=>t.hp>0); S.troops.forEach(t=>{if(dist(t,B)<B.r+30&&!S.enemies.some(e=>dist(e,t)<200))t.hp=Math.min(t.maxHp,t.hp+6*dt)});
   S.harvesters=S.harvesters.filter(h=>h.hp>0); S.harvesters.forEach(h=>{if(dist(h,B)<B.r+30&&!S.enemies.some(e=>dist(e,h)<200))h.hp=Math.min(h.maxHp,h.hp+6*dt)});
   S.builders.forEach(bu=>{if(bu.hp<=0)releaseBuilderClaim(bu)});
