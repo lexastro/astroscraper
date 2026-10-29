@@ -119,7 +119,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <kbd>1</kbd> wall · <kbd>2</kbd> turret · <kbd>3</kbd> relay · <kbd>L</kbd> begin drilling · <kbd>R</kbd> resume harvester auto-gather · <kbd>G</kbd> toggle builder repair mode · <kbd>U</kbd> select builders · <kbd>Esc</kbd> cancel<br>
   <b>The zone:</b> a Black Flame disaster site radiates out from a dead epicenter. The outer Rim is mild, wireless works fine, and Dat Crystal is scattered in small, common deposits. Push into the violet Dense Field and deposits get rarer but come in big clusters worth securing. Push further into the red Flame Core and both the crystal and the monsters get a lot more serious still.<br>
   <b>Tether:</b> beyond a short wireless range around the Bastion (or a built Relay), squads/harvesters/builders can only take orders through a physical cable that pays out behind them as they walk. Monsters that get close to a cable chew through it — a severed unit goes dark (no orders, autonomous retreat toward the nearest anchor) until it reconnects. Cable only runs so far (400 units) — at the end of it a unit just stops; build a Relay further out to extend reach. The Bastion itself is the anchor, so driving it toward a deployed cable reels the slack back in and frees up range. A Relay needs the same live tether back to the network to work at all — chain them (each can be built within range of the Bastion <i>or</i> of an already-finished Relay) and if one in the chain gets severed, everything past it goes dark too until the line is restored.<br>
-  <b>Drilling:</b> park the Bastion on a found vein's marker and press <kbd>L</kbd>. There's no fixed prep phase — throttle the drill (Slow/Normal/Fast, shown once locked in) to trade speed against how much noise it makes. The drill also burns Dat Crystal per second to run, faster at higher throttle — run dry and it stalls until more comes in, so keep harvesters feeding it. Draining a vein pays Condensed Crystal too, more the faster you finished it, so speed pays for itself twice over; the throttle panel shows the live Dat burn rate and projected Condensed Crystal payoff for whichever setting is selected. Waves while drilling always roll in from one fixed direction per vein (the red dashed arrow) — far enough out to see them coming. Draining the marked Flame Core vein wins the run.<br>
+  <b>Drilling:</b> park the Bastion on a found vein's marker and press <kbd>L</kbd>. There's no fixed prep phase — throttle the drill (Slow/Normal/Fast, shown once locked in) to trade speed against how much noise it makes. The drill also burns Dat Crystal per second to run, faster at higher throttle — run dry and it stalls until more comes in, so keep harvesters feeding it. Draining a vein pays Condensed Crystal too, more the faster you finished it, so speed pays for itself twice over; the throttle panel shows the live Dat burn rate and projected Condensed Crystal payoff for whichever setting is selected. Waves while drilling always roll in from one fixed direction per vein (the red dashed arrow) — far enough out to see them coming. A smaller, separate band of amber Saboteurs also spawns periodically, beelining for your nearest built Relay and its cable instead of the Bastion — they spawn out past the Relay so you can see them coming too, and more of them show up the faster you're drilling. Draining the marked Flame Core vein wins the run.<br>
   The Bastion fires on nearby enemies while mobile, but goes quiet the moment it locks down to drill.<br>
   <b>Harvesters</b> carry no weapons. Left alone they loop automatically: find the nearest Dat Crystal deposit, haul it home, repeat. A manual order pauses that loop until you select them and press Resume Auto-Gather (or <kbd>R</kbd>).<br>
   <b>Builders</b> place but don't fight: a wall/turret/relay order only queues a ghost site until a builder walks over and finishes it (wall 1s, turret 5s, relay 3s). Walls and turrets need the Bastion locked down drilling; Relays can be queued any time, even while the Bastion is still mobile, so you can push a chain of them ahead of you as you scout. Toggle repair mode (button or <kbd>G</kbd>) and they'll auto-seek damaged structures and mend them for a trickle of Dat Crystal/sec instead — including a Relay whose tether got severed: a repair-mode builder will walk up and splice it back in (a few seconds, no Dat cost) even if the Relay itself is at full HP, since the cable and the structure are separate things to break. Idle builders dock at the Bastion.<br>
@@ -139,7 +139,7 @@ const EPI={x:W/2,y:H/2};
 const CORE_R=450, DENSE_R=1250;
 const BASE_R=30, BASE_SPEED=42, BUILD_R=270, BASE_VISION=450;
 const TROOP_R=7, TROOP_SPEED=125, TROOP_VISION=340, TROOP_RANGE=165, TROOP_DMG=7, TROOP_CD=0.45;
-const HARV_R=8, HARV_SPEED=105, HARV_VISION=280, CARRY=12;
+const HARV_R=8, HARV_SPEED=105, HARV_VISION=280, CARRY=24;
 const BUILDER_R=7, BUILDER_SPEED=100, BUILDER_VISION=200;
 const WALL_BUILD_T=1, TURRET_BUILD_T=5, RELAY_BUILD_T=3, REPAIR_HPS=25, REPAIR_DAT_PER_SEC=1;
 const RELAY_RECONNECT_T=2.5;
@@ -164,6 +164,11 @@ const AMBIENT_INTERVAL={rim:45,dense:22,core:11};
 // not a random spot each time — far enough out that you can see them coming and react, not just
 // react to them already being on top of you.
 const WAVE_SPAWN_DIST=820, WAVE_BASE_N={rim:5,dense:10,core:16};
+// Saboteurs are a smaller, separate threat while drilling: they beeline for whichever built
+// Relay is nearest the vein (and opportunistically chew its cable on the way there, same as any
+// enemy near a cable), rather than joining the main wave's raid. They spawn out past the Relay
+// itself, on the far side from the vein, so they're visible closing in before they arrive.
+const SABOTEUR_INTERVAL={rim:40,dense:26,core:16}, SABOTEUR_SPAWN_DIST=500, SABOTEUR_BASE_N={rim:1,dense:2,core:3};
 // The drill burns Dat Crystal per second to run — the rate scales with throttle (so the TOTAL
 // cost to finish a vein is throttle-invariant, but a faster throttle demands a faster supply of
 // Dat or the drill literally stalls). CONDENSED_RATE converts how much faster than baseline
@@ -283,7 +288,8 @@ function reset(){
 }
 function spawnEnemy(x,y,kind){
   const big=kind==='wave'&&Math.random()<0.2;
-  S.enemies.push({x,y,r:big?13:8,hp:big?120:34,maxHp:big?120:34,speed:big?48:78,dmg:big?12:5,cd:0,kind,target:null,aggro:kind==='roam'?260:1e9,home:{x,y},ang:rnd(0,Math.PI*2),faceT:rnd(1,3)});
+  const sab=kind==='saboteur';
+  S.enemies.push({x,y,r:big?13:sab?7:8,hp:big?120:sab?24:34,maxHp:big?120:sab?24:34,speed:big?48:sab?95:78,dmg:big?12:5,cd:0,kind,target:null,aggro:kind==='roam'?260:1e9,home:{x,y},ang:rnd(0,Math.PI*2),faceT:rnd(1,3)});
 }
 function msg(s){document.getElementById('hMsg').textContent=s;msgT=S.t}
 
@@ -760,6 +766,7 @@ function tryLockdown(){
   if(!v){msg('Move the Bastion onto a found vein\'s marker first.');return}
   S.base.locked=true; S.base.dest=null;
   S.activeVein=v; v.drillProg=0; v.waveT=BASE_SPAWN_INTERVAL[v.band]/S.throttleMul; v.startT=S.t; v.stalled=false; v.waveDir=rnd(0,Math.PI*2);
+  v.saboteurT=SABOTEUR_INTERVAL[v.band]/S.throttleMul;
   msg(`Drilling the ${v.band} vein. Throttle controls speed vs. the noise it makes — and how much Dat Crystal it burns.`);
   updateBuildBar();
 }
@@ -906,6 +913,23 @@ function update(dt){
       }
       v.waveT=BASE_SPAWN_INTERVAL[v.band]/S.throttleMul;
       msg(`Wave incoming from the ${a<Math.PI?'south':'north'}${Math.cos(a)>0?'east':'west'}.`);
+    }
+    v.saboteurT-=dt;
+    if(v.saboteurT<=0){
+      v.saboteurT=SABOTEUR_INTERVAL[v.band]/S.throttleMul;
+      const liveRelays=S.relays.filter(r=>r.built);
+      if(liveRelays.length){
+        let target=liveRelays[0],rbd=dist(v,target);
+        liveRelays.forEach(r=>{const d=dist(v,r);if(d<rbd){rbd=d;target=r}});
+        const dx=target.x-v.x,dy=target.y-v.y,L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L;
+        const sx=target.x+ux*SABOTEUR_SPAWN_DIST, sy=target.y+uy*SABOTEUR_SPAWN_DIST;
+        const n=Math.max(1,Math.round(SABOTEUR_BASE_N[v.band]*(0.7+0.3*S.throttleMul)));
+        for(let i=0;i<n;i++){
+          const p=nearestPlain(Math.max(20,Math.min(W-20,sx+rnd(-60,60))),Math.max(20,Math.min(H-20,sy+rnd(-60,60))));
+          spawnEnemy(p.x,p.y,'saboteur');
+        }
+        msg('Saboteurs spotted — they\'re making for a Relay\'s cable.');
+      }
     }
     if(v.drillProg>=v.richness){
       v.done=true; B.locked=false; setBuild(null); S.activeVein=null;
@@ -1088,10 +1112,18 @@ function update(dt){
   S.enemies.forEach(e=>{
     e.cd-=dt;
     let tgt=null,bd=e.aggro;
-    allies.forEach(t=>{const d=dist(t,e);if(d<bd){bd=d;tgt=t}});
+    if(e.kind==='saboteur'){
+      // single-minded: ignore allies entirely, always make for whichever built Relay is nearest
+      // right now (opportunistically chewing its cable along the way via cableSeverPass).
+      let bestR=null,brd=Infinity;
+      S.relays.forEach(r=>{if(!r.built)return;const d=dist(e,r);if(d<brd){brd=d;bestR=r}});
+      tgt=bestR||B;
+    } else {
+      allies.forEach(t=>{const d=dist(t,e);if(d<bd){bd=d;tgt=t}});
+    }
     if(e.kind==='roam'){
       if(!tgt&&dist(e,B)<e.aggro+120)tgt=B;
-    } else {
+    } else if(e.kind!=='saboteur'){
       if(!tgt||bd>220){let bt=B,btd=dist(e,B);
         S.turrets.forEach(tu=>{if(!tu.built)return;const d=dist(e,tu);if(d<btd*0.6){bt=tu;btd=d}});
         S.relays.forEach(r=>{if(!r.built)return;const d=dist(e,r);if(d<btd*0.6){bt=r;btd=d}});
@@ -1305,7 +1337,7 @@ function draw(){
     if(bu.state==='cut')drawCutGlyph(bu.x,bu.y);
     if(sel&&bu.dest){ctx.strokeStyle='rgba(79,209,197,0.35)';ctx.beginPath();ctx.moveTo(bu.x,bu.y);ctx.lineTo(bu.dest.x,bu.dest.y);ctx.stroke()}});
   // enemies (only visible)
-  S.enemies.forEach(e=>{if(!debugNoFog&&!visible(e))return;const a=e.ang;ctx.fillStyle=e.kind==='roam'?'#d9775f':C.enemy;ctx.beginPath();
+  S.enemies.forEach(e=>{if(!debugNoFog&&!visible(e))return;const a=e.ang;ctx.fillStyle=e.kind==='roam'?'#d9775f':e.kind==='saboteur'?C.cable:C.enemy;ctx.beginPath();
     ctx.moveTo(e.x+Math.cos(a)*e.r*1.3,e.y+Math.sin(a)*e.r*1.3);ctx.lineTo(e.x+Math.cos(a+2.5)*e.r,e.y+Math.sin(a+2.5)*e.r);ctx.lineTo(e.x+Math.cos(a-2.5)*e.r,e.y+Math.sin(a-2.5)*e.r);ctx.closePath();ctx.fill();
     if(e.hp<e.maxHp)hpbar(e.x,e.y-e.r-8,e.r*2+4,e.hp/e.maxHp)});
   // tracers
