@@ -1313,7 +1313,7 @@ function update(dt){
   // dim veil, rebuilt fresh every frame: dark over everything, then punched fully clear around
   // current vision sources (same radii as the permanent reveal above).
   dimX.clearRect(0,0,dimC.width,dimC.height);
-  dimX.globalCompositeOperation='source-over'; dimX.fillStyle='rgba(0,0,0,0.55)'; dimX.fillRect(0,0,dimC.width,dimC.height);
+  dimX.globalCompositeOperation='source-over'; dimX.fillStyle='rgba(0,0,0,0.44)'; dimX.fillRect(0,0,dimC.width,dimC.height);
   dimX.globalCompositeOperation='destination-out';
   const unveil=(x,y,r)=>{const g=dimX.createRadialGradient(x/FOG_S,y/FOG_S,r*0.6/FOG_S,x/FOG_S,y/FOG_S,r/FOG_S);g.addColorStop(0,'rgba(0,0,0,1)');g.addColorStop(1,'rgba(0,0,0,0)');dimX.fillStyle=g;dimX.beginPath();dimX.arc(x/FOG_S,y/FOG_S,r/FOG_S,0,Math.PI*2);dimX.fill()};
   unveil(B.x,B.y,BASE_VISION);S.troops.forEach(t=>unveil(t.x,t.y,TROOP_VISION));S.harvesters.forEach(h=>unveil(h.x,h.y,HARV_VISION));S.builders.forEach(bu=>unveil(bu.x,bu.y,BUILDER_VISION));
