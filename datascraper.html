@@ -214,6 +214,7 @@ function reset(){
     base:{x:400,y:3200,hp:900,maxHp:900,r:BASE_R,dest:null,locked:false,gunCd:0},
     troops:[],harvesters:[],builders:[],relays:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],
     veins:[],activeVein:null,throttleMul:1,ambientT:30,
+    particles:[],floaters:[],shake:{t:0,dur:0,mag:0},
     sel:{base:false,troops:new Set(),harv:new Set(),bu:new Set()}};
   for(let i=0;i<4;i++) S.troops.push(mkTroop(i));
   for(let i=0;i<2;i++) S.harvesters.push(mkHarv(i));
@@ -637,11 +638,12 @@ function cableSeverPass(allUnits,dt){
   allUnits.forEach(u=>{
     if(u.trail&&u.cableHp<=0){
       releaseBuilderClaim(u);
+      burst(u.x,u.y,C.cable,8,100,0.4);
       u.state='cut';u.tetherOk=false;u.trail=null;u.cableLen=0;u.cableMaxed=false;u.target=null;u.dest=null;u.node=null;
       anySevered=true;
     }
   });
-  if(anySevered)msg('A cable was severed — a unit has gone dark.');
+  if(anySevered){msg('A cable was severed — a unit has gone dark.');sfx.sever()}
 }
 
 // ---------- input ----------
@@ -695,7 +697,7 @@ addEventListener('keydown',e=>{
   if(e.key===' ')e.preventDefault();
 });
 addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;keys[e.key]=false});
-document.querySelectorAll('#buildBar button[data-mode]').forEach(b=>b.addEventListener('click',()=>setBuild(buildMode===b.dataset.mode?null:b.dataset.mode)));
+document.querySelectorAll('#buildBar button[data-mode]').forEach(b=>b.addEventListener('click',()=>{setBuild(buildMode===b.dataset.mode?null:b.dataset.mode);sfx.click()}));
 document.getElementById('bLock').onclick=tryLockdown;
 document.getElementById('bSelBase').onclick=()=>{S.sel.troops.clear();S.sel.harv.clear();S.sel.bu.clear();S.sel.base=true};
 document.getElementById('bResumeAuto').onclick=resumeAutoLoop;
@@ -707,7 +709,7 @@ document.getElementById('prodClose').onclick=closeProdMenu;
 document.getElementById('bBuildTroop').onclick=buildTroop;
 document.getElementById('bBuildHarv').onclick=buildHarvester;
 document.getElementById('bBuildBuilder').onclick=buildBuilderUnit;
-document.querySelectorAll('#throttlePanel button').forEach(b=>b.onclick=()=>{S.throttleMul=THROTTLES[+b.dataset.th];updateBuildBar()});
+document.querySelectorAll('#throttlePanel button').forEach(b=>b.onclick=()=>{S.throttleMul=THROTTLES[+b.dataset.th];updateBuildBar();sfx.click()});
 document.getElementById('helpClose').onclick=()=>{document.getElementById('help').hidden=true};
 document.getElementById('ovBtn').onclick=reset;
 mini.addEventListener('pointerdown',e=>{const r=mini.getBoundingClientRect();cam.x=(e.clientX-r.left)/r.width*W;cam.y=(e.clientY-r.top)/r.height*H;clampCam()});
@@ -737,6 +739,7 @@ function resumeAutoLoop(){
   if(S.sel.harv.size===0){msg('Select harvesters to resume their auto-gather loop.');return}
   S.harvesters.forEach(h=>{if(S.sel.harv.has(h.id))h.autoLoop=true});
   msg('Auto-gather resumed for selected harvesters.');
+  sfx.click();
 }
 function releaseBuilderClaim(bu){
   if(!bu.target)return;
@@ -749,6 +752,7 @@ function toggleRepairMode(){
   const newMode=anyRepair?'build':'repair';
   S.builders.forEach(b=>{if(S.sel.bu.has(b.id)){releaseBuilderClaim(b);b.mode=newMode;b.state='idle';b.target=null}});
   msg(newMode==='repair'?'Selected builders switched to repair mode.':'Selected builders switched to build mode.');
+  sfx.click();
   updateBuildBar();
 }
 function setBuild(m){buildMode=m;closeProdMenu();updateBuildBar()}
@@ -792,6 +796,7 @@ function tryLockdown(){
   S.activeVein=v; v.drillProg=0; v.waveT=BASE_SPAWN_INTERVAL[v.band]/S.throttleMul; v.startT=S.t; v.stalled=false; v.waveDir=rnd(0,Math.PI*2);
   v.saboteurT=SABOTEUR_INTERVAL[v.band]/S.throttleMul;
   msg(`Drilling the ${v.band} vein. Throttle controls speed vs. the noise it makes — and how much Dat Crystal it burns.`);
+  sfx.build();
   updateBuildBar();
 }
 
@@ -868,6 +873,7 @@ function tryBuild(w){
       state:null,tetherOk:false,trail:null,cableHp:0,cableLen:0,cableMaxed:false,reconnectT:0});S.dat-=COST.relay;
     msg('Relay queued — a builder needs to finish it.');
   }
+  sfx.click();
   updateBuildBar();
 }
 
@@ -875,7 +881,54 @@ function tryBuild(w){
 function visible(p){if(dist(p,S.base)<BASE_VISION)return true;if(S.troops.some(t=>dist(t,p)<TROOP_VISION))return true;if(S.harvesters.some(h=>dist(h,p)<HARV_VISION))return true;return S.builders.some(b=>dist(b,p)<BUILDER_VISION)}
 function moveToward(o,d,sp,dt){const dx=d.x-o.x,dy=d.y-o.y,L=Math.hypot(dx,dy);if(L<1)return 0;const s=Math.min(L,sp*dt);o.x+=dx/L*s;o.y+=dy/L*s;return L-s}
 function tracer(a,b,col){S.tracers.push({x1:a.x,y1:a.y,x2:b.x,y2:b.y,t:0.12,col})}
-function damageEnemy(e,d){e.hp-=d}
+function hitFlash(o){o.flashT=0.12}
+function damageEnemy(e,d){e.hp-=d;hitFlash(e);spark(e.x,e.y,C.accent,2)}
+// ---------- juice: particles, floating text, screen shake ----------
+function burst(x,y,col,count,speed,life){
+  for(let i=0;i<count;i++){const a=rnd(0,Math.PI*2),sp=rnd((speed||80)*0.3,speed||80);
+    S.particles.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,t:0,life:life||rnd(0.3,0.6),col,size:rnd(1.5,3.5)})}
+}
+function spark(x,y,col,count){burst(x,y,col,count||2,50,0.2)}
+function floatText(x,y,text,col){S.floaters.push({x,y,text,col,t:0,life:1.1,vy:-28})}
+function shakeScreen(mag,dur){
+  const curEffective=S.shake.t>0?S.shake.mag*(S.shake.t/S.shake.dur):0;
+  if(mag>=curEffective)S.shake={t:dur,dur,mag};
+}
+// ---------- audio: tiny synthesized SFX via Web Audio, no external assets ----------
+let actx=null;
+function ensureAudio(){
+  if(!actx){try{actx=new (window.AudioContext||window.webkitAudioContext)()}catch(e){return null}}
+  if(actx.state==='suspended')actx.resume();
+  return actx;
+}
+const sfxCd={};
+function sfxReady(key,minGap){const t=S.t;if(t-(sfxCd[key]||-999)<minGap)return false;sfxCd[key]=t;return true}
+function tone(freq,dur,type,gain,delay,slideTo){
+  const ac=ensureAudio(); if(!ac)return;
+  const t0=ac.currentTime+(delay||0);
+  const osc=ac.createOscillator(), g=ac.createGain();
+  osc.type=type||'sine'; osc.frequency.setValueAtTime(freq,t0);
+  if(slideTo)osc.frequency.exponentialRampToValueAtTime(Math.max(20,slideTo),t0+dur);
+  g.gain.setValueAtTime(0.0001,t0); g.gain.linearRampToValueAtTime(gain||0.15,t0+0.012); g.gain.exponentialRampToValueAtTime(0.001,t0+dur);
+  osc.connect(g); g.connect(ac.destination);
+  osc.start(t0); osc.stop(t0+dur+0.03);
+}
+const sfx={
+  click(){tone(520,0.05,'square',0.05)},
+  gather(){if(!sfxReady('gather',0.12))return;tone(660,0.06,'sine',0.08);tone(880,0.08,'sine',0.06,0.05)},
+  kill(){if(!sfxReady('kill',0.04))return;tone(200,0.09,'sawtooth',0.07,0,70)},
+  build(){tone(300,0.08,'square',0.07);tone(450,0.1,'square',0.06,0.07)},
+  veinDone(){tone(523,0.12,'sine',0.1);tone(659,0.12,'sine',0.09,0.1);tone(784,0.22,'sine',0.1,0.2)},
+  win(){tone(523,0.15,'sine',0.12);tone(659,0.15,'sine',0.11,0.14);tone(784,0.15,'sine',0.11,0.28);tone(1046,0.45,'sine',0.12,0.42)},
+  lose(){tone(220,0.3,'sawtooth',0.09,0,110);tone(160,0.5,'sawtooth',0.08,0.25,70)},
+  sever(){tone(160,0.18,'sawtooth',0.09,0,55)},
+  stall(){tone(140,0.22,'square',0.07)},
+  resume(){tone(400,0.07,'sine',0.07);tone(560,0.08,'sine',0.06,0.06)},
+  wave(){tone(300,0.15,'triangle',0.08);tone(300,0.15,'triangle',0.08,0.18)},
+  saboteurs(){tone(240,0.1,'square',0.06);tone(200,0.1,'square',0.05,0.1)},
+  relayDown(){tone(120,0.25,'sawtooth',0.09,0,50)},
+  damage(){if(!sfxReady('damage',0.3))return;tone(90,0.12,'triangle',0.08)},
+};
 // Only a FINISHED wall is a solid obstacle — a queued/under-construction site is just a ghost preview.
 function wallAt(x,y){
   const direct=S.walls.get(key(Math.floor(x/CELL),Math.floor(y/CELL)));
@@ -920,12 +973,13 @@ function update(dt){
     const v=S.activeVein;
     const need=DRILL_DAT_COST*S.throttleMul*dt;
     if(S.dat>=need){
-      if(v.stalled){v.stalled=false;msg('Dat Crystal flowing again — drilling resumed.')}
+      if(v.stalled){v.stalled=false;msg('Dat Crystal flowing again — drilling resumed.');sfx.resume()}
       S.dat-=need;
       v.drillProg+=DRILL_RATE*S.throttleMul*dt;
     } else if(!v.stalled){
       v.stalled=true;
       msg('Out of Dat Crystal — drilling has stalled. Bring more in to keep going.');
+      sfx.stall();
     }
     v.waveT-=dt;
     if(v.waveT<=0){
@@ -937,6 +991,7 @@ function update(dt){
       }
       v.waveT=BASE_SPAWN_INTERVAL[v.band]/S.throttleMul;
       msg(`Wave incoming from the ${a<Math.PI?'south':'north'}${Math.cos(a)>0?'east':'west'}.`);
+      sfx.wave();
     }
     v.saboteurT-=dt;
     if(v.saboteurT<=0){
@@ -953,6 +1008,7 @@ function update(dt){
           spawnEnemy(p.x,p.y,'saboteur');
         }
         msg('A saboteur swarm is massing on a Relay\'s cable.');
+        sfx.saboteurs();
       }
     }
     if(v.drillProg>=v.richness){
@@ -964,8 +1020,12 @@ function update(dt){
       const elapsed=Math.max(0.001,S.t-v.startT), speedRatio=(v.richness/DRILL_RATE)/elapsed;
       const condensedEarned=Math.max(1,Math.round(v.richness*CONDENSED_RATE*speedRatio));
       S.dat+=v.reward.dat||0; S.living+=v.reward.living||0; S.condensed+=condensedEarned;
-      if(v.contract){S.over='win';showOverlay('Living Crystal Extracted',`The contract vein is drained. Datascraper crew, mission complete. +${condensedEarned} Condensed Crystal.`)}
-      else msg(`Vein drained — +${condensedEarned} Condensed Crystal. Move the Bastion to another vein when ready.`);
+      burst(v.x,v.y,C.accent,24,140,0.7);
+      if(v.reward.dat)floatText(v.x,v.y-16,'+'+v.reward.dat+' Dat',C.dat);
+      if(v.reward.living)floatText(v.x,v.y-34,'+'+v.reward.living+' Living',C.living);
+      floatText(v.x,v.y+(v.reward.dat||v.reward.living?2:-16),'+'+condensedEarned+' Condensed',C.condensed);
+      if(v.contract){S.over='win';sfx.win();shakeScreen(6,0.5);showOverlay('Living Crystal Extracted',`The contract vein is drained. Datascraper crew, mission complete. +${condensedEarned} Condensed Crystal.`)}
+      else{msg(`Vein drained — +${condensedEarned} Condensed Crystal. Move the Bastion to another vein when ready.`);sfx.veinDone();shakeScreen(4,0.3)}
     }
   }
   // ambient: the zone is alive even when nobody's drilling, scaled by how deep the Bastion sits
@@ -1041,7 +1101,7 @@ function update(dt){
       if(!n||(n.amt<=0&&h.carry===0)){h.state='idle';h.node=null}
       else if(h.carry>=CARRY||n.amt<=0){
         const aim=waypointFor(h,B.x,B.y); moveToward(h,aim,HARV_SPEED*factor,dt);
-        if(dist(h,B)<B.r+22){S.dat+=h.carry;h.carry=0;updateBuildBar();if(n.amt<=0){h.state='idle';h.node=null}}
+        if(dist(h,B)<B.r+22){if(h.carry>0){floatText(h.x,h.y-14,'+'+h.carry,C.dat);sfx.gather()}S.dat+=h.carry;h.carry=0;updateBuildBar();if(n.amt<=0){h.state='idle';h.node=null}}
       }
       else if(dist(h,n)>22){const aim=waypointFor(h,n.x,n.y);moveToward(h,aim,HARV_SPEED*factor,dt)}
       else{h.hv+=dt;if(h.hv>0.35){h.hv=0;n.amt--;h.carry++}}
@@ -1049,7 +1109,7 @@ function update(dt){
     else if(h.state==='return'){
       const aim=waypointFor(h,B.x,B.y); moveToward(h,aim,HARV_SPEED*factor,dt);
       if(dist(h,B)<B.r+22){
-        if(h.carry>0){S.dat+=h.carry;h.carry=0;updateBuildBar()}
+        if(h.carry>0){floatText(h.x,h.y-14,'+'+h.carry,C.dat);sfx.gather();S.dat+=h.carry;h.carry=0;updateBuildBar()}
         h.state='idle';h.node=null;
       }
     }
@@ -1091,7 +1151,7 @@ function update(dt){
       else if(dist(bu,site)>26){const aim=waypointFor(bu,site.x,site.y);moveToward(bu,aim,BUILDER_SPEED*factor,dt)}
       else{
         site.buildT+=dt;
-        if(site.buildT>=site.buildTotal){site.built=true;site.builder=null;bu.target=null;bu.state='idle';msg(site.kind==='wall'?'Wall built.':site.kind==='turret'?'Turret built.':'Relay built.')}
+        if(site.buildT>=site.buildTotal){site.built=true;site.builder=null;bu.target=null;bu.state='idle';msg(site.kind==='wall'?'Wall built.':site.kind==='turret'?'Turret built.':'Relay built.');sfx.build();spark(site.x,site.y,C.builder,8)}
       }
     }
     else if(bu.state==='repair'){
@@ -1171,12 +1231,18 @@ function update(dt){
       return;
     }
     const reach=e.r+(tgt.r||12)+4;
-    if(dist(e,tgt)<=reach&&!wallBetween(e,tgt)){if(e.cd<=0){tgt.hp-=e.dmg;e.cd=0.8}return}
+    if(dist(e,tgt)<=reach&&!wallBetween(e,tgt)){
+      if(e.cd<=0){
+        tgt.hp-=e.dmg; hitFlash(tgt); spark(tgt.x,tgt.y,C.enemy,2); e.cd=0.8;
+        if(tgt===B){shakeScreen(3,0.15);sfx.damage()}
+      }
+      return;
+    }
     const aim=waypointFor(e,tgt.x,tgt.y);
     const dx=aim.x-e.x,dy=aim.y-e.y,L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L,look=e.r+6,perp=e.r*0.6;
     const probes=[{x:e.x+ux*look,y:e.y+uy*look},{x:e.x+ux*look-uy*perp,y:e.y+uy*look+ux*perp},{x:e.x+ux*look+uy*perp,y:e.y+uy*look-ux*perp}];
     let w=null; for(const pt of probes){w=wallAt(pt.x,pt.y); if(w)break}
-    if(w){if(e.cd<=0){w.hp-=e.dmg*1.5;e.cd=0.8;if(w.hp<=0)S.walls.delete(key(w.gx,w.gy))}return}
+    if(w){if(e.cd<=0){w.hp-=e.dmg*1.5;hitFlash(w);spark(w.x,w.y,C.enemy,2);e.cd=0.8;if(w.hp<=0)S.walls.delete(key(w.gx,w.gy))}return}
     const factor=terrainAt(e.x,e.y)===1?MUD_MULT:1;
     moveToward(e,aim,e.speed*factor,dt);
   });
@@ -1192,13 +1258,14 @@ function update(dt){
   cableSeverPass(allies.concat(S.relays.filter(r=>r.built)),dt);
 
   // deaths
-  S.enemies=S.enemies.filter(e=>{if(e.hp<=0){if(Math.random()<0.25){S.dat+=1;updateBuildBar()}return false}return true});
+  S.enemies=S.enemies.filter(e=>{if(e.hp<=0){burst(e.x,e.y,e.kind==='saboteur'?C.cable:C.enemy,5,90);sfx.kill();if(Math.random()<0.25){S.dat+=1;updateBuildBar()}return false}return true});
+  S.turrets.forEach(t=>{if(t.hp<=0){burst(t.x,t.y,C.accent,10,110,0.5);sfx.relayDown()}});
   S.turrets=S.turrets.filter(t=>t.hp>0);
   // a destroyed Relay stays put instead of vanishing — it just goes fully dark (no tether, no
   // anchoring for anyone) until a repair-mode builder brings its HP back above zero.
   S.relays.forEach(r=>{
     if(r.hp<=0){
-      if(!r.wasDestroyed){r.wasDestroyed=true;r.tetherOk=false;r.trail=null;r.cableLen=0;r.cableMaxed=false;r.state=null;r.reconnectT=0;msg('A Relay was destroyed — repair it to bring it back online.')}
+      if(!r.wasDestroyed){r.wasDestroyed=true;r.tetherOk=false;r.trail=null;r.cableLen=0;r.cableMaxed=false;r.state=null;r.reconnectT=0;msg('A Relay was destroyed — repair it to bring it back online.');burst(r.x,r.y,C.cable,10,110,0.5);sfx.relayDown();shakeScreen(4,0.2)}
     } else if(r.wasDestroyed)r.wasDestroyed=false;
   });
   S.troops=S.troops.filter(t=>t.hp>0); S.troops.forEach(t=>{if(dist(t,B)<B.r+30&&!S.enemies.some(e=>dist(e,t)<200))t.hp=Math.min(t.maxHp,t.hp+6*dt)});
@@ -1210,7 +1277,15 @@ function update(dt){
   if(S.harvesters.length===0&&!S.harvLostMsg){S.harvLostMsg=true;msg('All harvesters lost. A free one forms at the Bastion in 45s.');S.harvRespawnT=45}
   if(S.harvRespawnT!==undefined){S.harvRespawnT-=dt;if(S.harvRespawnT<=0){S.harvRespawnT=undefined;S.harvLostMsg=false;S.harvesters.push(mkHarv(Date.now()))}}
   S.tracers=S.tracers.filter(t=>(t.t-=dt)>0);
-  if(B.hp<=0){S.over='lose';showOverlay('Bastion destroyed','The crew and the crystal are lost to the zone. Try fortifying before you push deeper.')}
+  if(B.hp<=0){S.over='lose';sfx.lose();shakeScreen(10,0.6);burst(B.x,B.y,C.enemy,30,160,0.9);showOverlay('Bastion destroyed','The crew and the crystal are lost to the zone. Try fortifying before you push deeper.')}
+
+  // juice: particles drift and fade, floating text rises and fades, screen shake decays, hit
+  // flashes fade out on everything that can take damage.
+  S.particles=S.particles.filter(p=>{p.t+=dt;if(p.t>=p.life)return false;p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=0.9;p.vy*=0.9;return true});
+  S.floaters=S.floaters.filter(f=>{f.t+=dt;if(f.t>=f.life)return false;f.y+=f.vy*dt;return true});
+  if(S.shake.t>0)S.shake.t=Math.max(0,S.shake.t-dt);
+  [B,...S.enemies,...S.troops,...S.harvesters,...S.builders,...S.turrets,...S.relays].forEach(o=>{if(o.flashT>0)o.flashT=Math.max(0,o.flashT-dt)});
+  S.walls.forEach(w=>{if(w.flashT>0)w.flashT=Math.max(0,w.flashT-dt)});
 
   // fog explore (permanent reveal — once scouted, stays visible; enemy sighting is gated separately by visible())
   fogX.globalCompositeOperation='destination-out';
@@ -1237,7 +1312,9 @@ function drawCutGlyph(x,y){
 function draw(){
   const B=S.base,dpr=devicePixelRatio,vw=cv.width/dpr,vh=cv.height/dpr;
   ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle='#0b0e12';ctx.fillRect(0,0,vw,vh);
-  ctx.translate(vw/2,vh/2);ctx.scale(cam.z,cam.z);ctx.translate(-cam.x,-cam.y);
+  const shk=S.shake.t>0?S.shake.mag*(S.shake.t/S.shake.dur):0;
+  const shkx=shk?rnd(-shk,shk):0, shky=shk?rnd(-shk,shk):0;
+  ctx.translate(vw/2+shkx,vh/2+shky);ctx.scale(cam.z,cam.z);ctx.translate(-cam.x,-cam.y);
   const x0=cam.x-vw/2/cam.z,y0=cam.y-vh/2/cam.z,x1=cam.x+vw/2/cam.z,y1=cam.y+vh/2/cam.z;
   // ground (terrain + depth-band tint) + grid
   ctx.drawImage(terrainCv,0,0,W,H);
@@ -1289,7 +1366,7 @@ function draw(){
       ctx.fillStyle=C.builder;ctx.fillRect(w.x-CELL/2+2,w.y+CELL/2-5,(CELL-4)*(w.buildT/w.buildTotal),3);
       return;
     }
-    ctx.fillStyle='#8d9aa8';ctx.fillRect(w.x-CELL/2+1,w.y-CELL/2+1,CELL-2,CELL-2);ctx.fillStyle='#55626f';ctx.fillRect(w.x-CELL/2+4,w.y-CELL/2+4,CELL-8,CELL-8);
+    ctx.fillStyle=w.flashT>0?'#fff':'#8d9aa8';ctx.fillRect(w.x-CELL/2+1,w.y-CELL/2+1,CELL-2,CELL-2);ctx.fillStyle=w.flashT>0?'#fff':'#55626f';ctx.fillRect(w.x-CELL/2+4,w.y-CELL/2+4,CELL-8,CELL-8);
     if(w.hp<w.maxHp){ctx.fillStyle='rgba(255,92,77,0.6)';ctx.fillRect(w.x-CELL/2+1,w.y+CELL/2-4,(CELL-2)*(1-w.hp/w.maxHp),3)}});
   // turrets
   S.turrets.forEach(t=>{
@@ -1303,7 +1380,7 @@ function draw(){
       ctx.fillStyle=C.builder;ctx.fillRect(t.x-11,t.y+15,22*(t.buildT/t.buildTotal),3);
       return;
     }
-    ctx.fillStyle='#3b4652';ctx.beginPath();ctx.arc(t.x,t.y,11,0,Math.PI*2);ctx.fill();ctx.strokeStyle=C.accent;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(t.x,t.y);ctx.lineTo(t.x+Math.cos(t.ang)*15,t.y+Math.sin(t.ang)*15);ctx.stroke();hpbar(t.x,t.y-18,22,t.hp/t.maxHp)});
+    ctx.fillStyle=t.flashT>0?'#fff':'#3b4652';ctx.beginPath();ctx.arc(t.x,t.y,11,0,Math.PI*2);ctx.fill();ctx.strokeStyle=C.accent;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(t.x,t.y);ctx.lineTo(t.x+Math.cos(t.ang)*15,t.y+Math.sin(t.ang)*15);ctx.stroke();hpbar(t.x,t.y-18,22,t.hp/t.maxHp)});
   // relays
   S.relays.forEach(r=>{
     if(!r.built){
@@ -1320,7 +1397,7 @@ function draw(){
       const pulse=0.5+0.5*Math.sin(S.t*2.2);
       ctx.strokeStyle=C.cable;ctx.globalAlpha=0.25*pulse;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(r.x,r.y,WIRELESS_TOL_DENSE,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;
     }
-    ctx.fillStyle=r.tetherOk?'#3b4652':'#2a2d31';ctx.strokeStyle=r.tetherOk?C.cable:C.enemy;ctx.lineWidth=2;
+    ctx.fillStyle=r.flashT>0?'#fff':(r.tetherOk?'#3b4652':'#2a2d31');ctx.strokeStyle=r.tetherOk?C.cable:C.enemy;ctx.lineWidth=2;
     ctx.beginPath();ctx.moveTo(r.x,r.y-12);ctx.lineTo(r.x+9,r.y+8);ctx.lineTo(r.x-9,r.y+8);ctx.closePath();ctx.fill();ctx.stroke();
     if(!r.tetherOk)drawCutGlyph(r.x,r.y);
     if(r.state==='cut'&&r.reconnectT>0){
@@ -1330,7 +1407,7 @@ function draw(){
     if(r.hp<r.maxHp)hpbar(r.x,r.y-20,20,r.hp/r.maxHp);
   });
   // base
-  ctx.save();ctx.translate(B.x,B.y);ctx.fillStyle=B.locked?'#4a3a1c':'#2b3745';ctx.strokeStyle=B.locked?C.accent:C.ally;ctx.lineWidth=2.5;
+  ctx.save();ctx.translate(B.x,B.y);ctx.fillStyle=B.flashT>0?'#fff':(B.locked?'#4a3a1c':'#2b3745');ctx.strokeStyle=B.locked?C.accent:C.ally;ctx.lineWidth=2.5;
   ctx.beginPath();ctx.rect(-B.r,-B.r*0.7,B.r*2,B.r*1.4);ctx.fill();ctx.stroke();
   ctx.fillStyle='#8d9aa8';for(let i=-1;i<=1;i++){ctx.fillRect(i*18-6,-B.r*0.7-6,12,6);ctx.fillRect(i*18-6,B.r*0.7,12,6)}
   ctx.fillStyle=C.accent;ctx.beginPath();ctx.arc(0,0,9,0,Math.PI*2);ctx.fill();
@@ -1347,13 +1424,13 @@ function draw(){
   S.builders.forEach(bu=>drawCable(bu,C.cable));
   // troops
   S.troops.forEach(t=>{const sel=S.sel.troops.has(t.id);if(sel){ctx.strokeStyle=C.ally;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(t.x,t.y,t.r+5,0,Math.PI*2);ctx.stroke()}
-    ctx.fillStyle=C.ally;ctx.beginPath();ctx.arc(t.x,t.y,t.r,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle=t.flashT>0?'#fff':C.ally;ctx.beginPath();ctx.arc(t.x,t.y,t.r,0,Math.PI*2);ctx.fill();
     if(t.hp<t.maxHp)hpbar(t.x,t.y-14,16,t.hp/t.maxHp);
     if(t.state==='cut')drawCutGlyph(t.x,t.y);
     if(sel&&t.dest){ctx.strokeStyle='rgba(94,200,255,0.35)';ctx.beginPath();ctx.moveTo(t.x,t.y);ctx.lineTo(t.dest.x,t.dest.y);ctx.stroke()}});
   // harvesters
   S.harvesters.forEach(h=>{const sel=S.sel.harv.has(h.id);if(sel){ctx.strokeStyle=C.harv;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(h.x,h.y,h.r+5,0,Math.PI*2);ctx.stroke()}
-    ctx.fillStyle=C.harv;ctx.fillRect(h.x-h.r,h.y-h.r,h.r*2,h.r*2);
+    ctx.fillStyle=h.flashT>0?'#fff':C.harv;ctx.fillRect(h.x-h.r,h.y-h.r,h.r*2,h.r*2);
     if(!h.autoLoop){ctx.strokeStyle='rgba(255,255,255,0.6)';ctx.lineWidth=1;ctx.strokeRect(h.x-h.r,h.y-h.r,h.r*2,h.r*2)}
     if(h.carry>0){ctx.fillStyle=C.dat;ctx.beginPath();ctx.arc(h.x+6,h.y-6,3+h.carry/6,0,Math.PI*2);ctx.fill()}
     if(h.hp<h.maxHp)hpbar(h.x,h.y-14,16,h.hp/h.maxHp);
@@ -1361,19 +1438,23 @@ function draw(){
     if(sel&&h.dest){ctx.strokeStyle='rgba(232,147,92,0.35)';ctx.beginPath();ctx.moveTo(h.x,h.y);ctx.lineTo(h.dest.x,h.dest.y);ctx.stroke()}});
   // builders
   S.builders.forEach(bu=>{const sel=S.sel.bu.has(bu.id);if(sel){ctx.strokeStyle=C.builder;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(bu.x,bu.y,bu.r+5,0,Math.PI*2);ctx.stroke()}
-    ctx.fillStyle=C.builder;ctx.beginPath();ctx.moveTo(bu.x,bu.y-bu.r);ctx.lineTo(bu.x+bu.r,bu.y+bu.r*0.7);ctx.lineTo(bu.x-bu.r,bu.y+bu.r*0.7);ctx.closePath();ctx.fill();
+    ctx.fillStyle=bu.flashT>0?'#fff':C.builder;ctx.beginPath();ctx.moveTo(bu.x,bu.y-bu.r);ctx.lineTo(bu.x+bu.r,bu.y+bu.r*0.7);ctx.lineTo(bu.x-bu.r,bu.y+bu.r*0.7);ctx.closePath();ctx.fill();
     if(bu.mode==='repair'){ctx.strokeStyle='#fff';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(bu.x-4,bu.y+2);ctx.lineTo(bu.x+4,bu.y+2);ctx.moveTo(bu.x,bu.y-2);ctx.lineTo(bu.x,bu.y+6);ctx.stroke()}
     if(bu.hp<bu.maxHp)hpbar(bu.x,bu.y-14,16,bu.hp/bu.maxHp);
     if(bu.state==='cut')drawCutGlyph(bu.x,bu.y);
     if(sel&&bu.dest){ctx.strokeStyle='rgba(79,209,197,0.35)';ctx.beginPath();ctx.moveTo(bu.x,bu.y);ctx.lineTo(bu.dest.x,bu.dest.y);ctx.stroke()}});
   // enemies (only visible)
-  S.enemies.forEach(e=>{if(!debugNoFog&&!visible(e))return;const a=e.ang;ctx.fillStyle=e.kind==='roam'?'#d9775f':e.kind==='saboteur'?C.cable:C.enemy;ctx.beginPath();
+  S.enemies.forEach(e=>{if(!debugNoFog&&!visible(e))return;const a=e.ang;ctx.fillStyle=e.flashT>0?'#fff':(e.kind==='roam'?'#d9775f':e.kind==='saboteur'?C.cable:C.enemy);ctx.beginPath();
     ctx.moveTo(e.x+Math.cos(a)*e.r*1.3,e.y+Math.sin(a)*e.r*1.3);ctx.lineTo(e.x+Math.cos(a+2.5)*e.r,e.y+Math.sin(a+2.5)*e.r);ctx.lineTo(e.x+Math.cos(a-2.5)*e.r,e.y+Math.sin(a-2.5)*e.r);ctx.closePath();ctx.fill();
     if(e.hp<e.maxHp)hpbar(e.x,e.y-e.r-8,e.r*2+4,e.hp/e.maxHp)});
   // tracers
   S.tracers.forEach(t=>{ctx.strokeStyle=t.col;ctx.globalAlpha=t.t/0.12;ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(t.x1,t.y1);ctx.lineTo(t.x2,t.y2);ctx.stroke()});ctx.globalAlpha=1;
+  // particles (impact sparks, kill/vein/destruction bursts)
+  S.particles.forEach(p=>{ctx.globalAlpha=Math.max(0,1-p.t/p.life);ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);ctx.fill()});ctx.globalAlpha=1;
   // fog
   if(!debugNoFog){ctx.imageSmoothingEnabled=true;ctx.drawImage(fogC,0,0,W,H)}
+  // floating reward text (drawn above fog so it's always legible)
+  S.floaters.forEach(f=>{ctx.globalAlpha=Math.max(0,1-f.t/f.life);ctx.fillStyle=f.col;ctx.font='700 13px '+css('--mono');ctx.textAlign='center';ctx.fillText(f.text,f.x,f.y)});ctx.globalAlpha=1;
   // map edge
   ctx.strokeStyle=C.line;ctx.lineWidth=3/cam.z;ctx.strokeRect(0,0,W,H);
   // build preview
