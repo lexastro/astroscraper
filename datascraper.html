@@ -218,9 +218,26 @@ function reset(){
   closeHoles(S.base.x,S.base.y);
   terrainCv=buildTerrainCanvas();
 
-  // Dat Crystal deposits: plain scattered single nodes out on the Rim, same as ever.
+  // Dat Crystal deposits: the Rim is thick with small, low-yield nodes — common and unremarkable,
+  // just enough to keep the economy moving without needing to push deeper right away.
   const spots=[[700,2850],[350,2650],[1000,3250],[2800,2700],[3100,2000],[3200,1200],[600,1200],[3100,400],[400,400],[1800,500]];
-  spots.forEach(([x,y])=>{const p=nearestPlain(x+rnd(-80,80),y+rnd(-80,80));S.nodes.push({x:p.x,y:p.y,amt:Math.round(rnd(45,90)),max:90,found:false})});
+  spots.forEach(([x,y])=>{const p=nearestPlain(x+rnd(-80,80),y+rnd(-80,80));S.nodes.push({x:p.x,y:p.y,amt:Math.round(rnd(20,38)),max:38,found:false})});
+  // more of them scattered anywhere out past the Dense Field ring
+  for(let i=0;i<10;i++){
+    const ang=rnd(0,Math.PI*2), rad=rnd(DENSE_R+60,1900);
+    const x=Math.max(120,Math.min(W-120,EPI.x+Math.cos(ang)*rad)), y=Math.max(120,Math.min(H-120,EPI.y+Math.sin(ang)*rad));
+    const p=nearestPlain(x,y);
+    S.nodes.push({x:p.x,y:p.y,amt:Math.round(rnd(20,38)),max:38,found:false});
+  }
+  // a few are always planted right by the Bastion's starting spot — inside the radius enemies
+  // won't spawn in — so the first harvesters have a safe, close deposit instead of immediately
+  // setting off toward danger.
+  for(let i=0;i<4;i++){
+    const ang=rnd(0,Math.PI*2), rad=rnd(120,300);
+    const x=Math.max(60,Math.min(W-60,S.base.x+Math.cos(ang)*rad)), y=Math.max(60,Math.min(H-60,S.base.y+Math.sin(ang)*rad));
+    const p=nearestPlain(x,y);
+    S.nodes.push({x:p.x,y:p.y,amt:Math.round(rnd(20,38)),max:38,found:false});
+  }
   // In the Dense Field deposits are rarer to find but pay off big: a handful of tight clusters
   // instead of nodes scattered everywhere.
   DENSE_CLUSTERS.forEach(([cx,cy])=>{
