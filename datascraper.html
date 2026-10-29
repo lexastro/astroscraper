@@ -1119,9 +1119,13 @@ function update(dt){
   S.harvesters.forEach(h=>{
     const factor=terrainAt(h.x,h.y)===1?MUD_MULT:1;
     if(h.autoLoop&&h.state==='idle'){
+      // only chase deposits the player has actually scouted — never beeline for one still
+      // hidden under fog. With nothing known yet, head back and wait near the Bastion instead
+      // of idling wherever it happens to be, ready to move the moment one turns up.
       let best=null,bd=Infinity;
-      S.nodes.forEach(n=>{if(n.amt<=0)return;const d=dist(h,n);if(d<bd){bd=d;best=n}});
+      S.nodes.forEach(n=>{if(n.amt<=0||!n.found)return;const d=dist(h,n);if(d<bd){bd=d;best=n}});
       if(best){h.node=best;h.state='harvest'}
+      else if(dist(h,B)>B.r+80){h.dest={x:B.x,y:B.y};h.state='move'}
     }
     if(h.state==='move'&&h.dest){
       const aim=waypointFor(h,h.dest.x,h.dest.y);
