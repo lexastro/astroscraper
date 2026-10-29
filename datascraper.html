@@ -261,7 +261,7 @@ function genTerrain(){
     }
   }
   blob(1,16,3,7,0.85); // mud patches
-  blob(2,13,2.5,6,0.8); // rock outcrops (override mud)
+  blob(2,16,3,7,0.85); // rock outcrops (override mud) — as common as mud, so picking a route through is a real puzzle
 }
 function clearDisk(x,y,r){
   const cx=Math.floor(x/TCELL),cy=Math.floor(y/TCELL),cr=Math.ceil(r/TCELL);
