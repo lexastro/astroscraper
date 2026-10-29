@@ -113,7 +113,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <kbd>WASD</kbd> or edge-drag (middle mouse) pans · scroll zooms<br>
   <kbd>1</kbd> wall · <kbd>2</kbd> turret · <kbd>3</kbd> relay · <kbd>L</kbd> begin drilling · <kbd>R</kbd> resume harvester auto-gather · <kbd>G</kbd> toggle builder repair mode · <kbd>U</kbd> select builders · <kbd>Esc</kbd> cancel<br>
   <b>The zone:</b> a Black Flame disaster site radiates out from a dead epicenter. The outer Rim is mild and wireless works fine. Push into the violet Dense Field and then the red Flame Core and both the crystal and the monsters get a lot more serious.<br>
-  <b>Tether:</b> beyond a short wireless range around the Bastion (or a built Relay), squads/harvesters/builders can only take orders through a physical cable that pays out behind them as they walk. Monsters that get close to a cable chew through it — a severed unit goes dark (no orders, autonomous retreat toward the nearest anchor) until it reconnects. Cable only runs so far (400 units) — at the end of it a unit just stops; build a Relay further out to extend reach. The Bastion itself is the anchor, so driving it toward a deployed cable reels the slack back in and frees up range.<br>
+  <b>Tether:</b> beyond a short wireless range around the Bastion (or a built Relay), squads/harvesters/builders can only take orders through a physical cable that pays out behind them as they walk. Monsters that get close to a cable chew through it — a severed unit goes dark (no orders, autonomous retreat toward the nearest anchor) until it reconnects. Cable only runs so far (400 units) — at the end of it a unit just stops; build a Relay further out to extend reach. The Bastion itself is the anchor, so driving it toward a deployed cable reels the slack back in and frees up range. A Relay needs the same live tether back to the network to work at all — chain them (each can be built within range of the Bastion <i>or</i> of an already-finished Relay) and if one in the chain gets severed, everything past it goes dark too until the line is restored.<br>
   <b>Drilling:</b> park the Bastion on a found vein's marker and press <kbd>L</kbd>. There's no fixed prep phase — throttle the drill (Slow/Normal/Fast, shown once locked in) to trade speed against how much noise it makes. Draining the marked Flame Core vein wins the run.<br>
   The Bastion fires on nearby enemies while mobile, but goes quiet the moment it locks down to drill.<br>
   <b>Harvesters</b> carry no weapons. Left alone they loop automatically: find the nearest Dat Crystal deposit, haul it home, repeat. A manual order pauses that loop until you select them and press Resume Auto-Gather (or <kbd>R</kbd>).<br>
@@ -443,7 +443,10 @@ function waypointFor(u,tx,ty){
 }
 
 // ---------- tether ----------
-function anchorsList(){return [S.base,...S.relays.filter(r=>r.built)]}
+// Only a relay that's itself tethered back to the network counts as an anchor for others —
+// a relay cut off from the Bastion (or a chain back to it) is just dead weight until it
+// reconnects.
+function anchorsList(){return [S.base,...S.relays.filter(r=>r.built&&r.tetherOk)]}
 function wirelessTol(band){return band==='rim'?Infinity:band==='dense'?WIRELESS_TOL_DENSE:WIRELESS_TOL_CORE}
 function pointSegDist(p,a,b){
   const dx=b.x-a.x,dy=b.y-a.y, len2=dx*dx+dy*dy;
@@ -473,6 +476,27 @@ function tetherPass(units,speed,dt){
     if(!u.trail){u.trail=[{x:bestA.x,y:bestA.y}];u.cableHp=CABLE_HP_MAX}
     spoolTrail(u,bestA);
     u.tetherOk=true;
+  });
+}
+// Relays need their own live line back to the network — either direct wireless range of the
+// Bastion/another tethered relay, or a physical cable to one, same as any other unit. Unlike a
+// troop, a relay can't walk itself back into range once cut, so it just sits dark until the
+// network comes back to it (another anchor moves/gets built close enough) or its cable regrows
+// because something upstream reeled in and shortened the run back below MAX_CABLE_LEN.
+function relayTetherPass(){
+  S.relays.forEach(r=>{
+    if(!r.built)return;
+    const anchors=[S.base,...S.relays.filter(o=>o!==r&&o.built&&o.tetherOk)];
+    const band=bandAt(r.x,r.y);
+    const tol=wirelessTol(band);
+    let bestA=null,nd=Infinity;
+    anchors.forEach(a=>{const d=dist(r,a);if(d<nd){nd=d;bestA=a}});
+    if(nd<=tol){r.state=null;r.tetherOk=true;r.trail=null;r.cableLen=0;r.cableMaxed=false;return}
+    if(r.state==='cut')return; // can't walk back — waits for the network to come to it
+    if(!bestA){r.tetherOk=false;return}
+    if(!r.trail){r.trail=[{x:bestA.x,y:bestA.y}];r.cableHp=CABLE_HP_MAX}
+    spoolTrail(r,bestA);
+    r.tetherOk=r.cableLen<=MAX_CABLE_LEN;
   });
 }
 function trailLen(trail){let L=0;for(let i=0;i+1<trail.length;i++)L+=dist(trail[i],trail[i+1]);return L}
@@ -743,9 +767,13 @@ function rightClick(w){
     });
   }
 }
+function inBuildRange(w){
+  if(dist(w,S.base)<=BUILD_R)return true;
+  return buildMode==='relay'&&S.relays.some(r=>r.built&&dist(w,r)<=BUILD_R);
+}
 function tryBuild(w){
   if(!S.base.locked&&buildMode!=='relay'){msg('Lock down the Bastion (begin drilling) before building.');return}
-  if(dist(w,S.base)>BUILD_R){msg('Build inside the Bastion\'s dashed ring.');return}
+  if(!inBuildRange(w)){msg('Build inside the Bastion\'s dashed ring.');return}
   if(terrainAt(w.x,w.y)===2){msg('Cannot build on solid rock.');return}
   if(S.dat<COST[buildMode]){msg('Not enough Dat Crystal. Send harvesters to a deposit.');return}
   if(buildMode==='wall'){const gx=Math.floor(w.x/CELL),gy=Math.floor(w.y/CELL),k=key(gx,gy);const cx=gx*CELL+CELL/2,cy=gy*CELL+CELL/2;
@@ -761,7 +789,8 @@ function tryBuild(w){
   }else{
     if(dist(w,S.base)<BASE_R+14||S.turrets.some(t=>dist(t,w)<26)||S.relays.some(r=>dist(r,w)<40))return;
     const k=key(Math.floor(w.x/CELL),Math.floor(w.y/CELL));if(S.walls.has(k))return;
-    S.relays.push({x:w.x,y:w.y,hp:RELAY_HP,maxHp:RELAY_HP,kind:'relay',built:false,buildT:0,buildTotal:RELAY_BUILD_T,builder:null,repairer:null});S.dat-=COST.relay;
+    S.relays.push({x:w.x,y:w.y,hp:RELAY_HP,maxHp:RELAY_HP,kind:'relay',built:false,buildT:0,buildTotal:RELAY_BUILD_T,builder:null,repairer:null,
+      state:null,tetherOk:false,trail:null,cableHp:0,cableLen:0,cableMaxed:false});S.dat-=COST.relay;
     msg('Relay queued — a builder needs to finish it.');
   }
   updateBuildBar();
@@ -858,6 +887,8 @@ function update(dt){
     if(best&&B.gunCd<=0){damageEnemy(best,BASE_GUN_DMG);tracer(B,best,C.accent);B.gunCd=BASE_GUN_CD}
   }
 
+  // relays first — mobile units' anchor list depends on which relays are currently tethered
+  relayTetherPass();
   // tether maintenance + autonomous retreat for already-cut units, ahead of each type's own loop
   tetherPass(S.troops,TROOP_SPEED,dt);
   tetherPass(S.harvesters,HARV_SPEED,dt);
@@ -1032,7 +1063,7 @@ function update(dt){
     }}
 
   cableLenPass(allies);
-  cableSeverPass(allies,dt);
+  cableSeverPass(allies.concat(S.relays.filter(r=>r.built)),dt);
 
   // deaths
   S.enemies=S.enemies.filter(e=>{if(e.hp<=0){if(Math.random()<0.25){S.dat+=1;updateBuildBar()}return false}return true});
@@ -1099,6 +1130,7 @@ function draw(){
     ctx.fillStyle='#0b0e12';ctx.font='500 9px '+css('--mono');ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(n.amt,n.x,n.y)});
   // build ring
   ctx.setLineDash([6,10]);ctx.strokeStyle='rgba(242,182,60,0.35)';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(B.x,B.y,BUILD_R,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
+  if(buildMode==='relay')S.relays.forEach(r=>{if(!r.built)return;ctx.setLineDash([6,10]);ctx.strokeStyle='rgba(242,182,60,0.35)';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(r.x,r.y,BUILD_R,0,Math.PI*2);ctx.stroke();ctx.setLineDash([])});
   // walls
   S.walls.forEach(w=>{
     if(!w.built){
@@ -1138,10 +1170,13 @@ function draw(){
       ctx.fillStyle=C.builder;ctx.fillRect(r.x-11,r.y+15,22*(r.buildT/r.buildTotal),3);
       return;
     }
-    const pulse=0.5+0.5*Math.sin(S.t*2.2);
-    ctx.strokeStyle=C.cable;ctx.globalAlpha=0.25*pulse;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(r.x,r.y,WIRELESS_TOL_DENSE,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;
-    ctx.fillStyle='#3b4652';ctx.strokeStyle=C.cable;ctx.lineWidth=2;
+    if(r.tetherOk){
+      const pulse=0.5+0.5*Math.sin(S.t*2.2);
+      ctx.strokeStyle=C.cable;ctx.globalAlpha=0.25*pulse;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(r.x,r.y,WIRELESS_TOL_DENSE,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;
+    }
+    ctx.fillStyle=r.tetherOk?'#3b4652':'#2a2d31';ctx.strokeStyle=r.tetherOk?C.cable:C.enemy;ctx.lineWidth=2;
     ctx.beginPath();ctx.moveTo(r.x,r.y-12);ctx.lineTo(r.x+9,r.y+8);ctx.lineTo(r.x-9,r.y+8);ctx.closePath();ctx.fill();ctx.stroke();
+    if(!r.tetherOk)drawCutGlyph(r.x,r.y);
     if(r.hp<r.maxHp)hpbar(r.x,r.y-20,20,r.hp/r.maxHp);
   });
   // base
@@ -1156,6 +1191,7 @@ function draw(){
   if(S.sel.base){ctx.strokeStyle=C.ally;ctx.lineWidth=1.5;ctx.setLineDash([4,4]);ctx.beginPath();ctx.arc(B.x,B.y,B.r+10,0,Math.PI*2);ctx.stroke();ctx.setLineDash([])}
   if(B.dest){ctx.strokeStyle='rgba(94,200,255,0.5)';ctx.setLineDash([6,6]);ctx.beginPath();ctx.moveTo(B.x,B.y);ctx.lineTo(B.dest.x,B.dest.y);ctx.stroke();ctx.setLineDash([])}
   // cables (drawn under the units they belong to)
+  S.relays.forEach(r=>{if(r.built)drawCable(r,C.cable)});
   S.troops.forEach(t=>drawCable(t,C.cable));
   S.harvesters.forEach(h=>drawCable(h,C.cable));
   S.builders.forEach(bu=>drawCable(bu,C.cable));
@@ -1191,7 +1227,7 @@ function draw(){
   // map edge
   ctx.strokeStyle=C.line;ctx.lineWidth=3/cam.z;ctx.strokeRect(0,0,W,H);
   // build preview
-  if(buildMode){const ok=(B.locked||buildMode==='relay')&&dist({x:mouse.wx,y:mouse.wy},B)<=BUILD_R&&terrainAt(mouse.wx,mouse.wy)!==2&&S.dat>=COST[buildMode];ctx.globalAlpha=0.6;
+  if(buildMode){const ok=(B.locked||buildMode==='relay')&&inBuildRange({x:mouse.wx,y:mouse.wy})&&terrainAt(mouse.wx,mouse.wy)!==2&&S.dat>=COST[buildMode];ctx.globalAlpha=0.6;
     if(buildMode==='wall'){const gx=Math.floor(mouse.wx/CELL)*CELL,gy=Math.floor(mouse.wy/CELL)*CELL;ctx.fillStyle=ok?'#8d9aa8':C.enemy;ctx.fillRect(gx+1,gy+1,CELL-2,CELL-2)}
     else{const rng=buildMode==='turret'?TURRET_RANGE:WIRELESS_TOL_DENSE;ctx.fillStyle=ok?C.accent:C.enemy;ctx.beginPath();ctx.arc(mouse.wx,mouse.wy,11,0,Math.PI*2);ctx.fill();ctx.strokeStyle=ok?C.accent:C.enemy;ctx.lineWidth=1;ctx.setLineDash([4,6]);ctx.beginPath();ctx.arc(mouse.wx,mouse.wy,rng,0,Math.PI*2);ctx.stroke();ctx.setLineDash([])}
     ctx.globalAlpha=1}
