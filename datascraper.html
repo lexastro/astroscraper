@@ -148,9 +148,9 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 (() => {
 'use strict';
 // ---------- constants ----------
-const W=3600,H=3600, CELL=24;
-const EPI={x:W/2,y:H/2};
-const CORE_R=450, DENSE_R=1250;
+const W=4320,H=4320, CELL=24;
+const EPI={x:W/2,y:700};
+const CORE_R=540, DENSE_R=1500;
 const BASE_R=30, BASE_SPEED=42, BUILD_R=270, BASE_VISION=450;
 const TROOP_R=7, TROOP_SPEED=125, TROOP_VISION=340, TROOP_RANGE=165, TROOP_DMG=7, TROOP_CD=0.45;
 const HARV_R=8, HARV_SPEED=105, HARV_VISION=280, CARRY=24;
@@ -162,7 +162,7 @@ const RELAY_HP=100;
 const BASE_GUN_RANGE=260, BASE_GUN_DMG=18, BASE_GUN_CD=0.5;
 const WALL_HP=220;
 const COST={wall:5,turret:50,relay:15,harvester:20,troop:30,builder:75};
-const ZONE_R=170;
+const ZONE_R=200;
 const TCELL=60, TGX=Math.ceil(W/TCELL), TGY=Math.ceil(H/TCELL), MUD_MULT=0.55;
 // Tether: wireless works freely on the rim; in the dense field you get a short leash around any
 // anchor (Bastion or built Relay); in the core you always need a live physical cable.
@@ -192,15 +192,15 @@ const SABOTEUR_INTERVAL={rim:40,dense:26,core:16}, SABOTEUR_SPAWN_DIST=500, SABO
 const DRILL_DAT_COST=3, CONDENSED_RATE=0.12;
 // Veins scattered by band: the deeper ones pay more. The last one (contract) is the win condition.
 const VEIN_DEFS=[
-  {x:900,y:2700,richness:40},
-  {x:2900,y:900,richness:55},
-  {x:1050,y:1050,richness:75},
-  {x:2550,y:2500,richness:90},
-  {x:1800,y:1500,richness:140,contract:true},
+  {x:1460,y:3200,richness:40},
+  {x:3400,y:2350,richness:55},
+  {x:1300,y:1550,richness:75},
+  {x:3000,y:1450,richness:90},
+  {x:2160,y:350,richness:140,contract:true},
 ];
 // Dense Field Dat deposits come in a few rich clusters rather than many scattered nodes — rarer
 // to find, but worth parking a harvester squad on for a while once you do.
-const DENSE_CLUSTERS=[[1150,2100],[1900,2500],[2300,700],[1700,1300]];
+const DENSE_CLUSTERS=[[1750,1150],[2570,1150],[1650,2000],[2670,2000]];
 // A found vein's loot tier decays one step every TIER_DECAY_T seconds it sits undrilled, down
 // to its band's floor — sitting on a discovered vein instead of moving to drill it is the thing
 // this is meant to punish. The clock only freezes while the vein is actively, unpaused,
@@ -281,7 +281,7 @@ function mkBuilder(id){return {id,x:S.base.x+rnd(-30,30),y:S.base.y+rnd(-30,30),
 
 function reset(){
   S={t:0,dat:40,living:0,condensed:0,over:null,
-    base:{x:400,y:3200,hp:900,maxHp:900,r:BASE_R,dest:null,locked:false,gunCd:0},
+    base:{x:W/2,y:H-400,hp:900,maxHp:900,r:BASE_R,dest:null,locked:false,gunCd:0},
     troops:[],harvesters:[],builders:[],relays:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],shards:[],
     veins:[],activeVein:null,throttleMul:1,ambientT:30,
     particles:[],floaters:[],shake:{t:0,dur:0,mag:0},
@@ -312,7 +312,7 @@ function reset(){
 
   // Dat Crystal deposits: the Rim is thick with small, low-yield nodes — common and unremarkable,
   // just enough to keep the economy moving without needing to push deeper right away.
-  const spots=[[700,2850],[350,2650],[1000,3250],[2800,2700],[3100,2000],[3200,1200],[600,1200],[3100,400],[400,400],[1800,500]];
+  const spots=[[1800,3400],[1400,2850],[2550,3400],[2900,2850],[700,2200],[3600,2200],[600,1300],[3720,1300],[1500,3900],[2800,3900]];
   spots.forEach(([x,y])=>{const p=nearestPlain(x+rnd(-80,80),y+rnd(-80,80));S.nodes.push({x:p.x,y:p.y,amt:Math.round(rnd(20,38)),max:38,found:false})});
   // more of them scattered anywhere out past the Dense Field ring
   for(let i=0;i<10;i++){
