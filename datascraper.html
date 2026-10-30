@@ -773,6 +773,19 @@ cv.addEventListener('pointerup',e=>{
       else if(dist(S.base,w)<S.base.r+10){S.sel.base=true;prodMenuOpen=true}}
   }
 });
+cv.addEventListener('dblclick',e=>{
+  const w=toWorld(e.clientX,e.clientY);
+  const t=S.troops.find(t=>dist(t,w)<t.r+8);
+  const h=!t&&S.harvesters.find(h=>dist(h,w)<h.r+8);
+  const bu=!t&&!h&&S.builders.find(bu=>bu.state!=='dock'&&dist(bu,w)<bu.r+8);
+  if(!t&&!h&&!bu)return;
+  const add=e.shiftKey; if(!add){S.sel.troops.clear();S.sel.harv.clear();S.sel.bu.clear();S.sel.base=false;closeProdMenu()}
+  // squads vs other combat units (e.g. grenadiers) are distinct double-click groups, even though
+  // they share one "Squads" selection button/hotkey (T) and one production category.
+  if(t){const kind=t.kind||'troop';S.troops.forEach(x=>{if((x.kind||'troop')===kind)S.sel.troops.add(x.id)})}
+  else if(h)S.harvesters.forEach(x=>S.sel.harv.add(x.id));
+  else if(bu)S.builders.forEach(x=>S.sel.bu.add(x.id));
+});
 cv.addEventListener('wheel',e=>{e.preventDefault();const w0=toWorld(e.clientX,e.clientY);cam.z=Math.min(2.2,Math.max(0.35,cam.z*(e.deltaY>0?0.9:1.1)));const w1=toWorld(e.clientX,e.clientY);cam.x+=w0.x-w1.x;cam.y+=w0.y-w1.y;clampCam()},{passive:false});
 addEventListener('keydown',e=>{
   if(e.target.tagName==='INPUT')return; keys[e.key.toLowerCase()]=true; keys[e.key]=true;
