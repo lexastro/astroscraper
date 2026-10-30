@@ -153,6 +153,10 @@ const TROOP_R=7, TROOP_SPEED=125, TROOP_VISION=340, TROOP_RANGE=165, TROOP_DMG=7
 // Grenadier: a squad variant that lobs an explosive round instead of firing instantly — tankier
 // and slower-firing than a plain Squad, but the round splashes every enemy near where it lands.
 const GREN_HP=100, GREN_RANGE=190, GREN_DMG=14, GREN_CD=1.3, GREN_SPLASH_R=70, GREN_PROJ_SPEED=320;
+// Big Guns (reward card): a Bastion-mounted artillery piece — longer range and a bigger blast
+// than a Grenadier's round, but a much slower fire rate, and it will only ever fire on an enemy
+// the player has actually revealed (visible()), not just anything that wanders into range.
+const BIGGUN_RANGE=460, BIGGUN_CD=2.4, BIGGUN_DMG=22, BIGGUN_SPLASH_R=115, BIGGUN_PROJ_SPEED=260;
 const HARV_R=8, HARV_SPEED=105, HARV_VISION=280, CARRY=24;
 const BUILDER_R=7, BUILDER_SPEED=100, BUILDER_VISION=200;
 const WALL_BUILD_T=1, TURRET_BUILD_T=5, RELAY_BUILD_T=3, DEPOT_BUILD_T=4, REPAIR_HPS=25, REPAIR_DAT_PER_SEC=1;
@@ -249,30 +253,42 @@ const TIER_DECAY_T=60;
 // never offer a Legendary card — there's no separate restriction to maintain here, the existing
 // tier-decay ladder does it for free.
 const TIER_TRADE_DAT={Common:60,Rare:140,Epic:260,Legendary:450};
+// Spawns n fresh Squads / Grenadiers with guaranteed-unique ids, for the recruit-style reward
+// cards below.
+function spawnFreeTroops(n,kind){for(let i=0;i<n;i++)S.troops.push(mkTroop(Date.now()+Math.floor(Math.random()*1000)+i,kind))}
 const UPGRADES={
   Common:[
-    {id:'carry1',name:'Reinforced Haulers',desc:'Harvester carry capacity +25%.',apply:()=>{S.mods.carryMult*=1.25}},
-    {id:'dmg1',name:'Battle Drills',desc:'Squad damage +20%.',apply:()=>{S.mods.troopDmgMult*=1.2}},
-    {id:'spd1',name:'Quick March',desc:'Harvester & Builder move speed +20%.',apply:()=>{S.mods.moveSpeedMult*=1.2}},
+    {id:'carry1',name:'Reinforced Haulers I',desc:'Harvester carry capacity +25%.',apply:()=>{S.mods.carryMult*=1.25}},
+    {id:'dmg1',name:'Battle Drills I',desc:'Squad damage +10%.',apply:()=>{S.mods.troopDmgMult*=1.1}},
+    {id:'grenrate1',name:'Lubed Tubes I',desc:'Grenadier fire rate +10%.',apply:()=>{S.mods.grenFireRateMult*=1.1}},
+    {id:'grensplash1',name:'Blast Power I',desc:'Explosive blast radius +10%.',apply:()=>{S.mods.grenSplashMult*=1.1}},
+    {id:'spd1',name:'Quick March',desc:'Harvester & Builder move speed +10%.',apply:()=>{S.mods.moveSpeedMult*=1.1}},
     {id:'vis1',name:"Surveyor's Eye",desc:'Vision radius +20% for every unit.',apply:()=>{S.mods.visionMult*=1.2}},
+    {id:'relay1',name:'Prefab Relay',desc:'Your next 5 Relays cost no Dat Crystal.',apply:()=>{S.mods.freeRelayCharges+=5}},
   ],
   Rare:[
+    {id:'carry2',name:'Reinforced Haulers II',desc:'Harvester carry capacity +50%.',apply:()=>{S.mods.carryMult*=1.5}},
+    {id:'dmg2',name:'Battle Drills II',desc:'Squad damage +20%.',apply:()=>{S.mods.troopDmgMult*=1.2}},
+    {id:'grenrate2',name:'Lubed Tubes II',desc:'Grenadier fire rate +20%.',apply:()=>{S.mods.grenFireRateMult*=1.2}},
+    {id:'grensplash2',name:'Blast Power II',desc:'Explosive blast radius +20%.',apply:()=>{S.mods.grenSplashMult*=1.2}},
     {id:'tol1',name:'Signal Boost',desc:'Wireless tether range +35% (Bastion & Relays).',apply:()=>{S.mods.relayTolMult*=1.35}},
     {id:'burn1',name:'Efficient Drill',desc:'Drill Dat Crystal burn rate −25%.',apply:()=>{S.mods.drillBurnMult*=0.75}},
     {id:'cable1',name:'Spooled Cable',desc:'Max tether cable length +150.',apply:()=>{S.mods.cableLenAdd+=150}},
-    {id:'recruit1',name:'Fresh Recruit',desc:'+1 free Squad, right now.',apply:()=>{S.troops.push(mkTroop(Date.now()+Math.floor(Math.random()*1000)))}},
+    {id:'recruit1',name:'Fresh Recruits',desc:'+3 free Squads, right now.',apply:()=>{spawnFreeTroops(3,'troop')}},
+    {id:'biggun',name:'Big Guns',desc:"Mounts an artillery piece on the Bastion — slower fire rate than a Grenadier, but longer range and a bigger blast. Only ever fires on enemies you've actually revealed.",apply:()=>{S.mods.bigGuns=true}},
   ],
   Epic:[
-    {id:'relay1',name:'Prefab Relay',desc:'Your next Relay costs no Dat Crystal.',apply:()=>{S.mods.freeRelayCharges+=1}},
-    {id:'cond1',name:'Refined Extraction',desc:'Condensed Crystal rate +35%.',apply:()=>{S.mods.condensedMult*=1.35}},
-    {id:'cablehp1',name:'Reinforced Cabling',desc:'All tether cable HP +75%.',apply:()=>{S.mods.cableHpMult*=1.75}},
-    {id:'carry2',name:'Double Haul',desc:'Harvester carry capacity +50% more.',apply:()=>{S.mods.carryMult*=1.5}},
+    {id:'carry3',name:'Reinforced Haulers III',desc:'Harvester carry capacity +75%.',apply:()=>{S.mods.carryMult*=1.75}},
+    {id:'hardscopes',name:'Hard Scopes',desc:"Squad vision and firing range +20% (stacks with Surveyor's Eye).",apply:()=>{S.mods.squadRangeMult*=1.2}},
+    {id:'dmg3',name:'Battle Drills III',desc:'Squad damage +30%.',apply:()=>{S.mods.troopDmgMult*=1.3}},
+    {id:'tactical',name:'Tactical Reinforcements',desc:'+5 free Squads, +3 free Grenadiers, right now.',apply:()=>{spawnFreeTroops(5,'troop');spawnFreeTroops(3,'grenadier')}},
+    {id:'targeting',name:'Targeting Computer',desc:'The Bastion gun keeps firing while drilling instead of going quiet.',apply:()=>{S.mods.bastionShootWhileDrilling=true}},
   ],
   Legendary:[
+    {id:'carry4',name:'Reinforced Haulers IV',desc:'Harvester carry capacity +100%.',apply:()=>{S.mods.carryMult*=2.0}},
     {id:'overdrive',name:'Overdrive Capacitor',desc:'Fast throttle is dramatically faster (burns and pays out more to match).',apply:()=>{S.mods.fastBonus+=1.0}},
-    {id:'cablehp2',name:'Hardened Network',desc:'All tether cable HP +150% more.',apply:()=>{S.mods.cableHpMult*=2.5}},
+    {id:'cablehp2',name:'Hardened Network',desc:'All tether cable HP +150%.',apply:()=>{S.mods.cableHpMult*=2.5}},
     {id:'living1',name:'Rich Vein Memory',desc:'Living Crystal yield ×2 for the rest of the run.',apply:()=>{S.mods.livingMult*=2}},
-    {id:'map1',name:'Zone Mapping',desc:'Permanently reveals a wide area around the Bastion.',apply:()=>{revealCircle(S.base.x,S.base.y,1400)}},
   ],
 };
 
@@ -329,7 +345,7 @@ function corruptUnit(u,type,label){
 
 function reset(){
   S={t:0,dat:40,living:0,condensed:0,over:null,
-    base:{x:W/2,y:H-400,hp:900,maxHp:900,r:BASE_R,dest:null,locked:false,gunCd:0,pingCd:0},
+    base:{x:W/2,y:H-400,hp:900,maxHp:900,r:BASE_R,dest:null,locked:false,gunCd:0,bigGunCd:0,pingCd:0},
     troops:[],harvesters:[],builders:[],relays:[],depots:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],shards:[],nades:[],
     veins:[],activeVein:null,throttleMul:1,ambientT:30,
     minedWindowAmt:0,minedWindowT:0,offZonePatrolCd:OFFZONE_MINE_WINDOW,
@@ -337,7 +353,8 @@ function reset(){
     // run-only upgrade modifiers — every stat multiplier/bonus a reward card can grant, all
     // reset back to baseline (1 / 0 / false) by a fresh reset(), never persisted between runs.
     mods:{carryMult:1,troopDmgMult:1,moveSpeedMult:1,visionMult:1,relayTolMult:1,drillBurnMult:1,
-      cableLenAdd:0,cableHpMult:1,condensedMult:1,livingMult:1,fastBonus:0,freeRelayCharges:0},
+      cableLenAdd:0,cableHpMult:1,condensedMult:1,livingMult:1,fastBonus:0,freeRelayCharges:0,
+      grenFireRateMult:1,grenSplashMult:1,squadRangeMult:1,bigGuns:false,bastionShootWhileDrilling:false},
     rewardChoice:null,pingRing:null,
     sel:{base:false,troops:new Set(),harv:new Set(),bu:new Set()}};
   for(let i=0;i<4;i++) S.troops.push(mkTroop(i));
@@ -1206,7 +1223,7 @@ function dropoffPoint(h){
   S.depots.forEach(de=>{if(!de.built||de.hp<=0)return;const d=dist(h,de);if(d<bd){bd=d;best={x:de.x,y:de.y,r:26}}});
   return best;
 }
-function visible(p){const vm=S.mods.visionMult;if(dist(p,S.base)<BASE_VISION*vm)return true;if(S.troops.some(t=>dist(t,p)<TROOP_VISION*vm))return true;if(S.harvesters.some(h=>dist(h,p)<HARV_VISION*vm))return true;return S.builders.some(b=>dist(b,p)<BUILDER_VISION*vm)}
+function visible(p){const vm=S.mods.visionMult;if(dist(p,S.base)<BASE_VISION*vm)return true;if(S.troops.some(t=>dist(t,p)<TROOP_VISION*vm*S.mods.squadRangeMult))return true;if(S.harvesters.some(h=>dist(h,p)<HARV_VISION*vm))return true;return S.builders.some(b=>dist(b,p)<BUILDER_VISION*vm)}
 function moveToward(o,d,sp,dt){const dx=d.x-o.x,dy=d.y-o.y,L=Math.hypot(dx,dy);if(L<1)return 0;const s=Math.min(L,sp*dt);o.x+=dx/L*s;o.y+=dy/L*s;return L-s}
 function tracer(a,b,col){S.tracers.push({x1:a.x,y1:a.y,x2:b.x,y2:b.y,t:0.12,col})}
 function hitFlash(o){o.flashT=0.12}
@@ -1221,15 +1238,24 @@ function revealCircle(x,y,r){
 function damageEnemy(e,d){e.hp-=d;hitFlash(e);spark(e.x,e.y,C.accent,2)}
 // Grenadier round: travels to where the target is right now (not a lead/intercept shot) and
 // explodes there, splashing every enemy within GREN_SPLASH_R of the landing point.
-function launchNade(from,target){
+// Shared by Grenadier rounds and the Big Guns artillery shell — opts lets a shell carry its own
+// speed/damage/splash/color/"big" (bigger burst+shake) instead of a Grenadier's defaults, which
+// still apply whenever opts leaves a field out.
+function launchProjectile(from,target,opts){
+  opts=opts||{};
   const tx=target.x,ty=target.y,d=dist(from,{x:tx,y:ty});
-  S.nades.push({x:from.x,y:from.y,x0:from.x,y0:from.y,tx,ty,t:0,dur:Math.max(0.12,d/GREN_PROJ_SPEED)});
+  const speed=opts.speed||GREN_PROJ_SPEED;
+  S.nades.push({x:from.x,y:from.y,x0:from.x,y0:from.y,tx,ty,t:0,dur:Math.max(0.12,d/speed),
+    dmg:opts.dmg,splashR:opts.splashR,color:opts.color,big:!!opts.big});
 }
+function launchNade(from,target){launchProjectile(from,target,{speed:GREN_PROJ_SPEED})}
 function explodeNade(n){
-  S.enemies.forEach(e=>{if(dist(e,{x:n.tx,y:n.ty})<=GREN_SPLASH_R)damageEnemy(e,GREN_DMG*S.mods.troopDmgMult)});
-  burst(n.tx,n.ty,C.enemy,14,140,0.4);
+  const splashR=n.splashR!=null?n.splashR:GREN_SPLASH_R*S.mods.grenSplashMult;
+  const dmg=n.dmg!=null?n.dmg:GREN_DMG*S.mods.troopDmgMult;
+  S.enemies.forEach(e=>{if(dist(e,{x:n.tx,y:n.ty})<=splashR)damageEnemy(e,dmg)});
+  burst(n.tx,n.ty,n.color||C.enemy,n.big?22:14,n.big?170:140,n.big?0.55:0.4);
   sfx.explode();
-  shakeScreen(2,0.15);
+  shakeScreen(n.big?4:2,n.big?0.25:0.15);
 }
 // ---------- juice: particles, floating text, screen shake ----------
 function burst(x,y,col,count,speed,life){
@@ -1439,13 +1465,28 @@ function update(dt){
   }
   B.x=Math.max(40,Math.min(W-40,B.x));B.y=Math.max(40,Math.min(H-40,B.y));
   if(!S.enemies.some(e=>dist(e,B)<400))B.hp=Math.min(B.maxHp,B.hp+2*dt);
-  // bastion gun — only while mobile; it goes quiet once locked down and leans on built defenses instead
+  // bastion gun — only while mobile by default; it goes quiet once locked down and leans on built
+  // defenses instead, unless the Targeting Computer upgrade keeps it live through drilling too
   B.gunCd-=dt;
   if(B.pingCd>0)B.pingCd=Math.max(0,B.pingCd-dt);
   if(S.pingRing){S.pingRing.t+=dt;if(S.pingRing.t>=S.pingRing.dur)S.pingRing=null}
-  if(!B.locked){
+  if(!B.locked||S.mods.bastionShootWhileDrilling){
     let best=null,bd=BASE_GUN_RANGE;S.enemies.forEach(e=>{const d=dist(e,B);if(d<bd){bd=d;best=e}});
     if(best&&B.gunCd<=0){damageEnemy(best,BASE_GUN_DMG);tracer(B,best,C.accent);B.gunCd=BASE_GUN_CD}
+  }
+  // Big Guns (reward card): a slow, long-range, big-blast artillery piece bolted onto the
+  // Bastion — unlike the gun above it never goes quiet while drilling, but it will only ever
+  // fire on an enemy the player has actually revealed, not anything merely in range.
+  if(S.mods.bigGuns){
+    B.bigGunCd-=dt;
+    if(B.bigGunCd<=0){
+      let best=null,bd=BIGGUN_RANGE;
+      S.enemies.forEach(e=>{if(!visible(e))return;const d=dist(e,B);if(d<bd){bd=d;best=e}});
+      if(best){
+        launchProjectile(B,best,{speed:BIGGUN_PROJ_SPEED,dmg:BIGGUN_DMG,splashR:BIGGUN_SPLASH_R,color:C.accent,big:true});
+        B.bigGunCd=BIGGUN_CD;
+      }
+    }
   }
 
   // relays first — mobile units' anchor list depends on which relays are currently tethered
@@ -1465,7 +1506,7 @@ function update(dt){
   S.troops.forEach(t=>{
     t.cd-=dt;
     const gren=t.kind==='grenadier';
-    const range=gren?GREN_RANGE:TROOP_RANGE;
+    const range=(gren?GREN_RANGE:TROOP_RANGE)*S.mods.squadRangeMult;
     const factor=terrainAt(t.x,t.y)===1?MUD_MULT:1;
     if(t.following){followMove(t,TROOP_SPEED,dt)}
     else if(t.state==='move'&&t.dest){
@@ -1480,13 +1521,13 @@ function update(dt){
     // auto fire — a following troop still defends itself along the way
     if(t.cd<=0){let best=null,bd=range;S.enemies.forEach(e=>{const d=dist(e,t);if(d<bd){bd=d;best=e}});
       if(best){
-        if(gren){launchNade(t,best);t.cd=GREN_CD}
+        if(gren){launchNade(t,best);t.cd=GREN_CD/S.mods.grenFireRateMult}
         else{damageEnemy(best,TROOP_DMG*S.mods.troopDmgMult);tracer(t,best,C.ally);t.cd=TROOP_CD}
         if(t.state==='idle'&&bd>range*0.7)t.target=best;
       }
     }
     t.x=Math.max(10,Math.min(W-10,t.x));t.y=Math.max(10,Math.min(H-10,t.y));
-    S.nodes.forEach(n=>{if(!n.found&&dist(n,t)<TROOP_VISION*S.mods.visionMult)n.found=true});
+    S.nodes.forEach(n=>{if(!n.found&&dist(n,t)<TROOP_VISION*S.mods.visionMult*S.mods.squadRangeMult)n.found=true});
   });
 
   // harvesters — unarmed; auto-loop to the nearest resource unless paused by a manual order or cut
@@ -1600,7 +1641,7 @@ function update(dt){
   {const vm=S.mods.visionMult;
   S.nodes.forEach(n=>{if(!n.found&&dist(n,B)<BASE_VISION*vm)n.found=true});
   S.veins.forEach(v=>{if(v.contract&&S.veins.filter(x=>x.done&&!x.contract).length<TRIANGULATE_AT)return;
-    if(!v.done&&!v.mine.found&&(dist(v.mine,B)<BASE_VISION*vm||S.troops.some(t=>dist(v.mine,t)<TROOP_VISION*vm)||S.harvesters.some(h=>dist(v.mine,h)<HARV_VISION*vm)||S.builders.some(bu=>dist(v.mine,bu)<BUILDER_VISION*vm))){v.mine.found=true;v.decayElapsed=0}});}
+    if(!v.done&&!v.mine.found&&(dist(v.mine,B)<BASE_VISION*vm||S.troops.some(t=>dist(v.mine,t)<TROOP_VISION*vm*S.mods.squadRangeMult)||S.harvesters.some(h=>dist(v.mine,h)<HARV_VISION*vm)||S.builders.some(bu=>dist(v.mine,bu)<BUILDER_VISION*vm))){v.mine.found=true;v.decayElapsed=0}});}
   // the loot-tier clock only runs while this vein ISN'T being actively drilled — parked-but-
   // undrilled, paused, and stalled all count as "stopped" and let it keep decaying; only real,
   // running progress freezes it in place.
@@ -1751,7 +1792,7 @@ function update(dt){
   dimX.globalCompositeOperation='destination-out';
   const unveil=(x,y,r)=>{const g=dimX.createRadialGradient(x/FOG_S,y/FOG_S,r*0.6/FOG_S,x/FOG_S,y/FOG_S,r/FOG_S);g.addColorStop(0,'rgba(0,0,0,1)');g.addColorStop(1,'rgba(0,0,0,0)');dimX.fillStyle=g;dimX.beginPath();dimX.arc(x/FOG_S,y/FOG_S,r/FOG_S,0,Math.PI*2);dimX.fill()};
   {const vm=S.mods.visionMult;
-  unveil(B.x,B.y,BASE_VISION*vm);S.troops.forEach(t=>unveil(t.x,t.y,TROOP_VISION*vm));S.harvesters.forEach(h=>unveil(h.x,h.y,HARV_VISION*vm));S.builders.forEach(bu=>unveil(bu.x,bu.y,BUILDER_VISION*vm));}
+  unveil(B.x,B.y,BASE_VISION*vm);S.troops.forEach(t=>unveil(t.x,t.y,TROOP_VISION*vm*S.mods.squadRangeMult));S.harvesters.forEach(h=>unveil(h.x,h.y,HARV_VISION*vm));S.builders.forEach(bu=>unveil(bu.x,bu.y,BUILDER_VISION*vm));}
 }
 function showOverlay(t,s){document.getElementById('ovTitle').textContent=t;document.getElementById('ovText').textContent=s;document.getElementById('overlay').hidden=false}
 // 3 upgrade cards at the vein's drained tier, shuffled from that tier's pool, plus a 4th card to
@@ -1992,8 +2033,8 @@ function draw(){
     if(t.sanity<SANITY_MAX)sanityBar(t.x,t.y-10,16,t.sanity/SANITY_MAX);
     if(!t.tetherOk)drawCutGlyph(t.x,t.y); if(t.following)drawFollowGlyph(t.x,t.y);
     if(sel&&t.dest){ctx.strokeStyle='rgba(94,200,255,0.35)';ctx.beginPath();ctx.moveTo(t.x,t.y);ctx.lineTo(t.dest.x,t.dest.y);ctx.stroke()}});
-  // grenades in flight
-  S.nades.forEach(n=>{ctx.fillStyle=C.accent;ctx.beginPath();ctx.arc(n.x,n.y,4,0,Math.PI*2);ctx.fill()});
+  // grenades/artillery shells in flight
+  S.nades.forEach(n=>{ctx.fillStyle=n.color||C.accent;ctx.beginPath();ctx.arc(n.x,n.y,n.big?6:4,0,Math.PI*2);ctx.fill()});
   // harvesters
   S.harvesters.forEach(h=>{const sel=S.sel.harv.has(h.id);if(sel){ctx.strokeStyle=C.harv;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(h.x,h.y,h.r+5,0,Math.PI*2);ctx.stroke()}
     ctx.fillStyle=h.flashT>0?'#fff':C.harv;ctx.fillRect(h.x-h.r,h.y-h.r,h.r*2,h.r*2);
