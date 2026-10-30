@@ -206,10 +206,11 @@ const VEIN_DEFS=[
   {x:2160,y:350,richness:140,contract:true},
 ];
 // Each mining zone has one large, rich Dat Crystal cluster of its own — paired 1:1 with
-// VEIN_DEFS by index — sitting ~1000 out from the vein. That's well past a single wireless leash
-// or cable run (MAX_CABLE_LEN=400), so reaching it means stringing a couple of Relays out from
-// the vein first, not just close enough to stumble onto without trying.
-const VEIN_CLUSTERS=[[560,3400],[4150,1800],[550,2200],[4000,1450],[2160,1350]];
+// VEIN_DEFS by index — sitting out past a single wireless leash or cable run (MAX_CABLE_LEN=400),
+// so reaching one means stringing Relays out from the vein first, not just stumbling onto it.
+// The first zone's cluster sits closer in (~500, just 1-2 Relays) since it's the player's opening
+// vein; the rest sit ~1000 out (a couple of Relays).
+const VEIN_CLUSTERS=[[970,3300],[4150,1800],[550,2200],[4000,1450],[2160,1350]];
 // A found vein's loot tier decays one step every TIER_DECAY_T seconds it sits undrilled, down
 // to its band's floor — sitting on a discovered vein instead of moving to drill it is the thing
 // this is meant to punish. The clock only freezes while the vein is actively, unpaused,
