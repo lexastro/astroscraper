@@ -720,11 +720,23 @@ function spoolTrail(u,anchor){
 // live run back to the last trail point hits the cap, it's pulled back to exactly that length —
 // a hard stop, not a snap to the anchor. Runs after movement, before severing.
 function cableLenPass(units){
+  const maxCableLen=MAX_CABLE_LEN+S.mods.cableLenAdd;
   units.forEach(u=>{
     if(!u.trail||u.trail.length===0){u.cableMaxed=false;return}
+    // The anchor itself (Bastion/Relay) walking away pays out trail length every tick regardless
+    // of what the unit does — if that alone already blew the budget, clamping the unit's own
+    // live movement can't fix it (there's nothing left to clamp: `last` already sits right on
+    // top of the unit), and used to just freeze it in place forever, unable to move in ANY
+    // direction, even back toward the anchor. Snap the cable instead — same severed/Sanity
+    // path as an enemy chewing through it, which leaves the unit free to walk itself back.
+    if(u.cableLen>maxCableLen){
+      severUnit(u);
+      msg('A cable stretched too far and snapped — a unit has gone dark.');
+      sfx.sever();
+      return;
+    }
     const last=u.trail[u.trail.length-1];
     const tail=dist(last,u);
-    const maxCableLen=MAX_CABLE_LEN+S.mods.cableLenAdd;
     if(u.cableLen+tail>maxCableLen){
       const allowed=Math.max(0,maxCableLen-u.cableLen);
       const dx=u.x-last.x,dy=u.y-last.y,L=Math.hypot(dx,dy);
@@ -733,6 +745,19 @@ function cableLenPass(units){
       u.cableMaxed=true;
     } else u.cableMaxed=false;
   });
+}
+// Shared by both ways a cable goes down: an enemy chewing through its HP, or it stretching past
+// MAX_CABLE_LEN. A relay can't act on its own, so it gets the same hard cut as before, waiting
+// on the network. A mobile unit keeps working its current orders — it just goes unpowered and
+// its Sanity starts draining instead of being yanked into an autonomous walk-home.
+function severUnit(u){
+  releaseBuilderClaim(u);
+  burst(u.x,u.y,C.cable,8,100,0.4);
+  if(u.kind==='relay'){
+    u.state='cut';u.tetherOk=false;u.trail=null;u.cableLen=0;u.cableMaxed=false;
+  } else {
+    u.severed=true;u.tetherOk=false;u.trail=null;u.cableLen=0;u.cableMaxed=false;
+  }
 }
 // Enemies opportunistically chew through any cable they wander near, independent of whatever
 // else they're doing in combat. A cable that runs out of HP severs its owner.
@@ -753,16 +778,7 @@ function cableSeverPass(allUnits,dt){
   let anySevered=false;
   allUnits.forEach(u=>{
     if(u.trail&&u.cableHp<=0){
-      releaseBuilderClaim(u);
-      burst(u.x,u.y,C.cable,8,100,0.4);
-      if(u.kind==='relay'){
-        // a relay can't act on its own — same hard cut as before, waiting on the network
-        u.state='cut';u.tetherOk=false;u.trail=null;u.cableLen=0;u.cableMaxed=false;
-      } else {
-        // a mobile unit keeps working its current orders — it just goes unpowered and its
-        // Sanity starts draining instead of being yanked into an autonomous walk-home
-        u.severed=true;u.tetherOk=false;u.trail=null;u.cableLen=0;u.cableMaxed=false;
-      }
+      severUnit(u);
       anySevered=true;
     }
   });
