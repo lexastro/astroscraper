@@ -377,7 +377,7 @@ function reset(){
 function spawnEnemy(x,y,kind){
   const big=kind==='wave'&&Math.random()<0.2;
   const sab=kind==='saboteur';
-  S.enemies.push({x,y,r:big?13:sab?4:8,hp:big?120:sab?8:34,maxHp:big?120:sab?8:34,speed:big?48:sab?105:78,dmg:big?12:sab?3:5,cd:0,kind,target:null,aggro:kind==='roam'?260:1e9,home:{x,y},ang:rnd(0,Math.PI*2),faceT:rnd(1,3)});
+  S.enemies.push({x,y,r:big?13:sab?4:8,hp:big?120:sab?4:34,maxHp:big?120:sab?4:34,speed:big?48:sab?105:78,dmg:big?12:sab?1.5:5,cd:0,kind,target:null,aggro:kind==='roam'?260:1e9,home:{x,y},ang:rnd(0,Math.PI*2),faceT:rnd(1,3)});
 }
 function msg(s){document.getElementById('hMsg').textContent=s;msgT=S.t}
 
