@@ -266,11 +266,13 @@ function currentTier(v){
 
 // ---------- state ----------
 let S, cam, mouse={x:0,y:0,wx:0,wy:0,down:false,drag:null,panning:false}, keys={}, buildMode=null, lastT=0, msgT=0, terrain, terrainCv, prodMenuOpen=false;
+// fogC used to be a second, fully-opaque "never explored" layer underneath dimC — removed as the
+// darkest fog tier; fogX/fogC now exist only for the one-shot Zone Mapping upgrade's
+// revealCircle(), which has no visual effect of its own anymore since nothing draws fogC.
 let fogC=document.createElement('canvas'), fogX; const FOG_S=6; fogC.width=W/FOG_S; fogC.height=H/FOG_S; fogX=fogC.getContext('2d');
-// dimC is the "explored but not currently seen" veil: rebuilt from scratch every frame (unlike
-// fogC's permanent reveal), dark everywhere explored except punched fully clear around whatever
-// currently has vision — terrain stays legible there, but units/enemies don't render outside
-// visible() anyway, so nothing currently out of sight shows through it.
+// dimC is the only fog layer drawn now: rebuilt from scratch every frame, dark everywhere except
+// punched fully clear around whatever currently has vision — terrain stays legible there, but
+// units/enemies don't render outside visible() anyway, so nothing out of sight shows through it.
 let dimC=document.createElement('canvas'), dimX; dimC.width=W/FOG_S; dimC.height=H/FOG_S; dimX=dimC.getContext('2d');
 let debugNoFog=false; // dev toggle: reveal the whole map and all enemies, bypassing fog/visibility
 
@@ -1498,14 +1500,9 @@ function update(dt){
   [B,...S.enemies,...S.troops,...S.harvesters,...S.builders,...S.turrets,...S.relays].forEach(o=>{if(o.flashT>0)o.flashT=Math.max(0,o.flashT-dt)});
   S.walls.forEach(w=>{if(w.flashT>0)w.flashT=Math.max(0,w.flashT-dt)});
 
-  // fog explore (permanent reveal — once scouted, stays visible; enemy sighting is gated separately by visible())
-  fogX.globalCompositeOperation='destination-out';
-  const rev=(x,y,r)=>{const g=fogX.createRadialGradient(x/FOG_S,y/FOG_S,r*0.6/FOG_S,x/FOG_S,y/FOG_S,r/FOG_S);g.addColorStop(0,'rgba(0,0,0,1)');g.addColorStop(1,'rgba(0,0,0,0)');fogX.fillStyle=g;fogX.beginPath();fogX.arc(x/FOG_S,y/FOG_S,r/FOG_S,0,Math.PI*2);fogX.fill()};
-  {const vm=S.mods.visionMult;
-  rev(B.x,B.y,BASE_VISION*vm);S.troops.forEach(t=>rev(t.x,t.y,TROOP_VISION*vm));S.harvesters.forEach(h=>rev(h.x,h.y,HARV_VISION*vm));S.builders.forEach(bu=>rev(bu.x,bu.y,BUILDER_VISION*vm));}
-
   // dim veil, rebuilt fresh every frame: dark over everything, then punched fully clear around
-  // current vision sources (same radii as the permanent reveal above).
+  // current vision sources. No permanent "explored" memory anymore — the map goes back to dim
+  // the moment nothing is nearby to see it, instead of staying lit once scouted.
   dimX.clearRect(0,0,dimC.width,dimC.height);
   dimX.globalCompositeOperation='source-over'; dimX.fillStyle='rgba(0,0,0,0.44)'; dimX.fillRect(0,0,dimC.width,dimC.height);
   dimX.globalCompositeOperation='destination-out';
@@ -1767,7 +1764,7 @@ function draw(){
   // particles (impact sparks, kill/vein/destruction bursts)
   S.particles.forEach(p=>{ctx.globalAlpha=Math.max(0,1-p.t/p.life);ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);ctx.fill()});ctx.globalAlpha=1;
   // fog
-  if(!debugNoFog){ctx.imageSmoothingEnabled=true;ctx.drawImage(fogC,0,0,W,H);ctx.drawImage(dimC,0,0,W,H)}
+  if(!debugNoFog){ctx.imageSmoothingEnabled=true;ctx.drawImage(dimC,0,0,W,H)}
   // floating reward text (drawn above fog so it's always legible)
   S.floaters.forEach(f=>{ctx.globalAlpha=Math.max(0,1-f.t/f.life);ctx.fillStyle=f.col;ctx.font='700 13px '+css('--mono');ctx.textAlign='center';ctx.fillText(f.text,f.x,f.y)});ctx.globalAlpha=1;
   // map edge
@@ -1784,7 +1781,7 @@ function draw(){
 function hpbar(x,y,w,f){ctx.fillStyle='rgba(0,0,0,0.6)';ctx.fillRect(x-w/2,y,w,3);ctx.fillStyle=f>0.5?C.dat:f>0.25?C.accent:C.enemy;ctx.fillRect(x-w/2,y,w*Math.max(0,f),3)}
 function drawMini(){const s=mini.width/W;mctx.fillStyle='#10151b';mctx.fillRect(0,0,mini.width,mini.height);
   mctx.drawImage(terrainCv,0,0,W,H,0,0,mini.width,mini.height);
-  if(!debugNoFog){mctx.save();mctx.scale(s,s);mctx.drawImage(fogC,0,0,W,H);mctx.drawImage(dimC,0,0,W,H);mctx.restore()}
+  if(!debugNoFog){mctx.save();mctx.scale(s,s);mctx.drawImage(dimC,0,0,W,H);mctx.restore()}
   S.veins.forEach((v,i)=>{if(v.contract&&!v.mine.found&&!debugNoFog)return;mctx.strokeStyle=v.contract?C.living:C.zone;mctx.globalAlpha=v.done?0.3:1;mctx.beginPath();mctx.arc(v.x*s,v.y*s,v.r*s,0,Math.PI*2);mctx.stroke();mctx.globalAlpha=1});
   S.nodes.forEach(n=>{if((n.found||debugNoFog)&&n.amt>0){mctx.fillStyle=C.dat;mctx.fillRect(n.x*s-1.5,n.y*s-1.5,3,3)}});
   S.relays.forEach(r=>{if(r.built){mctx.fillStyle=C.cable;mctx.fillRect(r.x*s-2,r.y*s-2,4,4)}});
