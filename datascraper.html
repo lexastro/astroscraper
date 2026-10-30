@@ -202,9 +202,11 @@ const VEIN_DEFS=[
   {x:3000,y:1450,richness:90},
   {x:2160,y:350,richness:140,contract:true},
 ];
-// Dense Field Dat deposits come in a few rich clusters rather than many scattered nodes — rarer
-// to find, but worth parking a harvester squad on for a while once you do.
-const DENSE_CLUSTERS=[[1750,1150],[2570,1150],[1650,2000],[2670,2000]];
+// Each mining zone has one large, rich Dat Crystal cluster of its own — paired 1:1 with
+// VEIN_DEFS by index — sitting ~1000 out from the vein. That's well past a single wireless leash
+// or cable run (MAX_CABLE_LEN=400), so reaching it means stringing a couple of Relays out from
+// the vein first, not just close enough to stumble onto without trying.
+const VEIN_CLUSTERS=[[560,3400],[4150,1800],[550,2200],[4000,1450],[2160,1350]];
 // A found vein's loot tier decays one step every TIER_DECAY_T seconds it sits undrilled, down
 // to its band's floor — sitting on a discovered vein instead of moving to drill it is the thing
 // this is meant to punish. The clock only freezes while the vein is actively, unpaused,
@@ -310,7 +312,7 @@ function reset(){
   });
   clearDisk(S.base.x,S.base.y,240);
   S.veins.forEach(v=>clearDisk(v.x,v.y,ZONE_R+40));
-  ensureConnectivity([{x:S.base.x,y:S.base.y},...S.veins.map(v=>({x:v.x,y:v.y}))]);
+  ensureConnectivity([{x:S.base.x,y:S.base.y},...S.veins.map(v=>({x:v.x,y:v.y})),...VEIN_CLUSTERS.map(([x,y])=>({x,y}))]);
   closeHoles(S.base.x,S.base.y);
   terrainCv=buildTerrainCanvas();
 
@@ -333,9 +335,9 @@ function reset(){
     const p=nearestPlain(x,y);
     S.nodes.push({x:p.x,y:p.y,amt:Math.round(rnd(20,38)),max:38,found:false});
   }
-  // In the Dense Field deposits are rarer to find but pay off big: a handful of tight clusters
-  // instead of nodes scattered everywhere.
-  DENSE_CLUSTERS.forEach(([cx,cy])=>{
+  // The per-vein cluster: rarer to find than a scattered node, but pays off big once a harvester
+  // squad can actually park there.
+  VEIN_CLUSTERS.forEach(([cx,cy])=>{
     for(let i=0;i<4;i++){
       const ang=rnd(0,Math.PI*2), rad=rnd(0,90);
       const p=nearestPlain(cx+Math.cos(ang)*rad,cy+Math.sin(ang)*rad);
