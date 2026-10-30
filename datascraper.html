@@ -1308,7 +1308,7 @@ function update(dt){
         if(dist(h,dp)<dp.r){if(h.carry>0){floatText(h.x,h.y-14,'+'+h.carry,C.dat);sfx.gather()}S.dat+=h.carry;h.carry=0;updateBuildBar();if(n.amt<=0){h.state='idle';h.node=null}}
       }
       else if(dist(h,n)>22){const aim=waypointFor(h,n.x,n.y);moveToward(h,aim,HARV_SPEED*S.mods.moveSpeedMult*factor,dt)}
-      else{h.hv+=dt;if(h.hv>0.35){h.hv=0;n.amt--;h.carry++}}
+      else{h.hv+=dt;if(h.hv>0.175){h.hv=0;n.amt--;h.carry++}}
     }
     else if(h.state==='return'){
       const dp=dropoffPoint(h); const aim=waypointFor(h,dp.x,dp.y); moveToward(h,aim,HARV_SPEED*S.mods.moveSpeedMult*factor,dt);
