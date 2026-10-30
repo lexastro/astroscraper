@@ -126,7 +126,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   Right-click: squads move/attack · harvesters move/harvest a deposit/return to drop off · builders move<br>
   <kbd>WASD</kbd> or edge-drag (middle mouse) pans · scroll zooms<br>
   <kbd>1</kbd> wall · <kbd>2</kbd> turret · <kbd>3</kbd> relay · <kbd>L</kbd> begin drilling · <kbd>R</kbd> resume harvester auto-gather · <kbd>G</kbd> toggle builder repair mode · <kbd>U</kbd> select builders · <kbd>Esc</kbd> cancel<br>
-  <b>The zone:</b> a Black Flame disaster site radiates out from a dead epicenter. The outer Rim is mild, wireless works fine, and Dat Crystal is scattered in small, common deposits. Push into the violet Dense Field and deposits get rarer but come in big clusters worth securing. Push further into the red Flame Core and both the crystal and the monsters get a lot more serious still.<br>
+  <b>The zone:</b> a Black Flame disaster site sits at the top of the map and bleeds straight down across it in horizontal bands, not a ring — depth is purely how far south you've pushed, left-to-right makes no difference. The outer Rim is mild, wireless works fine, and Dat Crystal is scattered in small, common deposits. Push north into the violet Dense Field and deposits get rarer but come in big clusters worth securing. Push further into the red Flame Core, hugging the top edge, and both the crystal and the monsters get a lot more serious still.<br>
   <b>Tether:</b> beyond a short wireless range around the Bastion (or a built Relay), squads/harvesters/builders can only take orders through a physical cable that pays out behind them as they walk. Monsters that get close to a cable chew through it — a severed unit goes dark (no orders, autonomous retreat toward the nearest anchor) until it reconnects. Cable only runs so far (400 units) — at the end of it a unit just stops; build a Relay further out to extend reach. The Bastion itself is the anchor, so driving it toward a deployed cable reels the slack back in and frees up range. A Relay needs the same live tether back to the network to work at all — chain them (each can be built within range of the Bastion <i>or</i> of an already-finished Relay) and if one in the chain gets severed, everything past it goes dark too until the line is restored. A Relay destroyed outright doesn't vanish either — it just goes fully dark until a repair-mode builder brings its HP back up, same as mending any other structure.<br>
   <b>Drilling:</b> a scouted vein's reward starts at a loot tier (gold Legendary, purple Epic, blue Rare, grey Common — shown as a colored gem and countdown above the zone) that quietly drops a tier every minute it sits undrilled, floored at its band's minimum (Rim: Epic→Rare→Common; deeper zones: Legendary→Epic→Rare) — so don't scout a vein and then sit on it. Park the Bastion on a found vein's marker and the throttle panel comes up as a prompt: pick Slow/Normal/Fast (or just press <kbd>L</kbd> for Normal) to lock in that speed and start drilling — there's no fixed prep phase otherwise, and the speed can't be changed once chosen. The drill also burns Dat Crystal per second to run, faster at higher throttle — run dry and it stalls until more comes in, so keep harvesters feeding it. The loot-tier clock isn't done the moment you start, either: it only freezes while the drill is actually making progress, so pausing (<kbd>P</kbd>, or the Pause button) or stalling out of Dat sets it ticking again — the gem reappears — and the tier that's showing when the vein finally drains is the one you get paid at. Pausing still freezes progress and Dat burn entirely (no wave or Saboteur clock either) if you'd rather bank up a stockpile than have it eaten the instant a harvester drops it off — it just costs you loot tier if you leave it paused too long. Draining a vein pays Condensed Crystal too, more the faster you finished it, so speed pays for itself twice over; the throttle panel shows the live Dat burn rate and projected Condensed Crystal payoff for whichever setting is selected. Drain a non-contract vein and the run pauses for a reward pick: three run-only upgrade cards at the tier the vein paid out, plus a fourth option to bank a chunk of Dat Crystal instead — gold Legendary cards only ever show up out of a Dense/Core vein, never off a Rim one, since the card tier always matches whatever the vein's own loot-tier clock left it at. Waves while drilling always roll in from one fixed direction per vein (the red dashed arrow) — far enough out to see them coming. A separate swarm of tiny amber Saboteurs also spawns periodically — individually one hit from dying, but beelining in a pack for your nearest built Relay and its cable instead of the Bastion. They spawn out past the Relay so you can see the swarm coming, and bigger packs show up the faster you're drilling. Draining the marked Flame Core vein wins the run.<br>
   The Bastion fires on nearby enemies while mobile, but goes quiet the moment it locks down to drill.<br>
@@ -273,7 +273,7 @@ let debugNoFog=false; // dev toggle: reveal the whole map and all enemies, bypas
 function rnd(a,b){return a+Math.random()*(b-a)}
 function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
 function key(gx,gy){return gx+','+gy}
-function bandAt(x,y){const d=dist({x,y},EPI);return d<=CORE_R?'core':d<=DENSE_R?'dense':'rim'}
+function bandAt(x,y){const d=Math.abs(y-EPI.y);return d<=CORE_R?'core':d<=DENSE_R?'dense':'rim'}
 
 function mkTroop(id){return {id,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp:70,maxHp:70,r:TROOP_R,dest:null,target:null,state:'idle',cd:0,tetherOk:true,trail:null,cableHp:0,cableLen:0,cableMaxed:false}}
 function mkHarv(id){return {id,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp:50,maxHp:50,r:HARV_R,dest:null,node:null,carry:0,state:'idle',autoLoop:true,hv:0,tetherOk:true,trail:null,cableHp:0,cableLen:0,cableMaxed:false}}
@@ -314,10 +314,9 @@ function reset(){
   // just enough to keep the economy moving without needing to push deeper right away.
   const spots=[[1800,3400],[1400,2850],[2550,3400],[2900,2850],[700,2200],[3600,2200],[600,1300],[3720,1300],[1500,3900],[2800,3900]];
   spots.forEach(([x,y])=>{const p=nearestPlain(x+rnd(-80,80),y+rnd(-80,80));S.nodes.push({x:p.x,y:p.y,amt:Math.round(rnd(20,38)),max:38,found:false})});
-  // more of them scattered anywhere out past the Dense Field ring
+  // more of them scattered anywhere out past the Dense Field band
   for(let i=0;i<10;i++){
-    const ang=rnd(0,Math.PI*2), rad=rnd(DENSE_R+60,1900);
-    const x=Math.max(120,Math.min(W-120,EPI.x+Math.cos(ang)*rad)), y=Math.max(120,Math.min(H-120,EPI.y+Math.sin(ang)*rad));
+    const x=rnd(120,W-120), y=rnd(EPI.y+DENSE_R+60,H-120);
     const p=nearestPlain(x,y);
     S.nodes.push({x:p.x,y:p.y,amt:Math.round(rnd(20,38)),max:38,found:false});
   }
@@ -457,10 +456,11 @@ function buildTerrainCanvas(){
     if(terrain[gy*TGX+gx]!==2)continue;
     for(let k=0;k<4;k++){const px=gx*TCELL+rnd(4,TCELL-4), py=gy*TCELL+rnd(4,TCELL-4); x2.fillRect(px,py,rnd(3,7),rnd(3,7))}
   }
-  // depth-band tint radiating from the Black Flame epicenter — the whole reason this is "a zone"
-  const maxR=Math.hypot(W,H)/2+100;
-  const coreT=CORE_R/maxR, denseT=DENSE_R/maxR;
-  const grad=x2.createRadialGradient(EPI.x,EPI.y,0,EPI.x,EPI.y,maxR);
+  // depth-band tint running down from the Black Flame epicenter as horizontal bands spanning the
+  // whole width — the whole reason this is "a zone"
+  const maxD=H-EPI.y+100;
+  const coreT=CORE_R/maxD, denseT=DENSE_R/maxD;
+  const grad=x2.createLinearGradient(0,EPI.y,0,H+100);
   grad.addColorStop(0,'rgba(255,90,40,0.45)');
   grad.addColorStop(Math.max(0.001,coreT-0.03),'rgba(255,90,40,0.45)');
   grad.addColorStop(coreT+0.02,'rgba(178,100,255,0.30)');
