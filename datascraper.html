@@ -93,6 +93,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <button id="bWall" data-mode="wall"><span>Wall</span><span class="cost" id="cWall">5 dat</span><span class="key">1</span></button>
   <button id="bTurret" data-mode="turret"><span>Turret</span><span class="cost" id="cTurret">50 dat</span><span class="key">2</span></button>
   <button id="bRelay" data-mode="relay"><span>Relay</span><span class="cost" id="cRelay">15 dat</span><span class="key">3</span></button>
+  <button id="bDepot" data-mode="depot"><span>Depot</span><span class="cost" id="cDepot">150 dat</span><span class="key">4</span></button>
   <button id="bLock"><span id="bLockLabel">Begin Drilling</span><span class="key">L</span></button>
   <button id="bSelBase"><span>Select Bastion</span><span class="key">B</span></button>
   <button id="bResumeAuto"><span>Resume Auto-Gather</span><span class="key">R</span></button>
@@ -131,7 +132,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <b>Drilling:</b> a scouted vein's reward starts at a loot tier (gold Legendary, purple Epic, blue Rare, grey Common — shown as a colored gem and countdown above the zone) that quietly drops a tier every minute it sits undrilled, floored at its band's minimum (Rim: Epic→Rare→Common; deeper zones: Legendary→Epic→Rare) — so don't scout a vein and then sit on it. Park the Bastion on a found vein's marker and the throttle panel comes up as a prompt: pick Slow/Normal/Fast (or just press <kbd>L</kbd> for Normal) to lock in that speed and start drilling — there's no fixed prep phase otherwise, and the speed can't be changed once chosen. The drill also burns Dat Crystal per second to run, faster at higher throttle — run dry and it stalls until more comes in, so keep harvesters feeding it. The loot-tier clock isn't done the moment you start, either: it only freezes while the drill is actually making progress, so pausing (<kbd>P</kbd>, or the Pause button) or stalling out of Dat sets it ticking again — the gem reappears — and the tier that's showing when the vein finally drains is the one you get paid at. Pausing still freezes progress and Dat burn entirely (no wave or Saboteur clock either) if you'd rather bank up a stockpile than have it eaten the instant a harvester drops it off — it just costs you loot tier if you leave it paused too long. Draining a vein pays Condensed Crystal too, more the faster you finished it, so speed pays for itself twice over; the throttle panel shows the live Dat burn rate and projected Condensed Crystal payoff for whichever setting is selected. Drain a non-contract vein and the run pauses for a reward pick: three run-only upgrade cards at the tier the vein paid out, plus a fourth option to bank a chunk of Dat Crystal instead — gold Legendary cards only ever show up out of a Dense/Core vein, never off a Rim one, since the card tier always matches whatever the vein's own loot-tier clock left it at. Waves while drilling always roll in from one fixed direction per vein (the red dashed arrow) — far enough out to see them coming. A separate swarm of tiny amber Saboteurs also spawns periodically — individually one hit from dying, but beelining in a pack for your nearest built Relay and its cable instead of the Bastion. They spawn out past the Relay so you can see the swarm coming, and bigger packs show up the faster you're drilling. The contract vein that actually wins the run — the Living Crystal vein — has no marker at all at first: its zone circle, mine point, everything, is completely unscoutable, no matter how close you get. Drain 3 of the other 4 veins and it's triangulated — the marker snaps into view wherever it actually sits, ready to scout and drill like any other.<br>
   The Bastion fires on nearby enemies while mobile, but goes quiet the moment it locks down to drill.<br>
   <b>Harvesters</b> carry no weapons. Left alone they loop automatically: find the nearest Dat Crystal deposit, haul it home, repeat. A manual order pauses that loop until you select them and press Resume Auto-Gather (or <kbd>R</kbd>). Dead enemies sometimes drop a few loose Dat Crystal shards — small green triangles scattered where they fell — that any squad, harvester, or builder scoops up on contact, straight into the stockpile, no trip home required.<br>
-  <b>Builders</b> place but don't fight: a wall/turret/relay order only queues a ghost site until a builder walks over and finishes it (wall 1s, turret 5s, relay 3s). Walls and turrets need the Bastion locked down drilling; Relays can be queued any time, even while the Bastion is still mobile, so you can push a chain of them ahead of you as you scout. Any of the three can be placed within range of the Bastion <i>or</i> of an already-built Relay, so your defenses can ring a forward Relay, not just the Bastion itself — but a Turret only fires while a live Relay (or the Bastion) is actually in power range; sever or destroy the Relay it leans on and it goes dark with it. Toggle repair mode (button or <kbd>G</kbd>) and they'll auto-seek damaged structures and mend them for a trickle of Dat Crystal/sec instead — including a Relay whose tether got severed: a repair-mode builder will walk up and splice it back in (a few seconds, no Dat cost) even if the Relay itself is at full HP, since the cable and the structure are separate things to break. Idle builders dock at the Bastion.<br>
+  <b>Builders</b> place but don't fight: a wall/turret/relay/depot order only queues a ghost site until a builder walks over and finishes it (wall 1s, turret 5s, relay 3s, depot 4s). Walls and turrets need the Bastion locked down drilling; Relays and Depots can be queued any time, even while the Bastion is still mobile, so you can push a chain of them ahead of you as you scout. Any of the four can be placed within range of the Bastion <i>or</i> of an already-built Relay, so your defenses (and a forward Depot) can ring a Relay, not just the Bastion itself — but a Turret only fires while a live Relay (or the Bastion) is actually in power range; sever or destroy the Relay it leans on and it goes dark with it. A <b>Depot</b> (150 dat) is simpler — no power needed, it just has to be standing — and gives harvesters a closer place to drop off than hauling all the way back to the Bastion: each one auto-deposits at whichever is nearer, Bastion or any built Depot, so parking one near a far cluster (reachable only by chaining a couple of Relays out to it) pays for itself fast. Toggle repair mode (button or <kbd>G</kbd>) and they'll auto-seek damaged structures and mend them for a trickle of Dat Crystal/sec instead — including a Relay whose tether got severed: a repair-mode builder will walk up and splice it back in (a few seconds, no Dat cost) even if the Relay itself is at full HP, since the cable and the structure are separate things to break. A destroyed Depot or Relay stays put and just goes dark/inert until repaired, rather than vanishing. Idle builders dock at the Bastion.<br>
   <kbd>`</kbd> toggles debug: reveal the whole map and all enemies.
 </div>
 
@@ -155,13 +156,17 @@ const BASE_R=30, BASE_SPEED=42, BUILD_R=270, BASE_VISION=450;
 const TROOP_R=7, TROOP_SPEED=125, TROOP_VISION=340, TROOP_RANGE=165, TROOP_DMG=7, TROOP_CD=0.45;
 const HARV_R=8, HARV_SPEED=105, HARV_VISION=280, CARRY=24;
 const BUILDER_R=7, BUILDER_SPEED=100, BUILDER_VISION=200;
-const WALL_BUILD_T=1, TURRET_BUILD_T=5, RELAY_BUILD_T=3, REPAIR_HPS=25, REPAIR_DAT_PER_SEC=1;
+const WALL_BUILD_T=1, TURRET_BUILD_T=5, RELAY_BUILD_T=3, DEPOT_BUILD_T=4, REPAIR_HPS=25, REPAIR_DAT_PER_SEC=1;
 const RELAY_RECONNECT_T=2.5;
 const TURRET_RANGE=240, TURRET_DMG=14, TURRET_CD=0.65, TURRET_HP=150;
 const RELAY_HP=100;
+// A Depot is a forward drop-off point — no power needed, just has to be standing (hp>0) — so a
+// harvester working a far-flung cluster can dump its load there instead of hauling all the way
+// back to the Bastion. Like a Relay it can be queued any time, locked down or not.
+const DEPOT_HP=150;
 const BASE_GUN_RANGE=260, BASE_GUN_DMG=18, BASE_GUN_CD=0.5;
 const WALL_HP=220;
-const COST={wall:5,turret:50,relay:15,harvester:20,troop:30,builder:75};
+const COST={wall:5,turret:50,relay:15,depot:150,harvester:20,troop:30,builder:75};
 const ZONE_R=200;
 const TCELL=60, TGX=Math.ceil(W/TCELL), TGY=Math.ceil(H/TCELL), MUD_MULT=0.55;
 // Tether: wireless works freely on the rim; in the dense field you get a short leash around any
@@ -288,7 +293,7 @@ function mkBuilder(id){return {id,x:S.base.x+rnd(-30,30),y:S.base.y+rnd(-30,30),
 function reset(){
   S={t:0,dat:40,living:0,condensed:0,over:null,
     base:{x:W/2,y:H-400,hp:900,maxHp:900,r:BASE_R,dest:null,locked:false,gunCd:0},
-    troops:[],harvesters:[],builders:[],relays:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],shards:[],
+    troops:[],harvesters:[],builders:[],relays:[],depots:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],shards:[],
     veins:[],activeVein:null,throttleMul:1,ambientT:30,
     particles:[],floaters:[],shake:{t:0,dur:0,mag:0},
     // run-only upgrade modifiers — every stat multiplier/bonus a reward card can grant, all
@@ -766,7 +771,7 @@ cv.addEventListener('pointerup',e=>{
 cv.addEventListener('wheel',e=>{e.preventDefault();const w0=toWorld(e.clientX,e.clientY);cam.z=Math.min(2.2,Math.max(0.35,cam.z*(e.deltaY>0?0.9:1.1)));const w1=toWorld(e.clientX,e.clientY);cam.x+=w0.x-w1.x;cam.y+=w0.y-w1.y;clampCam()},{passive:false});
 addEventListener('keydown',e=>{
   if(e.target.tagName==='INPUT')return; keys[e.key.toLowerCase()]=true; keys[e.key]=true;
-  if(e.key==='1')setBuild('wall'); else if(e.key==='2')setBuild('turret'); else if(e.key==='3')setBuild('relay');
+  if(e.key==='1')setBuild('wall'); else if(e.key==='2')setBuild('turret'); else if(e.key==='3')setBuild('relay'); else if(e.key==='4')setBuild('depot');
   else if(e.key==='Escape'){setBuild(null);closeProdMenu()} else if(e.key.toLowerCase()==='b'){S.sel.troops.clear();S.sel.harv.clear();S.sel.bu.clear();S.sel.base=true}
   else if(e.key.toLowerCase()==='t'){S.sel.base=false;S.sel.harv.clear();S.sel.bu.clear();S.troops.forEach(t=>S.sel.troops.add(t.id))}
   else if(e.key.toLowerCase()==='h'){S.sel.base=false;S.sel.troops.clear();S.sel.bu.clear();S.harvesters.forEach(h=>S.sel.harv.add(h.id))}
@@ -847,7 +852,7 @@ function updateBuildBar(){
   document.querySelectorAll('#buildBar button[data-mode]').forEach(b=>{
     b.classList.toggle('on',b.dataset.mode===buildMode);
     const cost=b.dataset.mode==='relay'&&S.mods.freeRelayCharges>0?0:COST[b.dataset.mode];
-    b.disabled=(!S.base.locked&&b.dataset.mode!=='relay')||(S.dat<cost&&buildMode!==b.dataset.mode);
+    b.disabled=(!S.base.locked&&b.dataset.mode!=='relay'&&b.dataset.mode!=='depot')||(S.dat<cost&&buildMode!==b.dataset.mode);
   });
   const crEl=document.getElementById('cRelay');
   if(crEl)crEl.textContent=S.mods.freeRelayCharges>0?`FREE ×${S.mods.freeRelayCharges}`:`${COST.relay} dat`;
@@ -982,7 +987,8 @@ function turretPowered(tu){
   return S.relays.some(r=>r.built&&r.tetherOk&&dist(tu,r)<=BUILD_R);
 }
 function tryBuild(w){
-  if(!S.base.locked&&buildMode!=='relay'){msg('Lock down the Bastion (begin drilling) before building.');return}
+  const freeToLockdown=buildMode==='relay'||buildMode==='depot';
+  if(!S.base.locked&&!freeToLockdown){msg('Lock down the Bastion (begin drilling) before building.');return}
   if(!inBuildRange(w)){msg('Build inside the Bastion\'s dashed ring.');return}
   if(terrainAt(w.x,w.y)===2){msg('Cannot build on solid rock.');return}
   const freeRelay=buildMode==='relay'&&S.mods.freeRelayCharges>0;
@@ -990,27 +996,40 @@ function tryBuild(w){
   if(S.dat<cost){msg('Not enough Dat Crystal. Send harvesters to a deposit.');return}
   if(buildMode==='wall'){const gx=Math.floor(w.x/CELL),gy=Math.floor(w.y/CELL),k=key(gx,gy);const cx=gx*CELL+CELL/2,cy=gy*CELL+CELL/2;
     if(S.walls.has(k)||dist({x:cx,y:cy},S.base)<BASE_R+CELL)return;
-    if(S.turrets.some(t=>dist(t,{x:cx,y:cy})<CELL)||S.relays.some(r=>dist(r,{x:cx,y:cy})<CELL))return;
+    if(S.turrets.some(t=>dist(t,{x:cx,y:cy})<CELL)||S.relays.some(r=>dist(r,{x:cx,y:cy})<CELL)||S.depots.some(d=>dist(d,{x:cx,y:cy})<CELL))return;
     S.walls.set(k,{gx,gy,x:cx,y:cy,hp:WALL_HP,maxHp:WALL_HP,kind:'wall',built:false,buildT:0,buildTotal:WALL_BUILD_T,builder:null,repairer:null});S.dat-=cost;
     msg('Wall queued — a builder needs to finish it.');
   }else if(buildMode==='turret'){
-    if(dist(w,S.base)<BASE_R+14||S.turrets.some(t=>dist(t,w)<26)||S.relays.some(r=>dist(r,w)<26))return;
+    if(dist(w,S.base)<BASE_R+14||S.turrets.some(t=>dist(t,w)<26)||S.relays.some(r=>dist(r,w)<26)||S.depots.some(d=>dist(d,w)<26))return;
     const k=key(Math.floor(w.x/CELL),Math.floor(w.y/CELL));if(S.walls.has(k))return;
     S.turrets.push({x:w.x,y:w.y,hp:TURRET_HP,maxHp:TURRET_HP,cd:0,ang:0,kind:'turret',built:false,buildT:0,buildTotal:TURRET_BUILD_T,builder:null,repairer:null});S.dat-=cost;
     msg('Turret queued — a builder needs to finish it.');
-  }else{
-    if(dist(w,S.base)<BASE_R+14||S.turrets.some(t=>dist(t,w)<26)||S.relays.some(r=>dist(r,w)<40))return;
+  }else if(buildMode==='relay'){
+    if(dist(w,S.base)<BASE_R+14||S.turrets.some(t=>dist(t,w)<26)||S.relays.some(r=>dist(r,w)<40)||S.depots.some(d=>dist(d,w)<26))return;
     const k=key(Math.floor(w.x/CELL),Math.floor(w.y/CELL));if(S.walls.has(k))return;
     S.relays.push({x:w.x,y:w.y,hp:RELAY_HP,maxHp:RELAY_HP,kind:'relay',built:false,buildT:0,buildTotal:RELAY_BUILD_T,builder:null,repairer:null,
       state:null,tetherOk:false,trail:null,cableHp:0,cableLen:0,cableMaxed:false,reconnectT:0});S.dat-=cost;
     if(freeRelay){S.mods.freeRelayCharges--;msg('Relay queued for free — a builder needs to finish it.')}
     else msg('Relay queued — a builder needs to finish it.');
+  }else{
+    if(dist(w,S.base)<BASE_R+14||S.turrets.some(t=>dist(t,w)<26)||S.relays.some(r=>dist(r,w)<26)||S.depots.some(d=>dist(d,w)<40))return;
+    const k=key(Math.floor(w.x/CELL),Math.floor(w.y/CELL));if(S.walls.has(k))return;
+    S.depots.push({x:w.x,y:w.y,hp:DEPOT_HP,maxHp:DEPOT_HP,kind:'depot',built:false,buildT:0,buildTotal:DEPOT_BUILD_T,builder:null,repairer:null});S.dat-=cost;
+    msg('Depot queued — a builder needs to finish it.');
   }
   sfx.click();
   updateBuildBar();
 }
 
 // ---------- helpers ----------
+// A harvester deposits at whichever is nearer right now: the Bastion, or any built, standing
+// (hp>0) Depot — so a forward Depot near a cluster actually shortens the haul instead of just
+// being a second place deposits could theoretically happen.
+function dropoffPoint(h){
+  let best={x:S.base.x,y:S.base.y,r:S.base.r+22},bd=dist(h,S.base);
+  S.depots.forEach(de=>{if(!de.built||de.hp<=0)return;const d=dist(h,de);if(d<bd){bd=d;best={x:de.x,y:de.y,r:26}}});
+  return best;
+}
 function visible(p){const vm=S.mods.visionMult;if(dist(p,S.base)<BASE_VISION*vm)return true;if(S.troops.some(t=>dist(t,p)<TROOP_VISION*vm))return true;if(S.harvesters.some(h=>dist(h,p)<HARV_VISION*vm))return true;return S.builders.some(b=>dist(b,p)<BUILDER_VISION*vm)}
 function moveToward(o,d,sp,dt){const dx=d.x-o.x,dy=d.y-o.y,L=Math.hypot(dx,dy);if(L<1)return 0;const s=Math.min(L,sp*dt);o.x+=dx/L*s;o.y+=dy/L*s;return L-s}
 function tracer(a,b,col){S.tracers.push({x1:a.x,y1:a.y,x2:b.x,y2:b.y,t:0.12,col})}
@@ -1096,6 +1115,7 @@ function wallBetween(a,b){const d=dist(a,b);const steps=Math.max(1,Math.ceil(d/(
 function siteStillValid(site){
   if(site.kind==='wall')return S.walls.get(key(site.gx,site.gy))===site;
   if(site.kind==='relay')return S.relays.includes(site);
+  if(site.kind==='depot')return S.depots.includes(site);
   return S.turrets.includes(site);
 }
 // A relay needs a repair-mode builder's attention either because it's damaged, or because its
@@ -1262,15 +1282,15 @@ function update(dt){
     else if(h.state==='harvest'){const n=h.node;
       if(!n||(n.amt<=0&&h.carry===0)){h.state='idle';h.node=null}
       else if(h.carry>=CARRY*S.mods.carryMult||n.amt<=0){
-        const aim=waypointFor(h,B.x,B.y); moveToward(h,aim,HARV_SPEED*S.mods.moveSpeedMult*factor,dt);
-        if(dist(h,B)<B.r+22){if(h.carry>0){floatText(h.x,h.y-14,'+'+h.carry,C.dat);sfx.gather()}S.dat+=h.carry;h.carry=0;updateBuildBar();if(n.amt<=0){h.state='idle';h.node=null}}
+        const dp=dropoffPoint(h); const aim=waypointFor(h,dp.x,dp.y); moveToward(h,aim,HARV_SPEED*S.mods.moveSpeedMult*factor,dt);
+        if(dist(h,dp)<dp.r){if(h.carry>0){floatText(h.x,h.y-14,'+'+h.carry,C.dat);sfx.gather()}S.dat+=h.carry;h.carry=0;updateBuildBar();if(n.amt<=0){h.state='idle';h.node=null}}
       }
       else if(dist(h,n)>22){const aim=waypointFor(h,n.x,n.y);moveToward(h,aim,HARV_SPEED*S.mods.moveSpeedMult*factor,dt)}
       else{h.hv+=dt;if(h.hv>0.35){h.hv=0;n.amt--;h.carry++}}
     }
     else if(h.state==='return'){
-      const aim=waypointFor(h,B.x,B.y); moveToward(h,aim,HARV_SPEED*S.mods.moveSpeedMult*factor,dt);
-      if(dist(h,B)<B.r+22){
+      const dp=dropoffPoint(h); const aim=waypointFor(h,dp.x,dp.y); moveToward(h,aim,HARV_SPEED*S.mods.moveSpeedMult*factor,dt);
+      if(dist(h,dp)<dp.r){
         if(h.carry>0){floatText(h.x,h.y-14,'+'+h.carry,C.dat);sfx.gather();S.dat+=h.carry;h.carry=0;updateBuildBar()}
         h.state='idle';h.node=null;
       }
@@ -1289,11 +1309,13 @@ function update(dt){
         S.walls.forEach(w=>{if(w.built||(w.builder&&w.builder!==bu))return;const d=dist(bu,w);if(d<bd){bd=d;found=w}});
         S.turrets.forEach(t=>{if(t.built||(t.builder&&t.builder!==bu))return;const d=dist(bu,t);if(d<bd){bd=d;found=t}});
         S.relays.forEach(r=>{if(r.built||(r.builder&&r.builder!==bu))return;const d=dist(bu,r);if(d<bd){bd=d;found=r}});
+        S.depots.forEach(de=>{if(de.built||(de.builder&&de.builder!==bu))return;const d=dist(bu,de);if(d<bd){bd=d;found=de}});
         if(found){found.builder=bu;bu.target=found;bu.state='build'}
       }else{
         S.walls.forEach(w=>{if(!w.built||!needsRepair(w)||(w.repairer&&w.repairer!==bu))return;const d=dist(bu,w);if(d<bd){bd=d;found=w}});
         S.turrets.forEach(t=>{if(!t.built||!needsRepair(t)||(t.repairer&&t.repairer!==bu))return;const d=dist(bu,t);if(d<bd){bd=d;found=t}});
         S.relays.forEach(r=>{if(!r.built||!needsRepair(r)||(r.repairer&&r.repairer!==bu))return;const d=dist(bu,r);if(d<bd){bd=d;found=r}});
+        S.depots.forEach(de=>{if(!de.built||!needsRepair(de)||(de.repairer&&de.repairer!==bu))return;const d=dist(bu,de);if(d<bd){bd=d;found=de}});
         if(found){found.repairer=bu;bu.target=found;bu.state='repair'}
       }
       if(!found&&bu.state!=='dock'){bu.state='dock';bu.dest=null}
@@ -1313,7 +1335,7 @@ function update(dt){
       else if(dist(bu,site)>26){const aim=waypointFor(bu,site.x,site.y);moveToward(bu,aim,BUILDER_SPEED*S.mods.moveSpeedMult*factor,dt)}
       else{
         site.buildT+=dt;
-        if(site.buildT>=site.buildTotal){site.built=true;site.builder=null;bu.target=null;bu.state='idle';msg(site.kind==='wall'?'Wall built.':site.kind==='turret'?'Turret built.':'Relay built.');sfx.build();spark(site.x,site.y,C.builder,8)}
+        if(site.buildT>=site.buildTotal){site.built=true;site.builder=null;bu.target=null;bu.state='idle';msg(site.kind==='wall'?'Wall built.':site.kind==='turret'?'Turret built.':site.kind==='depot'?'Depot built.':'Relay built.');sfx.build();spark(site.x,site.y,C.builder,8)}
       }
     }
     else if(bu.state==='repair'){
@@ -1390,6 +1412,7 @@ function update(dt){
       if(!tgt||bd>220){let bt=B,btd=dist(e,B);
         S.turrets.forEach(tu=>{if(!tu.built)return;const d=dist(e,tu);if(d<btd*0.6){bt=tu;btd=d}});
         S.relays.forEach(r=>{if(!r.built||r.hp<=0)return;const d=dist(e,r);if(d<btd*0.6){bt=r;btd=d}});
+        S.depots.forEach(de=>{if(!de.built||de.hp<=0)return;const d=dist(e,de);if(d<btd*0.6){bt=de;btd=d}});
         tgt=bt;}
     }
     e.target=tgt;
@@ -1446,6 +1469,12 @@ function update(dt){
     if(r.hp<=0){
       if(!r.wasDestroyed){r.wasDestroyed=true;r.tetherOk=false;r.trail=null;r.cableLen=0;r.cableMaxed=false;r.state=null;r.reconnectT=0;msg('A Relay was destroyed — repair it to bring it back online.');burst(r.x,r.y,C.cable,10,110,0.5);sfx.relayDown();shakeScreen(4,0.2)}
     } else if(r.wasDestroyed)r.wasDestroyed=false;
+  });
+  // a destroyed Depot stays put too — it just stops accepting deposits until repaired.
+  S.depots.forEach(de=>{
+    if(de.hp<=0){
+      if(!de.wasDestroyed){de.wasDestroyed=true;msg('A Depot was destroyed — repair it before harvesters can drop off there again.');burst(de.x,de.y,C.dat,10,110,0.5);sfx.relayDown();shakeScreen(4,0.2)}
+    } else if(de.wasDestroyed)de.wasDestroyed=false;
   });
   S.troops=S.troops.filter(t=>t.hp>0); S.troops.forEach(t=>{if(dist(t,B)<B.r+30&&!S.enemies.some(e=>dist(e,t)<200))t.hp=Math.min(t.maxHp,t.hp+6*dt)});
   S.harvesters=S.harvesters.filter(h=>h.hp>0); S.harvesters.forEach(h=>{if(dist(h,B)<B.r+30&&!S.enemies.some(e=>dist(e,h)<200))h.hp=Math.min(h.maxHp,h.hp+6*dt)});
@@ -1679,6 +1708,26 @@ function draw(){
     }
     if(r.hp<r.maxHp)hpbar(r.x,r.y-20,20,r.hp/r.maxHp);
   });
+  // depots — a storage crate, not a powered structure, so no tether glow or cut glyph, just an
+  // open/closed lid depending on whether it's standing
+  S.depots.forEach(de=>{
+    if(!de.built){
+      const pulse=0.55+0.25*Math.sin(S.t*5);
+      ctx.fillStyle=C.builder;ctx.globalAlpha=0.22;ctx.beginPath();ctx.arc(de.x,de.y,12,0,Math.PI*2);ctx.fill();
+      ctx.globalAlpha=pulse;ctx.strokeStyle=C.builder;ctx.lineWidth=2.5;ctx.setLineDash([5,4]);
+      ctx.beginPath();ctx.arc(de.x,de.y,12,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
+      ctx.globalAlpha=1;
+      ctx.fillStyle='rgba(0,0,0,0.6)';ctx.fillRect(de.x-12,de.y+16,24,3);
+      ctx.fillStyle=C.builder;ctx.fillRect(de.x-12,de.y+16,24*(de.buildT/de.buildTotal),3);
+      return;
+    }
+    const alive=de.hp>0;
+    ctx.fillStyle=de.flashT>0?'#fff':(alive?'#3b4652':'#2a2d31');ctx.strokeStyle=alive?C.dat:C.enemy;ctx.lineWidth=2.5;
+    ctx.beginPath();ctx.rect(de.x-12,de.y-9,24,18);ctx.fill();ctx.stroke();
+    ctx.beginPath();ctx.moveTo(de.x-12,de.y-2);ctx.lineTo(de.x+12,de.y-2);ctx.strokeStyle=alive?C.dat:C.enemy;ctx.lineWidth=1.5;ctx.stroke();
+    if(!alive)drawCutGlyph(de.x,de.y);
+    if(de.hp<de.maxHp)hpbar(de.x,de.y-20,22,de.hp/de.maxHp);
+  });
   // base
   ctx.save();ctx.translate(B.x,B.y);ctx.fillStyle=B.flashT>0?'#fff':(B.locked?'#4a3a1c':'#2b3745');ctx.strokeStyle=B.locked?C.accent:C.ally;ctx.lineWidth=2.5;
   ctx.beginPath();ctx.rect(-B.r,-B.r*0.7,B.r*2,B.r*1.4);ctx.fill();ctx.stroke();
@@ -1731,7 +1780,7 @@ function draw(){
   // map edge
   ctx.strokeStyle=C.line;ctx.lineWidth=3/cam.z;ctx.strokeRect(0,0,W,H);
   // build preview
-  if(buildMode){const ok=(B.locked||buildMode==='relay')&&inBuildRange({x:mouse.wx,y:mouse.wy})&&terrainAt(mouse.wx,mouse.wy)!==2&&S.dat>=COST[buildMode];ctx.globalAlpha=0.6;
+  if(buildMode){const ok=(B.locked||buildMode==='relay'||buildMode==='depot')&&inBuildRange({x:mouse.wx,y:mouse.wy})&&terrainAt(mouse.wx,mouse.wy)!==2&&S.dat>=COST[buildMode];ctx.globalAlpha=0.6;
     if(buildMode==='wall'){const gx=Math.floor(mouse.wx/CELL)*CELL,gy=Math.floor(mouse.wy/CELL)*CELL;ctx.fillStyle=ok?'#8d9aa8':C.enemy;ctx.fillRect(gx+1,gy+1,CELL-2,CELL-2)}
     else{const rng=buildMode==='turret'?TURRET_RANGE:WIRELESS_TOL_DENSE*S.mods.relayTolMult;ctx.fillStyle=ok?C.accent:C.enemy;ctx.beginPath();ctx.arc(mouse.wx,mouse.wy,11,0,Math.PI*2);ctx.fill();ctx.strokeStyle=ok?C.accent:C.enemy;ctx.lineWidth=1;ctx.setLineDash([4,6]);ctx.beginPath();ctx.arc(mouse.wx,mouse.wy,rng,0,Math.PI*2);ctx.stroke();ctx.setLineDash([])}
     ctx.globalAlpha=1}
@@ -1746,6 +1795,7 @@ function drawMini(){const s=mini.width/W;mctx.fillStyle='#10151b';mctx.fillRect(
   S.veins.forEach((v,i)=>{if(v.contract&&!v.mine.found&&!debugNoFog)return;mctx.strokeStyle=v.contract?C.living:C.zone;mctx.globalAlpha=v.done?0.3:1;mctx.beginPath();mctx.arc(v.x*s,v.y*s,v.r*s,0,Math.PI*2);mctx.stroke();mctx.globalAlpha=1});
   S.nodes.forEach(n=>{if((n.found||debugNoFog)&&n.amt>0){mctx.fillStyle=C.dat;mctx.fillRect(n.x*s-1.5,n.y*s-1.5,3,3)}});
   S.relays.forEach(r=>{if(r.built){mctx.fillStyle=C.cable;mctx.fillRect(r.x*s-2,r.y*s-2,4,4)}});
+  S.depots.forEach(de=>{if(de.built){mctx.fillStyle=de.hp>0?C.dat:C.enemy;mctx.fillRect(de.x*s-2,de.y*s-2,4,4)}});
   S.enemies.forEach(e=>{if(debugNoFog||visible(e)){mctx.fillStyle=C.enemy;mctx.fillRect(e.x*s-1,e.y*s-1,2,2)}});
   S.troops.forEach(t=>{mctx.fillStyle=C.ally;mctx.fillRect(t.x*s-1.5,t.y*s-1.5,3,3)});
   S.harvesters.forEach(h=>{mctx.fillStyle=C.harv;mctx.fillRect(h.x*s-1.5,h.y*s-1.5,3,3)});
