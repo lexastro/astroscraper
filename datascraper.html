@@ -125,7 +125,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 
 <div class="help" id="help">
   <button id="helpClose" aria-label="Close">×</button>
-  <b>Goal:</b> harvesters gather Dat Crystal automatically. Scout a vein (dashed circle), park the Bastion on its marker, press <kbd>L</kbd> to drill. Drain veins for rewards — drain 3 and the hidden Living Crystal vein reveals itself; drain that one to win.<br>
+  <b>Goal:</b> harvesters gather Dat Crystal automatically. Scout a vein (dashed circle), park the Bastion on its marker, press <kbd>L</kbd> to drill — the drill spends 60s warming up (no burn, no waves yet) before it actually starts. Drain veins for rewards — drain 3 and the hidden Living Crystal vein reveals itself; drain that one to win.<br>
   <b>Controls:</b> drag to select · right-click to move/attack/harvest · <kbd>WASD</kbd> or middle-drag to pan, scroll to zoom<br>
   <b>Build:</b> <kbd>1</kbd> wall · <kbd>2</kbd> turret · <kbd>3</kbd> relay · <kbd>4</kbd> depot (drop-off closer than the Bastion) — walls/turrets need the Bastion locked down drilling, relays/depots can go up any time<br>
   <b>Tether:</b> units need a live cable or wireless range back to the Bastion or a Relay, or they go dark — chain Relays to push your reach further out. A dark unit still takes orders, but its Sanity drains; reconnect in time to recover it, or it defects into a hostile Corrupted enemy<br>
@@ -185,6 +185,10 @@ const SANITY_MAX=100, SANITY_DRAIN=100/16, SANITY_REGEN=100/7;
 // runs out of line — it just stops there until a closer anchor is built or it walks back in.
 const MAX_CABLE_LEN=400;
 const DRILL_RATE=0.5, THROTTLES=[0.5,1,1.8];
+// The drill doesn't bite in immediately on lockdown — it spends PREP_TIME warming up first, with
+// no progress, no Dat burn, and no wave/saboteur clocks running, same as being paused. Throttle
+// is still locked in up front; it just doesn't start spending/spawning until prep finishes.
+const PREP_TIME=60;
 const BASE_SPAWN_INTERVAL={rim:24,dense:15,core:9};
 const AMBIENT_INTERVAL={rim:45,dense:22,core:11};
 // Off-zone mining pressure: parking harvesters on an open Dat Crystal cluster instead of locking
@@ -1002,7 +1006,8 @@ function updateBuildBar(){
   if(crEl)crEl.textContent=S.mods.freeRelayCharges>0?`FREE ×${S.mods.freeRelayCharges}`:`${COST.relay} dat`;
   const lb=document.getElementById('bLock');
   if(lb){
-    document.getElementById('bLockLabel').textContent=S.base.locked?'Drilling…':'Begin Drilling';
+    const preppingNow=S.base.locked&&S.activeVein&&S.activeVein.prepT>0;
+    document.getElementById('bLockLabel').textContent=preppingNow?`Warming Up… (${Math.ceil(S.activeVein.prepT)}s)`:S.base.locked?'Drilling…':'Begin Drilling';
     lb.disabled=S.base.locked?true:!canLockdown();
   }
   const pgb=document.getElementById('bPing');
@@ -1067,10 +1072,11 @@ function tryLockdown(throttle){
   if(!v){msg('Move the Bastion onto a found vein\'s marker first.');return}
   S.throttleMul=throttle==null?1:throttle;
   S.base.locked=true; S.base.dest=null;
-  S.activeVein=v; v.drillProg=0; v.waveT=BASE_SPAWN_INTERVAL[v.band]/S.throttleMul; v.startT=S.t; v.stalled=false; v.waveDir=rnd(0,Math.PI*2);
-  v.saboteurT=SABOTEUR_INTERVAL[v.band]/S.throttleMul; v.paused=false;
+  // waveT/saboteurT/startT/waveDir aren't set until prep finishes (see the update loop) — nothing
+  // should be counting down, let alone spawning, while the drill is still just warming up.
+  S.activeVein=v; v.drillProg=0; v.prepT=PREP_TIME; v.stalled=false; v.paused=false;
   const tier=currentTier(v);
-  msg(`Drilling the ${v.band} vein at ${tier} tier, ${S.throttleMul===0.5?'Slow':S.throttleMul===1?'Normal':'Fast'} throttle — locked in for the whole drill.`);
+  msg(`Drill warming up over the ${v.band} vein — ${PREP_TIME}s until drilling begins at ${tier} tier, ${S.throttleMul===0.5?'Slow':S.throttleMul===1?'Normal':'Fast'} throttle.`);
   sfx.build();
   updateBuildBar();
 }
@@ -1313,9 +1319,19 @@ function update(dt){
   // camera keys
   const ps=520/cam.z*dt; if(keys['w']||keys['arrowup'])cam.y-=ps; if(keys['s']||keys['arrowdown'])cam.y+=ps; if(keys['a']||keys['arrowleft'])cam.x-=ps; if(keys['d']||keys['arrowright'])cam.x+=ps; clampCam();
 
-  // drilling: no fixed prep phase — the throttle is the whole speed/noise trade-off
+  // drilling
   if(B.locked&&S.activeVein&&!S.activeVein.done&&!S.activeVein.paused){
     const v=S.activeVein;
+    if(v.prepT>0){
+      v.prepT=Math.max(0,v.prepT-dt);
+      if(v.prepT<=0){
+        v.startT=S.t; v.waveDir=rnd(0,Math.PI*2);
+        v.waveT=BASE_SPAWN_INTERVAL[v.band]/S.throttleMul;
+        v.saboteurT=SABOTEUR_INTERVAL[v.band]/S.throttleMul;
+        msg('Drill warmed up — drilling has begun.');
+        sfx.resume();
+      }
+    } else {
     const need=DRILL_DAT_COST*S.mods.drillBurnMult*S.throttleMul*dt;
     if(S.dat>=need){
       if(v.stalled){v.stalled=false;msg('Dat Crystal flowing again — drilling resumed.');sfx.resume()}
@@ -1388,6 +1404,7 @@ function update(dt){
         msg(`Vein drained at ${tier} tier — +${condensedEarned} Condensed Crystal.${tail}`);
         shakeScreen(4,0.3);showRewardChoice(tier);
       }
+    }
     }
   }
   // ambient: the zone is alive even when nobody's drilling, scaled by how deep the Bastion sits
@@ -2044,12 +2061,21 @@ function hud(){
   const doneCount=S.veins.filter(v=>v.done).length;
   if(B.locked&&S.activeVein){
     const v=S.activeVein;
-    $('hObj').textContent=`drilling ${v.band} ${Math.floor(100*v.drillProg/v.richness)}%${v.paused?' — PAUSED':v.stalled?' — STALLED':''}`;
-    $('hObjBar').style.width=(100*v.drillProg/v.richness)+'%';
+    if(v.prepT>0){
+      $('hObj').textContent=`warming up — ${Math.ceil(v.prepT)}s until drilling begins`;
+      $('hObjBar').style.width='0%';
+    }else{
+      $('hObj').textContent=`drilling ${v.band} ${Math.floor(100*v.drillProg/v.richness)}%${v.paused?' — PAUSED':v.stalled?' — STALLED':''}`;
+      $('hObjBar').style.width=(100*v.drillProg/v.richness)+'%';
+    }
     // live burn rate and projected Condensed Crystal payoff — both update instantly with throttle,
     // so the tradeoff is visible before you commit to a setting, not just after the fact. Paused
-    // means neither is actually happening right now, so show it as a flat standstill instead.
-    if(v.paused){
+    // (or still warming up) means neither is actually happening right now, so show it as a flat
+    // standstill instead.
+    if(v.prepT>0){
+      $('thBurn').textContent='warming up';
+      $('thRate').textContent='warming up';
+    }else if(v.paused){
       $('thBurn').textContent='paused';
       $('thRate').textContent='paused';
     }else{
