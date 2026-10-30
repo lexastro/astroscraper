@@ -99,6 +99,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <button id="bSelBase"><span>Select Bastion</span><span class="key">B</span></button>
   <button id="bResumeAuto"><span>Resume Auto-Gather</span><span class="key">R</span></button>
   <button id="bToggleRepair"><span id="bRepairLabel">Repair Mode</span><span class="key">G</span></button>
+  <button id="bFollow"><span id="bFollowLabel">Follow Bastion</span><span class="key">V</span></button>
 </div>
 
 <div class="throttle" id="throttlePanel" hidden>
@@ -128,7 +129,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <b>Controls:</b> drag to select · right-click to move/attack/harvest · <kbd>WASD</kbd> or middle-drag to pan, scroll to zoom<br>
   <b>Build:</b> <kbd>1</kbd> wall · <kbd>2</kbd> turret · <kbd>3</kbd> relay · <kbd>4</kbd> depot (drop-off closer than the Bastion) — walls/turrets need the Bastion locked down drilling, relays/depots can go up any time<br>
   <b>Tether:</b> units need a live cable or wireless range back to the Bastion or a Relay, or they go dark — chain Relays to push your reach further out. A dark unit still takes orders, but its Sanity drains; reconnect in time to recover it, or it defects into a hostile Corrupted enemy<br>
-  <kbd>N</kbd> ping (reveals far-off Dat Crystal, 60s cooldown) · <kbd>G</kbd> repair mode · <kbd>R</kbd> resume harvester auto-gather · <kbd>Esc</kbd> cancel · <kbd>`</kbd> reveal map (debug)
+  <kbd>N</kbd> ping (reveals far-off Dat Crystal, 60s cooldown) · <kbd>V</kbd> follow Bastion (escorts it as it moves, until given another order) · <kbd>G</kbd> repair mode · <kbd>R</kbd> resume harvester auto-gather · <kbd>Esc</kbd> cancel · <kbd>`</kbd> reveal map (debug)
 </div>
 
 <div class="overlay" id="overlay" hidden>
@@ -296,9 +297,9 @@ function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
 function key(gx,gy){return gx+','+gy}
 function bandAt(x,y){const d=Math.abs(y-EPI.y);return d<=CORE_R?'core':d<=DENSE_R?'dense':'rim'}
 
-function mkTroop(id,kind){kind=kind||'troop';const hp=kind==='grenadier'?GREN_HP:70;return {id,kind,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp,maxHp:hp,r:TROOP_R,dest:null,target:null,state:'idle',cd:0,tetherOk:true,severed:false,sanity:SANITY_MAX,trail:null,cableHp:0,cableLen:0,cableMaxed:false}}
-function mkHarv(id){return {id,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp:50,maxHp:50,r:HARV_R,dest:null,node:null,carry:0,state:'idle',autoLoop:true,hv:0,tetherOk:true,severed:false,sanity:SANITY_MAX,trail:null,cableHp:0,cableLen:0,cableMaxed:false}}
-function mkBuilder(id){return {id,x:S.base.x+rnd(-30,30),y:S.base.y+rnd(-30,30),hp:40,maxHp:40,r:BUILDER_R,dest:null,state:'idle',mode:'build',target:null,tetherOk:true,severed:false,sanity:SANITY_MAX,trail:null,cableHp:0,cableLen:0,cableMaxed:false}}
+function mkTroop(id,kind){kind=kind||'troop';const hp=kind==='grenadier'?GREN_HP:70;return {id,kind,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp,maxHp:hp,r:TROOP_R,dest:null,target:null,state:'idle',cd:0,tetherOk:true,severed:false,sanity:SANITY_MAX,trail:null,cableHp:0,cableLen:0,cableMaxed:false,following:false,followAng:0,followDist:0}}
+function mkHarv(id){return {id,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp:50,maxHp:50,r:HARV_R,dest:null,node:null,carry:0,state:'idle',autoLoop:true,hv:0,tetherOk:true,severed:false,sanity:SANITY_MAX,trail:null,cableHp:0,cableLen:0,cableMaxed:false,following:false,followAng:0,followDist:0}}
+function mkBuilder(id){return {id,x:S.base.x+rnd(-30,30),y:S.base.y+rnd(-30,30),hp:40,maxHp:40,r:BUILDER_R,dest:null,state:'idle',mode:'build',target:null,tetherOk:true,severed:false,sanity:SANITY_MAX,trail:null,cableHp:0,cableLen:0,cableMaxed:false,following:false,followAng:0,followDist:0}}
 // Stats for the hostile unit a mobile ally becomes if its Sanity ever hits 0 — a notch weaker
 // across the board than its living counterpart, and visibly distinct (kind:'corrupted').
 const CORRUPT_STATS={
@@ -830,6 +831,7 @@ addEventListener('keydown',e=>{
   else if(e.key.toLowerCase()==='g'){toggleRepairMode()}
   else if(e.key.toLowerCase()==='p'){toggleDrillPause()}
   else if(e.key.toLowerCase()==='n'){tryPing()}
+  else if(e.key.toLowerCase()==='v'){followSelected()}
   else if(e.key==='`'){debugNoFog=!debugNoFog;msg(debugNoFog?'Debug: fog of war disabled':'Debug: fog of war re-enabled')}
   if(e.key===' ')e.preventDefault();
 });
@@ -840,6 +842,7 @@ document.getElementById('bPing').onclick=()=>tryPing();
 document.getElementById('bSelBase').onclick=()=>{S.sel.troops.clear();S.sel.harv.clear();S.sel.bu.clear();S.sel.base=true};
 document.getElementById('bResumeAuto').onclick=resumeAutoLoop;
 document.getElementById('bToggleRepair').onclick=toggleRepairMode;
+document.getElementById('bFollow').onclick=followSelected;
 document.getElementById('hTroopsBtn').onclick=()=>{S.sel.base=false;S.sel.harv.clear();S.sel.bu.clear();closeProdMenu();S.troops.forEach(t=>S.sel.troops.add(t.id))};
 document.getElementById('hHarvBtn').onclick=()=>{S.sel.base=false;S.sel.troops.clear();S.sel.bu.clear();closeProdMenu();S.harvesters.forEach(h=>S.sel.harv.add(h.id))};
 document.getElementById('hBuildersBtn').onclick=()=>{S.sel.base=false;S.sel.troops.clear();S.sel.harv.clear();closeProdMenu();S.builders.forEach(bu=>S.sel.bu.add(bu.id))};
@@ -887,9 +890,38 @@ function buildBuilderUnit(){
 }
 function resumeAutoLoop(){
   if(S.sel.harv.size===0){msg('Select harvesters to resume their auto-gather loop.');return}
-  S.harvesters.forEach(h=>{if(S.sel.harv.has(h.id))h.autoLoop=true});
+  S.harvesters.forEach(h=>{if(S.sel.harv.has(h.id)){h.autoLoop=true;h.following=false}});
   msg('Auto-gather resumed for selected harvesters.');
   sfx.click();
+}
+// Keeps the selected units orbiting the Bastion at a fixed personal offset as it drives around,
+// instead of chasing its exact (moving) position — each unit gets its own angle/radius so a
+// group spreads into a loose ring rather than piling on top of one another. Lasts until the
+// player gives that unit any other order (rightClick clears `following` on every order it issues).
+function followSelected(){
+  const rawT=[...S.sel.troops].map(id=>S.troops.find(t=>t.id===id)).filter(Boolean);
+  const rawH=[...S.sel.harv].map(id=>S.harvesters.find(h=>h.id===id)).filter(Boolean);
+  const rawBu=[...S.sel.bu].map(id=>S.builders.find(b=>b.id===id)).filter(Boolean);
+  const all=[...rawT,...rawH,...rawBu];
+  if(all.length===0){msg('Select units to follow the Bastion.');return}
+  all.forEach((u,i)=>{
+    u.following=true;u.dest=null;u.target=null;u.state='idle';
+    u.followAng=(i/all.length)*Math.PI*2+rnd(-0.15,0.15);
+    u.followDist=rnd(50,100);
+  });
+  rawH.forEach(h=>{h.autoLoop=false;h.node=null;h.state='idle'});
+  rawBu.forEach(bu=>{releaseBuilderClaim(bu);bu.state='idle'});
+  msg('Selected units will stick near the Bastion until given another order.');
+  sfx.click();
+}
+// Moves a following unit toward its personal orbit point around the (possibly moving) Bastion.
+function followMove(u,speed,dt){
+  const fx=S.base.x+Math.cos(u.followAng)*u.followDist, fy=S.base.y+Math.sin(u.followAng)*u.followDist;
+  if(dist(u,{x:fx,y:fy})>8){
+    const factor=terrainAt(u.x,u.y)===1?MUD_MULT:1;
+    const aim=waypointFor(u,fx,fy);
+    moveToward(u,aim,speed*factor,dt);
+  }
 }
 function releaseBuilderClaim(bu){
   if(!bu.target)return;
@@ -900,7 +932,7 @@ function toggleRepairMode(){
   if(S.sel.bu.size===0){msg('Select builders to toggle their mode.');return}
   const anyRepair=S.builders.some(b=>S.sel.bu.has(b.id)&&b.mode==='repair');
   const newMode=anyRepair?'build':'repair';
-  S.builders.forEach(b=>{if(S.sel.bu.has(b.id)){releaseBuilderClaim(b);b.mode=newMode;b.state='idle';b.target=null}});
+  S.builders.forEach(b=>{if(S.sel.bu.has(b.id)){releaseBuilderClaim(b);b.mode=newMode;b.state='idle';b.target=null;b.following=false}});
   msg(newMode==='repair'?'Selected builders switched to repair mode.':'Selected builders switched to build mode.');
   sfx.click();
   updateBuildBar();
@@ -929,6 +961,13 @@ function updateBuildBar(){
   rb.disabled=S.sel.bu.size===0;
   const anyRepairSel=S.builders.some(b=>S.sel.bu.has(b.id)&&b.mode==='repair');
   document.getElementById('bRepairLabel').textContent=anyRepairSel?'Build Mode':'Repair Mode';
+  const selCount=S.sel.troops.size+S.sel.harv.size+S.sel.bu.size;
+  const fb=document.getElementById('bFollow');
+  fb.disabled=selCount===0;
+  const anyFollowSel=[...S.sel.troops].some(id=>{const t=S.troops.find(x=>x.id===id);return t&&t.following})
+    ||[...S.sel.harv].some(id=>{const h=S.harvesters.find(x=>x.id===id);return h&&h.following})
+    ||[...S.sel.bu].some(id=>{const b=S.builders.find(x=>x.id===id);return b&&b.following});
+  fb.classList.toggle('on',anyFollowSel);
   const pm=document.getElementById('prodMenu');
   if(pm){
     pm.hidden=!prodMenuOpen||!S.sel.base;
@@ -1024,11 +1063,13 @@ function rightClick(w){
 
   selT.forEach((t,i)=>{
     const off=selT.length>1?{x:Math.cos(i*2.1)*14,y:Math.sin(i*2.1)*14}:{x:0,y:0};
+    t.following=false;
     if(en){t.state='attack';t.target=en;t.dest=null}
     else{t.state='move';t.dest={x:w.x+off.x,y:w.y+off.y};t.target=null}
   });
 
   if(selH.length){
+    selH.forEach(h=>h.following=false);
     if(nearBase){
       selH.forEach(h=>{h.state='return';h.dest=null;h.autoLoop=false});
       msg('Harvesters returning to drop off — auto-gather paused.');
@@ -1044,6 +1085,7 @@ function rightClick(w){
 
   if(selBu.length){
     selBu.forEach((bu,i)=>{
+      bu.following=false;
       releaseBuilderClaim(bu);
       const off=selBu.length>1?{x:Math.cos(i*2.1)*14,y:Math.sin(i*2.1)*14}:{x:0,y:0};
       bu.state='move';bu.dest={x:w.x+off.x,y:w.y+off.y};bu.target=null;
@@ -1343,7 +1385,8 @@ function update(dt){
     const gren=t.kind==='grenadier';
     const range=gren?GREN_RANGE:TROOP_RANGE;
     const factor=terrainAt(t.x,t.y)===1?MUD_MULT:1;
-    if(t.state==='move'&&t.dest){
+    if(t.following){followMove(t,TROOP_SPEED,dt)}
+    else if(t.state==='move'&&t.dest){
       const aim=waypointFor(t,t.dest.x,t.dest.y);
       moveToward(t,aim,TROOP_SPEED*factor,dt);
       if(dist(t,t.dest)<4){t.dest=null;t.state='idle'}
@@ -1352,7 +1395,7 @@ function update(dt){
       if(!t.target||t.target.hp<=0){t.target=null;t.state='idle'}
       else if(dist(t,t.target)>range-10){const aim=waypointFor(t,t.target.x,t.target.y);moveToward(t,aim,TROOP_SPEED*factor,dt)}
     }
-    // auto fire
+    // auto fire — a following troop still defends itself along the way
     if(t.cd<=0){let best=null,bd=range;S.enemies.forEach(e=>{const d=dist(e,t);if(d<bd){bd=d;best=e}});
       if(best){
         if(gren){launchNade(t,best);t.cd=GREN_CD}
@@ -1367,6 +1410,7 @@ function update(dt){
   // harvesters — unarmed; auto-loop to the nearest resource unless paused by a manual order or cut
   S.harvesters.forEach(h=>{
     const factor=terrainAt(h.x,h.y)===1?MUD_MULT:1;
+    if(h.following){followMove(h,HARV_SPEED*S.mods.moveSpeedMult,dt);h.x=Math.max(10,Math.min(W-10,h.x));h.y=Math.max(10,Math.min(H-10,h.y));S.nodes.forEach(n=>{if(!n.found&&dist(n,h)<HARV_VISION*S.mods.visionMult)n.found=true});return}
     if(h.autoLoop&&h.state==='idle'){
       // only chase deposits the player has actually scouted — never beeline for one still
       // hidden under fog. With nothing known yet, head back and wait near the Bastion instead
@@ -1405,6 +1449,7 @@ function update(dt){
   // the Bastion when idle. 'cut' builders skip auto-seek entirely (handled by tetherPass above).
   S.builders.forEach(bu=>{
     const factor=terrainAt(bu.x,bu.y)===1?MUD_MULT:1;
+    if(bu.following){followMove(bu,BUILDER_SPEED*S.mods.moveSpeedMult,dt);bu.x=Math.max(10,Math.min(W-10,bu.x));bu.y=Math.max(10,Math.min(H-10,bu.y));return}
     if(bu.state==='idle'||bu.state==='dock'){
       let found=null,bd=Infinity;
       if(bu.mode==='build'){
@@ -1679,6 +1724,11 @@ function drawCutGlyph(x,y){
   ctx.strokeStyle=C.enemy;ctx.lineWidth=2;
   ctx.beginPath();ctx.moveTo(x-7,y-16);ctx.lineTo(x-1,y-11);ctx.moveTo(x+1,y-11);ctx.lineTo(x+7,y-16);ctx.stroke();
 }
+// Small chevron above a unit escorting the Bastion — a quiet "following" indicator.
+function drawFollowGlyph(x,y){
+  ctx.strokeStyle=C.accent;ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(x-6,y-18);ctx.lineTo(x,y-13);ctx.lineTo(x+6,y-18);ctx.stroke();
+}
 function draw(){
   const B=S.base,dpr=devicePixelRatio,vw=cv.width/dpr,vh=cv.height/dpr;
   ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle='#0b0e12';ctx.fillRect(0,0,vw,vh);
@@ -1850,7 +1900,7 @@ function draw(){
     else{ctx.beginPath();ctx.arc(t.x,t.y,t.r,0,Math.PI*2);ctx.fill()}
     if(t.hp<t.maxHp)hpbar(t.x,t.y-14,16,t.hp/t.maxHp);
     if(t.sanity<SANITY_MAX)sanityBar(t.x,t.y-10,16,t.sanity/SANITY_MAX);
-    if(!t.tetherOk)drawCutGlyph(t.x,t.y);
+    if(!t.tetherOk)drawCutGlyph(t.x,t.y); if(t.following)drawFollowGlyph(t.x,t.y);
     if(sel&&t.dest){ctx.strokeStyle='rgba(94,200,255,0.35)';ctx.beginPath();ctx.moveTo(t.x,t.y);ctx.lineTo(t.dest.x,t.dest.y);ctx.stroke()}});
   // grenades in flight
   S.nades.forEach(n=>{ctx.fillStyle=C.accent;ctx.beginPath();ctx.arc(n.x,n.y,4,0,Math.PI*2);ctx.fill()});
@@ -1861,7 +1911,7 @@ function draw(){
     if(h.carry>0){ctx.fillStyle=C.dat;ctx.beginPath();ctx.arc(h.x+6,h.y-6,3+h.carry/6,0,Math.PI*2);ctx.fill()}
     if(h.hp<h.maxHp)hpbar(h.x,h.y-14,16,h.hp/h.maxHp);
     if(h.sanity<SANITY_MAX)sanityBar(h.x,h.y-10,16,h.sanity/SANITY_MAX);
-    if(!h.tetherOk)drawCutGlyph(h.x,h.y);
+    if(!h.tetherOk)drawCutGlyph(h.x,h.y); if(h.following)drawFollowGlyph(h.x,h.y);
     if(sel&&h.dest){ctx.strokeStyle='rgba(232,147,92,0.35)';ctx.beginPath();ctx.moveTo(h.x,h.y);ctx.lineTo(h.dest.x,h.dest.y);ctx.stroke()}});
   // builders
   S.builders.forEach(bu=>{const sel=S.sel.bu.has(bu.id);if(sel){ctx.strokeStyle=C.builder;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(bu.x,bu.y,bu.r+5,0,Math.PI*2);ctx.stroke()}
@@ -1869,7 +1919,7 @@ function draw(){
     if(bu.mode==='repair'){ctx.strokeStyle='#fff';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(bu.x-4,bu.y+2);ctx.lineTo(bu.x+4,bu.y+2);ctx.moveTo(bu.x,bu.y-2);ctx.lineTo(bu.x,bu.y+6);ctx.stroke()}
     if(bu.hp<bu.maxHp)hpbar(bu.x,bu.y-14,16,bu.hp/bu.maxHp);
     if(bu.sanity<SANITY_MAX)sanityBar(bu.x,bu.y-10,16,bu.sanity/SANITY_MAX);
-    if(!bu.tetherOk)drawCutGlyph(bu.x,bu.y);
+    if(!bu.tetherOk)drawCutGlyph(bu.x,bu.y); if(bu.following)drawFollowGlyph(bu.x,bu.y);
     if(sel&&bu.dest){ctx.strokeStyle='rgba(79,209,197,0.35)';ctx.beginPath();ctx.moveTo(bu.x,bu.y);ctx.lineTo(bu.dest.x,bu.dest.y);ctx.stroke()}});
   // enemies (only visible)
   S.enemies.forEach(e=>{if(!debugNoFog&&!visible(e))return;const a=e.ang;ctx.fillStyle=e.flashT>0?'#fff':(e.kind==='roam'?'#d9775f':e.kind==='saboteur'?C.cable:e.kind==='corrupted'?C.zone:C.enemy);ctx.beginPath();
