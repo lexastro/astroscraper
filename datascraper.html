@@ -129,11 +129,15 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <b>Controls:</b> drag to select · right-click to move/attack/harvest · <kbd>WASD</kbd> or middle-drag to pan, scroll to zoom<br>
   <b>Build:</b> <kbd>1</kbd> wall · <kbd>2</kbd> turret · <kbd>3</kbd> relay · <kbd>4</kbd> depot (drop-off closer than the Bastion) — walls/turrets need the Bastion locked down drilling, relays/depots can go up any time<br>
   <b>Tether:</b> units need a live cable or wireless range back to the Bastion or a Relay, or they go dark — chain Relays to push your reach further out. A dark unit still takes orders, but its Sanity drains; reconnect in time to recover it, or it defects into a hostile Corrupted enemy<br>
-  <kbd>N</kbd> ping (reveals far-off Dat Crystal, 60s cooldown) · <kbd>V</kbd> follow Bastion (escorts it as it moves, until given another order) · <kbd>G</kbd> repair mode · <kbd>R</kbd> resume harvester auto-gather · <kbd>Esc</kbd> cancel · <kbd>`</kbd> reveal map (debug)
+  <kbd>N</kbd> ping (reveals far-off Dat Crystal, 60s cooldown) · <kbd>V</kbd> follow Bastion (escorts it as it moves, until given another order) · <kbd>G</kbd> repair mode · <kbd>R</kbd> resume harvester auto-gather · <kbd>Esc</kbd> cancel, or pause the whole game if nothing's open · <kbd>`</kbd> reveal map (debug)
 </div>
 
 <div class="overlay" id="overlay" hidden>
   <h1 id="ovTitle"></h1><p id="ovText"></p><button id="ovBtn">Restart</button>
+</div>
+
+<div class="overlay" id="pauseOverlay" hidden>
+  <h1>Paused</h1><p>The game is frozen — nothing is moving, drilling, or spawning.</p><button id="pauseResumeBtn">Resume</button>
 </div>
 
 <div class="overlay rewardOverlay" id="rewardOverlay" hidden>
@@ -355,7 +359,7 @@ function reset(){
     mods:{carryMult:1,troopDmgMult:1,moveSpeedMult:1,visionMult:1,relayTolMult:1,drillBurnMult:1,
       cableLenAdd:0,cableHpMult:1,condensedMult:1,livingMult:1,fastBonus:0,freeRelayCharges:0,
       grenFireRateMult:1,grenSplashMult:1,squadRangeMult:1,bigGuns:false,bastionShootWhileDrilling:false},
-    rewardChoice:null,pingRing:null,
+    rewardChoice:null,pingRing:null,paused:false,
     sel:{base:false,troops:new Set(),harv:new Set(),bu:new Set()}};
   for(let i=0;i<4;i++) S.troops.push(mkTroop(i));
   for(let i=0;i<2;i++) S.harvesters.push(mkHarv(i));
@@ -427,6 +431,7 @@ function reset(){
   fogX.globalCompositeOperation='source-over'; fogX.fillStyle='#000'; fogX.fillRect(0,0,fogC.width,fogC.height);
   S.sel.base=true; buildMode=null; updateBuildBar();
   document.getElementById('overlay').hidden=true;
+  document.getElementById('pauseOverlay').hidden=true;
   msg('Scout a marked vein to find its mining point, then press L to begin drilling.');
 }
 function spawnEnemy(x,y,kind){
@@ -896,7 +901,7 @@ cv.addEventListener('wheel',e=>{e.preventDefault();const w0=toWorld(e.clientX,e.
 addEventListener('keydown',e=>{
   if(e.target.tagName==='INPUT')return; keys[e.key.toLowerCase()]=true; keys[e.key]=true;
   if(e.key==='1')setBuild('wall'); else if(e.key==='2')setBuild('turret'); else if(e.key==='3')setBuild('relay'); else if(e.key==='4')setBuild('depot');
-  else if(e.key==='Escape'){setBuild(null);closeProdMenu()} else if(e.key.toLowerCase()==='b'){S.sel.troops.clear();S.sel.harv.clear();S.sel.bu.clear();S.sel.base=true}
+  else if(e.key==='Escape'){if(buildMode||prodMenuOpen){setBuild(null);closeProdMenu()}else togglePause()} else if(e.key.toLowerCase()==='b'){S.sel.troops.clear();S.sel.harv.clear();S.sel.bu.clear();S.sel.base=true}
   else if(e.key.toLowerCase()==='t'){S.sel.base=false;S.sel.harv.clear();S.sel.bu.clear();S.troops.forEach(t=>S.sel.troops.add(t.id))}
   else if(e.key.toLowerCase()==='h'){S.sel.base=false;S.sel.troops.clear();S.sel.bu.clear();S.harvesters.forEach(h=>S.sel.harv.add(h.id))}
   else if(e.key.toLowerCase()==='u'){S.sel.base=false;S.sel.troops.clear();S.sel.harv.clear();S.builders.forEach(bu=>S.sel.bu.add(bu.id))}
@@ -933,6 +938,7 @@ document.querySelectorAll('#throttlePanel button[data-th]').forEach(b=>b.onclick
 document.getElementById('bPause').onclick=toggleDrillPause;
 document.getElementById('helpClose').onclick=()=>{document.getElementById('help').hidden=true};
 document.getElementById('ovBtn').onclick=reset;
+document.getElementById('pauseResumeBtn').onclick=togglePause;
 mini.addEventListener('pointerdown',e=>{const r=mini.getBoundingClientRect();cam.x=(e.clientX-r.left)/r.width*W;cam.y=(e.clientY-r.top)/r.height*H;clampCam()});
 function closeProdMenu(){prodMenuOpen=false;const el=document.getElementById('prodMenu');if(el)el.hidden=true}
 function buildTroop(){
@@ -1107,6 +1113,15 @@ function toggleDrillPause(){
   msg(v.paused?'Drilling paused — Dat Crystal reserved.':'Drilling resumed.');
   sfx.click();
   updateBuildBar();
+}
+// Whole-game pause (Esc) — distinct from toggleDrillPause's drill-only freeze above. update()
+// bails out entirely while S.paused is set, so nothing moves, fights, drills, or spawns; the
+// pause menu can't stack with the win/lose or reward-choice overlays, which already do the same.
+function togglePause(){
+  if(S.over||S.rewardChoice)return;
+  S.paused=!S.paused;
+  document.getElementById('pauseOverlay').hidden=!S.paused;
+  sfx.click();
 }
 // Instant long-range sensor sweep: marks every undiscovered Dat Crystal deposit within
 // PING_RADIUS as found, no vision or scouting needed. 60s cooldown, usable locked down or not.
@@ -1340,7 +1355,7 @@ function needsRepair(site){return site.hp<site.maxHp||(site.kind==='relay'&&site
 
 // ---------- update ----------
 function update(dt){
-  if(S.over||S.rewardChoice)return; S.t+=dt;
+  if(S.over||S.rewardChoice||S.paused)return; S.t+=dt;
   const B=S.base;
   // camera keys
   const ps=520/cam.z*dt; if(keys['w']||keys['arrowup'])cam.y-=ps; if(keys['s']||keys['arrowdown'])cam.y+=ps; if(keys['a']||keys['arrowleft'])cam.x-=ps; if(keys['d']||keys['arrowright'])cam.x+=ps; clampCam();
