@@ -95,6 +95,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <button id="bRelay" data-mode="relay"><span>Relay</span><span class="cost" id="cRelay">15 dat</span><span class="key">3</span></button>
   <button id="bDepot" data-mode="depot"><span>Depot</span><span class="cost" id="cDepot">150 dat</span><span class="key">4</span></button>
   <button id="bLock"><span id="bLockLabel">Begin Drilling</span><span class="key">L</span></button>
+  <button id="bPing"><span id="bPingLabel">Ping</span><span class="key">N</span></button>
   <button id="bSelBase"><span>Select Bastion</span><span class="key">B</span></button>
   <button id="bResumeAuto"><span>Resume Auto-Gather</span><span class="key">R</span></button>
   <button id="bToggleRepair"><span id="bRepairLabel">Repair Mode</span><span class="key">G</span></button>
@@ -126,7 +127,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <b>Controls:</b> drag to select · right-click to move/attack/harvest · <kbd>WASD</kbd> or middle-drag to pan, scroll to zoom<br>
   <b>Build:</b> <kbd>1</kbd> wall · <kbd>2</kbd> turret · <kbd>3</kbd> relay · <kbd>4</kbd> depot (drop-off closer than the Bastion) — walls/turrets need the Bastion locked down drilling, relays/depots can go up any time<br>
   <b>Tether:</b> units need a live cable or wireless range back to the Bastion or a Relay, or they go dark — chain Relays to push your reach further out<br>
-  <kbd>G</kbd> repair mode · <kbd>R</kbd> resume harvester auto-gather · <kbd>Esc</kbd> cancel · <kbd>`</kbd> reveal map (debug)
+  <kbd>N</kbd> ping (reveals far-off Dat Crystal, 60s cooldown) · <kbd>G</kbd> repair mode · <kbd>R</kbd> resume harvester auto-gather · <kbd>Esc</kbd> cancel · <kbd>`</kbd> reveal map (debug)
 </div>
 
 <div class="overlay" id="overlay" hidden>
@@ -158,6 +159,10 @@ const RELAY_HP=100;
 // back to the Bastion. Like a Relay it can be queued any time, locked down or not.
 const DEPOT_HP=150;
 const BASE_GUN_RANGE=260, BASE_GUN_DMG=18, BASE_GUN_CD=0.5;
+// Bastion ability: an instant long-range sensor sweep that marks every undiscovered Dat Crystal
+// deposit within PING_RADIUS as found, regardless of vision/fog — veins and their mine points are
+// deliberately untouched, so it's no shortcut around scouting or the Living Crystal triangulation.
+const PING_RADIUS=2200, PING_CD=60;
 const WALL_HP=220;
 const COST={wall:5,turret:50,relay:15,depot:150,harvester:20,troop:30,builder:75};
 const ZONE_R=200;
@@ -287,7 +292,7 @@ function mkBuilder(id){return {id,x:S.base.x+rnd(-30,30),y:S.base.y+rnd(-30,30),
 
 function reset(){
   S={t:0,dat:40,living:0,condensed:0,over:null,
-    base:{x:W/2,y:H-400,hp:900,maxHp:900,r:BASE_R,dest:null,locked:false,gunCd:0},
+    base:{x:W/2,y:H-400,hp:900,maxHp:900,r:BASE_R,dest:null,locked:false,gunCd:0,pingCd:0},
     troops:[],harvesters:[],builders:[],relays:[],depots:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],shards:[],
     veins:[],activeVein:null,throttleMul:1,ambientT:30,
     particles:[],floaters:[],shake:{t:0,dur:0,mag:0},
@@ -295,7 +300,7 @@ function reset(){
     // reset back to baseline (1 / 0 / false) by a fresh reset(), never persisted between runs.
     mods:{carryMult:1,troopDmgMult:1,moveSpeedMult:1,visionMult:1,relayTolMult:1,drillBurnMult:1,
       cableLenAdd:0,cableHpMult:1,condensedMult:1,livingMult:1,fastBonus:0,freeRelayCharges:0},
-    rewardChoice:null,
+    rewardChoice:null,pingRing:null,
     sel:{base:false,troops:new Set(),harv:new Set(),bu:new Set()}};
   for(let i=0;i<4;i++) S.troops.push(mkTroop(i));
   for(let i=0;i<2;i++) S.harvesters.push(mkHarv(i));
@@ -776,12 +781,14 @@ addEventListener('keydown',e=>{
   else if(e.key.toLowerCase()==='r'){resumeAutoLoop()}
   else if(e.key.toLowerCase()==='g'){toggleRepairMode()}
   else if(e.key.toLowerCase()==='p'){toggleDrillPause()}
+  else if(e.key.toLowerCase()==='n'){tryPing()}
   else if(e.key==='`'){debugNoFog=!debugNoFog;msg(debugNoFog?'Debug: fog of war disabled':'Debug: fog of war re-enabled')}
   if(e.key===' ')e.preventDefault();
 });
 addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;keys[e.key]=false});
 document.querySelectorAll('#buildBar button[data-mode]').forEach(b=>b.addEventListener('click',()=>{setBuild(buildMode===b.dataset.mode?null:b.dataset.mode);sfx.click()}));
 document.getElementById('bLock').onclick=()=>tryLockdown();
+document.getElementById('bPing').onclick=()=>tryPing();
 document.getElementById('bSelBase').onclick=()=>{S.sel.troops.clear();S.sel.harv.clear();S.sel.bu.clear();S.sel.base=true};
 document.getElementById('bResumeAuto').onclick=resumeAutoLoop;
 document.getElementById('bToggleRepair').onclick=toggleRepairMode;
@@ -856,6 +863,11 @@ function updateBuildBar(){
     document.getElementById('bLockLabel').textContent=S.base.locked?'Drilling…':'Begin Drilling';
     lb.disabled=S.base.locked?true:!canLockdown();
   }
+  const pgb=document.getElementById('bPing');
+  if(pgb){
+    pgb.disabled=S.base.pingCd>0;
+    document.getElementById('bPingLabel').textContent=S.base.pingCd>0?`Ping (${Math.ceil(S.base.pingCd)}s)`:'Ping';
+  }
   document.getElementById('bResumeAuto').disabled=S.sel.harv.size===0;
   const rb=document.getElementById('bToggleRepair');
   rb.disabled=S.sel.bu.size===0;
@@ -921,6 +933,18 @@ function toggleDrillPause(){
   v.paused=!v.paused;
   msg(v.paused?'Drilling paused — Dat Crystal reserved.':'Drilling resumed.');
   sfx.click();
+  updateBuildBar();
+}
+// Instant long-range sensor sweep: marks every undiscovered Dat Crystal deposit within
+// PING_RADIUS as found, no vision or scouting needed. 60s cooldown, usable locked down or not.
+function tryPing(){
+  if(S.base.pingCd>0){msg('Ping is still recharging.');return}
+  let found=0;
+  S.nodes.forEach(n=>{if(!n.found&&n.amt>0&&dist(n,S.base)<=PING_RADIUS){n.found=true;found++}});
+  S.base.pingCd=PING_CD;
+  S.pingRing={x:S.base.x,y:S.base.y,t:0,dur:1.1};
+  msg(found?`Ping swept the area — ${found} Dat Crystal deposit${found===1?'':'s'} found.`:'Ping swept the area — nothing new in range.');
+  sfx.ping();
   updateBuildBar();
 }
 
@@ -1083,6 +1107,7 @@ const sfx={
   saboteurs(){tone(240,0.1,'square',0.06);tone(200,0.1,'square',0.05,0.1)},
   relayDown(){tone(120,0.25,'sawtooth',0.09,0,50)},
   damage(){if(!sfxReady('damage',0.3))return;tone(90,0.12,'triangle',0.08)},
+  ping(){tone(700,0.1,'sine',0.08);tone(1100,0.35,'sine',0.07,0.1)},
 };
 // Only a FINISHED wall is a solid obstacle — a queued/under-construction site is just a ghost preview.
 function wallAt(x,y){
@@ -1224,6 +1249,8 @@ function update(dt){
   if(!S.enemies.some(e=>dist(e,B)<400))B.hp=Math.min(B.maxHp,B.hp+2*dt);
   // bastion gun — only while mobile; it goes quiet once locked down and leans on built defenses instead
   B.gunCd-=dt;
+  if(B.pingCd>0)B.pingCd=Math.max(0,B.pingCd-dt);
+  if(S.pingRing){S.pingRing.t+=dt;if(S.pingRing.t>=S.pingRing.dur)S.pingRing=null}
   if(!B.locked){
     let best=null,bd=BASE_GUN_RANGE;S.enemies.forEach(e=>{const d=dist(e,B);if(d<bd){bd=d;best=e}});
     if(best&&B.gunCd<=0){damageEnemy(best,BASE_GUN_DMG);tracer(B,best,C.accent);B.gunCd=BASE_GUN_CD}
@@ -1728,6 +1755,7 @@ function draw(){
   const bwt=0.5+0.5*Math.sin(S.t*2.2);
   ctx.strokeStyle=C.cable;ctx.globalAlpha=0.2*bwt;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(B.x,B.y,WIRELESS_TOL_DENSE*S.mods.relayTolMult,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;
   if(S.sel.base){ctx.strokeStyle=C.ally;ctx.lineWidth=1.5;ctx.setLineDash([4,4]);ctx.beginPath();ctx.arc(B.x,B.y,B.r+10,0,Math.PI*2);ctx.stroke();ctx.setLineDash([])}
+  if(S.pingRing){const pr=S.pingRing,pt=pr.t/pr.dur;ctx.globalAlpha=Math.max(0,1-pt);ctx.strokeStyle=C.dat;ctx.lineWidth=3;ctx.beginPath();ctx.arc(pr.x,pr.y,PING_RADIUS*pt,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1}
   if(B.dest){ctx.strokeStyle='rgba(94,200,255,0.5)';ctx.setLineDash([6,6]);ctx.beginPath();ctx.moveTo(B.x,B.y);ctx.lineTo(B.dest.x,B.dest.y);ctx.stroke();ctx.setLineDash([])}
   // cables (drawn under the units they belong to)
   S.relays.forEach(r=>{if(r.built)drawCable(r,C.cable)});
