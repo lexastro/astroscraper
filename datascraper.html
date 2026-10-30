@@ -115,6 +115,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <button id="prodClose" aria-label="Close">×</button>
   <b>Build at Bastion</b>
   <button id="bBuildTroop" class="prodBtn"><span>Squad</span><span class="cost" id="cTroopCost">30 dat</span></button>
+  <button id="bBuildGrenadier" class="prodBtn"><span>Grenadier</span><span class="cost" id="cGrenadierCost">45 dat</span></button>
   <button id="bBuildHarv" class="prodBtn"><span>Harvester</span><span class="cost" id="cHarvCost">20 dat</span></button>
   <button id="bBuildBuilder" class="prodBtn"><span>Builder</span><span class="cost" id="cBuilderCost">75 dat</span></button>
 </div>
@@ -148,6 +149,9 @@ const EPI={x:W/2,y:700};
 const CORE_R=1080, DENSE_R=3000;
 const BASE_R=30, BASE_SPEED=42, BUILD_R=270, BASE_VISION=450;
 const TROOP_R=7, TROOP_SPEED=125, TROOP_VISION=340, TROOP_RANGE=165, TROOP_DMG=7, TROOP_CD=0.45;
+// Grenadier: a squad variant that lobs an explosive round instead of firing instantly — tankier
+// and slower-firing than a plain Squad, but the round splashes every enemy near where it lands.
+const GREN_HP=100, GREN_RANGE=190, GREN_DMG=14, GREN_CD=1.3, GREN_SPLASH_R=70, GREN_PROJ_SPEED=320;
 const HARV_R=8, HARV_SPEED=105, HARV_VISION=280, CARRY=24;
 const BUILDER_R=7, BUILDER_SPEED=100, BUILDER_VISION=200;
 const WALL_BUILD_T=1, TURRET_BUILD_T=5, RELAY_BUILD_T=3, DEPOT_BUILD_T=4, REPAIR_HPS=25, REPAIR_DAT_PER_SEC=1;
@@ -164,7 +168,7 @@ const BASE_GUN_RANGE=260, BASE_GUN_DMG=18, BASE_GUN_CD=0.5;
 // deliberately untouched, so it's no shortcut around scouting or the Living Crystal triangulation.
 const PING_RADIUS=2200, PING_CD=60;
 const WALL_HP=220;
-const COST={wall:5,turret:50,relay:15,depot:150,harvester:20,troop:30,builder:75};
+const COST={wall:5,turret:50,relay:15,depot:150,harvester:20,troop:30,builder:75,grenadier:45};
 const ZONE_R=200;
 const TCELL=60, TGX=Math.ceil(W/TCELL), TGY=Math.ceil(H/TCELL), MUD_MULT=0.55;
 // Tether: wireless works freely on the rim; in the dense field you get a short leash around any
@@ -287,14 +291,14 @@ function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
 function key(gx,gy){return gx+','+gy}
 function bandAt(x,y){const d=Math.abs(y-EPI.y);return d<=CORE_R?'core':d<=DENSE_R?'dense':'rim'}
 
-function mkTroop(id){return {id,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp:70,maxHp:70,r:TROOP_R,dest:null,target:null,state:'idle',cd:0,tetherOk:true,trail:null,cableHp:0,cableLen:0,cableMaxed:false}}
+function mkTroop(id,kind){kind=kind||'troop';const hp=kind==='grenadier'?GREN_HP:70;return {id,kind,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp,maxHp:hp,r:TROOP_R,dest:null,target:null,state:'idle',cd:0,tetherOk:true,trail:null,cableHp:0,cableLen:0,cableMaxed:false}}
 function mkHarv(id){return {id,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp:50,maxHp:50,r:HARV_R,dest:null,node:null,carry:0,state:'idle',autoLoop:true,hv:0,tetherOk:true,trail:null,cableHp:0,cableLen:0,cableMaxed:false}}
 function mkBuilder(id){return {id,x:S.base.x+rnd(-30,30),y:S.base.y+rnd(-30,30),hp:40,maxHp:40,r:BUILDER_R,dest:null,state:'idle',mode:'build',target:null,tetherOk:true,trail:null,cableHp:0,cableLen:0,cableMaxed:false}}
 
 function reset(){
   S={t:0,dat:40,living:0,condensed:0,over:null,
     base:{x:W/2,y:H-400,hp:900,maxHp:900,r:BASE_R,dest:null,locked:false,gunCd:0,pingCd:0},
-    troops:[],harvesters:[],builders:[],relays:[],depots:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],shards:[],
+    troops:[],harvesters:[],builders:[],relays:[],depots:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],shards:[],nades:[],
     veins:[],activeVein:null,throttleMul:1,ambientT:30,
     particles:[],floaters:[],shake:{t:0,dur:0,mag:0},
     // run-only upgrade modifiers — every stat multiplier/bonus a reward card can grant, all
@@ -798,6 +802,7 @@ document.getElementById('hHarvBtn').onclick=()=>{S.sel.base=false;S.sel.troops.c
 document.getElementById('hBuildersBtn').onclick=()=>{S.sel.base=false;S.sel.troops.clear();S.sel.harv.clear();closeProdMenu();S.builders.forEach(bu=>S.sel.bu.add(bu.id))};
 document.getElementById('prodClose').onclick=closeProdMenu;
 document.getElementById('bBuildTroop').onclick=buildTroop;
+document.getElementById('bBuildGrenadier').onclick=buildGrenadier;
 document.getElementById('bBuildHarv').onclick=buildHarvester;
 document.getElementById('bBuildBuilder').onclick=buildBuilderUnit;
 document.querySelectorAll('#throttlePanel button[data-th]').forEach(b=>b.onclick=()=>{
@@ -814,6 +819,13 @@ function buildTroop(){
   S.dat-=COST.troop;
   S.troops.push(mkTroop(Date.now()+Math.floor(Math.random()*1000)));
   msg('Squad recruited.');
+  updateBuildBar();
+}
+function buildGrenadier(){
+  if(S.dat<COST.grenadier){msg('Not enough Dat Crystal for a grenadier.');return}
+  S.dat-=COST.grenadier;
+  S.troops.push(mkTroop(Date.now()+Math.floor(Math.random()*1000),'grenadier'));
+  msg('Grenadier recruited.');
   updateBuildBar();
 }
 function buildHarvester(){
@@ -878,6 +890,7 @@ function updateBuildBar(){
   if(pm){
     pm.hidden=!prodMenuOpen||!S.sel.base;
     document.getElementById('bBuildTroop').disabled=S.dat<COST.troop;
+    document.getElementById('bBuildGrenadier').disabled=S.dat<COST.grenadier;
     document.getElementById('bBuildHarv').disabled=S.dat<COST.harvester;
     document.getElementById('bBuildBuilder').disabled=S.dat<COST.builder;
   }
@@ -1063,6 +1076,18 @@ function revealCircle(x,y,r){
   fogX.fillStyle=g;fogX.beginPath();fogX.arc(x/FOG_S,y/FOG_S,r/FOG_S,0,Math.PI*2);fogX.fill();
 }
 function damageEnemy(e,d){e.hp-=d;hitFlash(e);spark(e.x,e.y,C.accent,2)}
+// Grenadier round: travels to where the target is right now (not a lead/intercept shot) and
+// explodes there, splashing every enemy within GREN_SPLASH_R of the landing point.
+function launchNade(from,target){
+  const tx=target.x,ty=target.y,d=dist(from,{x:tx,y:ty});
+  S.nades.push({x:from.x,y:from.y,x0:from.x,y0:from.y,tx,ty,t:0,dur:Math.max(0.12,d/GREN_PROJ_SPEED)});
+}
+function explodeNade(n){
+  S.enemies.forEach(e=>{if(dist(e,{x:n.tx,y:n.ty})<=GREN_SPLASH_R)damageEnemy(e,GREN_DMG*S.mods.troopDmgMult)});
+  burst(n.tx,n.ty,C.enemy,14,140,0.4);
+  sfx.explode();
+  shakeScreen(2,0.15);
+}
 // ---------- juice: particles, floating text, screen shake ----------
 function burst(x,y,col,count,speed,life){
   for(let i=0;i<count;i++){const a=rnd(0,Math.PI*2),sp=rnd((speed||80)*0.3,speed||80);
@@ -1109,6 +1134,7 @@ const sfx={
   relayDown(){tone(120,0.25,'sawtooth',0.09,0,50)},
   damage(){if(!sfxReady('damage',0.3))return;tone(90,0.12,'triangle',0.08)},
   ping(){tone(700,0.1,'sine',0.08);tone(1100,0.35,'sine',0.07,0.1)},
+  explode(){tone(90,0.2,'sawtooth',0.1,0,40);tone(50,0.3,'square',0.08,0.03,30)},
 };
 // Only a FINISHED wall is a solid obstacle — a queued/under-construction site is just a ghost preview.
 function wallAt(x,y){
@@ -1268,6 +1294,8 @@ function update(dt){
   // state machine below (no branch matches) but still auto-fire and reveal vision.
   S.troops.forEach(t=>{
     t.cd-=dt;
+    const gren=t.kind==='grenadier';
+    const range=gren?GREN_RANGE:TROOP_RANGE;
     const factor=terrainAt(t.x,t.y)===1?MUD_MULT:1;
     if(t.state==='move'&&t.dest){
       const aim=waypointFor(t,t.dest.x,t.dest.y);
@@ -1276,11 +1304,16 @@ function update(dt){
     }
     else if(t.state==='attack'){
       if(!t.target||t.target.hp<=0){t.target=null;t.state='idle'}
-      else if(dist(t,t.target)>TROOP_RANGE-10){const aim=waypointFor(t,t.target.x,t.target.y);moveToward(t,aim,TROOP_SPEED*factor,dt)}
+      else if(dist(t,t.target)>range-10){const aim=waypointFor(t,t.target.x,t.target.y);moveToward(t,aim,TROOP_SPEED*factor,dt)}
     }
     // auto fire
-    if(t.cd<=0){let best=null,bd=TROOP_RANGE;S.enemies.forEach(e=>{const d=dist(e,t);if(d<bd){bd=d;best=e}});
-      if(best){damageEnemy(best,TROOP_DMG*S.mods.troopDmgMult);tracer(t,best,C.ally);t.cd=TROOP_CD;if(t.state==='idle'&&bd>TROOP_RANGE*0.7)t.target=best}}
+    if(t.cd<=0){let best=null,bd=range;S.enemies.forEach(e=>{const d=dist(e,t);if(d<bd){bd=d;best=e}});
+      if(best){
+        if(gren){launchNade(t,best);t.cd=GREN_CD}
+        else{damageEnemy(best,TROOP_DMG*S.mods.troopDmgMult);tracer(t,best,C.ally);t.cd=TROOP_CD}
+        if(t.state==='idle'&&bd>range*0.7)t.target=best;
+      }
+    }
     t.x=Math.max(10,Math.min(W-10,t.x));t.y=Math.max(10,Math.min(H-10,t.y));
     S.nodes.forEach(n=>{if(!n.found&&dist(n,t)<TROOP_VISION*S.mods.visionMult)n.found=true});
   });
@@ -1518,6 +1551,7 @@ function update(dt){
   if(S.harvesters.length===0&&!S.harvLostMsg){S.harvLostMsg=true;msg('All harvesters lost. A free one forms at the Bastion in 45s.');S.harvRespawnT=45}
   if(S.harvRespawnT!==undefined){S.harvRespawnT-=dt;if(S.harvRespawnT<=0){S.harvRespawnT=undefined;S.harvLostMsg=false;S.harvesters.push(mkHarv(Date.now()))}}
   S.tracers=S.tracers.filter(t=>(t.t-=dt)>0);
+  S.nades=S.nades.filter(n=>{n.t+=dt;const pt=Math.min(1,n.t/n.dur);n.x=n.x0+(n.tx-n.x0)*pt;n.y=n.y0+(n.ty-n.y0)*pt;if(pt>=1){explodeNade(n);return false}return true});
   if(B.hp<=0){S.over='lose';sfx.lose();shakeScreen(10,0.6);burst(B.x,B.y,C.enemy,30,160,0.9);showOverlay('Bastion destroyed','The crew and the crystal are lost to the zone. Try fortifying before you push deeper.')}
 
   // juice: particles drift and fade, floating text rises and fades, screen shake decays, hit
@@ -1764,11 +1798,15 @@ function draw(){
   S.harvesters.forEach(h=>drawCable(h,C.cable));
   S.builders.forEach(bu=>drawCable(bu,C.cable));
   // troops
-  S.troops.forEach(t=>{const sel=S.sel.troops.has(t.id);if(sel){ctx.strokeStyle=C.ally;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(t.x,t.y,t.r+5,0,Math.PI*2);ctx.stroke()}
-    ctx.fillStyle=t.flashT>0?'#fff':C.ally;ctx.beginPath();ctx.arc(t.x,t.y,t.r,0,Math.PI*2);ctx.fill();
+  S.troops.forEach(t=>{const sel=S.sel.troops.has(t.id),gren=t.kind==='grenadier';if(sel){ctx.strokeStyle=C.ally;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(t.x,t.y,t.r+5,0,Math.PI*2);ctx.stroke()}
+    ctx.fillStyle=t.flashT>0?'#fff':gren?C.accent:C.ally;
+    if(gren){const r=t.r+2;ctx.beginPath();ctx.moveTo(t.x,t.y-r);ctx.lineTo(t.x+r,t.y);ctx.lineTo(t.x,t.y+r);ctx.lineTo(t.x-r,t.y);ctx.closePath();ctx.fill()}
+    else{ctx.beginPath();ctx.arc(t.x,t.y,t.r,0,Math.PI*2);ctx.fill()}
     if(t.hp<t.maxHp)hpbar(t.x,t.y-14,16,t.hp/t.maxHp);
     if(t.state==='cut')drawCutGlyph(t.x,t.y);
     if(sel&&t.dest){ctx.strokeStyle='rgba(94,200,255,0.35)';ctx.beginPath();ctx.moveTo(t.x,t.y);ctx.lineTo(t.dest.x,t.dest.y);ctx.stroke()}});
+  // grenades in flight
+  S.nades.forEach(n=>{ctx.fillStyle=C.accent;ctx.beginPath();ctx.arc(n.x,n.y,4,0,Math.PI*2);ctx.fill()});
   // harvesters
   S.harvesters.forEach(h=>{const sel=S.sel.harv.has(h.id);if(sel){ctx.strokeStyle=C.harv;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(h.x,h.y,h.r+5,0,Math.PI*2);ctx.stroke()}
     ctx.fillStyle=h.flashT>0?'#fff':C.harv;ctx.fillRect(h.x-h.r,h.y-h.r,h.r*2,h.r*2);
