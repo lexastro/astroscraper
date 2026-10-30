@@ -613,6 +613,14 @@ function waypointFor(u,tx,ty){
 // reconnects.
 function anchorsList(){return [S.base,...S.relays.filter(r=>r.built&&r.tetherOk)]}
 function wirelessTol(band){return band==='rim'?Infinity:band==='dense'?WIRELESS_TOL_DENSE*S.mods.relayTolMult:WIRELESS_TOL_CORE}
+// Whether a point is reachable from some live anchor right now — in wireless range outright, or
+// at least close enough to run a cable to. Used to keep harvesters' auto-gather from beelining
+// for a deposit it would only reach by first stranding itself out of tether range.
+function inTetherRange(p){
+  const tol=wirelessTol(bandAt(p.x,p.y));
+  const maxLen=MAX_CABLE_LEN+S.mods.cableLenAdd;
+  return anchorsList().some(a=>{const d=dist(p,a);return d<=tol||d<=maxLen});
+}
 function pointSegDist(p,a,b){
   const dx=b.x-a.x,dy=b.y-a.y, len2=dx*dx+dy*dy;
   if(len2<1e-6)return dist(p,a);
@@ -1429,10 +1437,13 @@ function update(dt){
     if(h.following){followMove(h,HARV_SPEED*S.mods.moveSpeedMult,dt);h.x=Math.max(10,Math.min(W-10,h.x));h.y=Math.max(10,Math.min(H-10,h.y));S.nodes.forEach(n=>{if(!n.found&&dist(n,h)<HARV_VISION*S.mods.visionMult)n.found=true});return}
     if(h.autoLoop&&h.state==='idle'){
       // only chase deposits the player has actually scouted — never beeline for one still
-      // hidden under fog. With nothing known yet, head back and wait near the Bastion instead
-      // of idling wherever it happens to be, ready to move the moment one turns up.
+      // hidden under fog. Also skip anything out of tether reach right now (no live anchor
+      // close enough to wirelessly cover it or run a cable to) — auto-gather shouldn't strand
+      // a harvester out of range on its own; a manually-ordered harvester can still go wherever.
+      // With nothing eligible, head back and wait near the Bastion instead of idling wherever
+      // it happens to be, ready to move the moment one turns up.
       let best=null,bd=Infinity;
-      S.nodes.forEach(n=>{if(n.amt<=0||!n.found)return;const d=dist(h,n);if(d<bd){bd=d;best=n}});
+      S.nodes.forEach(n=>{if(n.amt<=0||!n.found||!inTetherRange(n))return;const d=dist(h,n);if(d<bd){bd=d;best=n}});
       if(best){h.node=best;h.state='harvest'}
       else if(dist(h,B)>B.r+80){h.dest={x:B.x,y:B.y};h.state='move'}
     }
