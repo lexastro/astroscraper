@@ -187,6 +187,13 @@ const MAX_CABLE_LEN=400;
 const DRILL_RATE=0.5, THROTTLES=[0.5,1,1.8];
 const BASE_SPAWN_INTERVAL={rim:24,dense:15,core:9};
 const AMBIENT_INTERVAL={rim:45,dense:22,core:11};
+// Off-zone mining pressure: parking harvesters on an open Dat Crystal cluster instead of locking
+// the Bastion down on a vein skips drilling's wave/saboteur spawns entirely — nothing stops the
+// player from just idling there farming forever. If harvesters bring in a lot of Dat Crystal in
+// a short window while the Bastion isn't drilling, send a patrol at wherever that mining is
+// actually happening, not just a single ambient wanderer.
+const OFFZONE_MINE_WINDOW=18, OFFZONE_MINE_THRESHOLD=60, OFFZONE_PATROL_COOLDOWN=40;
+const OFFZONE_PATROL_DIST=550, OFFZONE_PATROL_N={rim:3,dense:5,core:7};
 // Waves for the vein being drilled always come from one fixed direction (rolled at lockdown),
 // not a random spot each time — far enough out that you can see them coming and react, not just
 // react to them already being on top of you.
@@ -321,6 +328,7 @@ function reset(){
     base:{x:W/2,y:H-400,hp:900,maxHp:900,r:BASE_R,dest:null,locked:false,gunCd:0,pingCd:0},
     troops:[],harvesters:[],builders:[],relays:[],depots:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],shards:[],nades:[],
     veins:[],activeVein:null,throttleMul:1,ambientT:30,
+    minedWindowAmt:0,minedWindowT:0,offZonePatrolCd:OFFZONE_MINE_WINDOW,
     particles:[],floaters:[],shake:{t:0,dur:0,mag:0},
     // run-only upgrade modifiers — every stat multiplier/bonus a reward card can grant, all
     // reset back to baseline (1 / 0 / false) by a fresh reset(), never persisted between runs.
@@ -404,6 +412,28 @@ function spawnEnemy(x,y,kind){
   const big=kind==='wave'&&Math.random()<0.2;
   const sab=kind==='saboteur';
   S.enemies.push({x,y,r:big?13:sab?4:8,hp:big?120:sab?4:34,maxHp:big?120:sab?4:34,speed:big?48:sab?105:78,dmg:big?12:sab?1.5:5,cd:0,kind,target:null,aggro:kind==='roam'?260:1e9,home:{x,y},ang:rnd(0,Math.PI*2),faceT:rnd(1,3)});
+}
+// Where the player's actual mining is happening right now — the average position of harvesters
+// currently working a node (falling back to all harvesters, then the Bastion) — rather than just
+// always converging on the Bastion itself, which might be sitting well away from the cluster.
+function miningActivityCenter(){
+  const active=S.harvesters.filter(h=>h.state==='harvest'||h.carry>0);
+  const pool=active.length?active:S.harvesters;
+  if(!pool.length)return {x:S.base.x,y:S.base.y};
+  let sx=0,sy=0; pool.forEach(h=>{sx+=h.x;sy+=h.y});
+  return {x:sx/pool.length,y:sy/pool.length};
+}
+function spawnOffZonePatrol(){
+  const center=miningActivityCenter();
+  const band=bandAt(center.x,center.y);
+  const n=OFFZONE_PATROL_N[band];
+  const a=rnd(0,Math.PI*2), sx=center.x+Math.cos(a)*OFFZONE_PATROL_DIST, sy=center.y+Math.sin(a)*OFFZONE_PATROL_DIST;
+  for(let i=0;i<n;i++){
+    const p=nearestPlain(Math.max(20,Math.min(W-20,sx+rnd(-90,90))),Math.max(20,Math.min(H-20,sy+rnd(-90,90))));
+    spawnEnemy(p.x,p.y,'wave');
+  }
+  msg('A patrol has spotted your mining operation and is closing in.');
+  sfx.wave();
 }
 function msg(s){document.getElementById('hMsg').textContent=s;msgT=S.t}
 
@@ -1371,6 +1401,17 @@ function update(dt){
     }
     S.ambientT=AMBIENT_INTERVAL[band];
   }
+  // off-zone mining pressure — see OFFZONE_* comment above. Checked on a rolling window rather
+  // than a running total so it reacts to a sustained haul, not lifetime income.
+  if(S.offZonePatrolCd>0)S.offZonePatrolCd-=dt;
+  S.minedWindowT+=dt;
+  if(S.minedWindowT>=OFFZONE_MINE_WINDOW){
+    if(!B.locked&&S.minedWindowAmt>=OFFZONE_MINE_THRESHOLD&&S.offZonePatrolCd<=0){
+      spawnOffZonePatrol();
+      S.offZonePatrolCd=OFFZONE_PATROL_COOLDOWN;
+    }
+    S.minedWindowAmt=0; S.minedWindowT=0;
+  }
 
   // base movement
   if(B.dest&&!B.locked){
@@ -1456,7 +1497,7 @@ function update(dt){
       if(!n||(n.amt<=0&&h.carry===0)){h.state='idle';h.node=null}
       else if(h.carry>=CARRY*S.mods.carryMult||n.amt<=0){
         const dp=dropoffPoint(h); const aim=waypointFor(h,dp.x,dp.y); moveToward(h,aim,HARV_SPEED*S.mods.moveSpeedMult*factor,dt);
-        if(dist(h,dp)<dp.r){if(h.carry>0){floatText(h.x,h.y-14,'+'+h.carry,C.dat);sfx.gather()}S.dat+=h.carry;h.carry=0;updateBuildBar();if(n.amt<=0){h.state='idle';h.node=null}}
+        if(dist(h,dp)<dp.r){if(h.carry>0){floatText(h.x,h.y-14,'+'+h.carry,C.dat);sfx.gather()}S.dat+=h.carry;S.minedWindowAmt+=h.carry;h.carry=0;updateBuildBar();if(n.amt<=0){h.state='idle';h.node=null}}
       }
       else if(dist(h,n)>22){const aim=waypointFor(h,n.x,n.y);moveToward(h,aim,HARV_SPEED*S.mods.moveSpeedMult*factor,dt)}
       else{h.hv+=dt;if(h.hv>0.175){h.hv=0;n.amt--;h.carry++}}
@@ -1464,7 +1505,7 @@ function update(dt){
     else if(h.state==='return'){
       const dp=dropoffPoint(h); const aim=waypointFor(h,dp.x,dp.y); moveToward(h,aim,HARV_SPEED*S.mods.moveSpeedMult*factor,dt);
       if(dist(h,dp)<dp.r){
-        if(h.carry>0){floatText(h.x,h.y-14,'+'+h.carry,C.dat);sfx.gather();S.dat+=h.carry;h.carry=0;updateBuildBar()}
+        if(h.carry>0){floatText(h.x,h.y-14,'+'+h.carry,C.dat);sfx.gather();S.dat+=h.carry;S.minedWindowAmt+=h.carry;h.carry=0;updateBuildBar()}
         h.state='idle';h.node=null;
       }
     }
