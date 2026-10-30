@@ -127,7 +127,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <b>Goal:</b> harvesters gather Dat Crystal automatically. Scout a vein (dashed circle), park the Bastion on its marker, press <kbd>L</kbd> to drill. Drain veins for rewards — drain 3 and the hidden Living Crystal vein reveals itself; drain that one to win.<br>
   <b>Controls:</b> drag to select · right-click to move/attack/harvest · <kbd>WASD</kbd> or middle-drag to pan, scroll to zoom<br>
   <b>Build:</b> <kbd>1</kbd> wall · <kbd>2</kbd> turret · <kbd>3</kbd> relay · <kbd>4</kbd> depot (drop-off closer than the Bastion) — walls/turrets need the Bastion locked down drilling, relays/depots can go up any time<br>
-  <b>Tether:</b> units need a live cable or wireless range back to the Bastion or a Relay, or they go dark — chain Relays to push your reach further out<br>
+  <b>Tether:</b> units need a live cable or wireless range back to the Bastion or a Relay, or they go dark — chain Relays to push your reach further out. A dark unit still takes orders, but its Sanity drains; reconnect in time to recover it, or it defects into a hostile Corrupted enemy<br>
   <kbd>N</kbd> ping (reveals far-off Dat Crystal, 60s cooldown) · <kbd>G</kbd> repair mode · <kbd>R</kbd> resume harvester auto-gather · <kbd>Esc</kbd> cancel · <kbd>`</kbd> reveal map (debug)
 </div>
 
@@ -175,6 +175,11 @@ const TCELL=60, TGX=Math.ceil(W/TCELL), TGY=Math.ceil(H/TCELL), MUD_MULT=0.55;
 // anchor (Bastion or built Relay); in the core you always need a live physical cable.
 const WIRELESS_TOL_DENSE=90, WIRELESS_TOL_CORE=0;
 const CABLE_HP_MAX=40, CABLE_SEG_MIN=24, CABLE_HIT_RANGE=16, CABLE_DMG=6, CABLE_CD=0.8;
+// A unit whose cable gets severed doesn't go dark and uncontrollable on the spot — it keeps
+// working under orders while its Sanity drains. Sanity regenerates (faster than it drains) once
+// the unit is back in range of a live anchor; if it ever hits 0 the unit snaps and defects,
+// converting into a hostile Corrupted enemy.
+const SANITY_MAX=100, SANITY_DRAIN=100/16, SANITY_REGEN=100/7;
 // How far a unit can pay cable out before an anchor (Bastion or Relay) before it physically
 // runs out of line — it just stops there until a closer anchor is built or it walks back in.
 const MAX_CABLE_LEN=400;
@@ -291,9 +296,24 @@ function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
 function key(gx,gy){return gx+','+gy}
 function bandAt(x,y){const d=Math.abs(y-EPI.y);return d<=CORE_R?'core':d<=DENSE_R?'dense':'rim'}
 
-function mkTroop(id,kind){kind=kind||'troop';const hp=kind==='grenadier'?GREN_HP:70;return {id,kind,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp,maxHp:hp,r:TROOP_R,dest:null,target:null,state:'idle',cd:0,tetherOk:true,trail:null,cableHp:0,cableLen:0,cableMaxed:false}}
-function mkHarv(id){return {id,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp:50,maxHp:50,r:HARV_R,dest:null,node:null,carry:0,state:'idle',autoLoop:true,hv:0,tetherOk:true,trail:null,cableHp:0,cableLen:0,cableMaxed:false}}
-function mkBuilder(id){return {id,x:S.base.x+rnd(-30,30),y:S.base.y+rnd(-30,30),hp:40,maxHp:40,r:BUILDER_R,dest:null,state:'idle',mode:'build',target:null,tetherOk:true,trail:null,cableHp:0,cableLen:0,cableMaxed:false}}
+function mkTroop(id,kind){kind=kind||'troop';const hp=kind==='grenadier'?GREN_HP:70;return {id,kind,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp,maxHp:hp,r:TROOP_R,dest:null,target:null,state:'idle',cd:0,tetherOk:true,severed:false,sanity:SANITY_MAX,trail:null,cableHp:0,cableLen:0,cableMaxed:false}}
+function mkHarv(id){return {id,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp:50,maxHp:50,r:HARV_R,dest:null,node:null,carry:0,state:'idle',autoLoop:true,hv:0,tetherOk:true,severed:false,sanity:SANITY_MAX,trail:null,cableHp:0,cableLen:0,cableMaxed:false}}
+function mkBuilder(id){return {id,x:S.base.x+rnd(-30,30),y:S.base.y+rnd(-30,30),hp:40,maxHp:40,r:BUILDER_R,dest:null,state:'idle',mode:'build',target:null,tetherOk:true,severed:false,sanity:SANITY_MAX,trail:null,cableHp:0,cableLen:0,cableMaxed:false}}
+// Stats for the hostile unit a mobile ally becomes if its Sanity ever hits 0 — a notch weaker
+// across the board than its living counterpart, and visibly distinct (kind:'corrupted').
+const CORRUPT_STATS={
+  troop:{r:TROOP_R+1,hp:50,speed:TROOP_SPEED,dmg:8},
+  grenadier:{r:TROOP_R+2,hp:70,speed:TROOP_SPEED,dmg:10},
+  harvester:{r:HARV_R+1,hp:35,speed:HARV_SPEED,dmg:4},
+  builder:{r:BUILDER_R+1,hp:30,speed:BUILDER_SPEED,dmg:4},
+};
+function corruptUnit(u,type,label){
+  const st=CORRUPT_STATS[type];
+  S.enemies.push({x:u.x,y:u.y,r:st.r,hp:st.hp,maxHp:st.hp,speed:st.speed,dmg:st.dmg,cd:0,kind:'corrupted',
+    target:null,aggro:1e9,home:{x:u.x,y:u.y},ang:rnd(0,Math.PI*2),faceT:rnd(1,3)});
+  msg(`${label} lost its mind and turned hostile!`);
+  burst(u.x,u.y,C.zone,16,130,0.5);sfx.sever();shakeScreen(5,0.25);
+}
 
 function reset(){
   S={t:0,dat:40,living:0,condensed:0,over:null,
@@ -598,10 +618,12 @@ function pointSegDist(p,a,b){
   let t=((p.x-a.x)*dx+(p.y-a.y)*dy)/len2; t=Math.max(0,Math.min(1,t));
   return Math.hypot(p.x-(a.x+dx*t),p.y-(a.y+dy*t));
 }
-// Maintains each unit's wireless/physical-cable status and, for already-cut units, their
-// autonomous walk back toward the nearest anchor. Call once per unit array, before its own
-// state-machine loop runs — a 'cut' unit's state never matches that loop's branches, so it's
-// a no-op there and this is the entire handling for it that tick.
+// Maintains each unit's wireless/physical-cable status. A unit whose cable just got severed
+// (u.severed) keeps its own orders/state machine running rather than being yanked onto an
+// autonomous walk-home — it just sits disconnected, Sanity draining, until it's back in range
+// of a live anchor (wireless tolerance, or close enough to re-run a cable) on its own, at which
+// point it reconnects and Sanity starts regenerating again. Call once per unit array, before its
+// own state-machine loop runs.
 function tetherPass(units,speed,dt){
   const anchors=anchorsList();
   units.forEach(u=>{
@@ -609,13 +631,14 @@ function tetherPass(units,speed,dt){
     const tol=wirelessTol(band);
     let bestA=null,nd=Infinity;
     anchors.forEach(a=>{const d=dist(u,a);if(d<nd){nd=d;bestA=a}});
-    if(u.state==='cut'){
-      if(nd<=tol){u.state='idle';u.tetherOk=true;u.trail=null;return}
-      const factor=terrainAt(u.x,u.y)===1?MUD_MULT:1;
-      const aim=waypointFor(u,bestA.x,bestA.y);
-      moveToward(u,aim,speed*factor,dt);
+    if(u.severed){
+      const maxLen=MAX_CABLE_LEN+S.mods.cableLenAdd;
+      if(nd<=tol||nd<=maxLen){u.severed=false;u.tetherOk=true;u.trail=null;return}
+      u.tetherOk=false;
+      u.sanity=Math.max(0,u.sanity-SANITY_DRAIN*dt);
       return;
     }
+    if(u.sanity<SANITY_MAX)u.sanity=Math.min(SANITY_MAX,u.sanity+SANITY_REGEN*dt);
     if(nd<=tol){u.tetherOk=true;u.trail=null;u.cableLen=0;u.cableMaxed=false;return}
     if(!u.trail){u.trail=[{x:bestA.x,y:bestA.y}];u.cableHp=CABLE_HP_MAX*S.mods.cableHpMult}
     spoolTrail(u,bestA);
@@ -731,7 +754,14 @@ function cableSeverPass(allUnits,dt){
     if(u.trail&&u.cableHp<=0){
       releaseBuilderClaim(u);
       burst(u.x,u.y,C.cable,8,100,0.4);
-      u.state='cut';u.tetherOk=false;u.trail=null;u.cableLen=0;u.cableMaxed=false;u.target=null;u.dest=null;u.node=null;
+      if(u.kind==='relay'){
+        // a relay can't act on its own — same hard cut as before, waiting on the network
+        u.state='cut';u.tetherOk=false;u.trail=null;u.cableLen=0;u.cableMaxed=false;
+      } else {
+        // a mobile unit keeps working its current orders — it just goes unpowered and its
+        // Sanity starts draining instead of being yanked into an autonomous walk-home
+        u.severed=true;u.tetherOk=false;u.trail=null;u.cableLen=0;u.cableMaxed=false;
+      }
       anySevered=true;
     }
   });
@@ -985,11 +1015,9 @@ function rightClick(w){
     S.base.dest={x:w.x,y:w.y};return;
   }
   if(rawT.length===0&&rawH.length===0&&rawBu.length===0)return;
-  const selT=rawT.filter(t=>t.tetherOk), selH=rawH.filter(h=>h.tetherOk), selBu=rawBu.filter(b=>b.tetherOk);
-  if(selT.length===0&&selH.length===0&&selBu.length===0){
-    msg('No signal — those units are cut off and will retreat on their own.');
-    return;
-  }
+  // a severed unit still takes orders — losing power doesn't lose the player control of it,
+  // only its Sanity meter (and eventually the unit) if it stays dark too long
+  const selT=rawT, selH=rawH, selBu=rawBu;
   const en=S.enemies.find(e=>visible(e)&&dist(e,w)<e.r+10);
   const nd=S.nodes.find(n=>n.found&&dist(n,w)<28);
   const nearBase=dist(S.base,w)<S.base.r+40;
@@ -1298,13 +1326,18 @@ function update(dt){
 
   // relays first — mobile units' anchor list depends on which relays are currently tethered
   relayTetherPass();
-  // tether maintenance + autonomous retreat for already-cut units, ahead of each type's own loop
+  // tether + Sanity maintenance, ahead of each type's own loop — severed units keep acting
+  // normally below, they're just unpowered and draining Sanity until they reconnect or corrupt
   tetherPass(S.troops,TROOP_SPEED,dt);
   tetherPass(S.harvesters,HARV_SPEED*S.mods.moveSpeedMult,dt);
   tetherPass(S.builders,BUILDER_SPEED*S.mods.moveSpeedMult,dt);
+  // Sanity hit 0 — the unit snaps and defects to the enemy side
+  S.troops=S.troops.filter(t=>{if(t.sanity<=0){corruptUnit(t,t.kind,t.kind==='grenadier'?'A Grenadier':'A Squad');S.sel.troops.delete(t.id);return false}return true});
+  S.harvesters=S.harvesters.filter(h=>{if(h.sanity<=0){corruptUnit(h,'harvester','A Harvester');S.sel.harv.delete(h.id);return false}return true});
+  S.builders=S.builders.filter(bu=>{if(bu.sanity<=0){releaseBuilderClaim(bu);corruptUnit(bu,'builder','A Builder');S.sel.bu.delete(bu.id);return false}return true});
 
-  // troops (combat only — resource gathering is the harvesters' job). 'cut' troops skip the
-  // state machine below (no branch matches) but still auto-fire and reveal vision.
+  // troops (combat only — resource gathering is the harvesters' job). Severed troops still
+  // fight and reveal vision — they just do it unpowered while their Sanity drains.
   S.troops.forEach(t=>{
     t.cd-=dt;
     const gren=t.kind==='grenadier';
@@ -1816,7 +1849,8 @@ function draw(){
     if(gren){const r=t.r+2;ctx.beginPath();ctx.moveTo(t.x,t.y-r);ctx.lineTo(t.x+r,t.y);ctx.lineTo(t.x,t.y+r);ctx.lineTo(t.x-r,t.y);ctx.closePath();ctx.fill()}
     else{ctx.beginPath();ctx.arc(t.x,t.y,t.r,0,Math.PI*2);ctx.fill()}
     if(t.hp<t.maxHp)hpbar(t.x,t.y-14,16,t.hp/t.maxHp);
-    if(t.state==='cut')drawCutGlyph(t.x,t.y);
+    if(t.sanity<SANITY_MAX)sanityBar(t.x,t.y-10,16,t.sanity/SANITY_MAX);
+    if(!t.tetherOk)drawCutGlyph(t.x,t.y);
     if(sel&&t.dest){ctx.strokeStyle='rgba(94,200,255,0.35)';ctx.beginPath();ctx.moveTo(t.x,t.y);ctx.lineTo(t.dest.x,t.dest.y);ctx.stroke()}});
   // grenades in flight
   S.nades.forEach(n=>{ctx.fillStyle=C.accent;ctx.beginPath();ctx.arc(n.x,n.y,4,0,Math.PI*2);ctx.fill()});
@@ -1826,17 +1860,19 @@ function draw(){
     if(!h.autoLoop){ctx.strokeStyle='rgba(255,255,255,0.6)';ctx.lineWidth=1;ctx.strokeRect(h.x-h.r,h.y-h.r,h.r*2,h.r*2)}
     if(h.carry>0){ctx.fillStyle=C.dat;ctx.beginPath();ctx.arc(h.x+6,h.y-6,3+h.carry/6,0,Math.PI*2);ctx.fill()}
     if(h.hp<h.maxHp)hpbar(h.x,h.y-14,16,h.hp/h.maxHp);
-    if(h.state==='cut')drawCutGlyph(h.x,h.y);
+    if(h.sanity<SANITY_MAX)sanityBar(h.x,h.y-10,16,h.sanity/SANITY_MAX);
+    if(!h.tetherOk)drawCutGlyph(h.x,h.y);
     if(sel&&h.dest){ctx.strokeStyle='rgba(232,147,92,0.35)';ctx.beginPath();ctx.moveTo(h.x,h.y);ctx.lineTo(h.dest.x,h.dest.y);ctx.stroke()}});
   // builders
   S.builders.forEach(bu=>{const sel=S.sel.bu.has(bu.id);if(sel){ctx.strokeStyle=C.builder;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(bu.x,bu.y,bu.r+5,0,Math.PI*2);ctx.stroke()}
     ctx.fillStyle=bu.flashT>0?'#fff':C.builder;ctx.beginPath();ctx.moveTo(bu.x,bu.y-bu.r);ctx.lineTo(bu.x+bu.r,bu.y+bu.r*0.7);ctx.lineTo(bu.x-bu.r,bu.y+bu.r*0.7);ctx.closePath();ctx.fill();
     if(bu.mode==='repair'){ctx.strokeStyle='#fff';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(bu.x-4,bu.y+2);ctx.lineTo(bu.x+4,bu.y+2);ctx.moveTo(bu.x,bu.y-2);ctx.lineTo(bu.x,bu.y+6);ctx.stroke()}
     if(bu.hp<bu.maxHp)hpbar(bu.x,bu.y-14,16,bu.hp/bu.maxHp);
-    if(bu.state==='cut')drawCutGlyph(bu.x,bu.y);
+    if(bu.sanity<SANITY_MAX)sanityBar(bu.x,bu.y-10,16,bu.sanity/SANITY_MAX);
+    if(!bu.tetherOk)drawCutGlyph(bu.x,bu.y);
     if(sel&&bu.dest){ctx.strokeStyle='rgba(79,209,197,0.35)';ctx.beginPath();ctx.moveTo(bu.x,bu.y);ctx.lineTo(bu.dest.x,bu.dest.y);ctx.stroke()}});
   // enemies (only visible)
-  S.enemies.forEach(e=>{if(!debugNoFog&&!visible(e))return;const a=e.ang;ctx.fillStyle=e.flashT>0?'#fff':(e.kind==='roam'?'#d9775f':e.kind==='saboteur'?C.cable:C.enemy);ctx.beginPath();
+  S.enemies.forEach(e=>{if(!debugNoFog&&!visible(e))return;const a=e.ang;ctx.fillStyle=e.flashT>0?'#fff':(e.kind==='roam'?'#d9775f':e.kind==='saboteur'?C.cable:e.kind==='corrupted'?C.zone:C.enemy);ctx.beginPath();
     ctx.moveTo(e.x+Math.cos(a)*e.r*1.3,e.y+Math.sin(a)*e.r*1.3);ctx.lineTo(e.x+Math.cos(a+2.5)*e.r,e.y+Math.sin(a+2.5)*e.r);ctx.lineTo(e.x+Math.cos(a-2.5)*e.r,e.y+Math.sin(a-2.5)*e.r);ctx.closePath();ctx.fill();
     if(e.hp<e.maxHp)hpbar(e.x,e.y-e.r-8,e.r*2+4,e.hp/e.maxHp)});
   // tracers
@@ -1859,6 +1895,9 @@ function draw(){
   drawMini();hud();
 }
 function hpbar(x,y,w,f){ctx.fillStyle='rgba(0,0,0,0.6)';ctx.fillRect(x-w/2,y,w,3);ctx.fillStyle=f>0.5?C.dat:f>0.25?C.accent:C.enemy;ctx.fillRect(x-w/2,y,w*Math.max(0,f),3)}
+// Sanity meter — only shown once a unit has taken any damage to it, fading from the zone-purple
+// "mind intact" color toward corrupted red as it nears 0.
+function sanityBar(x,y,w,f){ctx.fillStyle='rgba(0,0,0,0.6)';ctx.fillRect(x-w/2,y,w,3);ctx.fillStyle=f>0.3?C.zone:C.enemy;ctx.fillRect(x-w/2,y,w*Math.max(0,f),3)}
 function drawMini(){const s=mini.width/W;mctx.fillStyle='#10151b';mctx.fillRect(0,0,mini.width,mini.height);
   mctx.drawImage(terrainCv,0,0,W,H,0,0,mini.width,mini.height);
   if(!debugNoFog){mctx.save();mctx.scale(s,s);mctx.drawImage(dimC,0,0,W,H);mctx.restore()}
