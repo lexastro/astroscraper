@@ -1597,22 +1597,22 @@ function update(dt){
     if(bu.following){followMove(bu,BUILDER_SPEED*S.mods.moveSpeedMult,dt);bu.x=Math.max(10,Math.min(W-10,bu.x));bu.y=Math.max(10,Math.min(H-10,bu.y));return}
     if(bu.state==='idle'||bu.state==='dock'){
       let found=null,bd=Infinity;
-      // auto-seek only ever picks a site within the Bastion's own immediate build radius right
-      // now — not the wider relay network, and not wherever the Bastion used to be. Otherwise a
+      // auto-seek only ever picks a site inside the current network — the Bastion's own immediate
+      // build radius, or an active Relay's — not wherever the Bastion used to be. Otherwise a
       // builder would happily trek back to a half-built wall or a damaged turret from a vein the
       // Bastion drilled out and moved on from ages ago. A manual order can still send a builder
       // anywhere; this only scopes the automatic idle/dock seek.
       if(bu.mode==='build'){
-        S.walls.forEach(w=>{if(w.built||(w.builder&&w.builder!==bu)||dist(w,S.base)>BUILD_R)return;const d=dist(bu,w);if(d<bd){bd=d;found=w}});
-        S.turrets.forEach(t=>{if(t.built||(t.builder&&t.builder!==bu)||dist(t,S.base)>BUILD_R)return;const d=dist(bu,t);if(d<bd){bd=d;found=t}});
-        S.relays.forEach(r=>{if(r.built||(r.builder&&r.builder!==bu)||dist(r,S.base)>BUILD_R)return;const d=dist(bu,r);if(d<bd){bd=d;found=r}});
-        S.depots.forEach(de=>{if(de.built||(de.builder&&de.builder!==bu)||dist(de,S.base)>BUILD_R)return;const d=dist(bu,de);if(d<bd){bd=d;found=de}});
+        S.walls.forEach(w=>{if(w.built||(w.builder&&w.builder!==bu)||!inBuildRange(w))return;const d=dist(bu,w);if(d<bd){bd=d;found=w}});
+        S.turrets.forEach(t=>{if(t.built||(t.builder&&t.builder!==bu)||!inBuildRange(t))return;const d=dist(bu,t);if(d<bd){bd=d;found=t}});
+        S.relays.forEach(r=>{if(r.built||(r.builder&&r.builder!==bu)||!inBuildRange(r))return;const d=dist(bu,r);if(d<bd){bd=d;found=r}});
+        S.depots.forEach(de=>{if(de.built||(de.builder&&de.builder!==bu)||!inBuildRange(de))return;const d=dist(bu,de);if(d<bd){bd=d;found=de}});
         if(found){found.builder=bu;bu.target=found;bu.state='build'}
       }else{
-        S.walls.forEach(w=>{if(!w.built||!needsRepair(w)||(w.repairer&&w.repairer!==bu)||dist(w,S.base)>BUILD_R)return;const d=dist(bu,w);if(d<bd){bd=d;found=w}});
-        S.turrets.forEach(t=>{if(!t.built||!needsRepair(t)||(t.repairer&&t.repairer!==bu)||dist(t,S.base)>BUILD_R)return;const d=dist(bu,t);if(d<bd){bd=d;found=t}});
-        S.relays.forEach(r=>{if(!r.built||!needsRepair(r)||(r.repairer&&r.repairer!==bu)||dist(r,S.base)>BUILD_R)return;const d=dist(bu,r);if(d<bd){bd=d;found=r}});
-        S.depots.forEach(de=>{if(!de.built||!needsRepair(de)||(de.repairer&&de.repairer!==bu)||dist(de,S.base)>BUILD_R)return;const d=dist(bu,de);if(d<bd){bd=d;found=de}});
+        S.walls.forEach(w=>{if(!w.built||!needsRepair(w)||(w.repairer&&w.repairer!==bu)||!inBuildRange(w))return;const d=dist(bu,w);if(d<bd){bd=d;found=w}});
+        S.turrets.forEach(t=>{if(!t.built||!needsRepair(t)||(t.repairer&&t.repairer!==bu)||!inBuildRange(t))return;const d=dist(bu,t);if(d<bd){bd=d;found=t}});
+        S.relays.forEach(r=>{if(!r.built||!needsRepair(r)||(r.repairer&&r.repairer!==bu)||!inBuildRange(r))return;const d=dist(bu,r);if(d<bd){bd=d;found=r}});
+        S.depots.forEach(de=>{if(!de.built||!needsRepair(de)||(de.repairer&&de.repairer!==bu)||!inBuildRange(de))return;const d=dist(bu,de);if(d<bd){bd=d;found=de}});
         if(found){found.repairer=bu;bu.target=found;bu.state='repair'}
       }
       if(!found&&bu.state!=='dock'){bu.state='dock';bu.dest=null}
