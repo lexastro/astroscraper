@@ -1812,12 +1812,26 @@ function update(dt){
   unveil(B.x,B.y,BASE_VISION*vm);S.troops.forEach(t=>unveil(t.x,t.y,TROOP_VISION*vm*S.mods.squadRangeMult));S.harvesters.forEach(h=>unveil(h.x,h.y,HARV_VISION*vm));S.builders.forEach(bu=>unveil(bu.x,bu.y,BUILDER_VISION*vm));}
 }
 function showOverlay(t,s){document.getElementById('ovTitle').textContent=t;document.getElementById('ovText').textContent=s;document.getElementById('overlay').hidden=false}
-// 3 upgrade cards at the vein's drained tier, shuffled from that tier's pool, plus a 4th card to
-// cash the whole reward in for a flat chunk of Dat instead.
+const TIER_ORDER=Object.keys(TIER_MULT);
+function shuffled(arr){const a=[...arr];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+// One guaranteed card at the vein's drained tier, plus two "bonus" cards randomly drawn from the
+// tiers below it (so a big payout also surfaces a couple of the smaller upgrades you may have
+// been skipping), plus a 4th option to cash the whole reward in for a flat chunk of Dat instead.
+// A Common reward has no tier below it, so all 3 just come from the Common pool as before.
 function rollRewardCards(tier){
-  const pool=[...UPGRADES[tier]];
-  for(let i=pool.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[pool[i],pool[j]]=[pool[j],pool[i]]}
-  const picks=pool.slice(0,3).map(u=>({kind:'upgrade',tier,...u}));
+  const topIdx=TIER_ORDER.indexOf(tier);
+  const topPool=shuffled(UPGRADES[tier]);
+  const picks=[{kind:'upgrade',tier,...topPool[0]}];
+  const used=new Set([topPool[0].id]);
+  const lowerTiers=TIER_ORDER.slice(0,topIdx);
+  let lowerPool=shuffled((lowerTiers.length?lowerTiers:[tier]).flatMap(t=>UPGRADES[t].map(u=>({tier:t,...u}))));
+  lowerPool=lowerPool.filter(c=>!used.has(c.id));
+  while(picks.length<3&&lowerPool.length){
+    const c=lowerPool.pop();
+    if(used.has(c.id))continue;
+    used.add(c.id);
+    picks.push({kind:'upgrade',...c});
+  }
   picks.push({kind:'trade',tier,name:'Sell the Reward',desc:`Skip the upgrade — bank +${TIER_TRADE_DAT[tier]} Dat Crystal instead.`,amt:TIER_TRADE_DAT[tier]});
   return picks;
 }
