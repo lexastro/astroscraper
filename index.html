@@ -22,6 +22,9 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 .stat .k{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .stat .v{font-family:var(--mono);font-size:16px;font-variant-numeric:tabular-nums}
 .stat.dat .v{color:var(--dat)} .stat.living .v{color:var(--living)} .stat.obj .v{color:var(--zone)} .stat.condensed .v{color:var(--condensed)}
+.stat.threat .v{color:var(--enemy);animation:threatPulse 1s ease-in-out infinite}
+.threatArrow{display:inline-block}
+@keyframes threatPulse{0%,100%{opacity:1}50%{opacity:0.45}}
 .bar{height:5px;background:var(--panel2);border-radius:2px;overflow:hidden;margin-top:3px}
 .bar i{display:block;height:100%;background:var(--ally)}
 .bar i.hp{background:var(--accent)}
@@ -82,6 +85,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <div class="stat condensed"><span class="k">Condensed Crystal</span><span class="v" id="hCondensed">0</span></div>
   <div class="stat"><span class="k">Bastion</span><span class="v" id="hBase">—</span><div class="bar"><i class="hp" id="hBaseBar" style="width:100%"></i></div></div>
   <div class="stat"><span class="k">Zone</span><span class="v" id="hZone">Rim</span></div>
+  <div class="stat threat" id="hThreatBox" hidden><span class="k">Threat</span><span class="v"><span id="hThreatArrow" class="threatArrow">&#10148;</span> <span id="hThreatDist">0m</span></span></div>
   <div class="stat obj"><span class="k" id="hObjK">Veins</span><span class="v" id="hObj">—</span><div class="bar"><i id="hObjBar" style="width:0%"></i></div></div>
   <button class="stat selbtn" id="hTroopsBtn"><span class="k">Squads</span><span class="v" id="hTroops">—</span></button>
   <button class="stat selbtn" id="hHarvBtn"><span class="k">Harvesters</span><span class="v" id="hHarv">—</span></button>
@@ -1896,6 +1900,12 @@ function draw(){
     ctx.setLineDash(v.contract?[]:[10,8]);ctx.lineWidth=v.contract?3:2;ctx.strokeStyle=v.contract?C.living:C.zone;ctx.beginPath();ctx.arc(v.x,v.y,v.r,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
     if(cur&&!v.done){
       ctx.lineWidth=6;ctx.strokeStyle=C.accent;ctx.beginPath();ctx.arc(v.x,v.y,v.r+10,-Math.PI/2,-Math.PI/2+Math.PI*2*v.drillProg/v.richness);ctx.stroke();
+      if(v.prepT>0){
+        const pulse=0.7+0.3*Math.sin(S.t*5);
+        ctx.globalAlpha=pulse;ctx.fillStyle=C.accent;ctx.font='700 20px '+css('--mono');ctx.textAlign='center';ctx.textBaseline='middle';
+        ctx.fillText(`WARMING UP — ${Math.ceil(v.prepT)}s`,v.x,v.y-v.r-30);
+        ctx.globalAlpha=1;
+      }
       if(v.waveDir!=null){
         const pulse=0.65+0.35*Math.sin(S.t*4);
         const ex=v.x+Math.cos(v.waveDir)*(v.r+6),ey=v.y+Math.sin(v.waveDir)*(v.r+6);
@@ -2153,6 +2163,22 @@ function hud(){
   document.getElementById('hHarvBtn').classList.toggle('sel',S.sel.harv.size>0);
   document.getElementById('hBuildersBtn').classList.toggle('sel',S.sel.bu.size>0);
   updateBuildBar();
+  // threat compass — known (visible) enemies currently off-screen won't appear on the canvas at
+  // all, so without this there's no way to tell an attack is coming while the camera's elsewhere.
+  const vw2=cv.width/devicePixelRatio/cam.z,vh2=cv.height/devicePixelRatio/cam.z;
+  const tx0=cam.x-vw2/2,ty0=cam.y-vh2/2,tx1=cam.x+vw2/2,ty1=cam.y+vh2/2;
+  let threat=null,threatD=Infinity;
+  S.enemies.forEach(e=>{
+    if(!debugNoFog&&!visible(e))return;
+    if(e.x>=tx0&&e.x<=tx1&&e.y>=ty0&&e.y<=ty1)return;
+    const d=dist(e,B);if(d<threatD){threatD=d;threat=e}
+  });
+  document.getElementById('hThreatBox').hidden=!threat;
+  if(threat){
+    const ang=Math.atan2(threat.y-cam.y,threat.x-cam.x)*180/Math.PI;
+    document.getElementById('hThreatArrow').style.transform=`rotate(${ang}deg)`;
+    document.getElementById('hThreatDist').textContent=Math.round(threatD)+'m';
+  }
 }
 
 // ---------- loop ----------
