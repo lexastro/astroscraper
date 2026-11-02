@@ -9,6 +9,11 @@
     posthog.init('phc_qM4Gnos9wUDsAuMVc6CzsjorTjnaLfLBwxbcfxUcYDA2', {
         api_host: 'https://us.i.posthog.com',
         defaults: '2026-08-30',
+        // the actual game renders to a <canvas>, which rrweb (PostHog's recorder) can't capture
+        // from the DOM like it does regular HTML — without this, a replay shows the HUD/mouse but
+        // a blank canvas. This also needs "Record canvas elements" turned on once in the PostHog
+        // project's Settings → Session Replay page; this config only tunes it once that's on.
+        session_recording: { captureCanvas: { canvasFps: 6, canvasQuality: "0.5" } },
     })
 </script>
 <style>
