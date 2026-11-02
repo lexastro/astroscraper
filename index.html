@@ -77,6 +77,9 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 .overlay h1{font-family:var(--mono);font-weight:500;font-size:26px;margin:0;letter-spacing:.04em;text-wrap:balance}
 .overlay p{margin:0;color:var(--muted);max-width:40ch}
 .overlay button{background:var(--accent);color:#1a1200;border:0;font:inherit;font-weight:600;padding:10px 18px;border-radius:4px;cursor:pointer}
+.overlay button:disabled{opacity:.4;cursor:default}
+#menuMap{width:min(78vw,60vh,440px);height:min(78vw,60vh,440px);background:#10151b;border:1px solid var(--line);border-radius:4px;cursor:crosshair;touch-action:none}
+#menuHint{font-size:12px}
 .rewardCards{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;max-width:900px}
 .rewardCard{width:190px;min-height:210px;background:var(--panel2);border:2px solid var(--line);border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:8px;cursor:pointer;text-align:left;color:var(--fg);font:inherit;transition:transform .12s ease}
 .rewardCard:hover{transform:translateY(-5px)}
@@ -158,6 +161,14 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 <div class="overlay rewardOverlay" id="rewardOverlay" hidden>
   <h1 id="rewardTitle">Choose a Reward</h1>
   <div class="rewardCards" id="rewardCards"></div>
+</div>
+
+<div class="overlay" id="menuOverlay">
+  <h1>Datascraper</h1>
+  <p>Pick a landing zone on the Rim for the Bastion to touch down, then launch the mission.</p>
+  <canvas id="menuMap" width="480" height="480"></canvas>
+  <p id="menuHint">Click inside the dashed Rim band to choose your landing zone.</p>
+  <button id="launchBtn" disabled>Launch Mission</button>
 </div>
 
 <script>
@@ -328,6 +339,14 @@ function currentTier(v){
 
 // ---------- state ----------
 let S, cam, mouse={x:0,y:0,wx:0,wy:0,down:false,drag:null,panning:false}, keys={}, buildMode=null, lastT=0, msgT=0, terrain, terrainCv, prodMenuOpen=false;
+// ---------- main menu / landing zone ----------
+// Mission launch: the player picks where the Bastion sets down before the run starts. Confined to
+// the Rim (never Dense/Core) and inset from the map edge so the Bastion's own build/clear radius
+// never pokes off the world or into the Dense band.
+let menuOpen=true, landingSel=null;
+const LANDING_MARGIN=260;
+const RIM_X0=LANDING_MARGIN, RIM_X1=W-LANDING_MARGIN, RIM_Y0=EPI.y+DENSE_R+LANDING_MARGIN, RIM_Y1=H-LANDING_MARGIN;
+const menuCv=document.getElementById('menuMap'), menuCx=menuCv.getContext('2d');
 // fogC used to be a second, fully-opaque "never explored" layer underneath dimC — removed as the
 // darkest fog tier; fogX/fogC now exist only for the one-shot Zone Mapping upgrade's
 // revealCircle(), which has no visual effect of its own anymore since nothing draws fogC.
@@ -362,9 +381,9 @@ function corruptUnit(u,type,label){
   burst(u.x,u.y,C.zone,16,130,0.5);sfx.sever();shakeScreen(5,0.25);
 }
 
-function reset(){
+function reset(landing){
   S={t:0,dat:40,living:0,condensed:0,over:null,
-    base:{x:W/2,y:H-400,hp:900,maxHp:900,r:BASE_R,dest:null,locked:false,gunCd:0,bigGunCd:0,pingCd:0},
+    base:{x:landing?landing.x:W/2,y:landing?landing.y:H-400,hp:900,maxHp:900,r:BASE_R,dest:null,locked:false,gunCd:0,bigGunCd:0,pingCd:0},
     troops:[],harvesters:[],builders:[],relays:[],depots:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],shards:[],nades:[],
     veins:[],activeVein:null,throttleMul:1,ambientT:30,
     minedWindowAmt:0,minedWindowT:0,offZonePatrolCd:OFFZONE_MINE_WINDOW,
@@ -448,7 +467,47 @@ function reset(){
   document.getElementById('overlay').hidden=true;
   document.getElementById('pauseOverlay').hidden=true;
   msg('Scout a marked vein to find its mining point, then press L to begin drilling.');
+  S.paused=menuOpen; // held at the main menu until the player picks a landing zone and launches
 }
+// ---------- main menu / landing zone ----------
+function drawMenuMap(){
+  const s=menuCv.width/W;
+  menuCx.fillStyle='#10151b';menuCx.fillRect(0,0,menuCv.width,menuCv.height);
+  menuCx.drawImage(terrainCv,0,0,W,H,0,0,menuCv.width,menuCv.height);
+  menuCx.fillStyle='rgba(180,139,255,0.14)';menuCx.fillRect(0,0,menuCv.width,(EPI.y+CORE_R)*s);
+  menuCx.fillStyle='rgba(180,139,255,0.07)';menuCx.fillRect(0,(EPI.y+CORE_R)*s,menuCv.width,(DENSE_R-CORE_R)*s);
+  menuCx.font='600 11px '+css('--mono');menuCx.fillStyle=C.muted;menuCx.textAlign='center';
+  menuCx.fillText('CORE',menuCv.width/2,EPI.y*s+4);
+  menuCx.fillText('DENSE FIELD',menuCv.width/2,(EPI.y+DENSE_R)*s-34);
+  menuCx.fillStyle=C.accent;menuCx.fillText('RIM',menuCv.width/2,(EPI.y+DENSE_R)*s+22);
+  menuCx.strokeStyle=C.accent;menuCx.setLineDash([5,4]);menuCx.lineWidth=1.5;
+  menuCx.strokeRect(RIM_X0*s,RIM_Y0*s,(RIM_X1-RIM_X0)*s,(RIM_Y1-RIM_Y0)*s);
+  menuCx.setLineDash([]);
+  S.veins.forEach(v=>{if(v.contract)return;menuCx.strokeStyle=C.zone;menuCx.lineWidth=1;menuCx.beginPath();menuCx.arc(v.x*s,v.y*s,v.r*s,0,Math.PI*2);menuCx.stroke()});
+  VEIN_CLUSTERS.forEach(([x,y])=>{menuCx.fillStyle=C.dat;menuCx.fillRect(x*s-2,y*s-2,4,4)});
+  if(landingSel){
+    menuCx.fillStyle=C.accent;menuCx.beginPath();menuCx.arc(landingSel.x*s,landingSel.y*s,6,0,Math.PI*2);menuCx.fill();
+    menuCx.strokeStyle='#000';menuCx.lineWidth=1;menuCx.stroke();
+  }
+}
+menuCv.addEventListener('pointerdown',e=>{
+  const r=menuCv.getBoundingClientRect();
+  const x=(e.clientX-r.left)/r.width*W, y=(e.clientY-r.top)/r.height*H;
+  if(x<RIM_X0||x>RIM_X1||y<RIM_Y0||y>RIM_Y1){
+    document.getElementById('menuHint').textContent='Pick a spot inside the dashed Rim band.';
+    return;
+  }
+  landingSel={x,y};
+  document.getElementById('launchBtn').disabled=false;
+  document.getElementById('menuHint').textContent='Landing zone selected — launch when ready.';
+  drawMenuMap();
+});
+document.getElementById('launchBtn').onclick=()=>{
+  if(!landingSel)return;
+  menuOpen=false;
+  document.getElementById('menuOverlay').hidden=true;
+  reset(landingSel);
+};
 function spawnEnemy(x,y,kind){
   const big=kind==='wave'&&Math.random()<0.2;
   const sab=kind==='saboteur';
@@ -914,7 +973,7 @@ cv.addEventListener('dblclick',e=>{
 });
 cv.addEventListener('wheel',e=>{e.preventDefault();const w0=toWorld(e.clientX,e.clientY);cam.z=Math.min(2.2,Math.max(0.35,cam.z*(e.deltaY>0?0.9:1.1)));const w1=toWorld(e.clientX,e.clientY);cam.x+=w0.x-w1.x;cam.y+=w0.y-w1.y;clampCam()},{passive:false});
 addEventListener('keydown',e=>{
-  if(e.target.tagName==='INPUT')return; keys[e.key.toLowerCase()]=true; keys[e.key]=true;
+  if(menuOpen||e.target.tagName==='INPUT')return; keys[e.key.toLowerCase()]=true; keys[e.key]=true;
   if(e.key==='1')setBuild('wall'); else if(e.key==='2')setBuild('turret'); else if(e.key==='3')setBuild('relay'); else if(e.key==='4')setBuild('depot');
   else if(e.key==='Escape'){if(buildMode||prodMenuOpen){setBuild(null);closeProdMenu()}else togglePause()} else if(e.key.toLowerCase()==='b'){S.sel.troops.clear();S.sel.harv.clear();S.sel.bu.clear();S.sel.base=true}
   else if(e.key.toLowerCase()==='t'){S.sel.base=false;S.sel.harv.clear();S.sel.bu.clear();S.troops.forEach(t=>S.sel.troops.add(t.id))}
@@ -952,7 +1011,7 @@ document.querySelectorAll('#throttlePanel button[data-th]').forEach(b=>b.onclick
 });
 document.getElementById('bPause').onclick=toggleDrillPause;
 document.getElementById('helpClose').onclick=()=>{document.getElementById('help').hidden=true};
-document.getElementById('ovBtn').onclick=reset;
+document.getElementById('ovBtn').onclick=()=>reset(landingSel);
 document.getElementById('pauseResumeBtn').onclick=togglePause;
 mini.addEventListener('pointerdown',e=>{const r=mini.getBoundingClientRect();cam.x=(e.clientX-r.left)/r.width*W;cam.y=(e.clientY-r.top)/r.height*H;clampCam()});
 function closeProdMenu(){prodMenuOpen=false;const el=document.getElementById('prodMenu');if(el)el.hidden=true}
@@ -2194,7 +2253,7 @@ function hud(){
 
 // ---------- loop ----------
 function frame(ts){const dt=Math.min(0.05,(ts-lastT)/1000||0);lastT=ts;update(dt);draw();requestAnimationFrame(frame)}
-reset();requestAnimationFrame(frame);
+reset();drawMenuMap();requestAnimationFrame(frame);
 })();
 </script>
 
