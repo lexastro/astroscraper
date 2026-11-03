@@ -575,6 +575,7 @@ function genTerrain(){
   blob(1,16,3,7,0.85); // mud patches
   blob(2,16,3,7,0.85); // rock outcrops (override mud) — as common as mud, so picking a route through is a real puzzle
   placeRifts();
+  fillDenseRift();
 }
 function clearDisk(x,y,r){paintDisk(x,y,r,0)}
 function paintDisk(x,y,r,type){
@@ -606,6 +607,28 @@ function placeRifts(){
       paintDisk(p.x+Math.cos(ang)*off,p.y+Math.sin(ang)*off,rnd(RIFT_LOBE_MIN_R,RIFT_LOBE_MAX_R),RIFT);
     }
   });
+}
+// The Dense Field is blanketed in rift — driving the Bastion straight north out of the Rim isn't
+// an option in there. A handful of winding corridors (each a chain of jittered carveLine segments,
+// not a straight cut) are guaranteed clear all the way through, from just inside the Rim to just
+// inside the Core, so there's always a real — if narrow and indirect — route in. Everything else
+// in the band stays open to troops/harvesters/builders, just not the Bastion.
+const DENSE_RIFT_PROB=0.82, DENSE_CORRIDORS=3, DENSE_CORRIDOR_W=1, DENSE_CORRIDOR_STEPS=7, DENSE_CORRIDOR_JITTER=150;
+function fillDenseRift(){
+  const y0=EPI.y+CORE_R, y1=EPI.y+DENSE_R;
+  const gy0=Math.floor(y0/TCELL), gy1=Math.floor(y1/TCELL);
+  for(let gy=gy0;gy<=gy1;gy++)for(let gx=0;gx<TGX;gx++){
+    if(Math.random()<DENSE_RIFT_PROB)terrain[gy*TGX+gx]=RIFT;
+  }
+  const spanY=(y1-y0)+300, stepY=spanY/DENSE_CORRIDOR_STEPS;
+  for(let i=0;i<DENSE_CORRIDORS;i++){
+    let px=rnd(250,W-250), py=y1+150;
+    for(let s=0;s<DENSE_CORRIDOR_STEPS;s++){
+      const ny=py-stepY, nx=Math.max(150,Math.min(W-150,px+rnd(-DENSE_CORRIDOR_JITTER,DENSE_CORRIDOR_JITTER)));
+      carveLine(px,py,nx,ny,DENSE_CORRIDOR_W);
+      px=nx;py=ny;
+    }
+  }
 }
 function carveLine(x0,y0,x1,y1,w){
   const d=Math.hypot(x1-x0,y1-y0); const steps=Math.max(1,Math.ceil(d/(TCELL*0.5)));
