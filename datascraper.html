@@ -119,6 +119,11 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 .metaRow{display:flex;gap:8px;align-items:baseline;font-family:var(--mono)}
 .metaRow .k{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .metaRow .v{font-size:16px;color:var(--condensed)}
+.crystalIcon{font-size:16px;line-height:1}
+.crystalIcon.living{color:var(--living)}
+.crystalIcon.condensed{color:var(--condensed)}
+.crystalIcon.living~.v{color:var(--living)}
+.crystalIcon.condensed~.v{color:var(--condensed)}
 .metaUnlock{background:var(--panel2);border:1px solid var(--condensed);color:var(--fg);font:inherit;font-size:12px;padding:8px 14px;border-radius:4px;cursor:pointer}
 .metaUnlock:disabled{opacity:.4;cursor:default}
 .metaUnlock.unlocked{border-color:var(--ally);color:var(--ally);cursor:default}
@@ -346,8 +351,8 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <canvas id="menuMap" width="480" height="480"></canvas>
   <p id="menuHint">Click inside the dashed Rim band to choose your landing zone.</p>
   <div class="menuMeta">
-    <div class="metaRow"><span class="k">Living Crystal</span><span class="v" id="metaLiving">0</span></div>
-    <div class="metaRow"><span class="k">Condensed Crystal</span><span class="v" id="metaCondensed">0</span></div>
+    <div class="metaRow"><span class="crystalIcon living">❖</span><span class="v" id="metaLiving">0</span></div>
+    <div class="metaRow"><span class="crystalIcon condensed">⬢</span><span class="v" id="metaCondensed">0</span></div>
     <button id="openUnlocksBtn" class="metaUnlock">Unlocks</button>
   </div>
   <button id="launchBtn" disabled>Launch Mission</button>
@@ -357,13 +362,13 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 <div class="overlay" id="unlocksOverlay" hidden>
   <h1>Unlocks</h1>
   <div class="shopSection">
-    <div class="shopHeader"><b>Unit Unlocks</b><span class="metaRow"><span class="k">Living Crystal</span><span class="v" id="unlocksLiving">0</span></span></div>
+    <div class="shopHeader"><b>Unit Unlocks</b><span class="metaRow"><span class="crystalIcon living">❖</span><span class="v" id="unlocksLiving">0</span></span></div>
     <p>Spend Living Crystal — the hidden vein's reward — to permanently unlock a unit for every future run.</p>
     <div class="unlockCards" id="unlockCards"></div>
   </div>
   <div class="shopSection">
-    <div class="shopHeader"><b>Upgrades</b><span class="metaRow"><span class="k">Condensed Crystal</span><span class="v" id="upgradesCondensed">0</span></span></div>
-    <p>Spend Condensed Crystal on permanent upgrades — most have several tiers, each pricier than the last.</p>
+    <div class="shopHeader"><b>Upgrades</b><span class="metaRow"><span class="crystalIcon condensed">⬢</span><span class="v" id="upgradesCondensed">0</span></span></div>
+    <p>Spend Condensed Crystal on permanent upgrades — some can be bought more than once, each time pricier than the last.</p>
     <div class="unlockCards" id="upgradeCards"></div>
   </div>
   <button id="unlocksBackBtn" class="secondary">Back</button>
@@ -791,9 +796,12 @@ const UNLOCKS=[
 // REPLACES the previous bonus rather than piling on (pct[tier-1] is the current total, not a delta)
 // — matches the "does not stack, percentage is of initial" spec for those two.
 const META_UPGRADES=[
-  {key:'bastionHp',name:'Bastion Armor Plating',icon:'⛨',max:3,costs:[10,20,30],stacking:true,perTier:250,unit:'Bastion HP'},
-  {key:'unitHp',name:'Kinetic Dampers',icon:'✚',max:3,costs:[10,15,20],stacking:false,pct:[10,20,30],unit:'combat unit HP'},
-  {key:'pingRange',name:'Deep Scan Antenna',icon:'◉',max:2,costs:[15,20],stacking:false,pct:[10,20],unit:'ping range'},
+  {key:'bastionHp',name:'Bastion Armor Plating',icon:'⛨',max:3,costs:[10,20,30],stacking:true,perTier:250,unit:'Bastion HP',
+   desc:'Reinforces the Bastion\'s hull. +250 HP per purchase.'},
+  {key:'unitHp',name:'Kinetic Dampers',icon:'✚',max:3,costs:[10,15,20],stacking:false,pct:[10,20,30],unit:'combat unit HP',
+   desc:'Dampens incoming impacts. +10% Squad/Grenadier/Artillery HP per purchase.'},
+  {key:'pingRange',name:'Deep Scan Antenna',icon:'◉',max:2,costs:[15,20],stacking:false,pct:[10,20],unit:'ping range',
+   desc:'Extends the Ping sensor sweep. +10% range per purchase.'},
 ];
 function bastionHpBonus(){return (meta.upgrades.bastionHp||0)*250}
 function unitHpMult(){const t=meta.upgrades.unitHp||0;return t>0?1+META_UPGRADES[1].pct[t-1]/100:1}
@@ -814,7 +822,7 @@ function renderUnlockCards(){
     const card=document.createElement('div');
     card.className='unlockCard'+(meta[u.flag]?' unlocked':'');
     card.innerHTML=`<span class="ucIcon">${u.icon}</span><span class="ucName">${u.name}</span>`+
-      `<span class="ucPrice">${u.cost} Living Crystal</span>`+
+      `<span class="ucPrice"><span class="crystalIcon living">❖</span>${u.cost}</span>`+
       `<button class="metaUnlock${meta[u.flag]?' unlocked':''}">${meta[u.flag]?'Unlocked':'Unlock'}</button>`;
     const btn=card.querySelector('button');
     btn.disabled=meta[u.flag]||meta.livingBank<u.cost;
@@ -839,12 +847,10 @@ function renderUpgradeCards(){
     const cost=maxed?null:u.costs[tier];
     const card=document.createElement('div');
     card.className='unlockCard'+(maxed?' unlocked':'');
-    const haveLabel=tier>0?`+${u.stacking?tier*u.perTier:u.pct[tier-1]}${u.stacking?'':'%'} ${u.unit}`:'No bonus yet';
-    const nextLabel=maxed?'':u.stacking?`+${u.perTier} ${u.unit}`:`+${u.pct[tier]}% ${u.unit}`;
     card.innerHTML=`<span class="ucIcon">${u.icon}</span><span class="ucName">${u.name}</span>`+
-      `<span class="ucDesc">${haveLabel}</span>`+
-      `<span class="ucPrice">${maxed?'Maxed':`Tier ${tier+1}/${u.max} — ${cost} Condensed`}</span>`+
-      `<button class="metaUnlock${maxed?' unlocked':''}">${maxed?'Maxed':`Upgrade (${nextLabel})`}</button>`;
+      `<span class="ucDesc">${u.desc}</span>`+
+      `<span class="ucPrice">${maxed?'Maxed':`${tier+1}/${u.max} — <span class="crystalIcon condensed">⬢</span>${cost}`}</span>`+
+      `<button class="metaUnlock${maxed?' unlocked':''}">${maxed?'Maxed':'Upgrade'}</button>`;
     const btn=card.querySelector('button');
     btn.disabled=maxed||meta.condensedBank<cost;
     btn.onclick=()=>{
