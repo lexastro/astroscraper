@@ -105,7 +105,10 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 .help{position:absolute;right:max(16px,env(safe-area-inset-right,0px));top:calc(env(safe-area-inset-top,0px) + 70px);background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:10px 12px;max-width:270px;font-size:12px;line-height:1.45;color:var(--muted)}
 .help b{color:var(--fg);font-weight:600} .help kbd{font-family:var(--mono);background:var(--panel2);padding:0 4px;border-radius:3px;color:var(--fg)}
 .help button{position:absolute;top:4px;right:6px;background:none;border:0;color:var(--muted);cursor:pointer;font-size:14px}
-.overlay{position:absolute;inset:0;background:rgba(5,7,10,.78);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;text-align:center;padding:24px;z-index:20}
+/* justify-content/align-items use the "safe" keyword so an overlay taller than the viewport (the
+   Unlocks panel, once it has several upgrade cards) scrolls from its actual top instead of
+   centering the content and clipping the overflowing part completely out of scroll range */
+.overlay{position:absolute;inset:0;background:rgba(5,7,10,.78);display:flex;align-items:safe center;justify-content:safe center;flex-direction:column;gap:14px;text-align:center;padding:24px;z-index:20;overflow-y:auto}
 .overlay h1{font-family:var(--mono);font-weight:500;font-size:26px;margin:0;letter-spacing:.04em;text-wrap:balance}
 .overlay p{margin:0;color:var(--muted);max-width:40ch}
 .overlay button{background:var(--accent);color:#1a1200;border:0;font:inherit;font-weight:600;padding:10px 18px;border-radius:4px;cursor:pointer}
@@ -113,9 +116,9 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 #menuMap{width:min(78vw,60vh,440px);height:min(78vw,60vh,440px);background:#10151b;border:1px solid var(--line);border-radius:4px;cursor:crosshair;touch-action:none}
 #menuHint{font-size:12px}
 .menuMeta{display:flex;flex-direction:column;align-items:center;gap:8px;margin:2px 0}
-.menuMeta .metaRow{display:flex;gap:8px;align-items:baseline;font-family:var(--mono)}
-.menuMeta .metaRow .k{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-.menuMeta .metaRow .v{font-size:16px;color:var(--condensed)}
+.metaRow{display:flex;gap:8px;align-items:baseline;font-family:var(--mono)}
+.metaRow .k{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.metaRow .v{font-size:16px;color:var(--condensed)}
 .metaUnlock{background:var(--panel2);border:1px solid var(--condensed);color:var(--fg);font:inherit;font-size:12px;padding:8px 14px;border-radius:4px;cursor:pointer}
 .metaUnlock:disabled{opacity:.4;cursor:default}
 .metaUnlock.unlocked{border-color:var(--ally);color:var(--ally);cursor:default}
@@ -135,8 +138,13 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 .unlockCard .ucIcon{font-size:34px;color:var(--condensed)}
 .unlockCard .ucName{font-weight:600;font-size:15px}
 .unlockCard .ucPrice{font-family:var(--mono);font-size:13px;color:var(--condensed)}
+.unlockCard .ucDesc{font-size:11px;color:var(--muted);line-height:1.35}
 .unlockCard.unlocked{border-color:var(--ally)}
 .unlockCard.unlocked .ucIcon{color:var(--ally)}
+.shopSection{display:flex;flex-direction:column;align-items:center;gap:10px}
+.shopHeader{display:flex;align-items:baseline;gap:14px}
+.shopHeader b{font-size:13px;color:var(--fg);text-transform:uppercase;letter-spacing:.06em}
+.shopHeader .metaRow{margin:0}
 /* --- gameplay announcements: a dismissible, color-coded toast stack over the left side of the
    play area; most recent is largest, the next few shrink, older ones fall off the end --- */
 .toasts{position:absolute;left:max(16px,env(safe-area-inset-left,0px));top:calc(env(safe-area-inset-top,0px) + 150px);
@@ -339,6 +347,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <p id="menuHint">Click inside the dashed Rim band to choose your landing zone.</p>
   <div class="menuMeta">
     <div class="metaRow"><span class="k">Living Crystal</span><span class="v" id="metaLiving">0</span></div>
+    <div class="metaRow"><span class="k">Condensed Crystal</span><span class="v" id="metaCondensed">0</span></div>
     <button id="openUnlocksBtn" class="metaUnlock">Unlocks</button>
   </div>
   <button id="launchBtn" disabled>Launch Mission</button>
@@ -347,9 +356,16 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 
 <div class="overlay" id="unlocksOverlay" hidden>
   <h1>Unlocks</h1>
-  <p>Spend Living Crystal — the hidden vein's reward — to permanently unlock a unit for every future run.</p>
-  <div class="metaRow"><span class="k">Living Crystal</span><span class="v" id="unlocksLiving">0</span></div>
-  <div class="unlockCards" id="unlockCards"></div>
+  <div class="shopSection">
+    <div class="shopHeader"><b>Unit Unlocks</b><span class="metaRow"><span class="k">Living Crystal</span><span class="v" id="unlocksLiving">0</span></span></div>
+    <p>Spend Living Crystal — the hidden vein's reward — to permanently unlock a unit for every future run.</p>
+    <div class="unlockCards" id="unlockCards"></div>
+  </div>
+  <div class="shopSection">
+    <div class="shopHeader"><b>Upgrades</b><span class="metaRow"><span class="k">Condensed Crystal</span><span class="v" id="upgradesCondensed">0</span></span></div>
+    <p>Spend Condensed Crystal on permanent upgrades — most have several tiers, each pricier than the last.</p>
+    <div class="unlockCards" id="upgradeCards"></div>
+  </div>
   <button id="unlocksBackBtn" class="secondary">Back</button>
 </div>
 
@@ -423,13 +439,16 @@ function loadMeta(){
     const raw=localStorage.getItem(META_KEY);
     if(raw){
       const m=JSON.parse(raw);
+      const mu=m.upgrades||{};
       // recordingConsent is tri-state: true (allowed), false (disabled), undefined (never asked
       // — the consent screen shows until this becomes one of the other two).
       return {condensedBank:m.condensedBank|0,livingBank:m.livingBank|0,unlockArtillery:!!m.unlockArtillery,unlockGrenadier:!!m.unlockGrenadier,
+        upgrades:{bastionHp:mu.bastionHp|0,unitHp:mu.unitHp|0,pingRange:mu.pingRange|0},
         recordingConsent:m.recordingConsent===true?true:m.recordingConsent===false?false:undefined};
     }
   }catch(e){}
-  return {condensedBank:0,livingBank:0,unlockArtillery:false,unlockGrenadier:false,recordingConsent:undefined};
+  return {condensedBank:0,livingBank:0,unlockArtillery:false,unlockGrenadier:false,
+    upgrades:{bastionHp:0,unitHp:0,pingRange:0},recordingConsent:undefined};
 }
 function saveMeta(){try{localStorage.setItem(META_KEY,JSON.stringify(meta))}catch(e){}}
 let meta=loadMeta();
@@ -599,7 +618,7 @@ function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
 function key(gx,gy){return gx+','+gy}
 function bandAt(x,y){const d=Math.abs(y-EPI.y);return d<=CORE_R?'core':d<=DENSE_R?'dense':'rim'}
 
-function mkTroop(id,kind){kind=kind||'troop';const hp=kind==='artillery'?ARTY_HP:kind==='grenadier'?GREN_HP:70;const r=kind==='artillery'?ARTY_R:TROOP_R;return {id,kind,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp,maxHp:hp,r,dest:null,target:null,state:'idle',cd:0,tetherOk:true,severed:false,sanity:SANITY_MAX,trail:null,cableHp:0,cableLen:0,cableMaxed:false,following:false,followAng:0,followDist:0}}
+function mkTroop(id,kind){kind=kind||'troop';const baseHp=kind==='artillery'?ARTY_HP:kind==='grenadier'?GREN_HP:70;const hp=Math.round(baseHp*unitHpMult());const r=kind==='artillery'?ARTY_R:TROOP_R;return {id,kind,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp,maxHp:hp,r,dest:null,target:null,state:'idle',cd:0,tetherOk:true,severed:false,sanity:SANITY_MAX,trail:null,cableHp:0,cableLen:0,cableMaxed:false,following:false,followAng:0,followDist:0}}
 function mkHarv(id){return {id,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp:50,maxHp:50,r:HARV_R,dest:null,node:null,carry:0,state:'idle',autoLoop:true,hv:0,tetherOk:true,severed:false,sanity:SANITY_MAX,trail:null,cableHp:0,cableLen:0,cableMaxed:false,following:false,followAng:0,followDist:0}}
 function mkBuilder(id){return {id,x:S.base.x+rnd(-30,30),y:S.base.y+rnd(-30,30),hp:40,maxHp:40,r:BUILDER_R,dest:null,state:'idle',mode:'build',target:null,tetherOk:true,severed:false,sanity:SANITY_MAX,trail:null,cableHp:0,cableLen:0,cableMaxed:false,following:false,followAng:0,followDist:0}}
 // Stats for the hostile unit a mobile ally becomes if its Sanity ever hits 0 — a notch weaker
@@ -621,7 +640,7 @@ function corruptUnit(u,type,label){
 
 function reset(landing){
   S={t:0,dat:40,living:0,condensed:0,over:null,
-    base:{x:landing?landing.x:W/2,y:landing?landing.y:H-400,hp:900,maxHp:900,r:BASE_R,dest:null,locked:false,gunCd:0,bigGunCd:0,pingCd:0},
+    base:{x:landing?landing.x:W/2,y:landing?landing.y:H-400,hp:900+bastionHpBonus(),maxHp:900+bastionHpBonus(),r:BASE_R,dest:null,locked:false,gunCd:0,bigGunCd:0,pingCd:0},
     troops:[],harvesters:[],builders:[],relays:[],depots:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],shards:[],nades:[],
     veins:[],activeVein:null,throttleMul:1,ambientT:30,
     minedWindowAmt:0,minedWindowT:0,offZonePatrolCd:OFFZONE_MINE_WINDOW,
@@ -765,8 +784,23 @@ const UNLOCKS=[
   {flag:'unlockGrenadier',cost:GREN_UNLOCK_COST,name:'Grenadier',icon:'✺'},
   {flag:'unlockArtillery',cost:ARTY_UNLOCK_COST,name:'Artillery',icon:'☄'},
 ];
+// Permanent, tiered upgrades bought with Condensed Crystal — unlike UNLOCKS these aren't one-shot:
+// meta.upgrades[key] holds how many tiers are already bought (0..max). costs[i] is the price of
+// buying tier i+1 (so costs[tier] is always "price of the next tier"). stacking:true means each
+// tier's effect ADDS on top of the ones before it (Bastion plating); stacking:false means a tier
+// REPLACES the previous bonus rather than piling on (pct[tier-1] is the current total, not a delta)
+// — matches the "does not stack, percentage is of initial" spec for those two.
+const META_UPGRADES=[
+  {key:'bastionHp',name:'Bastion Armor Plating',icon:'⛨',max:3,costs:[10,20,30],stacking:true,perTier:250,unit:'Bastion HP'},
+  {key:'unitHp',name:'Kinetic Dampers',icon:'✚',max:3,costs:[10,15,20],stacking:false,pct:[10,20,30],unit:'combat unit HP'},
+  {key:'pingRange',name:'Deep Scan Antenna',icon:'◉',max:2,costs:[15,20],stacking:false,pct:[10,20],unit:'ping range'},
+];
+function bastionHpBonus(){return (meta.upgrades.bastionHp||0)*250}
+function unitHpMult(){const t=meta.upgrades.unitHp||0;return t>0?1+META_UPGRADES[1].pct[t-1]/100:1}
+function pingRangeMult(){const t=meta.upgrades.pingRange||0;return t>0?1+META_UPGRADES[2].pct[t-1]/100:1}
 function refreshMenuMeta(){
   document.getElementById('metaLiving').textContent=meta.livingBank;
+  document.getElementById('metaCondensed').textContent=meta.condensedBank;
   const rb=document.getElementById('recordingToggleBtn');
   rb.textContent=meta.recordingConsent?'Gameplay Recording: On (click to disable)':'Gameplay Recording: Off (click to enable)';
   const allUnlocked=UNLOCKS.every(u=>meta[u.flag]);
@@ -795,10 +829,40 @@ function renderUnlockCards(){
     host.appendChild(card);
   });
 }
+function renderUpgradeCards(){
+  document.getElementById('upgradesCondensed').textContent=meta.condensedBank;
+  const host=document.getElementById('upgradeCards');
+  host.innerHTML='';
+  META_UPGRADES.forEach(u=>{
+    const tier=meta.upgrades[u.key]||0;
+    const maxed=tier>=u.max;
+    const cost=maxed?null:u.costs[tier];
+    const card=document.createElement('div');
+    card.className='unlockCard'+(maxed?' unlocked':'');
+    const haveLabel=tier>0?`+${u.stacking?tier*u.perTier:u.pct[tier-1]}${u.stacking?'':'%'} ${u.unit}`:'No bonus yet';
+    const nextLabel=maxed?'':u.stacking?`+${u.perTier} ${u.unit}`:`+${u.pct[tier]}% ${u.unit}`;
+    card.innerHTML=`<span class="ucIcon">${u.icon}</span><span class="ucName">${u.name}</span>`+
+      `<span class="ucDesc">${haveLabel}</span>`+
+      `<span class="ucPrice">${maxed?'Maxed':`Tier ${tier+1}/${u.max} — ${cost} Condensed`}</span>`+
+      `<button class="metaUnlock${maxed?' unlocked':''}">${maxed?'Maxed':`Upgrade (${nextLabel})`}</button>`;
+    const btn=card.querySelector('button');
+    btn.disabled=maxed||meta.condensedBank<cost;
+    btn.onclick=()=>{
+      if(maxed||meta.condensedBank<u.costs[tier])return;
+      meta.condensedBank-=u.costs[tier];
+      meta.upgrades[u.key]=tier+1;
+      saveMeta();
+      renderUpgradeCards();
+      refreshMenuMeta();
+    };
+    host.appendChild(card);
+  });
+}
 document.getElementById('openUnlocksBtn').onclick=()=>{
   document.getElementById('menuOverlay').hidden=true;
   document.getElementById('unlocksOverlay').hidden=false;
   renderUnlockCards();
+  renderUpgradeCards();
 };
 document.getElementById('unlocksBackBtn').onclick=()=>{
   document.getElementById('unlocksOverlay').hidden=true;
@@ -1880,10 +1944,11 @@ function togglePause(){
 // PING_RADIUS as found, no vision or scouting needed. 60s cooldown, usable locked down or not.
 function tryPing(){
   if(S.base.pingCd>0){msg('Ping is still recharging.');return}
+  const radius=PING_RADIUS*pingRangeMult();
   let found=0;
-  S.nodes.forEach(n=>{if(!n.found&&n.amt>0&&dist(n,S.base)<=PING_RADIUS){n.found=true;found++}});
+  S.nodes.forEach(n=>{if(!n.found&&n.amt>0&&dist(n,S.base)<=radius){n.found=true;found++}});
   S.base.pingCd=PING_CD;
-  S.pingRing={x:S.base.x,y:S.base.y,t:0,dur:1.1};
+  S.pingRing={x:S.base.x,y:S.base.y,t:0,dur:1.1,r:radius};
   msg(found?`Ping swept the area — ${found} Dat Crystal deposit${found===1?'':'s'} found.`:'Ping swept the area — nothing new in range.');
   sfx.ping();
   updateBuildBar();
@@ -2849,7 +2914,7 @@ function draw(){
     ctx.strokeStyle=C.cable;ctx.globalAlpha=0.2*bwt;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(B.x,B.y,WIRELESS_TOL_DENSE*S.mods.relayTolMult,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;
   }
   if(S.sel.base){ctx.strokeStyle=C.ally;ctx.lineWidth=1.5;ctx.setLineDash([4,4]);ctx.beginPath();ctx.arc(B.x,B.y,B.r+10,0,Math.PI*2);ctx.stroke();ctx.setLineDash([])}
-  if(S.pingRing){const pr=S.pingRing,pt=pr.t/pr.dur;ctx.globalAlpha=Math.max(0,1-pt);ctx.strokeStyle=C.dat;ctx.lineWidth=3;ctx.beginPath();ctx.arc(pr.x,pr.y,PING_RADIUS*pt,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1}
+  if(S.pingRing){const pr=S.pingRing,pt=pr.t/pr.dur;ctx.globalAlpha=Math.max(0,1-pt);ctx.strokeStyle=C.dat;ctx.lineWidth=3;ctx.beginPath();ctx.arc(pr.x,pr.y,(pr.r||PING_RADIUS)*pt,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1}
   if(B.dest){ctx.strokeStyle='rgba(94,200,255,0.5)';ctx.setLineDash([6,6]);ctx.beginPath();ctx.moveTo(B.x,B.y);ctx.lineTo(B.dest.x,B.dest.y);ctx.stroke();ctx.setLineDash([])}
   // cables (drawn under the units they belong to)
   S.relays.forEach(r=>{if(r.built)drawCable(r,C.cable)});
