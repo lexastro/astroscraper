@@ -48,7 +48,12 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 .bar{height:5px;background:var(--panel2);border-radius:2px;overflow:hidden;margin-top:3px}
 .bar i{display:block;height:100%;background:var(--ally)}
 .bar i.hp{background:var(--accent)}
-.build{position:absolute;left:max(16px,env(safe-area-inset-left,0px));bottom:max(12px,env(safe-area-inset-bottom,0px));display:flex;gap:6px;pointer-events:auto;flex-wrap:wrap}
+/* buildBar and unitActions stack in this wrapper so a margin between them (and above the bottom
+   edge) always holds, regardless of how many unit-action buttons are showing at once */
+.bottomBar{position:absolute;left:0;right:0;bottom:0;display:flex;flex-direction:column;align-items:flex-start;
+  gap:10px;pointer-events:none}
+.bottomBar>*{pointer-events:auto}
+.build{display:flex;gap:6px;flex-wrap:wrap;padding:0 max(16px,env(safe-area-inset-right,0px)) max(12px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
 .build button{background:var(--panel);border:1px solid var(--line);color:var(--fg);font:inherit;padding:8px 10px;border-radius:4px;cursor:pointer;display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:86px}
 .build button:hover{background:var(--panel2)} .build button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .build button.on{border-color:var(--accent);background:var(--panel2)}
@@ -138,15 +143,15 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 .helpToggleBtn{display:none;position:absolute;top:calc(env(safe-area-inset-top,0px) + 8px);right:max(10px,env(safe-area-inset-right,0px));
   width:34px;height:34px;border-radius:50%;background:var(--panel);border:1px solid var(--line);color:var(--fg);
   font:inherit;font-weight:600;cursor:pointer;pointer-events:auto;z-index:10;box-shadow:0 2px 8px rgba(0,0,0,.4)}
-.zoomCtrl{position:absolute;right:max(16px,env(safe-area-inset-right,0px));bottom:max(206px,calc(206px + env(safe-area-inset-bottom,0px)));
+/* quick select-all-of-kind, stacked vertically — replaces the old zoom +/- buttons (mouse wheel
+   and pinch already cover zooming) on both desktop and mobile */
+.unitSelCtrl{position:absolute;right:max(16px,env(safe-area-inset-right,0px));bottom:max(206px,calc(206px + env(safe-area-inset-bottom,0px)));
   display:flex;flex-direction:column;gap:6px;pointer-events:auto}
-.zoomCtrl button{width:38px;height:38px;border-radius:50%;background:var(--panel);border:1px solid var(--line);color:var(--fg);
-  font:inherit;font-size:19px;line-height:1;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.4)}
-.zoomCtrl button:active{transform:scale(.92);background:var(--panel2)}
-.unitSelBtn{display:none}
-.unitSelBtn.sel{border-color:var(--ally);color:var(--ally)}
-.unitActions{position:absolute;left:max(16px,env(safe-area-inset-left,0px));bottom:max(76px,calc(76px + env(safe-area-inset-bottom,0px)));
-  display:flex;gap:6px;pointer-events:none;flex-wrap:wrap}
+.unitSelCtrl button{width:34px;height:34px;border-radius:50%;background:var(--panel);border:1px solid var(--line);color:var(--fg);
+  font:inherit;font-size:14px;line-height:1;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.4)}
+.unitSelCtrl button:active{transform:scale(.92);background:var(--panel2)}
+.unitSelCtrl button.sel{border-color:var(--ally);color:var(--ally)}
+.unitActions{display:flex;gap:6px;flex-wrap:wrap;padding-left:max(16px,env(safe-area-inset-left,0px))}
 .unitActions button{pointer-events:auto;background:var(--panel);border:1px solid var(--line);color:var(--fg);font:inherit;
   padding:8px 10px;border-radius:6px;cursor:pointer;display:flex;flex-direction:column;align-items:flex-start;gap:2px;
   box-shadow:0 2px 8px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.04)}
@@ -158,7 +163,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 @media (max-width:720px),(pointer:coarse){
   .build button,.prod .prodBtn,.throttle button,.metaUnlock,.unitActions button{min-height:44px;padding:10px 12px}
   .stat.selbtn{min-height:40px}
-  .zoomCtrl button{width:44px;height:44px}
+  .unitSelCtrl button{width:44px;height:44px;font-size:16px}
 }
 /* --- mobile layout restructure --- */
 @media (max-width:720px){
@@ -169,25 +174,23 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   .stat{min-width:0;padding:5px 8px}
   .stat .k{font-size:9px}
   .stat .v{font-size:13px}
-  .build{left:0;right:0;bottom:max(8px,env(safe-area-inset-bottom,0px));justify-content:flex-start;
-    flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:10px 8px 0 8px;gap:6px;
+  .build{justify-content:flex-start;
+    flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:10px 8px max(8px,env(safe-area-inset-bottom,0px)) 8px;gap:6px;
     background:linear-gradient(to top,rgba(11,14,18,.92),rgba(11,14,18,0) 85%)}
   .build button{flex:0 0 auto;min-width:60px}
   .build button .cost,.build button .key{display:none}
-  .unitActions{bottom:max(88px,calc(88px + env(safe-area-inset-bottom,0px)))}
+  .unitActions{padding-left:8px}
   .unitActions button .key{display:none}
   .prod{bottom:max(88px,calc(88px + env(safe-area-inset-bottom,0px)))}
-  .zoomBtn{display:none}
-  .unitSelBtn{display:flex}
-  /* minimap: minimized by default above the build bar, with an expand/collapse icon */
-  .mini{bottom:max(70px,calc(70px + env(safe-area-inset-bottom,0px)));width:60px;height:60px;transition:width .15s ease,height .15s ease}
+  /* minimap: minimized by default above the build bar (with margin), with an expand/collapse icon */
+  .mini{bottom:max(90px,calc(90px + env(safe-area-inset-bottom,0px)));width:60px;height:60px;transition:width .15s ease,height .15s ease}
   .mini canvas{width:60px;height:60px}
   .mini.expanded{width:180px;height:180px}
   .mini.expanded canvas{width:180px;height:180px}
   .miniToggle{display:flex;align-items:center;justify-content:center;position:absolute;top:2px;right:2px;
     width:20px;height:20px;border-radius:50%;background:rgba(11,14,18,.75);border:1px solid var(--line);
     color:var(--fg);font-size:11px;line-height:1;cursor:pointer;z-index:1}
-  .zoomCtrl{bottom:max(260px,calc(260px + env(safe-area-inset-bottom,0px)))}
+  .unitSelCtrl{bottom:max(285px,calc(285px + env(safe-area-inset-bottom,0px)))}
 }
 @media (max-width:600px){.stat{min-width:70px}.stat .v{font-size:14px}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}.overlay{animation:none}.bar i.hp.low{animation:none}}
@@ -211,21 +214,22 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 <button class="helpToggleBtn" id="helpToggleBtn" aria-label="Show controls">?</button>
 <div class="toasts" id="toasts"></div>
 
-<div class="build" id="buildBar">
-  <button id="bWall" data-mode="wall"><span class="icon">▭</span><span>Wall</span><span class="cost" id="cWall">5 dat</span><span class="key">1</span></button>
-  <button id="bTurret" data-mode="turret"><span class="icon">⌖</span><span>Turret</span><span class="cost" id="cTurret">50 dat</span><span class="key">2</span></button>
-  <button id="bRelay" data-mode="relay"><span class="icon">⟐</span><span>Relay</span><span class="cost" id="cRelay">15 dat</span><span class="key">3</span></button>
-  <button id="bDepot" data-mode="depot"><span class="icon">⊟</span><span>Depot</span><span class="cost" id="cDepot">150 dat</span><span class="key">4</span></button>
-  <button id="bLock"><span class="icon">⛏</span><span id="bLockLabel">Begin Drilling</span><span class="key">L</span></button>
-  <button id="bPing"><span class="icon">◉</span><span id="bPingLabel">Ping</span><span class="key">N</span></button>
-</div>
-
-<!-- Contextual: only the actions relevant to the currently-selected unit type appear here, above
-     the build bar, instead of always sitting in it regardless of what's selected. -->
-<div class="unitActions" id="unitActions">
-  <button id="bResumeAuto" hidden><span class="icon">↻</span><span>Resume Auto-Gather</span><span class="key">R</span></button>
-  <button id="bToggleRepair" hidden><span class="icon">⚙</span><span id="bRepairLabel">Repair Mode</span><span class="key">G</span></button>
-  <button id="bFollow" hidden><span class="icon">➤</span><span id="bFollowLabel">Follow Bastion</span><span class="key">V</span></button>
+<div class="bottomBar">
+  <!-- Contextual: only the actions relevant to the currently-selected unit type appear here, above
+       the build bar, instead of always sitting in it regardless of what's selected. -->
+  <div class="unitActions" id="unitActions">
+    <button id="bResumeAuto" hidden><span class="icon">↻</span><span>Resume Auto-Gather</span><span class="key">R</span></button>
+    <button id="bToggleRepair" hidden><span class="icon">⚙</span><span id="bRepairLabel">Repair Mode</span><span class="key">G</span></button>
+    <button id="bFollow" hidden><span class="icon">➤</span><span id="bFollowLabel">Follow Bastion</span><span class="key">V</span></button>
+  </div>
+  <div class="build" id="buildBar">
+    <button id="bWall" data-mode="wall"><span class="icon">▭</span><span>Wall</span><span class="cost" id="cWall">5 dat</span><span class="key">1</span></button>
+    <button id="bTurret" data-mode="turret"><span class="icon">⌖</span><span>Turret</span><span class="cost" id="cTurret">50 dat</span><span class="key">2</span></button>
+    <button id="bRelay" data-mode="relay"><span class="icon">⟐</span><span>Relay</span><span class="cost" id="cRelay">15 dat</span><span class="key">3</span></button>
+    <button id="bDepot" data-mode="depot"><span class="icon">⊟</span><span>Depot</span><span class="cost" id="cDepot">150 dat</span><span class="key">4</span></button>
+    <button id="bLock"><span class="icon">⛏</span><span id="bLockLabel">Begin Drilling</span><span class="key">L</span></button>
+    <button id="bPing"><span class="icon">◉</span><span id="bPingLabel">Ping</span><span class="key">N</span></button>
+  </div>
 </div>
 
 <div class="throttle" id="throttlePanel" hidden>
@@ -249,12 +253,10 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 </div>
 
 <div class="mini" id="miniWrap"><canvas id="mini" width="180" height="180"></canvas><button id="miniToggle" class="miniToggle" aria-label="Expand minimap">⤢</button></div>
-<div class="zoomCtrl" id="zoomCtrl">
-  <button id="zoomIn" class="zoomBtn" aria-label="Zoom in">+</button>
-  <button id="zoomOut" class="zoomBtn" aria-label="Zoom out">−</button>
-  <button id="selTroopsBtn2" class="unitSelBtn" aria-label="Select all Squads">▲</button>
-  <button id="selHarvBtn2" class="unitSelBtn" aria-label="Select all Harvesters">⛏</button>
-  <button id="selBuBtn2" class="unitSelBtn" aria-label="Select all Builders">⚒</button>
+<div class="unitSelCtrl" id="unitSelCtrl">
+  <button id="selTroopsBtn2" aria-label="Select all Squads">▲</button>
+  <button id="selHarvBtn2" aria-label="Select all Harvesters">⛏</button>
+  <button id="selBuBtn2" aria-label="Select all Builders">⚒</button>
 </div>
 
 <div class="help" id="help">
@@ -1522,8 +1524,6 @@ mini.addEventListener('pointerdown',e=>{
   if(getComputedStyle(miniToggle).display!=='none'&&!miniWrap.classList.contains('expanded')){setMiniExpanded(true);return}
   const r=mini.getBoundingClientRect();cam.x=(e.clientX-r.left)/r.width*W;cam.y=(e.clientY-r.top)/r.height*H;clampCam()
 });
-document.getElementById('zoomIn').onclick=()=>{cam.z=Math.min(2.2,cam.z*1.2);clampCam()};
-document.getElementById('zoomOut').onclick=()=>{cam.z=Math.max(0.35,cam.z*0.8333);clampCam()};
 document.getElementById('helpToggleBtn').onclick=()=>{document.getElementById('help').classList.toggle('open')};
 function closeProdMenu(){prodMenuOpen=false;const el=document.getElementById('prodMenu');if(el)el.hidden=true}
 function buildTroop(){
