@@ -101,37 +101,87 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 .rewardCard .rcTier{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.09em;font-weight:700}
 .rewardCard .rcName{font-weight:600;font-size:15px;line-height:1.25}
 .rewardCard .rcDesc{font-size:12px;color:var(--muted);line-height:1.42;flex:1}
-@media (max-width:600px){.help{display:none}.stat{min-width:70px}.stat .v{font-size:14px}}
-@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+/* --- visual polish: HUD chrome, press feedback, icons, low-HP flash --- */
+.stat,.build button,.prod,.throttle,.mini,.help{box-shadow:0 2px 8px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.04);border-radius:6px}
+.build button,.prod .prodBtn,.throttle button,.metaUnlock,.stat.selbtn{transition:transform .08s ease,background .12s ease}
+.build button:active,.prod .prodBtn:active,.throttle button:active,.metaUnlock:active,.stat.selbtn:active{transform:scale(.94);background:var(--panel2)}
+.build button .icon,.prod .prodBtn .icon{margin-right:2px;font-size:13px}
+.bar i.hp.low{background:var(--enemy);animation:pulseLow 1s ease-in-out infinite}
+@keyframes pulseLow{0%,100%{opacity:1}50%{opacity:.5}}
+.overlay{animation:fadeIn .18s ease}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.helpToggleBtn{display:none;position:absolute;top:calc(env(safe-area-inset-top,0px) + 8px);right:max(10px,env(safe-area-inset-right,0px));
+  width:34px;height:34px;border-radius:50%;background:var(--panel);border:1px solid var(--line);color:var(--fg);
+  font:inherit;font-weight:600;cursor:pointer;pointer-events:auto;z-index:10;box-shadow:0 2px 8px rgba(0,0,0,.4)}
+.zoomCtrl{position:absolute;right:max(16px,env(safe-area-inset-right,0px));bottom:max(206px,calc(206px + env(safe-area-inset-bottom,0px)));
+  display:flex;flex-direction:column;gap:6px;pointer-events:auto}
+.zoomCtrl button{width:38px;height:38px;border-radius:50%;background:var(--panel);border:1px solid var(--line);color:var(--fg);
+  font:inherit;font-size:19px;line-height:1;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.4)}
+.zoomCtrl button:active{transform:scale(.92);background:var(--panel2)}
+.buildOverflowPanel{display:contents}
+#buildMoreBtn{display:none}
+/* touch targets: comfortably tappable on a phone or any coarse (finger) pointer */
+@media (max-width:720px),(pointer:coarse){
+  .build button,.prod .prodBtn,.throttle button,.metaUnlock{min-height:44px;padding:10px 12px}
+  .stat.selbtn{min-height:40px}
+  .zoomCtrl button{width:44px;height:44px}
+}
+/* --- mobile layout restructure --- */
+@media (max-width:720px){
+  .help{display:none}
+  .help.open{display:block;position:fixed;inset:12% 6%;max-width:none;z-index:50;max-height:76vh;overflow:auto}
+  .helpToggleBtn{display:inline-flex;align-items:center;justify-content:center}
+  .hud{gap:6px;padding:6px max(10px,env(safe-area-inset-right,0px)) 0 max(10px,env(safe-area-inset-left,0px))}
+  .stat{min-width:0;padding:5px 8px}
+  .stat .k{font-size:9px}
+  .stat .v{font-size:13px}
+  .stat.msg{order:99;flex:1 1 100%;min-width:100%}
+  .build{left:0;right:0;bottom:max(8px,env(safe-area-inset-bottom,0px));justify-content:flex-start;
+    flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:10px 8px 0 8px;gap:6px;
+    background:linear-gradient(to top,rgba(11,14,18,.92),rgba(11,14,18,0) 85%)}
+  .build button{flex:0 0 auto;min-width:60px}
+  .build button .cost,.build button .key{display:none}
+  .buildOverflowPanel{display:none;position:fixed;bottom:max(64px,calc(64px + env(safe-area-inset-bottom,0px)));left:8px;flex-direction:column;gap:6px;
+    background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px;box-shadow:0 4px 14px rgba(0,0,0,.5)}
+  .buildOverflowPanel.open{display:flex}
+  #buildMoreBtn{display:inline-flex;align-items:center;justify-content:center;min-width:44px}
+  .prod{bottom:max(88px,calc(88px + env(safe-area-inset-bottom,0px)))}
+}
+@media (max-width:600px){.stat{min-width:70px}.stat .v{font-size:14px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}.overlay{animation:none}.bar i.hp.low{animation:none}}
 </style>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;600&display=swap">
 
 <canvas id="game"></canvas>
 
 <div class="hud">
-  <div class="stat dat"><span class="k">Dat Crystal</span><span class="v" id="hDat">0</span></div>
-  <div class="stat living"><span class="k">Living Crystal</span><span class="v" id="hLiving">0</span></div>
-  <div class="stat condensed"><span class="k">Condensed Crystal</span><span class="v" id="hCondensed">0</span></div>
-  <div class="stat"><span class="k">Bastion</span><span class="v" id="hBase">—</span><div class="bar"><i class="hp" id="hBaseBar" style="width:100%"></i></div></div>
-  <div class="stat"><span class="k">Zone</span><span class="v" id="hZone">Rim</span></div>
+  <div class="stat dat"><span class="k">◆ Dat Crystal</span><span class="v" id="hDat">0</span></div>
+  <div class="stat living"><span class="k">❖ Living Crystal</span><span class="v" id="hLiving">0</span></div>
+  <div class="stat condensed"><span class="k">⬢ Condensed Crystal</span><span class="v" id="hCondensed">0</span></div>
+  <div class="stat"><span class="k">⛨ Bastion</span><span class="v" id="hBase">—</span><div class="bar"><i class="hp" id="hBaseBar" style="width:100%"></i></div></div>
+  <div class="stat"><span class="k">◈ Zone</span><span class="v" id="hZone">Rim</span></div>
   <div class="stat obj"><span class="k" id="hObjK">Veins</span><span class="v" id="hObj">—</span><div class="bar"><i id="hObjBar" style="width:0%"></i></div></div>
-  <button class="stat selbtn" id="hTroopsBtn"><span class="k">Squads</span><span class="v" id="hTroops">—</span></button>
-  <button class="stat selbtn" id="hHarvBtn"><span class="k">Harvesters</span><span class="v" id="hHarv">—</span></button>
-  <button class="stat selbtn" id="hBuildersBtn"><span class="k">Builders</span><span class="v" id="hBuilders">—</span></button>
+  <button class="stat selbtn" id="hTroopsBtn"><span class="k">▲ Squads</span><span class="v" id="hTroops">—</span></button>
+  <button class="stat selbtn" id="hHarvBtn"><span class="k">⛏ Harvesters</span><span class="v" id="hHarv">—</span></button>
+  <button class="stat selbtn" id="hBuildersBtn"><span class="k">⚒ Builders</span><span class="v" id="hBuilders">—</span></button>
   <div class="stat msg"><span class="v" id="hMsg">Scout a marked vein to find its mining point, then press L to begin drilling.</span></div>
 </div>
+<button class="helpToggleBtn" id="helpToggleBtn" aria-label="Show controls">?</button>
 
 <div class="build" id="buildBar">
-  <button id="bWall" data-mode="wall"><span>Wall</span><span class="cost" id="cWall">5 dat</span><span class="key">1</span></button>
-  <button id="bTurret" data-mode="turret"><span>Turret</span><span class="cost" id="cTurret">50 dat</span><span class="key">2</span></button>
-  <button id="bRelay" data-mode="relay"><span>Relay</span><span class="cost" id="cRelay">15 dat</span><span class="key">3</span></button>
-  <button id="bDepot" data-mode="depot"><span>Depot</span><span class="cost" id="cDepot">150 dat</span><span class="key">4</span></button>
-  <button id="bLock"><span id="bLockLabel">Begin Drilling</span><span class="key">L</span></button>
-  <button id="bPing"><span id="bPingLabel">Ping</span><span class="key">N</span></button>
-  <button id="bSelBase"><span>Select Bastion</span><span class="key">B</span></button>
-  <button id="bResumeAuto"><span>Resume Auto-Gather</span><span class="key">R</span></button>
-  <button id="bToggleRepair"><span id="bRepairLabel">Repair Mode</span><span class="key">G</span></button>
-  <button id="bFollow"><span id="bFollowLabel">Follow Bastion</span><span class="key">V</span></button>
+  <button id="bWall" data-mode="wall"><span class="icon">▭</span><span>Wall</span><span class="cost" id="cWall">5 dat</span><span class="key">1</span></button>
+  <button id="bTurret" data-mode="turret"><span class="icon">⌖</span><span>Turret</span><span class="cost" id="cTurret">50 dat</span><span class="key">2</span></button>
+  <button id="bRelay" data-mode="relay"><span class="icon">⟐</span><span>Relay</span><span class="cost" id="cRelay">15 dat</span><span class="key">3</span></button>
+  <button id="bDepot" data-mode="depot"><span class="icon">⊟</span><span>Depot</span><span class="cost" id="cDepot">150 dat</span><span class="key">4</span></button>
+  <button id="bLock"><span class="icon">⛏</span><span id="bLockLabel">Begin Drilling</span><span class="key">L</span></button>
+  <button id="bPing"><span class="icon">◉</span><span id="bPingLabel">Ping</span><span class="key">N</span></button>
+  <div class="buildOverflowPanel" id="buildOverflowPanel">
+    <button id="bSelBase"><span class="icon">◎</span><span>Select Bastion</span><span class="key">B</span></button>
+    <button id="bResumeAuto"><span class="icon">↻</span><span>Resume Auto-Gather</span><span class="key">R</span></button>
+    <button id="bToggleRepair"><span class="icon">⚙</span><span id="bRepairLabel">Repair Mode</span><span class="key">G</span></button>
+    <button id="bFollow"><span class="icon">➤</span><span id="bFollowLabel">Follow Bastion</span><span class="key">V</span></button>
+  </div>
+  <button id="buildMoreBtn" aria-label="More actions">⋯</button>
 </div>
 
 <div class="throttle" id="throttlePanel" hidden>
@@ -147,19 +197,21 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 <div class="prod" id="prodMenu" hidden>
   <button id="prodClose" aria-label="Close">×</button>
   <b>Build at Bastion</b>
-  <button id="bBuildTroop" class="prodBtn"><span>Squad</span><span class="cost" id="cTroopCost">30 dat</span></button>
-  <button id="bBuildGrenadier" class="prodBtn" hidden><span>Grenadier</span><span class="cost" id="cGrenadierCost">45 dat</span></button>
-  <button id="bBuildHarv" class="prodBtn"><span>Harvester</span><span class="cost" id="cHarvCost">20 dat</span></button>
-  <button id="bBuildBuilder" class="prodBtn"><span>Builder</span><span class="cost" id="cBuilderCost">75 dat</span></button>
-  <button id="bBuildArtillery" class="prodBtn" hidden><span>Artillery</span><span class="cost" id="cArtilleryCost">140 dat</span></button>
+  <button id="bBuildTroop" class="prodBtn"><span><span class="icon">▲</span>Squad</span><span class="cost" id="cTroopCost">30 dat</span></button>
+  <button id="bBuildGrenadier" class="prodBtn" hidden><span><span class="icon">✺</span>Grenadier</span><span class="cost" id="cGrenadierCost">45 dat</span></button>
+  <button id="bBuildHarv" class="prodBtn"><span><span class="icon">⛏</span>Harvester</span><span class="cost" id="cHarvCost">20 dat</span></button>
+  <button id="bBuildBuilder" class="prodBtn"><span><span class="icon">⚒</span>Builder</span><span class="cost" id="cBuilderCost">75 dat</span></button>
+  <button id="bBuildArtillery" class="prodBtn" hidden><span><span class="icon">☄</span>Artillery</span><span class="cost" id="cArtilleryCost">140 dat</span></button>
 </div>
 
 <div class="mini"><canvas id="mini" width="180" height="180"></canvas></div>
+<div class="zoomCtrl" id="zoomCtrl"><button id="zoomIn" aria-label="Zoom in">+</button><button id="zoomOut" aria-label="Zoom out">−</button></div>
 
 <div class="help" id="help">
   <button id="helpClose" aria-label="Close">×</button>
   <b>Goal:</b> harvesters gather Dat Crystal automatically. Scout a vein (dashed circle), park the Bastion on its marker, press <kbd>L</kbd> to drill — the drill spends 60s warming up (no burn, no waves yet) before it actually starts. Drain veins for rewards — drain 3 and the hidden Living Crystal vein reveals itself; drain that one to win.<br>
   <b>Controls:</b> drag to select · right-click to move/attack/harvest · <kbd>WASD</kbd> or middle-drag to pan, scroll to zoom<br>
+  <b>Touch:</b> tap to select · tap empty ground/an enemy/a resource to move/attack/harvest · drag to pan · hold still then drag to box-select · pinch to zoom · double-tap to select all of a kind<br>
   <b>Build:</b> <kbd>1</kbd> wall · <kbd>2</kbd> turret · <kbd>3</kbd> relay · <kbd>4</kbd> depot (drop-off closer than the Bastion) — walls/turrets need the Bastion locked down drilling, relays/depots can go up any time<br>
   <b>Tether:</b> wireless works freely on the Rim; past it, units need a live cable back to the Bastion or a Relay, or they go dark — chain Relays to push your reach further out. A dark unit still takes orders, but its Sanity drains; reconnect in time to recover it, or it defects into a hostile Corrupted enemy<br>
   <kbd>N</kbd> ping (reveals far-off Dat Crystal, 60s cooldown) · <kbd>V</kbd> follow Bastion (escorts it as it moves, until given another order) · <kbd>G</kbd> repair mode · <kbd>R</kbd> resume harvester auto-gather · <kbd>Esc</kbd> cancel, or pause the whole game if nothing's open · <kbd>`</kbd> reveal map (debug)
@@ -402,7 +454,9 @@ function currentTier(v){
 }
 
 // ---------- state ----------
-let S, cam, mouse={x:0,y:0,wx:0,wy:0,down:false,drag:null,panning:false}, keys={}, buildMode=null, lastT=0, msgT=0, terrain, terrainCv, prodMenuOpen=false;
+let S, cam, mouse={x:0,y:0,wx:0,wy:0,down:false,drag:null,panning:false,touchStart:null}, keys={}, buildMode=null, lastT=0, msgT=0, terrain, terrainCv, prodMenuOpen=false;
+// touch input state: multi-touch pinch-zoom, long-press-then-drag box select, tap-to-command, manual double-tap
+let touchPts=new Map(), pinch=null, longPressTimer=null, lastTap=null;
 // ---------- main menu / landing zone ----------
 // Mission launch: the player picks where the Bastion sets down before the run starts. Confined to
 // the Rim (never Dense/Core) and inset from the map edge so the Bastion's own build/clear radius
@@ -1180,8 +1234,38 @@ function resize(){cv.width=cv.clientWidth*devicePixelRatio;cv.height=cv.clientHe
 addEventListener('resize',resize);resize();
 function toWorld(sx,sy){const r=cv.getBoundingClientRect();return{x:(sx-r.left-r.width/2)/cam.z+cam.x,y:(sy-r.top-r.height/2)/cam.z+cam.y}}
 cv.addEventListener('contextmenu',e=>e.preventDefault());
+// squads vs other combat units (e.g. grenadiers) are distinct "select all of kind" groups, even
+// though they share one "Squads" selection button/hotkey (T) and one production category.
+function selectAllOfKind(t,h,bu){
+  if(t){const kind=t.kind||'troop';S.troops.forEach(x=>{if((x.kind||'troop')===kind)S.sel.troops.add(x.id)})}
+  else if(h)S.harvesters.forEach(x=>S.sel.harv.add(x.id));
+  else if(bu)S.builders.forEach(x=>S.sel.bu.add(x.id));
+}
 cv.addEventListener('pointerdown',e=>{
-  cv.setPointerCapture(e.pointerId);const w=toWorld(e.clientX,e.clientY);mouse.wx=w.x;mouse.wy=w.y;
+  try{cv.setPointerCapture(e.pointerId)}catch(err){}
+  const w=toWorld(e.clientX,e.clientY);mouse.wx=w.x;mouse.wy=w.y;
+  if(e.pointerType==='touch'){
+    touchPts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(touchPts.size>=2){
+      if(longPressTimer){clearTimeout(longPressTimer);longPressTimer=null}
+      mouse.touchStart=null;mouse.drag=null;mouse.panning=false;
+      const ids=[...touchPts.keys()];const a=touchPts.get(ids[0]),b=touchPts.get(ids[1]);
+      pinch={dist:Math.hypot(a.x-b.x,a.y-b.y),z:cam.z,mid:{x:(a.x+b.x)/2,y:(a.y+b.y)/2}};
+      return;
+    }
+    if(buildMode){tryBuild(w);return}
+    // don't commit to pan-vs-select yet: a quick drag pans the camera, holding still briefly
+    // then dragging draws a selection box (set once the timer below fires) — see pointermove/up.
+    mouse.touchStart={x:e.clientX,y:e.clientY,wx:w.x,wy:w.y,moved:false};
+    longPressTimer=setTimeout(()=>{
+      longPressTimer=null;
+      if(mouse.touchStart&&!mouse.touchStart.moved){
+        mouse.drag={x0:mouse.touchStart.wx,y0:mouse.touchStart.wy,x1:mouse.touchStart.wx,y1:mouse.touchStart.wy,moved:false};
+        mouse.touchStart=null; // decided: box-select now, stop the pan-threshold check in pointermove
+      }
+    },300);
+    return;
+  }
   if(e.button===1||(e.button===0&&keys[' '])){mouse.panning=true;mouse.x=e.clientX;mouse.y=e.clientY;return}
   if(e.button===2){rightClick(w);return}
   if(e.button===0){
@@ -1191,24 +1275,75 @@ cv.addEventListener('pointerdown',e=>{
 });
 cv.addEventListener('pointermove',e=>{
   const w=toWorld(e.clientX,e.clientY);mouse.wx=w.x;mouse.wy=w.y;
+  if(e.pointerType==='touch'&&touchPts.has(e.pointerId))touchPts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(pinch&&touchPts.size>=2){
+    const ids=[...touchPts.keys()];const a=touchPts.get(ids[0]),b=touchPts.get(ids[1]);
+    const d=Math.hypot(a.x-b.x,a.y-b.y);const mid={x:(a.x+b.x)/2,y:(a.y+b.y)/2};
+    const w0=toWorld(mid.x,mid.y);
+    cam.z=Math.min(2.2,Math.max(0.35,pinch.z*(d/pinch.dist)));
+    const w1=toWorld(mid.x,mid.y);
+    cam.x+=w0.x-w1.x;cam.y+=w0.y-w1.y;
+    cam.x-=(mid.x-pinch.mid.x)/cam.z;cam.y-=(mid.y-pinch.mid.y)/cam.z;
+    pinch.mid=mid;clampCam();return;
+  }
+  if(mouse.touchStart&&!mouse.touchStart.moved){
+    if(Math.abs(e.clientX-mouse.touchStart.x)+Math.abs(e.clientY-mouse.touchStart.y)>8){
+      mouse.touchStart.moved=true;
+      if(longPressTimer){clearTimeout(longPressTimer);longPressTimer=null}
+      mouse.panning=true;mouse.x=e.clientX;mouse.y=e.clientY;
+    }
+  }
   if(mouse.panning){cam.x-=(e.clientX-mouse.x)/cam.z;cam.y-=(e.clientY-mouse.y)/cam.z;mouse.x=e.clientX;mouse.y=e.clientY;clampCam();return}
   if(mouse.drag){mouse.drag.x1=w.x;mouse.drag.y1=w.y;if(Math.abs(w.x-mouse.drag.x0)+Math.abs(w.y-mouse.drag.y0)>6)mouse.drag.moved=true}
 });
 cv.addEventListener('pointerup',e=>{
-  if(mouse.panning){mouse.panning=false;return}
-  if(mouse.drag){const d=mouse.drag;mouse.drag=null;mouse.down=false;
+  if(e.pointerType==='touch'){
+    touchPts.delete(e.pointerId);
+    if(pinch){if(touchPts.size<2)pinch=null;return}
+  }
+  if(longPressTimer){clearTimeout(longPressTimer);longPressTimer=null}
+  if(mouse.panning){mouse.panning=false;mouse.touchStart=null;return}
+  const isTouch=e.pointerType==='touch';
+  let w,moved=false;
+  if(mouse.drag){w={x:mouse.drag.x1,y:mouse.drag.y1};moved=mouse.drag.moved}
+  else if(mouse.touchStart){w={x:mouse.touchStart.wx,y:mouse.touchStart.wy}}
+  else{mouse.touchStart=null;return}
+  const hadSelection=S.sel.troops.size>0||S.sel.harv.size>0||S.sel.bu.size>0||S.sel.base;
+
+  if(moved){
+    const d=mouse.drag;
     const add=e.shiftKey; if(!add){S.sel.troops.clear();S.sel.harv.clear();S.sel.bu.clear();S.sel.base=false;closeProdMenu()}
-    if(d.moved){const x0=Math.min(d.x0,d.x1),x1=Math.max(d.x0,d.x1),y0=Math.min(d.y0,d.y1),y1=Math.max(d.y0,d.y1);
-      S.troops.forEach(t=>{if(t.x>=x0&&t.x<=x1&&t.y>=y0&&t.y<=y1)S.sel.troops.add(t.id)});
-      S.harvesters.forEach(h=>{if(h.x>=x0&&h.x<=x1&&h.y>=y0&&h.y<=y1)S.sel.harv.add(h.id)});
-      S.builders.forEach(bu=>{if(bu.x>=x0&&bu.x<=x1&&bu.y>=y0&&bu.y<=y1)S.sel.bu.add(bu.id)});
-      if(S.sel.troops.size===0&&S.sel.harv.size===0&&S.sel.bu.size===0&&S.base.x>=x0&&S.base.x<=x1&&S.base.y>=y0&&S.base.y<=y1)S.sel.base=true;
-    }else{const w={x:d.x1,y:d.y1};const t=S.troops.find(t=>dist(t,w)<t.r+8);const h=!t&&S.harvesters.find(h=>dist(h,w)<h.r+8);const bu=!t&&!h&&S.builders.find(bu=>bu.state!=='dock'&&dist(bu,w)<bu.r+8);
+    const x0=Math.min(d.x0,d.x1),x1=Math.max(d.x0,d.x1),y0=Math.min(d.y0,d.y1),y1=Math.max(d.y0,d.y1);
+    S.troops.forEach(t=>{if(t.x>=x0&&t.x<=x1&&t.y>=y0&&t.y<=y1)S.sel.troops.add(t.id)});
+    S.harvesters.forEach(h=>{if(h.x>=x0&&h.x<=x1&&h.y>=y0&&h.y<=y1)S.sel.harv.add(h.id)});
+    S.builders.forEach(bu=>{if(bu.x>=x0&&bu.x<=x1&&bu.y>=y0&&bu.y<=y1)S.sel.bu.add(bu.id)});
+    if(S.sel.troops.size===0&&S.sel.harv.size===0&&S.sel.bu.size===0&&S.base.x>=x0&&S.base.x<=x1&&S.base.y>=y0&&S.base.y<=y1)S.sel.base=true;
+  }else{
+    const t=S.troops.find(t=>dist(t,w)<t.r+8);
+    const h=!t&&S.harvesters.find(h=>dist(h,w)<h.r+8);
+    const bu=!t&&!h&&S.builders.find(bu=>bu.state!=='dock'&&dist(bu,w)<bu.r+8);
+    const hitBase=!t&&!h&&!bu&&dist(S.base,w)<S.base.r+10;
+    if(isTouch){
+      const now=performance.now();
+      const isDouble=lastTap&&now-lastTap.t<350&&Math.hypot(e.clientX-lastTap.x,e.clientY-lastTap.y)<24;
+      lastTap={t:now,x:e.clientX,y:e.clientY};
+      if(isDouble&&(t||h||bu)){
+        const add=e.shiftKey; if(!add){S.sel.troops.clear();S.sel.harv.clear();S.sel.bu.clear();S.sel.base=false;closeProdMenu()}
+        selectAllOfKind(t,h,bu);
+        lastTap=null;mouse.drag=null;mouse.down=false;mouse.touchStart=null;return;
+      }
+    }
+    if(isTouch&&!t&&!h&&!bu&&!hitBase&&hadSelection){
+      rightClick(w);
+    }else{
+      const add=e.shiftKey; if(!add){S.sel.troops.clear();S.sel.harv.clear();S.sel.bu.clear();S.sel.base=false;closeProdMenu()}
       if(t)S.sel.troops.add(t.id);
       else if(h)S.sel.harv.add(h.id);
       else if(bu)S.sel.bu.add(bu.id);
-      else if(dist(S.base,w)<S.base.r+10){S.sel.base=true;prodMenuOpen=true}}
+      else if(hitBase){S.sel.base=true;prodMenuOpen=true}
+    }
   }
+  mouse.drag=null;mouse.down=false;mouse.touchStart=null;
 });
 cv.addEventListener('dblclick',e=>{
   const w=toWorld(e.clientX,e.clientY);
@@ -1217,11 +1352,7 @@ cv.addEventListener('dblclick',e=>{
   const bu=!t&&!h&&S.builders.find(bu=>bu.state!=='dock'&&dist(bu,w)<bu.r+8);
   if(!t&&!h&&!bu)return;
   const add=e.shiftKey; if(!add){S.sel.troops.clear();S.sel.harv.clear();S.sel.bu.clear();S.sel.base=false;closeProdMenu()}
-  // squads vs other combat units (e.g. grenadiers) are distinct double-click groups, even though
-  // they share one "Squads" selection button/hotkey (T) and one production category.
-  if(t){const kind=t.kind||'troop';S.troops.forEach(x=>{if((x.kind||'troop')===kind)S.sel.troops.add(x.id)})}
-  else if(h)S.harvesters.forEach(x=>S.sel.harv.add(x.id));
-  else if(bu)S.builders.forEach(x=>S.sel.bu.add(x.id));
+  selectAllOfKind(t,h,bu);
 });
 cv.addEventListener('wheel',e=>{e.preventDefault();const w0=toWorld(e.clientX,e.clientY);cam.z=Math.min(2.2,Math.max(0.35,cam.z*(e.deltaY>0?0.9:1.1)));const w1=toWorld(e.clientX,e.clientY);cam.x+=w0.x-w1.x;cam.y+=w0.y-w1.y;clampCam()},{passive:false});
 addEventListener('keydown',e=>{
@@ -1267,6 +1398,11 @@ document.getElementById('helpClose').onclick=()=>{document.getElementById('help'
 document.getElementById('ovBtn').onclick=()=>{document.getElementById('overlay').hidden=true;openMainMenu()};
 document.getElementById('pauseResumeBtn').onclick=togglePause;
 mini.addEventListener('pointerdown',e=>{const r=mini.getBoundingClientRect();cam.x=(e.clientX-r.left)/r.width*W;cam.y=(e.clientY-r.top)/r.height*H;clampCam()});
+document.getElementById('zoomIn').onclick=()=>{cam.z=Math.min(2.2,cam.z*1.2);clampCam()};
+document.getElementById('zoomOut').onclick=()=>{cam.z=Math.max(0.35,cam.z*0.8333);clampCam()};
+document.getElementById('helpToggleBtn').onclick=()=>{document.getElementById('help').classList.toggle('open')};
+document.getElementById('buildMoreBtn').onclick=()=>{document.getElementById('buildOverflowPanel').classList.toggle('open')};
+document.querySelectorAll('#buildOverflowPanel button').forEach(b=>b.addEventListener('click',()=>document.getElementById('buildOverflowPanel').classList.remove('open')));
 function closeProdMenu(){prodMenuOpen=false;const el=document.getElementById('prodMenu');if(el)el.hidden=true}
 function buildTroop(){
   if(S.dat<COST.troop){msg('Not enough Dat Crystal for a new squad.');return}
@@ -2497,6 +2633,7 @@ function hud(){
   const B=S.base;
   $('hDat').textContent=Math.floor(S.dat);$('hLiving').textContent=S.living;$('hCondensed').textContent=S.condensed;
   $('hBase').textContent=Math.ceil(B.hp)+' / '+B.maxHp;$('hBaseBar').style.width=(100*B.hp/B.maxHp)+'%';
+  $('hBaseBar').classList.toggle('low',B.hp/B.maxHp<0.25);
   const band=bandAt(B.x,B.y);
   $('hZone').textContent=band[0].toUpperCase()+band.slice(1);
   const doneCount=S.veins.filter(v=>v.done).length;
