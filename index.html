@@ -875,14 +875,6 @@ function anchorsList(){return [S.base,...S.relays.filter(r=>r.built&&r.tetherOk)
 // WIRELESS_ENABLED back on to restore the old Dense tolerance (and its range-circle visuals).
 const WIRELESS_ENABLED=false;
 function wirelessTol(band){if(band==='rim')return Infinity;return WIRELESS_ENABLED?(band==='dense'?WIRELESS_TOL_DENSE*S.mods.relayTolMult:WIRELESS_TOL_CORE):0}
-// Whether a point is reachable from some live anchor right now — in wireless range outright, or
-// at least close enough to run a cable to. Used to keep harvesters' auto-gather from beelining
-// for a deposit it would only reach by first stranding itself out of tether range.
-function inTetherRange(p){
-  const tol=wirelessTol(bandAt(p.x,p.y));
-  const maxLen=MAX_CABLE_LEN+S.mods.cableLenAdd;
-  return anchorsList().some(a=>{const d=dist(p,a);return d<=tol||d<=maxLen});
-}
 function pointSegDist(p,a,b){
   const dx=b.x-a.x,dy=b.y-a.y, len2=dx*dx+dy*dy;
   if(len2<1e-6)return dist(p,a);
@@ -1402,6 +1394,13 @@ function turretPowered(tu){
   if(dist(tu,S.base)<=BUILD_R)return true;
   return S.relays.some(r=>r.built&&r.tetherOk&&dist(tu,r)<=BUILD_R);
 }
+// Same boundary as turretPowered: a harvester's auto-gather only chases deposits within the
+// Bastion's own build range, or a live (tethered) Relay's — not the looser wireless/cable reach
+// units use just to stay connected. Keeps auto-gather from beelining out past the active network.
+function inHarvestRange(p){
+  if(dist(p,S.base)<=BUILD_R)return true;
+  return S.relays.some(r=>r.built&&r.tetherOk&&dist(p,r)<=BUILD_R);
+}
 function tryBuild(w){
   const freeToLockdown=buildMode==='relay'||buildMode==='depot';
   if(!S.base.locked&&!freeToLockdown){msg('Lock down the Bastion (begin drilling) before building.');return}
@@ -1759,13 +1758,13 @@ function update(dt){
     if(h.following){followMove(h,HARV_SPEED*S.mods.moveSpeedMult,dt);h.x=Math.max(10,Math.min(W-10,h.x));h.y=Math.max(10,Math.min(H-10,h.y));S.nodes.forEach(n=>{if(!n.found&&dist(n,h)<HARV_VISION*S.mods.visionMult)n.found=true});return}
     if(h.autoLoop&&h.state==='idle'){
       // only chase deposits the player has actually scouted — never beeline for one still
-      // hidden under fog. Also skip anything out of tether reach right now (no live anchor
-      // close enough to wirelessly cover it or run a cable to) — auto-gather shouldn't strand
-      // a harvester out of range on its own; a manually-ordered harvester can still go wherever.
-      // With nothing eligible, head back and wait near the Bastion instead of idling wherever
-      // it happens to be, ready to move the moment one turns up.
+      // hidden under fog. Also skip anything outside the Bastion's own build range and its
+      // active (tethered) Relay network — same boundary a Turret needs power from — so
+      // auto-gather shouldn't strand a harvester out past it on its own; a manually-ordered
+      // harvester can still go wherever. With nothing eligible, head back and wait near the
+      // Bastion instead of idling wherever it happens to be, ready to move the moment one turns up.
       let best=null,bd=Infinity;
-      S.nodes.forEach(n=>{if(n.amt<=0||!n.found||!inTetherRange(n))return;const d=dist(h,n);if(d<bd){bd=d;best=n}});
+      S.nodes.forEach(n=>{if(n.amt<=0||!n.found||!inHarvestRange(n))return;const d=dist(h,n);if(d<bd){bd=d;best=n}});
       if(best){h.node=best;h.state='harvest'}
       else if(dist(h,B)>B.r+80){h.dest={x:B.x,y:B.y};h.state='move'}
     }
