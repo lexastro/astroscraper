@@ -138,6 +138,8 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 .rewardCard .rcName{font-weight:600;font-size:15px;line-height:1.25}
 .rewardCard .rcDesc{font-size:12px;color:var(--muted);line-height:1.42;flex:1}
 .unlockCards{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;max-width:600px}
+/* desktop gets a wider shop row so 3+ upgrade cards sit on one line instead of wrapping early */
+@media (min-width:720px){.unlockCards{max-width:920px}}
 .unlockCard{width:160px;background:var(--panel2);border:2px solid var(--line);border-radius:8px;padding:16px;
   display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center}
 .unlockCard .ucIcon{font-size:34px;color:var(--condensed)}
