@@ -296,7 +296,13 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <div class="rewardCards" id="rewardCards"></div>
 </div>
 
-<div class="overlay" id="menuOverlay">
+<div class="overlay" id="mainMenuOverlay">
+  <h1>Datascraper</h1>
+  <button id="playBtn">Play</button>
+  <button id="settingsBtn" class="secondary">Settings</button>
+</div>
+
+<div class="overlay" id="menuOverlay" hidden>
   <h1>Datascraper</h1>
   <p>Pick a landing zone on the Rim for the Bastion to touch down, then launch the mission.</p>
   <canvas id="menuMap" width="480" height="480"></canvas>
@@ -304,10 +310,9 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <div class="menuMeta">
     <div class="metaRow"><span class="k">Condensed Crystal</span><span class="v" id="metaCondensed">0</span></div>
     <button id="openUnlocksBtn" class="metaUnlock">Unlocks</button>
-    <button id="recordingToggleBtn" class="metaUnlock secondary"></button>
-    <button id="debugUnlockAllBtn" class="metaUnlock secondary">[Debug] Unlock everything free</button>
   </div>
   <button id="launchBtn" disabled>Launch Mission</button>
+  <button id="playBackBtn" class="secondary">Back</button>
 </div>
 
 <div class="overlay" id="unlocksOverlay" hidden>
@@ -316,6 +321,15 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <div class="metaRow"><span class="k">Condensed Crystal</span><span class="v" id="unlocksCondensed">0</span></div>
   <div class="unlockCards" id="unlockCards"></div>
   <button id="unlocksBackBtn" class="secondary">Back</button>
+</div>
+
+<div class="overlay" id="settingsOverlay" hidden>
+  <h1>Settings</h1>
+  <div class="menuMeta">
+    <button id="recordingToggleBtn" class="metaUnlock secondary"></button>
+    <button id="debugUnlockAllBtn" class="metaUnlock secondary">[Debug] Unlock everything free</button>
+  </div>
+  <button id="settingsBackBtn" class="secondary">Back</button>
 </div>
 
 <div class="overlay" id="consentOverlay" hidden>
@@ -758,6 +772,26 @@ document.getElementById('unlocksBackBtn').onclick=()=>{
   document.getElementById('unlocksOverlay').hidden=true;
   document.getElementById('menuOverlay').hidden=false;
 };
+// Main menu is just Play/Settings — Play drops into the landing-zone picker (the old all-in-one
+// menu screen), Settings holds the recording and debug toggles that used to sit alongside it.
+document.getElementById('playBtn').onclick=()=>{
+  document.getElementById('mainMenuOverlay').hidden=true;
+  document.getElementById('menuOverlay').hidden=false;
+  drawMenuMap();
+};
+document.getElementById('playBackBtn').onclick=()=>{
+  document.getElementById('menuOverlay').hidden=true;
+  document.getElementById('mainMenuOverlay').hidden=false;
+};
+document.getElementById('settingsBtn').onclick=()=>{
+  document.getElementById('mainMenuOverlay').hidden=true;
+  document.getElementById('settingsOverlay').hidden=false;
+  refreshMenuMeta();
+};
+document.getElementById('settingsBackBtn').onclick=()=>{
+  document.getElementById('settingsOverlay').hidden=true;
+  document.getElementById('mainMenuOverlay').hidden=false;
+};
 // Dev convenience: grants (or, toggled again, revokes) every unlock without spending anything, so
 // testing a build doesn't require actually grinding Condensed Crystal first — and testing the
 // locked state doesn't require a second browser profile.
@@ -787,12 +821,15 @@ document.getElementById('consentDisableBtn').onclick=()=>setRecordingConsent(fal
 // Lets the player flip their choice anytime from the main menu, not just at the first-run gate.
 document.getElementById('recordingToggleBtn').onclick=()=>setRecordingConsent(!meta.recordingConsent);
 // Opens the main menu again after a run ends — landingSel (and the preview map) carry over from
-// the last run so a quick relaunch needs no re-picking, but the player can still choose a new spot.
+// the last run so a quick relaunch (Play, then Launch Mission) needs no re-picking, but the
+// player can still choose a new spot.
 function openMainMenu(){
   menuOpen=true;
   S.paused=true;
-  document.getElementById('menuOverlay').hidden=false;
+  document.getElementById('mainMenuOverlay').hidden=false;
+  document.getElementById('menuOverlay').hidden=true;
   document.getElementById('unlocksOverlay').hidden=true;
+  document.getElementById('settingsOverlay').hidden=true;
   refreshMenuMeta();
   drawMenuMap();
   const launchBtn=document.getElementById('launchBtn');
