@@ -146,7 +146,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <b>Goal:</b> harvesters gather Dat Crystal automatically. Scout a vein (dashed circle), park the Bastion on its marker, press <kbd>L</kbd> to drill — the drill spends 60s warming up (no burn, no waves yet) before it actually starts. Drain veins for rewards — drain 3 and the hidden Living Crystal vein reveals itself; drain that one to win.<br>
   <b>Controls:</b> drag to select · right-click to move/attack/harvest · <kbd>WASD</kbd> or middle-drag to pan, scroll to zoom<br>
   <b>Build:</b> <kbd>1</kbd> wall · <kbd>2</kbd> turret · <kbd>3</kbd> relay · <kbd>4</kbd> depot (drop-off closer than the Bastion) — walls/turrets need the Bastion locked down drilling, relays/depots can go up any time<br>
-  <b>Tether:</b> units need a live cable or wireless range back to the Bastion or a Relay, or they go dark — chain Relays to push your reach further out. A dark unit still takes orders, but its Sanity drains; reconnect in time to recover it, or it defects into a hostile Corrupted enemy<br>
+  <b>Tether:</b> units need a live cable back to the Bastion or a Relay, or they go dark — chain Relays to push your reach further out. A dark unit still takes orders, but its Sanity drains; reconnect in time to recover it, or it defects into a hostile Corrupted enemy<br>
   <kbd>N</kbd> ping (reveals far-off Dat Crystal, 60s cooldown) · <kbd>V</kbd> follow Bastion (escorts it as it moves, until given another order) · <kbd>G</kbd> repair mode · <kbd>R</kbd> resume harvester auto-gather · <kbd>Esc</kbd> cancel, or pause the whole game if nothing's open · <kbd>`</kbd> reveal map (debug)
 </div>
 
@@ -211,8 +211,8 @@ const TCELL=60, TGX=Math.ceil(W/TCELL), TGY=Math.ceil(H/TCELL), MUD_MULT=0.55;
 // seed one outsized Dat Crystal deposit, so reaching the map's richest nodes means sending units
 // in on their own rather than just parking the Bastion on top of them.
 const RIFT=3, RIFT_POCKETS=4, RIFT_DEPOSITS_PER_POCKET=5;
-// Tether: wireless works freely on the rim; in the dense field you get a short leash around any
-// anchor (Bastion or built Relay); in the core you always need a live physical cable.
+// Tether: these per-band wireless tolerances are currently unused — see WIRELESS_ENABLED below,
+// which is off, so every unit needs a live physical cable in every band regardless of these.
 const WIRELESS_TOL_DENSE=90, WIRELESS_TOL_CORE=0;
 const CABLE_HP_MAX=40, CABLE_SEG_MIN=24, CABLE_HIT_RANGE=16, CABLE_DMG=6, CABLE_CD=0.8;
 // A unit whose cable gets severed doesn't go dark and uncontrollable on the spot — it keeps
@@ -797,7 +797,11 @@ function waypointFor(u,tx,ty){
 // a relay cut off from the Bastion (or a chain back to it) is just dead weight until it
 // reconnects.
 function anchorsList(){return [S.base,...S.relays.filter(r=>r.built&&r.tetherOk)]}
-function wirelessTol(band){return band==='rim'?Infinity:band==='dense'?WIRELESS_TOL_DENSE*S.mods.relayTolMult:WIRELESS_TOL_CORE}
+// Wireless is disabled for now — every unit and every relay must run a live physical cable back
+// to an anchor, in every band. Flip WIRELESS_ENABLED back on to restore the old Rim/Dense/Core
+// tolerances (and their range-circle visuals) in one place.
+const WIRELESS_ENABLED=false;
+function wirelessTol(band){return WIRELESS_ENABLED?(band==='rim'?Infinity:band==='dense'?WIRELESS_TOL_DENSE*S.mods.relayTolMult:WIRELESS_TOL_CORE):0}
 // Whether a point is reachable from some live anchor right now — in wireless range outright, or
 // at least close enough to run a cable to. Used to keep harvesters' auto-gather from beelining
 // for a deposit it would only reach by first stranding itself out of tether range.
@@ -2140,7 +2144,7 @@ function draw(){
       ctx.fillStyle=C.builder;ctx.fillRect(r.x-11,r.y+15,22*(r.buildT/r.buildTotal),3);
       return;
     }
-    if(r.tetherOk){
+    if(WIRELESS_ENABLED&&r.tetherOk){
       const pulse=0.5+0.5*Math.sin(S.t*2.2);
       ctx.strokeStyle=C.cable;ctx.globalAlpha=0.25*pulse;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(r.x,r.y,WIRELESS_TOL_DENSE*S.mods.relayTolMult,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;
     }
@@ -2180,8 +2184,10 @@ function draw(){
   ctx.fillStyle=C.accent;ctx.beginPath();ctx.arc(0,0,9,0,Math.PI*2);ctx.fill();
   if(B.locked){ctx.strokeStyle=C.accent;ctx.lineWidth=2;for(let i=0;i<4;i++){const a=i*Math.PI/2+Math.PI/4;ctx.beginPath();ctx.moveTo(Math.cos(a)*B.r*1.1,Math.sin(a)*B.r*1.1);ctx.lineTo(Math.cos(a)*B.r*1.5,Math.sin(a)*B.r*1.5);ctx.stroke()}}
   ctx.restore();hpbar(B.x,B.y-B.r-12,B.r*2,B.hp/B.maxHp);
-  const bwt=0.5+0.5*Math.sin(S.t*2.2);
-  ctx.strokeStyle=C.cable;ctx.globalAlpha=0.2*bwt;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(B.x,B.y,WIRELESS_TOL_DENSE*S.mods.relayTolMult,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;
+  if(WIRELESS_ENABLED){
+    const bwt=0.5+0.5*Math.sin(S.t*2.2);
+    ctx.strokeStyle=C.cable;ctx.globalAlpha=0.2*bwt;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(B.x,B.y,WIRELESS_TOL_DENSE*S.mods.relayTolMult,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;
+  }
   if(S.sel.base){ctx.strokeStyle=C.ally;ctx.lineWidth=1.5;ctx.setLineDash([4,4]);ctx.beginPath();ctx.arc(B.x,B.y,B.r+10,0,Math.PI*2);ctx.stroke();ctx.setLineDash([])}
   if(S.pingRing){const pr=S.pingRing,pt=pr.t/pr.dur;ctx.globalAlpha=Math.max(0,1-pt);ctx.strokeStyle=C.dat;ctx.lineWidth=3;ctx.beginPath();ctx.arc(pr.x,pr.y,PING_RADIUS*pt,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1}
   if(B.dest){ctx.strokeStyle='rgba(94,200,255,0.5)';ctx.setLineDash([6,6]);ctx.beginPath();ctx.moveTo(B.x,B.y);ctx.lineTo(B.dest.x,B.dest.y);ctx.stroke();ctx.setLineDash([])}
@@ -2235,7 +2241,7 @@ function draw(){
   // build preview
   if(buildMode){const ok=(B.locked||buildMode==='relay'||buildMode==='depot')&&inBuildRange({x:mouse.wx,y:mouse.wy})&&terrainAt(mouse.wx,mouse.wy)!==2&&S.dat>=COST[buildMode];ctx.globalAlpha=0.6;
     if(buildMode==='wall'){const gx=Math.floor(mouse.wx/CELL)*CELL,gy=Math.floor(mouse.wy/CELL)*CELL;ctx.fillStyle=ok?'#8d9aa8':C.enemy;ctx.fillRect(gx+1,gy+1,CELL-2,CELL-2)}
-    else{const rng=buildMode==='turret'?TURRET_RANGE:WIRELESS_TOL_DENSE*S.mods.relayTolMult;ctx.fillStyle=ok?C.accent:C.enemy;ctx.beginPath();ctx.arc(mouse.wx,mouse.wy,11,0,Math.PI*2);ctx.fill();ctx.strokeStyle=ok?C.accent:C.enemy;ctx.lineWidth=1;ctx.setLineDash([4,6]);ctx.beginPath();ctx.arc(mouse.wx,mouse.wy,rng,0,Math.PI*2);ctx.stroke();ctx.setLineDash([])}
+    else{const rng=buildMode==='turret'?TURRET_RANGE:wirelessTol('dense');ctx.fillStyle=ok?C.accent:C.enemy;ctx.beginPath();ctx.arc(mouse.wx,mouse.wy,11,0,Math.PI*2);ctx.fill();if(rng>0){ctx.strokeStyle=ok?C.accent:C.enemy;ctx.lineWidth=1;ctx.setLineDash([4,6]);ctx.beginPath();ctx.arc(mouse.wx,mouse.wy,rng,0,Math.PI*2);ctx.stroke();ctx.setLineDash([])}}
     ctx.globalAlpha=1}
   // selection box
   if(mouse.drag&&mouse.drag.moved){const d=mouse.drag;ctx.strokeStyle=C.ally;ctx.fillStyle='rgba(94,200,255,0.1)';ctx.lineWidth=1/cam.z;ctx.fillRect(d.x0,d.y0,d.x1-d.x0,d.y1-d.y0);ctx.strokeRect(d.x0,d.y0,d.x1-d.x0,d.y1-d.y0)}
