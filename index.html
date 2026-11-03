@@ -281,7 +281,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
        the build bar, instead of always sitting in it regardless of what's selected. -->
   <div class="unitActions" id="unitActions">
     <button id="bResumeAuto" hidden><span class="icon">↻</span><span>Resume Auto-Gather</span><span class="key">R</span></button>
-    <button id="bToggleRepair" hidden><span class="icon">⚙</span><span id="bRepairLabel">Repair Mode</span><span class="key">G</span></button>
+    <button id="bToggleRepair" hidden><span class="icon">⚙</span><span id="bRepairLabel">Auto-Repair: On</span><span class="key">G</span></button>
     <button id="bFollow" hidden><span class="icon">➤</span><span id="bFollowLabel">Follow Bastion</span><span class="key">V</span></button>
   </div>
   <div class="build" id="buildBar">
@@ -652,7 +652,7 @@ function bandAt(x,y){const d=Math.abs(y-EPI.y);return d<=CORE_R?'core':d<=DENSE_
 
 function mkTroop(id,kind){kind=kind||'troop';const baseHp=kind==='artillery'?ARTY_HP:kind==='grenadier'?GREN_HP:kind==='mech'?MECH_HP:70;const hp=Math.round(baseHp*unitHpMult());const r=kind==='artillery'?ARTY_R:kind==='mech'?MECH_R:TROOP_R;return {id,kind,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp,maxHp:hp,r,dest:null,target:null,state:'idle',cd:0,ang:-Math.PI/2,mechSide:false,tetherOk:true,severed:false,sanity:SANITY_MAX,trail:null,cableHp:0,cableLen:0,cableMaxed:false,following:false,followAng:0,followDist:0}}
 function mkHarv(id){return {id,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp:50,maxHp:50,r:HARV_R,dest:null,node:null,carry:0,state:'idle',autoLoop:true,hv:0,tetherOk:true,severed:false,sanity:SANITY_MAX,trail:null,cableHp:0,cableLen:0,cableMaxed:false,following:false,followAng:0,followDist:0}}
-function mkBuilder(id){return {id,x:S.base.x+rnd(-30,30),y:S.base.y+rnd(-30,30),hp:40,maxHp:40,r:BUILDER_R,dest:null,state:'idle',mode:'build',target:null,tetherOk:true,severed:false,sanity:SANITY_MAX,trail:null,cableHp:0,cableLen:0,cableMaxed:false,following:false,followAng:0,followDist:0}}
+function mkBuilder(id){return {id,x:S.base.x+rnd(-30,30),y:S.base.y+rnd(-30,30),hp:40,maxHp:40,r:BUILDER_R,dest:null,state:'idle',autoRepair:true,target:null,tetherOk:true,severed:false,sanity:SANITY_MAX,trail:null,cableHp:0,cableLen:0,cableMaxed:false,following:false,followAng:0,followDist:0}}
 // Stats for the hostile unit a mobile ally becomes if its Sanity ever hits 0 — a notch weaker
 // across the board than its living counterpart, and visibly distinct (kind:'corrupted').
 const CORRUPT_STATS={
@@ -1822,10 +1822,10 @@ function releaseBuilderClaim(bu){
 }
 function toggleRepairMode(){
   if(S.sel.bu.size===0){msg('Select builders to toggle their mode.');return}
-  const anyRepair=S.builders.some(b=>S.sel.bu.has(b.id)&&b.mode==='repair');
-  const newMode=anyRepair?'build':'repair';
-  S.builders.forEach(b=>{if(S.sel.bu.has(b.id)){releaseBuilderClaim(b);b.mode=newMode;b.state='idle';b.target=null;b.following=false}});
-  msg(newMode==='repair'?'Selected builders switched to repair mode.':'Selected builders switched to build mode.');
+  const anyOn=S.builders.some(b=>S.sel.bu.has(b.id)&&b.autoRepair);
+  const newVal=!anyOn;
+  S.builders.forEach(b=>{if(S.sel.bu.has(b.id)){b.autoRepair=newVal;if(!newVal&&b.state==='repair'){releaseBuilderClaim(b);b.state='idle';b.target=null;b.following=false}}});
+  msg(newVal?'Selected builders will auto-repair when idle.':'Selected builders will no longer auto-repair.');
   sfx.click();
   updateBuildBar();
 }
@@ -1852,8 +1852,8 @@ function updateBuildBar(){
   document.getElementById('bResumeAuto').hidden=S.sel.harv.size===0;
   const rb=document.getElementById('bToggleRepair');
   rb.hidden=S.sel.bu.size===0;
-  const anyRepairSel=S.builders.some(b=>S.sel.bu.has(b.id)&&b.mode==='repair');
-  document.getElementById('bRepairLabel').textContent=anyRepairSel?'Build Mode':'Repair Mode';
+  const anyOnSel=S.builders.some(b=>S.sel.bu.has(b.id)&&b.autoRepair);
+  document.getElementById('bRepairLabel').textContent=anyOnSel?'Auto-Repair: On':'Auto-Repair: Off';
   const selCount=S.sel.troops.size+S.sel.harv.size+S.sel.bu.size;
   const fb=document.getElementById('bFollow');
   fb.hidden=selCount===0;
@@ -2239,13 +2239,19 @@ function needsRepair(site){return site.hp<site.maxHp||(site.kind==='relay'&&site
 // Shared by both the automatic build-mode fallback and explicit repair mode: a damaged Relay
 // always wins over anything else needing repair — losing network reach costs the player more
 // than one battered wall or turret, so it's worth a builder walking past those to reach it.
+// Hard cap for auto-repair specifically: a site can be "in the network" via a long chain of
+// Relays (each link just needs to be within BUILD_R of the last) and still be very far from the
+// Bastion itself — auto-repair never chases that far. 100% of a single Relay's own range (BUILD_R),
+// measured straight from the Bastion, not through the chain. A manual repair order can still send
+// a builder anywhere.
+function withinAutoRepairRange(site){return dist(S.base,site)<=BUILD_R}
 function findRepairTarget(bu){
   let found=null,bd=Infinity;
-  S.relays.forEach(r=>{if(!r.built||!needsRepair(r)||(r.repairer&&r.repairer!==bu)||!inBuildRange(r))return;const d=dist(bu,r);if(d<bd){bd=d;found=r}});
+  S.relays.forEach(r=>{if(!r.built||!needsRepair(r)||(r.repairer&&r.repairer!==bu)||!inBuildRange(r)||!withinAutoRepairRange(r))return;const d=dist(bu,r);if(d<bd){bd=d;found=r}});
   if(found)return found;
-  S.walls.forEach(w=>{if(!w.built||!needsRepair(w)||(w.repairer&&w.repairer!==bu)||!inBuildRange(w))return;const d=dist(bu,w);if(d<bd){bd=d;found=w}});
-  S.turrets.forEach(t=>{if(!t.built||!needsRepair(t)||(t.repairer&&t.repairer!==bu)||!inBuildRange(t))return;const d=dist(bu,t);if(d<bd){bd=d;found=t}});
-  S.depots.forEach(de=>{if(!de.built||!needsRepair(de)||(de.repairer&&de.repairer!==bu)||!inBuildRange(de))return;const d=dist(bu,de);if(d<bd){bd=d;found=de}});
+  S.walls.forEach(w=>{if(!w.built||!needsRepair(w)||(w.repairer&&w.repairer!==bu)||!inBuildRange(w)||!withinAutoRepairRange(w))return;const d=dist(bu,w);if(d<bd){bd=d;found=w}});
+  S.turrets.forEach(t=>{if(!t.built||!needsRepair(t)||(t.repairer&&t.repairer!==bu)||!inBuildRange(t)||!withinAutoRepairRange(t))return;const d=dist(bu,t);if(d<bd){bd=d;found=t}});
+  S.depots.forEach(de=>{if(!de.built||!needsRepair(de)||(de.repairer&&de.repairer!==bu)||!inBuildRange(de)||!withinAutoRepairRange(de))return;const d=dist(bu,de);if(d<bd){bd=d;found=de}});
   return found;
 }
 
@@ -2506,8 +2512,10 @@ function update(dt){
     S.nodes.forEach(n=>{if(!n.found&&dist(n,h)<HARV_VISION*S.mods.visionMult)n.found=true});
   });
 
-  // builders — unarmed; auto-build queued sites, or (repair mode) auto-heal damaged ones; dock at
-  // the Bastion when idle. 'cut' builders skip auto-seek entirely (handled by tetherPass above).
+  // builders — unarmed; always auto-build queued sites regardless of the auto-repair toggle, and
+  // (when that toggle is on) auto-heal damaged ones once there's nothing left to build; dock at
+  // the Bastion when idle either way. 'cut' builders skip auto-seek entirely (handled by
+  // tetherPass above).
   S.builders.forEach(bu=>{
     const factor=roughFactor(bu.x,bu.y);
     if(bu.following){followMove(bu,BUILDER_SPEED*S.mods.moveSpeedMult,dt);bu.x=Math.max(10,Math.min(W-10,bu.x));bu.y=Math.max(10,Math.min(H-10,bu.y));return}
@@ -2518,21 +2526,16 @@ function update(dt){
       // builder would happily trek back to a half-built wall or a damaged turret from a vein the
       // Bastion drilled out and moved on from ages ago. A manual order can still send a builder
       // anywhere; this only scopes the automatic idle/dock seek.
-      if(bu.mode==='build'){
-        // no (site.builder&&site.builder!==bu) exclusion here on purpose — several builders can
-        // pile onto the same unfinished site and each still adds their own dt to its buildT every
-        // tick, finishing it that much faster instead of standing around waiting for a turn.
-        S.walls.forEach(w=>{if(w.built||!inBuildRange(w))return;const d=dist(bu,w);if(d<bd){bd=d;found=w}});
-        S.turrets.forEach(t=>{if(t.built||!inBuildRange(t))return;const d=dist(bu,t);if(d<bd){bd=d;found=t}});
-        S.relays.forEach(r=>{if(r.built||!inBuildRange(r))return;const d=dist(bu,r);if(d<bd){bd=d;found=r}});
-        S.depots.forEach(de=>{if(de.built||!inBuildRange(de))return;const d=dist(bu,de);if(d<bd){bd=d;found=de}});
-        if(found){found.builder=bu;bu.target=found;bu.state='build'}
-        else{
-          // nothing left to build — rather than just docking, see if anything needs patching up
-          const rt=findRepairTarget(bu);
-          if(rt){rt.repairer=bu;bu.target=rt;bu.state='repair';found=rt}
-        }
-      }else{
+      // no (site.builder&&site.builder!==bu) exclusion here on purpose — several builders can
+      // pile onto the same unfinished site and each still adds their own dt to its buildT every
+      // tick, finishing it that much faster instead of standing around waiting for a turn.
+      S.walls.forEach(w=>{if(w.built||!inBuildRange(w))return;const d=dist(bu,w);if(d<bd){bd=d;found=w}});
+      S.turrets.forEach(t=>{if(t.built||!inBuildRange(t))return;const d=dist(bu,t);if(d<bd){bd=d;found=t}});
+      S.relays.forEach(r=>{if(r.built||!inBuildRange(r))return;const d=dist(bu,r);if(d<bd){bd=d;found=r}});
+      S.depots.forEach(de=>{if(de.built||!inBuildRange(de))return;const d=dist(bu,de);if(d<bd){bd=d;found=de}});
+      if(found){found.builder=bu;bu.target=found;bu.state='build'}
+      else if(bu.autoRepair){
+        // nothing left to build — rather than just docking, see if anything needs patching up
         const rt=findRepairTarget(bu);
         if(rt){rt.repairer=bu;bu.target=rt;bu.state='repair';found=rt}
       }
@@ -3040,7 +3043,7 @@ function draw(){
   // builders
   S.builders.forEach(bu=>{const sel=S.sel.bu.has(bu.id);if(sel){ctx.strokeStyle=C.builder;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(bu.x,bu.y,bu.r+5,0,Math.PI*2);ctx.stroke()}
     ctx.fillStyle=bu.flashT>0?'#fff':C.builder;ctx.beginPath();ctx.moveTo(bu.x,bu.y-bu.r);ctx.lineTo(bu.x+bu.r,bu.y+bu.r*0.7);ctx.lineTo(bu.x-bu.r,bu.y+bu.r*0.7);ctx.closePath();ctx.fill();
-    if(bu.mode==='repair'||bu.state==='repair'){ctx.strokeStyle='#fff';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(bu.x-4,bu.y+2);ctx.lineTo(bu.x+4,bu.y+2);ctx.moveTo(bu.x,bu.y-2);ctx.lineTo(bu.x,bu.y+6);ctx.stroke()}
+    if(bu.state==='repair'){ctx.strokeStyle='#fff';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(bu.x-4,bu.y+2);ctx.lineTo(bu.x+4,bu.y+2);ctx.moveTo(bu.x,bu.y-2);ctx.lineTo(bu.x,bu.y+6);ctx.stroke()}
     if(bu.hp<bu.maxHp)hpbar(bu.x,bu.y-14,16,bu.hp/bu.maxHp);
     if(bu.sanity<SANITY_MAX)sanityBar(bu.x,bu.y-10,16,bu.sanity/SANITY_MAX);
     if(!bu.tetherOk)drawCutGlyph(bu.x,bu.y); if(bu.following)drawFollowGlyph(bu.x,bu.y);
