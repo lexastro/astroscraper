@@ -1802,14 +1802,13 @@ function closeDrillSelect(){
   S.paused=false;
 }
 // Every estimate here mirrors the real formulas in tryLockdown/the drill-progress update loop
-// (see DRILL_DAT_COST/CONDENSED_RATE usage below) — the Dat cost comes out the same at every
-// throttle (burn rate scales with speed, but so does how long the drill takes, and they cancel),
-// while Condensed reward and enemy pressure both scale up with speed.
+// (see DRILL_DAT_COST/CONDENSED_RATE usage below) — Dat cost, Condensed reward, and enemy
+// pressure all scale up with speed, so Fast is strictly more expensive and more dangerous, not
+// just quicker.
 function renderDrillCards(v){
   const tier=currentTier(v);
   document.getElementById('drillSelectHint').textContent=
     `Choose a drill speed for this ${v.band} vein (currently ${tier} tier) — it's locked in for the whole drill once you start.`;
-  const datCost=Math.max(1,Math.round(DRILL_DAT_COST*S.mods.drillBurnMult*v.richness/DRILL_RATE));
   const pressures=[0,1,2].map(i=>{
     const tm=throttleValue(i);
     const perMin=60/(BASE_SPAWN_INTERVAL[v.band]/tm);
@@ -1821,6 +1820,9 @@ function renderDrillCards(v){
   host.innerHTML='';
   [0,1,2].forEach(i=>{
     const tm=throttleValue(i);
+    // total cost = burn rate (quadratic in tm) × duration (richness/(DRILL_RATE×tm)) — the one tm
+    // cancels, leaving a plain linear-in-tm cost, same shape as the real per-tick drain above.
+    const datCost=Math.max(1,Math.round(DRILL_DAT_COST*S.mods.drillBurnMult*v.richness*tm/DRILL_RATE));
     const condensedEarned=Math.max(1,Math.round(v.richness*CONDENSED_RATE*S.mods.condensedMult*tm*TIER_MULT[tier]));
     const threat=threatOf(pressures[i]);
     const btn=document.createElement('button');
@@ -2141,7 +2143,10 @@ function update(dt){
         sfx.resume();
       }
     } else {
-    const need=DRILL_DAT_COST*S.mods.drillBurnMult*S.throttleMul*dt;
+    // burn rate is quadratic in throttle (same shape as the Condensed Crystal rate below) — since
+    // a faster drill also finishes sooner, a merely-linear burn rate would cost the same total Dat
+    // at every speed; squaring it means Fast actually costs more overall, not just faster per tick.
+    const need=DRILL_DAT_COST*S.mods.drillBurnMult*S.throttleMul*S.throttleMul*dt;
     if(S.dat>=need){
       if(v.stalled){v.stalled=false;msg('Dat Crystal flowing again — drilling resumed.');sfx.resume()}
       S.dat-=need;
@@ -2942,7 +2947,7 @@ function hud(){
       $('thBurn').textContent='paused';
       $('thRate').textContent='paused';
     }else{
-      const burnRate=DRILL_DAT_COST*S.mods.drillBurnMult*S.throttleMul;
+      const burnRate=DRILL_DAT_COST*S.mods.drillBurnMult*S.throttleMul*S.throttleMul;
       $('thBurn').textContent=`−${burnRate.toFixed(1)} dat/s`;
       const condensedRatePerMin=60*CONDENSED_RATE*S.mods.condensedMult*DRILL_RATE*S.throttleMul*S.throttleMul;
       $('thRate').textContent=`+${condensedRatePerMin.toFixed(1)} cond/min`;
