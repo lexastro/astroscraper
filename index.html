@@ -68,20 +68,44 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 .prod .prodBtn:disabled{opacity:.45;cursor:default}
 .prod .prodBtn .cost{font-family:var(--mono);font-size:11px;color:var(--dat)}
 .prod #prodClose{position:absolute;top:4px;right:6px;background:none;border:0;color:var(--muted);cursor:pointer;font-size:14px}
-.throttle{position:absolute;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top,0px) + 58px);background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:8px 12px;pointer-events:auto;display:flex;gap:6px;align-items:center}
-.throttle b{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-right:4px}
+/* live drilling readout only (speed picking now happens in the #drillSelectOverlay popup) — a
+   flex child of .bottomBar, stacked above unitActions/the build bar on the left, well clear of
+   both the toast stack (top-left) and the always-on help panel (top-right on desktop) */
+.throttle{margin-left:max(16px,env(safe-area-inset-left,0px));background:var(--panel);border:1px solid var(--line);
+  border-radius:6px;padding:6px 10px;pointer-events:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap;
+  max-width:260px;box-shadow:0 2px 8px rgba(0,0,0,.4)}
+.throttle .thSpeed{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
 .throttle button{background:var(--panel2);border:1px solid var(--line);color:var(--fg);font:inherit;padding:6px 10px;border-radius:4px;cursor:pointer}
 .throttle button.on{border-color:var(--accent);color:var(--accent)}
 .throttle button .key{font-family:var(--mono);font-size:10px;color:var(--muted);margin-left:5px}
-.throttle .thStat{font-family:var(--mono);font-size:11px;white-space:nowrap;margin-left:4px}
+.throttle .thStat{font-family:var(--mono);font-size:11px;white-space:nowrap}
 .throttle .thStat.dat{color:var(--dat)} .throttle .thStat.condensed{color:var(--condensed)}
+@media (max-width:720px){
+  .throttle{padding:5px 8px;gap:5px;max-width:200px}
+  .throttle .thSpeed,.throttle .thStat{font-size:9px}
+  .throttle button{padding:4px 7px;font-size:11px}
+}
+.drillCards{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;max-width:640px}
+/* ".overlay button.drillCard" (not just ".drillCard") to out-specificity the generic
+   ".overlay button" gold button style regardless of source order */
+.overlay button.drillCard{width:170px;background:var(--panel2);border:2px solid var(--line);border-radius:8px;padding:14px;
+  display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;cursor:pointer;color:var(--fg);
+  font:inherit;font-weight:400;transition:transform .12s ease}
+.overlay button.drillCard:hover{transform:translateY(-4px)}
+.drillCard .dcName{font-weight:600;font-size:16px}
+.drillCard .dcRow{font-size:12px;color:var(--muted)}
+.drillCard .dcRow b{color:var(--fg);font-family:var(--mono);font-weight:600}
+.drillCard .dcThreat{font-size:11px;margin-top:2px;font-family:var(--mono);letter-spacing:.04em;text-transform:uppercase}
+.drillCard .dcThreat.low{color:var(--dat)}
+.drillCard .dcThreat.medium{color:var(--accent)}
+.drillCard .dcThreat.high{color:var(--enemy)}
 .mini{position:absolute;right:max(16px,env(safe-area-inset-right,0px));bottom:max(12px,env(safe-area-inset-bottom,0px));border:1px solid var(--line);background:var(--panel);border-radius:4px;overflow:hidden;cursor:pointer}
 .mini canvas{display:block}
 .miniToggle{display:none}
 .help{position:absolute;right:max(16px,env(safe-area-inset-right,0px));top:calc(env(safe-area-inset-top,0px) + 70px);background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:10px 12px;max-width:270px;font-size:12px;line-height:1.45;color:var(--muted)}
 .help b{color:var(--fg);font-weight:600} .help kbd{font-family:var(--mono);background:var(--panel2);padding:0 4px;border-radius:3px;color:var(--fg)}
 .help button{position:absolute;top:4px;right:6px;background:none;border:0;color:var(--muted);cursor:pointer;font-size:14px}
-.overlay{position:absolute;inset:0;background:rgba(5,7,10,.78);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;text-align:center;padding:24px}
+.overlay{position:absolute;inset:0;background:rgba(5,7,10,.78);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;text-align:center;padding:24px;z-index:20}
 .overlay h1{font-family:var(--mono);font-weight:500;font-size:26px;margin:0;letter-spacing:.04em;text-wrap:balance}
 .overlay p{margin:0;color:var(--muted);max-width:40ch}
 .overlay button{background:var(--accent);color:#1a1200;border:0;font:inherit;font-weight:600;padding:10px 18px;border-radius:4px;cursor:pointer}
@@ -229,6 +253,15 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 <div class="toasts" id="toasts"></div>
 
 <div class="bottomBar">
+  <!-- Live drilling readout (speed picking itself happens in the #drillSelectOverlay popup) — sits
+       in this same left-side stack, above unitActions, so it never collides with the toast stack
+       at the top of the screen or the always-on help panel. -->
+  <div class="throttle" id="throttlePanel" hidden>
+    <span class="thSpeed" id="thSpeed">Normal</span>
+    <button id="bPause"><span id="bPauseLabel">Pause</span><span class="key">P</span></button>
+    <span class="thStat dat" id="thBurn">−0 dat/s</span>
+    <span class="thStat condensed" id="thRate">+0 cond/min</span>
+  </div>
   <!-- Contextual: only the actions relevant to the currently-selected unit type appear here, above
        the build bar, instead of always sitting in it regardless of what's selected. -->
   <div class="unitActions" id="unitActions">
@@ -244,16 +277,6 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
     <button id="bLock"><span class="icon">⛏</span><span id="bLockLabel">Begin Drilling</span><span class="key">L</span></button>
     <button id="bPing"><span class="icon">◉</span><span id="bPingLabel">Ping</span><span class="key">N</span></button>
   </div>
-</div>
-
-<div class="throttle" id="throttlePanel" hidden>
-  <b>Drill</b>
-  <button data-th="0" id="bThSlow">Slow</button>
-  <button data-th="1" id="bThNorm">Normal</button>
-  <button data-th="2" id="bThFast">Fast</button>
-  <button id="bPause"><span id="bPauseLabel">Pause</span><span class="key">P</span></button>
-  <span class="thStat dat" id="thBurn">−0 dat/s</span>
-  <span class="thStat condensed" id="thRate">+0 cond/min</span>
 </div>
 
 <div class="prod" id="prodMenu" hidden>
@@ -289,6 +312,13 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 
 <div class="overlay" id="pauseOverlay" hidden>
   <h1>Paused</h1><p>The game is frozen — nothing is moving, drilling, or spawning.</p><button id="pauseResumeBtn">Resume</button>
+</div>
+
+<div class="overlay" id="drillSelectOverlay" hidden>
+  <h1>Begin Drilling</h1>
+  <p id="drillSelectHint">Choose a drill speed — it's locked in for the whole drill once you start.</p>
+  <div class="drillCards" id="drillCards"></div>
+  <button id="drillCancelBtn" class="secondary">Cancel</button>
 </div>
 
 <div class="overlay rewardOverlay" id="rewardOverlay" hidden>
@@ -1533,12 +1563,12 @@ cv.addEventListener('wheel',e=>{e.preventDefault();const w0=toWorld(e.clientX,e.
 addEventListener('keydown',e=>{
   if(menuOpen||e.target.tagName==='INPUT')return; keys[e.key.toLowerCase()]=true; keys[e.key]=true;
   if(e.key==='1')setBuild('wall'); else if(e.key==='2')setBuild('turret'); else if(e.key==='3')setBuild('relay'); else if(e.key==='4')setBuild('depot');
-  else if(e.key==='Escape'){if(buildMode||prodMenuOpen){setBuild(null);closeProdMenu()}else togglePause()} else if(e.key.toLowerCase()==='b'){S.sel.troops.clear();S.sel.harv.clear();S.sel.bu.clear();S.sel.base=true}
+  else if(e.key==='Escape'){if(!document.getElementById('drillSelectOverlay').hidden){closeDrillSelect()}else if(buildMode||prodMenuOpen){setBuild(null);closeProdMenu()}else togglePause()} else if(e.key.toLowerCase()==='b'){S.sel.troops.clear();S.sel.harv.clear();S.sel.bu.clear();S.sel.base=true}
   else if(e.key.toLowerCase()==='t'){selectAllUnitsOfKind('troops')}
   else if(e.key.toLowerCase()==='h'){selectAllUnitsOfKind('harv')}
   else if(e.key.toLowerCase()==='u'){selectAllUnitsOfKind('bu')}
   else if(e.key.toLowerCase()==='f'){cam.x=S.base.x;cam.y=S.base.y}
-  else if(e.key.toLowerCase()==='l'){tryLockdown()}
+  else if(e.key.toLowerCase()==='l'){openDrillSelect()}
   else if(e.key.toLowerCase()==='r'){resumeAutoLoop()}
   else if(e.key.toLowerCase()==='g'){toggleRepairMode()}
   else if(e.key.toLowerCase()==='p'){toggleDrillPause()}
@@ -1549,7 +1579,7 @@ addEventListener('keydown',e=>{
 });
 addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;keys[e.key]=false});
 document.querySelectorAll('#buildBar button[data-mode]').forEach(b=>b.addEventListener('click',()=>{setBuild(buildMode===b.dataset.mode?null:b.dataset.mode);sfx.click()}));
-document.getElementById('bLock').onclick=()=>tryLockdown();
+document.getElementById('bLock').onclick=()=>openDrillSelect();
 document.getElementById('bPing').onclick=()=>tryPing();
 document.getElementById('bResumeAuto').onclick=resumeAutoLoop;
 document.getElementById('bToggleRepair').onclick=toggleRepairMode;
@@ -1575,11 +1605,8 @@ document.getElementById('bBuildGrenadier').onclick=buildGrenadier;
 document.getElementById('bBuildHarv').onclick=buildHarvester;
 document.getElementById('bBuildBuilder').onclick=buildBuilderUnit;
 document.getElementById('bBuildArtillery').onclick=buildArtillery;
-document.querySelectorAll('#throttlePanel button[data-th]').forEach(b=>b.onclick=()=>{
-  if(S.base.locked)return; // speed is locked in for the drill once it's started
-  tryLockdown(throttleValue(+b.dataset.th));
-});
 document.getElementById('bPause').onclick=toggleDrillPause;
+document.getElementById('drillCancelBtn').onclick=()=>closeDrillSelect();
 document.getElementById('helpClose').onclick=()=>{document.getElementById('help').hidden=true};
 document.getElementById('ovBtn').onclick=()=>{document.getElementById('overlay').hidden=true;openMainMenu()};
 document.getElementById('pauseResumeBtn').onclick=togglePause;
@@ -1730,16 +1757,14 @@ function updateBuildBar(){
     ab.hidden=!meta.unlockArtillery;
     ab.disabled=S.dat<COST.artillery;
   }
-  // the throttle panel doubles as the "pick a speed to begin" prompt: visible as soon as the
-  // Bastion is parked on a found vein, buttons still clickable (picking one starts the drill at
-  // that speed); once actually drilling they go read-only — speed is locked for the run.
-  const readyToStart=!S.base.locked&&!!canLockdown();
+  // Speed picking now happens in the #drillSelectOverlay popup (see openDrillSelect); this panel
+  // is just a live readout once the drill is actually running.
   const tp=document.getElementById('throttlePanel');
-  tp.hidden=!S.base.locked&&!readyToStart;
-  document.querySelectorAll('#throttlePanel button[data-th]').forEach(b=>{
-    b.classList.toggle('on',throttleValue(+b.dataset.th)===S.throttleMul&&S.base.locked);
-    b.disabled=S.base.locked;
-  });
+  tp.hidden=!S.base.locked;
+  if(S.base.locked){
+    document.getElementById('thSpeed').textContent=
+      S.throttleMul===throttleValue(0)?THROTTLE_LABELS[0]:S.throttleMul===throttleValue(1)?THROTTLE_LABELS[1]:THROTTLE_LABELS[2];
+  }
   const pb=document.getElementById('bPause');
   if(pb){
     pb.disabled=!S.base.locked;
@@ -1758,6 +1783,53 @@ function canLockdown(){
 // the Overdrive Capacitor upgrade makes Fast (index 2) faster still — every other throttle is
 // unaffected.
 function throttleValue(idx){return THROTTLES[idx]+(idx===2?S.mods.fastBonus:0)}
+const THROTTLE_LABELS=['Slow','Normal','Fast'];
+// Begin Drilling now opens a popup (pausing the game) to pick a speed, instead of locking in
+// immediately — see renderDrillCards for the cost/reward/enemy-response estimate shown per option.
+function openDrillSelect(){
+  if(S.over||S.rewardChoice||S.paused)return;
+  const v=canLockdown();
+  if(!v){msg('Move the Bastion onto a found vein\'s marker first.');return}
+  S.paused=true;
+  renderDrillCards(v);
+  document.getElementById('drillSelectOverlay').hidden=false;
+}
+function closeDrillSelect(){
+  document.getElementById('drillSelectOverlay').hidden=true;
+  S.paused=false;
+}
+// Every estimate here mirrors the real formulas in tryLockdown/the drill-progress update loop
+// (see DRILL_DAT_COST/CONDENSED_RATE usage below) — the Dat cost comes out the same at every
+// throttle (burn rate scales with speed, but so does how long the drill takes, and they cancel),
+// while Condensed reward and enemy pressure both scale up with speed.
+function renderDrillCards(v){
+  const tier=currentTier(v);
+  document.getElementById('drillSelectHint').textContent=
+    `Choose a drill speed for this ${v.band} vein (currently ${tier} tier) — it's locked in for the whole drill once you start.`;
+  const datCost=Math.max(1,Math.round(DRILL_DAT_COST*S.mods.drillBurnMult*v.richness/DRILL_RATE));
+  const pressures=[0,1,2].map(i=>{
+    const tm=throttleValue(i);
+    const perMin=60/(BASE_SPAWN_INTERVAL[v.band]/tm);
+    return perMin*(WAVE_BASE_N[v.band]*(0.7+0.3*tm));
+  });
+  const sorted=[...pressures].sort((a,b)=>a-b);
+  const threatOf=p=>p<=sorted[0]?'Low':p>=sorted[2]?'High':'Medium';
+  const host=document.getElementById('drillCards');
+  host.innerHTML='';
+  [0,1,2].forEach(i=>{
+    const tm=throttleValue(i);
+    const condensedEarned=Math.max(1,Math.round(v.richness*CONDENSED_RATE*S.mods.condensedMult*tm*TIER_MULT[tier]));
+    const threat=threatOf(pressures[i]);
+    const btn=document.createElement('button');
+    btn.className='drillCard';
+    btn.innerHTML=`<span class="dcName">${THROTTLE_LABELS[i]}</span>`+
+      `<span class="dcRow">Est. Cost: <b>~${datCost} Dat</b></span>`+
+      `<span class="dcRow">Est. Reward: <b>~${condensedEarned} Condensed</b></span>`+
+      `<span class="dcThreat ${threat.toLowerCase()}">Enemy Response: ${threat}</span>`;
+    btn.onclick=()=>{tryLockdown(tm);closeDrillSelect()};
+    host.appendChild(btn);
+  });
+}
 // Drill speed is picked once, right here, and locked for the whole drill — no more nudging the
 // throttle mid-run. throttle is a THROTTLES value (0.5/1/1.8); omitted (e.g. the L shortcut)
 // defaults to Normal.
@@ -2857,9 +2929,8 @@ function hud(){
     }
   }else{
     const ready=canLockdown();
-    $('hObj').textContent=ready?`choose a drill speed (${currentTier(ready)} tier)`:`${doneCount}/${S.veins.length} secured`;
+    $('hObj').textContent=ready?`ready to drill (${currentTier(ready)} tier) — press L`:`${doneCount}/${S.veins.length} secured`;
     $('hObjBar').style.width=(100*doneCount/S.veins.length)+'%';
-    if(ready){$('thBurn').textContent='pick Slow/Normal/Fast';$('thRate').textContent='to begin'}
   }
   $('cntTroops2').textContent=S.troops.length;
   $('cntHarv2').textContent=S.harvesters.length;
