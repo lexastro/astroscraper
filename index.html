@@ -206,6 +206,11 @@ const WALL_HP=220;
 const COST={wall:5,turret:50,relay:15,depot:150,harvester:20,troop:30,builder:75,grenadier:45};
 const ZONE_R=200;
 const TCELL=60, TGX=Math.ceil(W/TCELL), TGY=Math.ceil(H/TCELL), MUD_MULT=0.55;
+// Terrain values: 0 plain, 1 mud (slow), 2 rock (impassable to everyone), 3 rift (impassable to
+// the Bastion only — troops, harvesters and builders cross it at mud speed). Rift pockets each
+// seed one outsized Dat Crystal deposit, so reaching the map's richest nodes means sending units
+// in on their own rather than just parking the Bastion on top of them.
+const RIFT=3, RIFT_POCKETS=5, RIFT_DEPOSITS_PER_POCKET=5;
 // Tether: wireless works freely on the rim; in the dense field you get a short leash around any
 // anchor (Bastion or built Relay); in the core you always need a live physical cable.
 const WIRELESS_TOL_DENSE=90, WIRELESS_TOL_CORE=0;
@@ -410,7 +415,7 @@ function reset(landing){
   });
   clearDisk(S.base.x,S.base.y,240);
   S.veins.forEach(v=>clearDisk(v.x,v.y,ZONE_R+40));
-  ensureConnectivity([{x:S.base.x,y:S.base.y},...S.veins.map(v=>({x:v.x,y:v.y})),...VEIN_CLUSTERS.map(([x,y])=>({x,y}))]);
+  ensureConnectivity([{x:S.base.x,y:S.base.y},...S.veins.map(v=>({x:v.x,y:v.y})),...VEIN_CLUSTERS.map(([x,y])=>({x,y})),...riftPockets]);
   closeHoles(S.base.x,S.base.y);
   terrainCv=buildTerrainCanvas();
 
@@ -440,6 +445,17 @@ function reset(landing){
       const ang=rnd(0,Math.PI*2), rad=rnd(0,90);
       const p=nearestPlain(cx+Math.cos(ang)*rad,cy+Math.sin(ang)*rad);
       S.nodes.push({x:p.x,y:p.y,amt:Math.round(rnd(110,180)),max:180,found:false});
+    }
+  });
+
+  // Rift deposits: the richest nodes on the map, planted at the heart of each rift pocket where
+  // the Bastion can't follow — a harvester (or a squad clearing the way for one) has to go in on
+  // foot to bring any of it back.
+  riftPockets.forEach(p=>{
+    for(let i=0;i<RIFT_DEPOSITS_PER_POCKET;i++){
+      const ang=rnd(0,Math.PI*2), rad=rnd(0,130);
+      const x=Math.max(60,Math.min(W-60,p.x+Math.cos(ang)*rad)), y=Math.max(60,Math.min(H-60,p.y+Math.sin(ang)*rad));
+      S.nodes.push({x,y,amt:Math.round(rnd(160,240)),max:240,found:false});
     }
   });
 
@@ -556,13 +572,33 @@ function genTerrain(){
   }
   blob(1,16,3,7,0.85); // mud patches
   blob(2,16,3,7,0.85); // rock outcrops (override mud) — as common as mud, so picking a route through is a real puzzle
+  placeRifts();
 }
-function clearDisk(x,y,r){
+function clearDisk(x,y,r){paintDisk(x,y,r,0)}
+function paintDisk(x,y,r,type){
   const cx=Math.floor(x/TCELL),cy=Math.floor(y/TCELL),cr=Math.ceil(r/TCELL);
   for(let gy=cy-cr;gy<=cy+cr;gy++)for(let gx=cx-cr;gx<=cx+cr;gx++){
     if(gx<0||gy<0||gx>=TGX||gy>=TGY)continue;
-    if(Math.hypot(gx-cx,gy-cy)*TCELL<=r)terrain[gy*TGX+gx]=0;
+    if(Math.hypot(gx-cx,gy-cy)*TCELL<=r)terrain[gy*TGX+gx]=type;
   }
+}
+// Picks RIFT_POCKETS centers spread across the map (clear of the default landing spot) and
+// stamps each with a few overlapping disks — a guaranteed full-radius one at the center (so
+// deposit placement never has to dodge leftover rock) plus a couple of jittered ones for an
+// irregular edge, all painted after mud/rock so a rift always reads cleanly on the map.
+let riftPockets=[];
+function placeRifts(){
+  riftPockets=[];
+  for(let tries=0;tries<RIFT_POCKETS*8&&riftPockets.length<RIFT_POCKETS;tries++){
+    const x=rnd(300,W-300), y=rnd(EPI.y+CORE_R,H-300);
+    if(Math.hypot(x-S.base.x,y-S.base.y)<700)continue; // clear of the chosen landing spot
+    if(riftPockets.some(p=>Math.hypot(p.x-x,p.y-y)<700))continue;
+    riftPockets.push({x,y});
+  }
+  riftPockets.forEach(p=>{
+    paintDisk(p.x,p.y,170,RIFT);
+    for(let i=0;i<2;i++)paintDisk(p.x+rnd(-70,70),p.y+rnd(-70,70),rnd(100,150),RIFT);
+  });
 }
 function carveLine(x0,y0,x1,y1,w){
   const d=Math.hypot(x1-x0,y1-y0); const steps=Math.max(1,Math.ceil(d/(TCELL*0.5)));
@@ -615,13 +651,23 @@ function buildTerrainCanvas(){
   x2.fillStyle='#10151b'; x2.fillRect(0,0,W,H);
   for(let gy=0;gy<TGY;gy++)for(let gx=0;gx<TGX;gx++){
     const v=terrain[gy*TGX+gx]; if(v===0)continue;
-    x2.fillStyle = v===1 ? '#352c1c' : '#363d44';
+    x2.fillStyle = v===1 ? '#352c1c' : v===RIFT ? '#2a1030' : '#363d44';
     x2.fillRect(gx*TCELL,gy*TCELL,TCELL,TCELL);
   }
   x2.fillStyle='rgba(0,0,0,0.25)';
   for(let gy=0;gy<TGY;gy++)for(let gx=0;gx<TGX;gx++){
     if(terrain[gy*TGX+gx]!==2)continue;
     for(let k=0;k<4;k++){const px=gx*TCELL+rnd(4,TCELL-4), py=gy*TCELL+rnd(4,TCELL-4); x2.fillRect(px,py,rnd(3,7),rnd(3,7))}
+  }
+  // rift cracks — same glowing violet as its minimap/HUD marker, so it reads as the same hazard
+  // everywhere it's drawn, not just a darker patch of ground
+  x2.strokeStyle='rgba(200,110,255,0.5)'; x2.lineWidth=1.5;
+  for(let gy=0;gy<TGY;gy++)for(let gx=0;gx<TGX;gx++){
+    if(terrain[gy*TGX+gx]!==RIFT)continue;
+    for(let k=0;k<2;k++){
+      const px=gx*TCELL+rnd(4,TCELL-4), py=gy*TCELL+rnd(4,TCELL-4), a=rnd(0,Math.PI*2), len=rnd(5,12);
+      x2.beginPath();x2.moveTo(px,py);x2.lineTo(px+Math.cos(a)*len,py+Math.sin(a)*len);x2.stroke();
+    }
   }
   // depth-band tint running down from the Black Flame epicenter as horizontal bands spanning the
   // whole width — the whole reason this is "a zone"
@@ -642,10 +688,13 @@ function terrainAt(x,y){
   if(cx<0||cy<0||cx>=TGX||cy>=TGY)return 0;
   return terrain[cy*TGX+cx];
 }
-function tcost(cx,cy){
+// Movement slowdown for anything that isn't the Bastion — mud and rift both count as rough ground.
+function roughFactor(x,y){const v=terrainAt(x,y);return(v===1||v===RIFT)?MUD_MULT:1}
+function tcost(cx,cy,forBastion){
   if(cx<0||cy<0||cx>=TGX||cy>=TGY)return Infinity;
   const v=terrain[cy*TGX+cx];
-  return v===2?Infinity:v===1?2.4:1;
+  if(v===2||(forBastion&&v===RIFT))return Infinity;
+  return (v===1||v===RIFT)?2.4:1;
 }
 function nearestPlain(x,y){
   if(terrainAt(x,y)!==2)return{x,y};
@@ -655,10 +704,10 @@ function nearestPlain(x,y){
   }
   return {x,y};
 }
-function lineClear(x0,y0,x1,y1){
+function lineClear(x0,y0,x1,y1,forBastion){
   const d=Math.hypot(x1-x0,y1-y0); const steps=Math.max(1,Math.ceil(d/(TCELL/3)));
   for(let i=0;i<=steps;i++){const t=i/steps,x=x0+(x1-x0)*t,y=y0+(y1-y0)*t;
-    if(tcost(Math.floor(x/TCELL),Math.floor(y/TCELL))===Infinity)return false}
+    if(tcost(Math.floor(x/TCELL),Math.floor(y/TCELL),forBastion)===Infinity)return false}
   return true;
 }
 function octileXY(ax,ay,bx,by){const dx=Math.abs(ax-bx),dy=Math.abs(ay-by);return Math.max(dx,dy)+0.414*Math.min(dx,dy)}
@@ -672,10 +721,10 @@ class MinHeap{
     return top?top[1]:undefined}
   empty(){return this.a.length===0}
 }
-function astar(x0,y0,x1,y1){
+function astar(x0,y0,x1,y1,forBastion){
   const sx=Math.floor(x0/TCELL),sy=Math.floor(y0/TCELL),gx=Math.floor(x1/TCELL),gy=Math.floor(y1/TCELL);
   if(sx<0||sy<0||sx>=TGX||sy>=TGY||gx<0||gy<0||gx>=TGX||gy>=TGY)return null;
-  if(tcost(gx,gy)===Infinity)return null;
+  if(tcost(gx,gy,forBastion)===Infinity)return null;
   const startId=sy*TGX+sx, goalId=gy*TGX+gx;
   if(startId===goalId)return [{x:x1,y:y1}];
   const N=TGX*TGY;
@@ -693,10 +742,10 @@ function astar(x0,y0,x1,y1){
     if(cur===goalId)break;
     const cx=cur%TGX, cy=(cur-cx)/TGX;
     for(const [dx,dy,base] of NBR){
-      if(dx!==0&&dy!==0&&(tcost(cx+dx,cy)===Infinity||tcost(cx,cy+dy)===Infinity))continue;
+      if(dx!==0&&dy!==0&&(tcost(cx+dx,cy,forBastion)===Infinity||tcost(cx,cy+dy,forBastion)===Infinity))continue;
       const nx=cx+dx,ny=cy+dy;
       if(nx<0||ny<0||nx>=TGX||ny>=TGY)continue;
-      const cost=tcost(nx,ny); if(cost===Infinity)continue;
+      const cost=tcost(nx,ny,forBastion); if(cost===Infinity)continue;
       const nid=ny*TGX+nx; if(closed[nid])continue;
       const ng=gScore[cur]+base*cost;
       if(ng<gScore[nid]){gScore[nid]=ng;came[nid]=cur;heap.push(nid,ng+octileXY(nx,ny,gx,gy))}
@@ -715,11 +764,12 @@ function astar(x0,y0,x1,y1){
   return path;
 }
 function waypointFor(u,tx,ty){
+  const forBastion=u===S.base;
   const goal={x:tx,y:ty};
   if(!u._pg||Math.hypot(u._pg.x-goal.x,u._pg.y-goal.y)>40){
     u._pg=goal;
-    if(lineClear(u.x,u.y,tx,ty)){u._path=null;u._blocked=false}
-    else{u._path=astar(u.x,u.y,tx,ty);u._blocked=!u._path}
+    if(lineClear(u.x,u.y,tx,ty,forBastion)){u._path=null;u._blocked=false}
+    else{u._path=astar(u.x,u.y,tx,ty,forBastion);u._blocked=!u._path}
     u._pi=0;
   }
   if(u._path&&u._path.length){
@@ -1073,7 +1123,7 @@ function followSelected(){
 function followMove(u,speed,dt){
   const fx=S.base.x+Math.cos(u.followAng)*u.followDist, fy=S.base.y+Math.sin(u.followAng)*u.followDist;
   if(dist(u,{x:fx,y:fy})>8){
-    const factor=terrainAt(u.x,u.y)===1?MUD_MULT:1;
+    const factor=roughFactor(u.x,u.y);
     const aim=waypointFor(u,fx,fy);
     moveToward(u,aim,speed*factor,dt);
   }
@@ -1598,7 +1648,7 @@ function update(dt){
     t.cd-=dt;
     const gren=t.kind==='grenadier';
     const range=(gren?GREN_RANGE:TROOP_RANGE)*S.mods.squadRangeMult;
-    const factor=terrainAt(t.x,t.y)===1?MUD_MULT:1;
+    const factor=roughFactor(t.x,t.y);
     if(t.following){followMove(t,TROOP_SPEED,dt)}
     else if(t.state==='move'&&t.dest){
       const aim=waypointFor(t,t.dest.x,t.dest.y);
@@ -1623,7 +1673,7 @@ function update(dt){
 
   // harvesters — unarmed; auto-loop to the nearest resource unless paused by a manual order or cut
   S.harvesters.forEach(h=>{
-    const factor=terrainAt(h.x,h.y)===1?MUD_MULT:1;
+    const factor=roughFactor(h.x,h.y);
     if(h.following){followMove(h,HARV_SPEED*S.mods.moveSpeedMult,dt);h.x=Math.max(10,Math.min(W-10,h.x));h.y=Math.max(10,Math.min(H-10,h.y));S.nodes.forEach(n=>{if(!n.found&&dist(n,h)<HARV_VISION*S.mods.visionMult)n.found=true});return}
     if(h.autoLoop&&h.state==='idle'){
       // only chase deposits the player has actually scouted — never beeline for one still
@@ -1665,7 +1715,7 @@ function update(dt){
   // builders — unarmed; auto-build queued sites, or (repair mode) auto-heal damaged ones; dock at
   // the Bastion when idle. 'cut' builders skip auto-seek entirely (handled by tetherPass above).
   S.builders.forEach(bu=>{
-    const factor=terrainAt(bu.x,bu.y)===1?MUD_MULT:1;
+    const factor=roughFactor(bu.x,bu.y);
     if(bu.following){followMove(bu,BUILDER_SPEED*S.mods.moveSpeedMult,dt);bu.x=Math.max(10,Math.min(W-10,bu.x));bu.y=Math.max(10,Math.min(H-10,bu.y));return}
     if(bu.state==='idle'||bu.state==='dock'){
       let found=null,bd=Infinity;
@@ -1789,7 +1839,7 @@ function update(dt){
     if(tgt)e.ang=Math.atan2(tgt.y-e.y,tgt.x-e.x);
     else{e.faceT-=dt;if(e.faceT<=0){e.ang=rnd(0,Math.PI*2);e.faceT=rnd(1.5,3.5)}}
     if(e.kind==='roam'&&!tgt){
-      const factor=terrainAt(e.x,e.y)===1?MUD_MULT:1;
+      const factor=roughFactor(e.x,e.y);
       if(e.patrol){
         const P=e.patrol, dest=P.dir>0?P.b:P.a;
         const aim=waypointFor(e,dest.x,dest.y);
@@ -1814,7 +1864,7 @@ function update(dt){
     const probes=[{x:e.x+ux*look,y:e.y+uy*look},{x:e.x+ux*look-uy*perp,y:e.y+uy*look+ux*perp},{x:e.x+ux*look+uy*perp,y:e.y+uy*look-ux*perp}];
     let w=null; for(const pt of probes){w=wallAt(pt.x,pt.y); if(w)break}
     if(w){if(e.cd<=0){w.hp-=e.dmg*1.5;hitFlash(w);spark(w.x,w.y,C.enemy,2);e.cd=0.8;if(w.hp<=0)S.walls.delete(key(w.gx,w.gy))}return}
-    const factor=terrainAt(e.x,e.y)===1?MUD_MULT:1;
+    const factor=roughFactor(e.x,e.y);
     moveToward(e,aim,e.speed*factor,dt);
   });
   // enemy separation — crowd pressure must not shove anyone clean through a wall
