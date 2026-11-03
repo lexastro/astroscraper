@@ -541,10 +541,18 @@ function miningActivityCenter(){
   let sx=0,sy=0; pool.forEach(h=>{sx+=h.x;sy+=h.y});
   return {x:sx/pool.length,y:sy/pool.length};
 }
+// 0 right at the Rim's outer edge, 1 at the epicenter — a continuous read on how deep the
+// Bastion currently sits, for scaling threat pressure smoothly rather than only in band steps.
+function depthFactor(y){return Math.max(0,Math.min(1,1-Math.abs(y-EPI.y)/(H-EPI.y)))}
+// How flush the bank is, capped so a maxed-out Depot stockpile doesn't spiral pressure forever.
+function bankFactor(){return Math.min(1.5,S.dat/400)}
+// A deep, loaded operation draws a much bigger, much more frequent off-zone patrol than an
+// early, cash-poor one still parked near the Rim.
+function patrolPressure(){return 1+depthFactor(S.base.y)*1.2+bankFactor()*0.8}
 function spawnOffZonePatrol(){
   const center=miningActivityCenter();
   const band=bandAt(center.x,center.y);
-  const n=OFFZONE_PATROL_N[band];
+  const n=Math.round(OFFZONE_PATROL_N[band]*patrolPressure());
   const a=rnd(0,Math.PI*2), sx=center.x+Math.cos(a)*OFFZONE_PATROL_DIST, sy=center.y+Math.sin(a)*OFFZONE_PATROL_DIST;
   for(let i=0;i<n;i++){
     const p=nearestPlain(Math.max(20,Math.min(W-20,sx+rnd(-90,90))),Math.max(20,Math.min(H-20,sy+rnd(-90,90))));
@@ -1666,7 +1674,7 @@ function update(dt){
   if(S.minedWindowT>=OFFZONE_MINE_WINDOW){
     if(!B.locked&&S.minedWindowAmt>=OFFZONE_MINE_THRESHOLD&&S.offZonePatrolCd<=0){
       spawnOffZonePatrol();
-      S.offZonePatrolCd=OFFZONE_PATROL_COOLDOWN;
+      S.offZonePatrolCd=OFFZONE_PATROL_COOLDOWN/patrolPressure();
     }
     S.minedWindowAmt=0; S.minedWindowT=0;
   }
