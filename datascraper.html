@@ -128,9 +128,9 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 @media (max-width:720px){.toasts{top:calc(env(safe-area-inset-top,0px) + 220px);width:240px}}
 /* --- visual polish: HUD chrome, press feedback, icons, low-HP flash --- */
 .stat,.build button,.prod,.throttle,.mini,.help{box-shadow:0 2px 8px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.04);border-radius:6px}
-.build button,.prod .prodBtn,.throttle button,.metaUnlock,.stat.selbtn{transition:transform .08s ease,background .12s ease}
-.build button:active,.prod .prodBtn:active,.throttle button:active,.metaUnlock:active,.stat.selbtn:active{transform:scale(.94);background:var(--panel2)}
-.build button .icon,.prod .prodBtn .icon{margin-right:2px;font-size:13px}
+.build button,.prod .prodBtn,.throttle button,.metaUnlock,.stat.selbtn,.unitActions button{transition:transform .08s ease,background .12s ease}
+.build button:active,.prod .prodBtn:active,.throttle button:active,.metaUnlock:active,.stat.selbtn:active,.unitActions button:active{transform:scale(.94);background:var(--panel2)}
+.build button .icon,.prod .prodBtn .icon,.unitActions button .icon{margin-right:2px;font-size:13px}
 .bar i.hp.low{background:var(--enemy);animation:pulseLow 1s ease-in-out infinite}
 @keyframes pulseLow{0%,100%{opacity:1}50%{opacity:.5}}
 .overlay{animation:fadeIn .18s ease}
@@ -143,11 +143,20 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 .zoomCtrl button{width:38px;height:38px;border-radius:50%;background:var(--panel);border:1px solid var(--line);color:var(--fg);
   font:inherit;font-size:19px;line-height:1;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.4)}
 .zoomCtrl button:active{transform:scale(.92);background:var(--panel2)}
-.buildOverflowPanel{display:contents}
-#buildMoreBtn{display:none}
+.unitSelBtn{display:none}
+.unitSelBtn.sel{border-color:var(--ally);color:var(--ally)}
+.unitActions{position:absolute;left:max(16px,env(safe-area-inset-left,0px));bottom:max(76px,calc(76px + env(safe-area-inset-bottom,0px)));
+  display:flex;gap:6px;pointer-events:none;flex-wrap:wrap}
+.unitActions button{pointer-events:auto;background:var(--panel);border:1px solid var(--line);color:var(--fg);font:inherit;
+  padding:8px 10px;border-radius:6px;cursor:pointer;display:flex;flex-direction:column;align-items:flex-start;gap:2px;
+  box-shadow:0 2px 8px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.04)}
+.unitActions button:hover{background:var(--panel2)}
+.unitActions button.on{border-color:var(--accent);background:var(--panel2)}
+.unitActions button .key{font-family:var(--mono);font-size:10px;color:var(--muted)}
+.stat.selbtn .key{font-family:var(--mono);font-size:9px;color:var(--muted)}
 /* touch targets: comfortably tappable on a phone or any coarse (finger) pointer */
 @media (max-width:720px),(pointer:coarse){
-  .build button,.prod .prodBtn,.throttle button,.metaUnlock{min-height:44px;padding:10px 12px}
+  .build button,.prod .prodBtn,.throttle button,.metaUnlock,.unitActions button{min-height:44px;padding:10px 12px}
   .stat.selbtn{min-height:40px}
   .zoomCtrl button{width:44px;height:44px}
 }
@@ -165,11 +174,11 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
     background:linear-gradient(to top,rgba(11,14,18,.92),rgba(11,14,18,0) 85%)}
   .build button{flex:0 0 auto;min-width:60px}
   .build button .cost,.build button .key{display:none}
-  .buildOverflowPanel{display:none;position:fixed;bottom:max(64px,calc(64px + env(safe-area-inset-bottom,0px)));left:8px;flex-direction:column;gap:6px;
-    background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px;box-shadow:0 4px 14px rgba(0,0,0,.5)}
-  .buildOverflowPanel.open{display:flex}
-  #buildMoreBtn{display:inline-flex;align-items:center;justify-content:center;min-width:44px}
+  .unitActions{bottom:max(88px,calc(88px + env(safe-area-inset-bottom,0px)))}
+  .unitActions button .key{display:none}
   .prod{bottom:max(88px,calc(88px + env(safe-area-inset-bottom,0px)))}
+  .zoomBtn{display:none}
+  .unitSelBtn{display:flex}
   /* minimap: minimized by default above the build bar, with an expand/collapse icon */
   .mini{bottom:max(70px,calc(70px + env(safe-area-inset-bottom,0px)));width:60px;height:60px;transition:width .15s ease,height .15s ease}
   .mini canvas{width:60px;height:60px}
@@ -195,9 +204,9 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   </div>
   <div class="stat"><span class="k">⛨ Bastion</span><span class="v" id="hBase">—</span><div class="bar"><i class="hp" id="hBaseBar" style="width:100%"></i></div></div>
   <div class="stat obj"><span class="k" id="hObjK">Veins</span><span class="v" id="hObj">—</span><div class="bar"><i id="hObjBar" style="width:0%"></i></div></div>
-  <button class="stat selbtn" id="hTroopsBtn"><span class="k">▲ Squads</span><span class="v" id="hTroops">—</span></button>
-  <button class="stat selbtn" id="hHarvBtn"><span class="k">⛏ Harvesters</span><span class="v" id="hHarv">—</span></button>
-  <button class="stat selbtn" id="hBuildersBtn"><span class="k">⚒ Builders</span><span class="v" id="hBuilders">—</span></button>
+  <button class="stat selbtn" id="hTroopsBtn"><span class="k">▲ Squads</span><span class="v" id="hTroops">—</span><span class="key">T</span></button>
+  <button class="stat selbtn" id="hHarvBtn"><span class="k">⛏ Harvesters</span><span class="v" id="hHarv">—</span><span class="key">H</span></button>
+  <button class="stat selbtn" id="hBuildersBtn"><span class="k">⚒ Builders</span><span class="v" id="hBuilders">—</span><span class="key">U</span></button>
 </div>
 <button class="helpToggleBtn" id="helpToggleBtn" aria-label="Show controls">?</button>
 <div class="toasts" id="toasts"></div>
@@ -209,13 +218,14 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <button id="bDepot" data-mode="depot"><span class="icon">⊟</span><span>Depot</span><span class="cost" id="cDepot">150 dat</span><span class="key">4</span></button>
   <button id="bLock"><span class="icon">⛏</span><span id="bLockLabel">Begin Drilling</span><span class="key">L</span></button>
   <button id="bPing"><span class="icon">◉</span><span id="bPingLabel">Ping</span><span class="key">N</span></button>
-  <div class="buildOverflowPanel" id="buildOverflowPanel">
-    <button id="bSelBase"><span class="icon">◎</span><span>Select Bastion</span><span class="key">B</span></button>
-    <button id="bResumeAuto"><span class="icon">↻</span><span>Resume Auto-Gather</span><span class="key">R</span></button>
-    <button id="bToggleRepair"><span class="icon">⚙</span><span id="bRepairLabel">Repair Mode</span><span class="key">G</span></button>
-    <button id="bFollow"><span class="icon">➤</span><span id="bFollowLabel">Follow Bastion</span><span class="key">V</span></button>
-  </div>
-  <button id="buildMoreBtn" aria-label="More actions">⋯</button>
+</div>
+
+<!-- Contextual: only the actions relevant to the currently-selected unit type appear here, above
+     the build bar, instead of always sitting in it regardless of what's selected. -->
+<div class="unitActions" id="unitActions">
+  <button id="bResumeAuto" hidden><span class="icon">↻</span><span>Resume Auto-Gather</span><span class="key">R</span></button>
+  <button id="bToggleRepair" hidden><span class="icon">⚙</span><span id="bRepairLabel">Repair Mode</span><span class="key">G</span></button>
+  <button id="bFollow" hidden><span class="icon">➤</span><span id="bFollowLabel">Follow Bastion</span><span class="key">V</span></button>
 </div>
 
 <div class="throttle" id="throttlePanel" hidden>
@@ -239,7 +249,13 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 </div>
 
 <div class="mini" id="miniWrap"><canvas id="mini" width="180" height="180"></canvas><button id="miniToggle" class="miniToggle" aria-label="Expand minimap">⤢</button></div>
-<div class="zoomCtrl" id="zoomCtrl"><button id="zoomIn" aria-label="Zoom in">+</button><button id="zoomOut" aria-label="Zoom out">−</button></div>
+<div class="zoomCtrl" id="zoomCtrl">
+  <button id="zoomIn" class="zoomBtn" aria-label="Zoom in">+</button>
+  <button id="zoomOut" class="zoomBtn" aria-label="Zoom out">−</button>
+  <button id="selTroopsBtn2" class="unitSelBtn" aria-label="Select all Squads">▲</button>
+  <button id="selHarvBtn2" class="unitSelBtn" aria-label="Select all Harvesters">⛏</button>
+  <button id="selBuBtn2" class="unitSelBtn" aria-label="Select all Builders">⚒</button>
+</div>
 
 <div class="help" id="help">
   <button id="helpClose" aria-label="Close">×</button>
@@ -1440,9 +1456,9 @@ addEventListener('keydown',e=>{
   if(menuOpen||e.target.tagName==='INPUT')return; keys[e.key.toLowerCase()]=true; keys[e.key]=true;
   if(e.key==='1')setBuild('wall'); else if(e.key==='2')setBuild('turret'); else if(e.key==='3')setBuild('relay'); else if(e.key==='4')setBuild('depot');
   else if(e.key==='Escape'){if(buildMode||prodMenuOpen){setBuild(null);closeProdMenu()}else togglePause()} else if(e.key.toLowerCase()==='b'){S.sel.troops.clear();S.sel.harv.clear();S.sel.bu.clear();S.sel.base=true}
-  else if(e.key.toLowerCase()==='t'){S.sel.base=false;S.sel.harv.clear();S.sel.bu.clear();S.troops.forEach(t=>S.sel.troops.add(t.id))}
-  else if(e.key.toLowerCase()==='h'){S.sel.base=false;S.sel.troops.clear();S.sel.bu.clear();S.harvesters.forEach(h=>S.sel.harv.add(h.id))}
-  else if(e.key.toLowerCase()==='u'){S.sel.base=false;S.sel.troops.clear();S.sel.harv.clear();S.builders.forEach(bu=>S.sel.bu.add(bu.id))}
+  else if(e.key.toLowerCase()==='t'){selectAllUnitsOfKind('troops')}
+  else if(e.key.toLowerCase()==='h'){selectAllUnitsOfKind('harv')}
+  else if(e.key.toLowerCase()==='u'){selectAllUnitsOfKind('bu')}
   else if(e.key.toLowerCase()==='f'){cam.x=S.base.x;cam.y=S.base.y}
   else if(e.key.toLowerCase()==='l'){tryLockdown()}
   else if(e.key.toLowerCase()==='r'){resumeAutoLoop()}
@@ -1457,13 +1473,27 @@ addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;keys[e.key]=false})
 document.querySelectorAll('#buildBar button[data-mode]').forEach(b=>b.addEventListener('click',()=>{setBuild(buildMode===b.dataset.mode?null:b.dataset.mode);sfx.click()}));
 document.getElementById('bLock').onclick=()=>tryLockdown();
 document.getElementById('bPing').onclick=()=>tryPing();
-document.getElementById('bSelBase').onclick=()=>{S.sel.troops.clear();S.sel.harv.clear();S.sel.bu.clear();S.sel.base=true};
 document.getElementById('bResumeAuto').onclick=resumeAutoLoop;
 document.getElementById('bToggleRepair').onclick=toggleRepairMode;
 document.getElementById('bFollow').onclick=followSelected;
-document.getElementById('hTroopsBtn').onclick=()=>{S.sel.base=false;S.sel.harv.clear();S.sel.bu.clear();closeProdMenu();S.troops.forEach(t=>S.sel.troops.add(t.id))};
-document.getElementById('hHarvBtn').onclick=()=>{S.sel.base=false;S.sel.troops.clear();S.sel.bu.clear();closeProdMenu();S.harvesters.forEach(h=>S.sel.harv.add(h.id))};
-document.getElementById('hBuildersBtn').onclick=()=>{S.sel.base=false;S.sel.troops.clear();S.sel.harv.clear();closeProdMenu();S.builders.forEach(bu=>S.sel.bu.add(bu.id))};
+// Shared by the top HUD selector buttons, their mobile equivalents next to the zoom controls, and
+// the T/H/U hotkeys — one selection path for "select every unit of this kind" everywhere it appears.
+function selectAllUnitsOfKind(kind){
+  S.sel.base=false;
+  if(kind!=='troops')S.sel.troops.clear();
+  if(kind!=='harv')S.sel.harv.clear();
+  if(kind!=='bu')S.sel.bu.clear();
+  closeProdMenu();
+  if(kind==='troops')S.troops.forEach(t=>S.sel.troops.add(t.id));
+  else if(kind==='harv')S.harvesters.forEach(h=>S.sel.harv.add(h.id));
+  else if(kind==='bu')S.builders.forEach(bu=>S.sel.bu.add(bu.id));
+}
+document.getElementById('hTroopsBtn').onclick=()=>selectAllUnitsOfKind('troops');
+document.getElementById('hHarvBtn').onclick=()=>selectAllUnitsOfKind('harv');
+document.getElementById('hBuildersBtn').onclick=()=>selectAllUnitsOfKind('bu');
+document.getElementById('selTroopsBtn2').onclick=()=>selectAllUnitsOfKind('troops');
+document.getElementById('selHarvBtn2').onclick=()=>selectAllUnitsOfKind('harv');
+document.getElementById('selBuBtn2').onclick=()=>selectAllUnitsOfKind('bu');
 document.getElementById('prodClose').onclick=closeProdMenu;
 document.getElementById('bBuildTroop').onclick=buildTroop;
 document.getElementById('bBuildGrenadier').onclick=buildGrenadier;
@@ -1495,8 +1525,6 @@ mini.addEventListener('pointerdown',e=>{
 document.getElementById('zoomIn').onclick=()=>{cam.z=Math.min(2.2,cam.z*1.2);clampCam()};
 document.getElementById('zoomOut').onclick=()=>{cam.z=Math.max(0.35,cam.z*0.8333);clampCam()};
 document.getElementById('helpToggleBtn').onclick=()=>{document.getElementById('help').classList.toggle('open')};
-document.getElementById('buildMoreBtn').onclick=()=>{document.getElementById('buildOverflowPanel').classList.toggle('open')};
-document.querySelectorAll('#buildOverflowPanel button').forEach(b=>b.addEventListener('click',()=>document.getElementById('buildOverflowPanel').classList.remove('open')));
 function closeProdMenu(){prodMenuOpen=false;const el=document.getElementById('prodMenu');if(el)el.hidden=true}
 function buildTroop(){
   if(S.dat<COST.troop){msg('Not enough Dat Crystal for a new squad.');return}
@@ -1604,14 +1632,14 @@ function updateBuildBar(){
     pgb.disabled=S.base.pingCd>0;
     document.getElementById('bPingLabel').textContent=S.base.pingCd>0?`Ping (${Math.ceil(S.base.pingCd)}s)`:'Ping';
   }
-  document.getElementById('bResumeAuto').disabled=S.sel.harv.size===0;
+  document.getElementById('bResumeAuto').hidden=S.sel.harv.size===0;
   const rb=document.getElementById('bToggleRepair');
-  rb.disabled=S.sel.bu.size===0;
+  rb.hidden=S.sel.bu.size===0;
   const anyRepairSel=S.builders.some(b=>S.sel.bu.has(b.id)&&b.mode==='repair');
   document.getElementById('bRepairLabel').textContent=anyRepairSel?'Build Mode':'Repair Mode';
   const selCount=S.sel.troops.size+S.sel.harv.size+S.sel.bu.size;
   const fb=document.getElementById('bFollow');
-  fb.disabled=selCount===0;
+  fb.hidden=selCount===0;
   const anyFollowSel=[...S.sel.troops].some(id=>{const t=S.troops.find(x=>x.id===id);return t&&t.following})
     ||[...S.sel.harv].some(id=>{const h=S.harvesters.find(x=>x.id===id);return h&&h.following})
     ||[...S.sel.bu].some(id=>{const b=S.builders.find(x=>x.id===id);return b&&b.following});
@@ -2766,6 +2794,9 @@ function hud(){
   document.getElementById('hTroopsBtn').classList.toggle('sel',S.sel.troops.size>0);
   document.getElementById('hHarvBtn').classList.toggle('sel',S.sel.harv.size>0);
   document.getElementById('hBuildersBtn').classList.toggle('sel',S.sel.bu.size>0);
+  document.getElementById('selTroopsBtn2').classList.toggle('sel',S.sel.troops.size>0);
+  document.getElementById('selHarvBtn2').classList.toggle('sel',S.sel.harv.size>0);
+  document.getElementById('selBuBtn2').classList.toggle('sel',S.sel.bu.size>0);
   updateBuildBar();
 }
 
