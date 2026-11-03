@@ -271,7 +271,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   </div>
   <div class="build" id="buildBar">
     <button id="bWall" data-mode="wall"><span class="icon">▭</span><span>Wall</span><span class="cost" id="cWall">5 dat</span><span class="key">1</span></button>
-    <button id="bTurret" data-mode="turret"><span class="icon">⌖</span><span>Turret</span><span class="cost" id="cTurret">50 dat</span><span class="key">2</span></button>
+    <button id="bTurret" data-mode="turret"><span class="icon">⌖</span><span>Turret</span><span class="cost" id="cTurret">75 dat</span><span class="key">2</span></button>
     <button id="bRelay" data-mode="relay"><span class="icon">⟐</span><span>Relay</span><span class="cost" id="cRelay">15 dat</span><span class="key">3</span></button>
     <button id="bDepot" data-mode="depot"><span class="icon">⊟</span><span>Depot</span><span class="cost" id="cDepot">150 dat</span><span class="key">4</span></button>
     <button id="bLock"><span class="icon">⛏</span><span id="bLockLabel">Begin Drilling</span><span class="key">L</span></button>
@@ -284,8 +284,8 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <b>Build at Bastion</b>
   <button id="bBuildTroop" class="prodBtn"><span><span class="icon">▲</span>Squad</span><span class="cost" id="cTroopCost">30 dat</span></button>
   <button id="bBuildGrenadier" class="prodBtn" hidden><span><span class="icon">✺</span>Grenadier</span><span class="cost" id="cGrenadierCost">45 dat</span></button>
-  <button id="bBuildHarv" class="prodBtn"><span><span class="icon">⛏</span>Harvester</span><span class="cost" id="cHarvCost">20 dat</span></button>
-  <button id="bBuildBuilder" class="prodBtn"><span><span class="icon">⚒</span>Builder</span><span class="cost" id="cBuilderCost">75 dat</span></button>
+  <button id="bBuildHarv" class="prodBtn"><span><span class="icon">⛏</span>Harvester</span><span class="cost" id="cHarvCost">75 dat</span></button>
+  <button id="bBuildBuilder" class="prodBtn"><span><span class="icon">⚒</span>Builder</span><span class="cost" id="cBuilderCost">20 dat</span></button>
   <button id="bBuildArtillery" class="prodBtn" hidden><span><span class="icon">☄</span>Artillery</span><span class="cost" id="cArtilleryCost">140 dat</span></button>
 </div>
 
@@ -410,7 +410,7 @@ const BASE_GUN_RANGE=260, BASE_GUN_DMG=18, BASE_GUN_CD=0.5;
 // deliberately untouched, so it's no shortcut around scouting or the Living Crystal triangulation.
 const PING_RADIUS=2200, PING_CD=60;
 const WALL_HP=220;
-const COST={wall:5,turret:50,relay:15,depot:150,harvester:20,troop:30,builder:75,grenadier:45,artillery:140};
+const COST={wall:5,turret:75,relay:15,depot:150,harvester:75,troop:30,builder:20,grenadier:45,artillery:140};
 // Persistent meta-progression: saved to localStorage, carried across runs and page reloads —
 // not cookies, since this never needs to leave the browser or ride along with a server request,
 // and localStorage holds far more than a cookie's ~4KB.
@@ -2108,6 +2108,18 @@ function siteStillValid(site){
 // A relay needs a repair-mode builder's attention either because it's damaged, or because its
 // own tether back to the network got severed (a structurally fine relay can still be dark).
 function needsRepair(site){return site.hp<site.maxHp||(site.kind==='relay'&&site.state==='cut')}
+// Shared by both the automatic build-mode fallback and explicit repair mode: a damaged Relay
+// always wins over anything else needing repair — losing network reach costs the player more
+// than one battered wall or turret, so it's worth a builder walking past those to reach it.
+function findRepairTarget(bu){
+  let found=null,bd=Infinity;
+  S.relays.forEach(r=>{if(!r.built||!needsRepair(r)||(r.repairer&&r.repairer!==bu)||!inBuildRange(r))return;const d=dist(bu,r);if(d<bd){bd=d;found=r}});
+  if(found)return found;
+  S.walls.forEach(w=>{if(!w.built||!needsRepair(w)||(w.repairer&&w.repairer!==bu)||!inBuildRange(w))return;const d=dist(bu,w);if(d<bd){bd=d;found=w}});
+  S.turrets.forEach(t=>{if(!t.built||!needsRepair(t)||(t.repairer&&t.repairer!==bu)||!inBuildRange(t))return;const d=dist(bu,t);if(d<bd){bd=d;found=t}});
+  S.depots.forEach(de=>{if(!de.built||!needsRepair(de)||(de.repairer&&de.repairer!==bu)||!inBuildRange(de))return;const d=dist(bu,de);if(d<bd){bd=d;found=de}});
+  return found;
+}
 
 // ---------- update ----------
 function update(dt){
@@ -2359,17 +2371,22 @@ function update(dt){
       // Bastion drilled out and moved on from ages ago. A manual order can still send a builder
       // anywhere; this only scopes the automatic idle/dock seek.
       if(bu.mode==='build'){
-        S.walls.forEach(w=>{if(w.built||(w.builder&&w.builder!==bu)||!inBuildRange(w))return;const d=dist(bu,w);if(d<bd){bd=d;found=w}});
-        S.turrets.forEach(t=>{if(t.built||(t.builder&&t.builder!==bu)||!inBuildRange(t))return;const d=dist(bu,t);if(d<bd){bd=d;found=t}});
-        S.relays.forEach(r=>{if(r.built||(r.builder&&r.builder!==bu)||!inBuildRange(r))return;const d=dist(bu,r);if(d<bd){bd=d;found=r}});
-        S.depots.forEach(de=>{if(de.built||(de.builder&&de.builder!==bu)||!inBuildRange(de))return;const d=dist(bu,de);if(d<bd){bd=d;found=de}});
+        // no (site.builder&&site.builder!==bu) exclusion here on purpose — several builders can
+        // pile onto the same unfinished site and each still adds their own dt to its buildT every
+        // tick, finishing it that much faster instead of standing around waiting for a turn.
+        S.walls.forEach(w=>{if(w.built||!inBuildRange(w))return;const d=dist(bu,w);if(d<bd){bd=d;found=w}});
+        S.turrets.forEach(t=>{if(t.built||!inBuildRange(t))return;const d=dist(bu,t);if(d<bd){bd=d;found=t}});
+        S.relays.forEach(r=>{if(r.built||!inBuildRange(r))return;const d=dist(bu,r);if(d<bd){bd=d;found=r}});
+        S.depots.forEach(de=>{if(de.built||!inBuildRange(de))return;const d=dist(bu,de);if(d<bd){bd=d;found=de}});
         if(found){found.builder=bu;bu.target=found;bu.state='build'}
+        else{
+          // nothing left to build — rather than just docking, see if anything needs patching up
+          const rt=findRepairTarget(bu);
+          if(rt){rt.repairer=bu;bu.target=rt;bu.state='repair';found=rt}
+        }
       }else{
-        S.walls.forEach(w=>{if(!w.built||!needsRepair(w)||(w.repairer&&w.repairer!==bu)||!inBuildRange(w))return;const d=dist(bu,w);if(d<bd){bd=d;found=w}});
-        S.turrets.forEach(t=>{if(!t.built||!needsRepair(t)||(t.repairer&&t.repairer!==bu)||!inBuildRange(t))return;const d=dist(bu,t);if(d<bd){bd=d;found=t}});
-        S.relays.forEach(r=>{if(!r.built||!needsRepair(r)||(r.repairer&&r.repairer!==bu)||!inBuildRange(r))return;const d=dist(bu,r);if(d<bd){bd=d;found=r}});
-        S.depots.forEach(de=>{if(!de.built||!needsRepair(de)||(de.repairer&&de.repairer!==bu)||!inBuildRange(de))return;const d=dist(bu,de);if(d<bd){bd=d;found=de}});
-        if(found){found.repairer=bu;bu.target=found;bu.state='repair'}
+        const rt=findRepairTarget(bu);
+        if(rt){rt.repairer=bu;bu.target=rt;bu.state='repair';found=rt}
       }
       if(!found&&bu.state!=='dock'){bu.state='dock';bu.dest=null}
     }
@@ -2853,7 +2870,7 @@ function draw(){
   // builders
   S.builders.forEach(bu=>{const sel=S.sel.bu.has(bu.id);if(sel){ctx.strokeStyle=C.builder;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(bu.x,bu.y,bu.r+5,0,Math.PI*2);ctx.stroke()}
     ctx.fillStyle=bu.flashT>0?'#fff':C.builder;ctx.beginPath();ctx.moveTo(bu.x,bu.y-bu.r);ctx.lineTo(bu.x+bu.r,bu.y+bu.r*0.7);ctx.lineTo(bu.x-bu.r,bu.y+bu.r*0.7);ctx.closePath();ctx.fill();
-    if(bu.mode==='repair'){ctx.strokeStyle='#fff';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(bu.x-4,bu.y+2);ctx.lineTo(bu.x+4,bu.y+2);ctx.moveTo(bu.x,bu.y-2);ctx.lineTo(bu.x,bu.y+6);ctx.stroke()}
+    if(bu.mode==='repair'||bu.state==='repair'){ctx.strokeStyle='#fff';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(bu.x-4,bu.y+2);ctx.lineTo(bu.x+4,bu.y+2);ctx.moveTo(bu.x,bu.y-2);ctx.lineTo(bu.x,bu.y+6);ctx.stroke()}
     if(bu.hp<bu.maxHp)hpbar(bu.x,bu.y-14,16,bu.hp/bu.maxHp);
     if(bu.sanity<SANITY_MAX)sanityBar(bu.x,bu.y-10,16,bu.sanity/SANITY_MAX);
     if(!bu.tetherOk)drawCutGlyph(bu.x,bu.y); if(bu.following)drawFollowGlyph(bu.x,bu.y);
