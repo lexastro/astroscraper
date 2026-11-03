@@ -375,9 +375,7 @@ const UPGRADES={
     {id:'carry3',name:'Reinforced Haulers III',desc:'Harvester carry capacity +75%.',apply:()=>{S.mods.carryMult*=1.75}},
     {id:'hardscopes',name:'Hard Scopes',desc:"Squad vision and firing range +20% (stacks with Surveyor's Eye).",apply:()=>{S.mods.squadRangeMult*=1.2}},
     {id:'dmg3',name:'Battle Drills III',desc:'Squad damage +30%.',apply:()=>{S.mods.troopDmgMult*=1.3}},
-    // Grenadiers are a meta-unlock (see UNLOCKS) — if this run doesn't have them yet, the card
-    // still reads sensibly by handing out extra Squads instead rather than bypassing the unlock.
-    {id:'tactical',name:'Tactical Reinforcements',desc:'+5 free Squads, +3 free Grenadiers, right now.',apply:()=>{spawnFreeTroops(5,'troop');spawnFreeTroops(3,meta.unlockGrenadier?'grenadier':'troop')}},
+    {id:'tactical',name:'Tactical Reinforcements',desc:'+5 free Squads, +3 free Grenadiers, right now.',apply:()=>{spawnFreeTroops(5,'troop');spawnFreeTroops(3,'grenadier')}},
     {id:'targeting',name:'Targeting Computer',desc:'The Bastion gun keeps firing while drilling instead of going quiet.',apply:()=>{S.mods.bastionShootWhileDrilling=true}},
   ],
   Legendary:[
