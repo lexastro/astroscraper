@@ -210,7 +210,7 @@ const TCELL=60, TGX=Math.ceil(W/TCELL), TGY=Math.ceil(H/TCELL), MUD_MULT=0.55;
 // the Bastion only — troops, harvesters and builders cross it at mud speed). Rift pockets each
 // seed one outsized Dat Crystal deposit, so reaching the map's richest nodes means sending units
 // in on their own rather than just parking the Bastion on top of them.
-const RIFT=3, RIFT_POCKETS=5, RIFT_DEPOSITS_PER_POCKET=5;
+const RIFT=3, RIFT_POCKETS=4, RIFT_DEPOSITS_PER_POCKET=5;
 // Tether: wireless works freely on the rim; in the dense field you get a short leash around any
 // anchor (Bastion or built Relay); in the core you always need a live physical cable.
 const WIRELESS_TOL_DENSE=90, WIRELESS_TOL_CORE=0;
@@ -582,22 +582,27 @@ function paintDisk(x,y,r,type){
     if(Math.hypot(gx-cx,gy-cy)*TCELL<=r)terrain[gy*TGX+gx]=type;
   }
 }
-// Picks RIFT_POCKETS centers spread across the map (clear of the default landing spot) and
-// stamps each with a few overlapping disks — a guaranteed full-radius one at the center (so
-// deposit placement never has to dodge leftover rock) plus a couple of jittered ones for an
-// irregular edge, all painted after mud/rock so a rift always reads cleanly on the map.
+// Picks RIFT_POCKETS centers spread across the map (clear of the chosen landing spot) and
+// stamps each with a sprawling cluster of overlapping disks — a guaranteed full-radius one at
+// the center (so deposit placement never has to dodge leftover rock) plus several further-flung,
+// larger jittered ones, so the impassable ground reaches well past the deposit cluster itself —
+// a real detour to route units around, not just a ring painted on top of the resources.
+const RIFT_CORE_R=480, RIFT_LOBES=4, RIFT_LOBE_OFFSET=300, RIFT_LOBE_MIN_R=240, RIFT_LOBE_MAX_R=420;
 let riftPockets=[];
 function placeRifts(){
   riftPockets=[];
   for(let tries=0;tries<RIFT_POCKETS*8&&riftPockets.length<RIFT_POCKETS;tries++){
-    const x=rnd(300,W-300), y=rnd(EPI.y+CORE_R,H-300);
-    if(Math.hypot(x-S.base.x,y-S.base.y)<700)continue; // clear of the chosen landing spot
-    if(riftPockets.some(p=>Math.hypot(p.x-x,p.y-y)<700))continue;
+    const x=rnd(700,W-700), y=rnd(EPI.y+CORE_R+200,H-700);
+    if(Math.hypot(x-S.base.x,y-S.base.y)<1300)continue; // clear of the chosen landing spot
+    if(riftPockets.some(p=>Math.hypot(p.x-x,p.y-y)<1600))continue;
     riftPockets.push({x,y});
   }
   riftPockets.forEach(p=>{
-    paintDisk(p.x,p.y,170,RIFT);
-    for(let i=0;i<2;i++)paintDisk(p.x+rnd(-70,70),p.y+rnd(-70,70),rnd(100,150),RIFT);
+    paintDisk(p.x,p.y,RIFT_CORE_R,RIFT);
+    for(let i=0;i<RIFT_LOBES;i++){
+      const ang=rnd(0,Math.PI*2), off=rnd(RIFT_LOBE_OFFSET*0.3,RIFT_LOBE_OFFSET);
+      paintDisk(p.x+Math.cos(ang)*off,p.y+Math.sin(ang)*off,rnd(RIFT_LOBE_MIN_R,RIFT_LOBE_MAX_R),RIFT);
+    }
   });
 }
 function carveLine(x0,y0,x1,y1,w){
