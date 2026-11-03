@@ -14,6 +14,10 @@
         // a blank canvas. This also needs "Record canvas elements" turned on once in the PostHog
         // project's Settings → Session Replay page; this config only tunes it once that's on.
         session_recording: { captureCanvas: { canvasFps: 6, canvasQuality: "0.5" } },
+        // No capturing starts until the player answers the in-game consent screen (or has
+        // already answered it in a past session) — see applyRecordingConsent() in the main
+        // script, which calls opt_in_capturing()/opt_out_capturing() based on their choice.
+        opt_out_capturing_by_default: true,
     })
 </script>
 <style>
@@ -87,6 +91,9 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 .metaUnlock{background:var(--panel2);border:1px solid var(--condensed);color:var(--fg);font:inherit;font-size:12px;padding:8px 14px;border-radius:4px;cursor:pointer}
 .metaUnlock:disabled{opacity:.4;cursor:default}
 .metaUnlock.unlocked{border-color:var(--ally);color:var(--ally);cursor:default}
+.metaUnlock.secondary{border-color:var(--line)}
+.consentRow{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+.overlay button.secondary{background:var(--panel2);color:var(--fg);border:1px solid var(--line)}
 .rewardCards{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;max-width:900px}
 .rewardCard{width:190px;min-height:210px;background:var(--panel2);border:2px solid var(--line);border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:8px;cursor:pointer;text-align:left;color:var(--fg);font:inherit;transition:transform .12s ease}
 .rewardCard:hover{transform:translateY(-5px)}
@@ -179,8 +186,20 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <div class="menuMeta">
     <div class="metaRow"><span class="k">Condensed Crystal</span><span class="v" id="metaCondensed">0</span></div>
     <button id="unlockArtyBtn" class="metaUnlock"></button>
+    <button id="recordingToggleBtn" class="metaUnlock secondary"></button>
   </div>
   <button id="launchBtn" disabled>Launch Mission</button>
+</div>
+
+<div class="overlay" id="consentOverlay" hidden>
+  <h1>Playtest Recording</h1>
+  <p>This build can record your session — gameplay and mouse movement on this page only — so the
+     dev can watch playtests back and improve the game. Nothing else is collected, and you can
+     change this anytime from the main menu.</p>
+  <div class="consentRow">
+    <button id="consentAllowBtn">Allow Recording</button>
+    <button id="consentDisableBtn" class="secondary">Disable Recording</button>
+  </div>
 </div>
 
 <script>
@@ -229,9 +248,15 @@ const ARTY_UNLOCK_COST=15;
 function loadMeta(){
   try{
     const raw=localStorage.getItem(META_KEY);
-    if(raw){const m=JSON.parse(raw);return {condensedBank:m.condensedBank|0,unlockArtillery:!!m.unlockArtillery}}
+    if(raw){
+      const m=JSON.parse(raw);
+      // recordingConsent is tri-state: true (allowed), false (disabled), undefined (never asked
+      // — the consent screen shows until this becomes one of the other two).
+      return {condensedBank:m.condensedBank|0,unlockArtillery:!!m.unlockArtillery,
+        recordingConsent:m.recordingConsent===true?true:m.recordingConsent===false?false:undefined};
+    }
   }catch(e){}
-  return {condensedBank:0,unlockArtillery:false};
+  return {condensedBank:0,unlockArtillery:false,recordingConsent:undefined};
 }
 function saveMeta(){try{localStorage.setItem(META_KEY,JSON.stringify(meta))}catch(e){}}
 let meta=loadMeta();
@@ -570,6 +595,8 @@ function refreshMenuMeta(){
     btn.disabled=meta.condensedBank<ARTY_UNLOCK_COST;
     btn.classList.remove('unlocked');
   }
+  const rb=document.getElementById('recordingToggleBtn');
+  rb.textContent=meta.recordingConsent?'Gameplay Recording: On (click to disable)':'Gameplay Recording: Off (click to enable)';
 }
 document.getElementById('unlockArtyBtn').onclick=()=>{
   if(meta.unlockArtillery||meta.condensedBank<ARTY_UNLOCK_COST)return;
@@ -578,6 +605,24 @@ document.getElementById('unlockArtyBtn').onclick=()=>{
   saveMeta();
   refreshMenuMeta();
 };
+// Applies the player's stored choice to the actual PostHog client — opt_out_capturing_by_default
+// in the init config above means nothing records until this (or the consent screen) runs.
+function applyRecordingConsent(){
+  if(typeof posthog==='undefined')return;
+  if(meta.recordingConsent)posthog.opt_in_capturing();
+  else posthog.opt_out_capturing();
+}
+function setRecordingConsent(allow){
+  meta.recordingConsent=allow;
+  saveMeta();
+  applyRecordingConsent();
+  document.getElementById('consentOverlay').hidden=true;
+  refreshMenuMeta();
+}
+document.getElementById('consentAllowBtn').onclick=()=>setRecordingConsent(true);
+document.getElementById('consentDisableBtn').onclick=()=>setRecordingConsent(false);
+// Lets the player flip their choice anytime from the main menu, not just at the first-run gate.
+document.getElementById('recordingToggleBtn').onclick=()=>setRecordingConsent(!meta.recordingConsent);
 // Opens the main menu again after a run ends — landingSel (and the preview map) carry over from
 // the last run so a quick relaunch needs no re-picking, but the player can still choose a new spot.
 function openMainMenu(){
@@ -2476,6 +2521,10 @@ function hud(){
 // ---------- loop ----------
 function frame(ts){const dt=Math.min(0.05,(ts-lastT)/1000||0);lastT=ts;update(dt);draw();requestAnimationFrame(frame)}
 reset();drawMenuMap();refreshMenuMeta();requestAnimationFrame(frame);
+// Gameplay recording consent: ask once, up front, before the main menu is usable; a past choice
+// (allowed or disabled) is applied straight away instead of asking again.
+if(meta.recordingConsent===undefined)document.getElementById('consentOverlay').hidden=false;
+else applyRecordingConsent();
 })();
 </script>
 
