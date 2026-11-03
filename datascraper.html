@@ -426,12 +426,13 @@ const BIGGUN_RANGE=460, BIGGUN_CD=2.4, BIGGUN_DMG=22, BIGGUN_SPLASH_R=115, BIGGU
 const ARTY_R=10, ARTY_HP=90, ARTY_SPEED=55, ARTY_RANGE=7000, ARTY_CD=14, ARTY_DMG=70, ARTY_SPLASH_R=150, ARTY_PROJ_SPEED=200;
 // Mech: a meta-unlocked squad variant built for durability over speed — the tankiest combat unit
 // and highly resistant to Sanity drain while severed (MECH_SANITY_RESIST multiplies the normal
-// drain rate), but slower than a plain Squad. Fires a short-range shotgun blast of several weak,
-// instant-hit pellets (no blast radius of their own, same as a plain Squad's shot — just several
-// of them scattered around the target so a cluster of enemies can each eat one) alternating out
-// of its left and right side cannons.
+// drain rate), but slower than a plain Squad. Fires a short-range shotgun blast of several weak
+// pellets that visibly travel as tracer-line projectiles (same S.nades system as a Grenadier
+// round), but resolve as a single direct hit on whatever's nearest where they land — no blast
+// radius of their own — scattered around the target so a cluster of enemies can each eat one,
+// alternating out of its left and right side cannons.
 const MECH_R=11, MECH_HP=160, MECH_SPEED=85, MECH_RANGE=140, MECH_DMG=5, MECH_CD=1.8,
-  MECH_PELLETS=4, MECH_PELLET_SPREAD=26, MECH_PELLET_HIT_R=30, MECH_SANITY_RESIST=0.15;
+  MECH_PROJ_SPEED=460, MECH_PELLETS=4, MECH_PELLET_SPREAD=26, MECH_PELLET_HIT_R=30, MECH_SANITY_RESIST=0.15;
 const HARV_R=8, HARV_SPEED=105, HARV_VISION=280, CARRY=24;
 const BUILDER_R=7, BUILDER_SPEED=100, BUILDER_VISION=200;
 const WALL_BUILD_T=1, TURRET_BUILD_T=5, RELAY_BUILD_T=3, DEPOT_BUILD_T=4, REPAIR_HPS=25, REPAIR_DAT_PER_SEC=1;
@@ -2136,10 +2137,18 @@ function launchProjectile(from,target,opts){
   const tx=target.x,ty=target.y,d=dist(from,{x:tx,y:ty});
   const speed=opts.speed||GREN_PROJ_SPEED;
   S.nades.push({x:from.x,y:from.y,x0:from.x,y0:from.y,tx,ty,t:0,dur:Math.max(0.12,d/speed),
-    dmg:opts.dmg,splashR:opts.splashR,color:opts.color,big:!!opts.big});
+    dmg:opts.dmg,splashR:opts.splashR,color:opts.color,big:!!opts.big,pellet:!!opts.pellet});
 }
 function launchNade(from,target){launchProjectile(from,target,{speed:GREN_PROJ_SPEED})}
 function explodeNade(n){
+  // a "pellet" (Mech shotgun round) never explodes — it just resolves as a single direct hit on
+  // whatever enemy is nearest where it landed, same as a Squad's shot, no splash/shake/boom.
+  if(n.pellet){
+    let hit=null,hd=MECH_PELLET_HIT_R;
+    S.enemies.forEach(e=>{const d=dist(e,{x:n.tx,y:n.ty});if(d<hd){hd=d;hit=e}});
+    if(hit)damageEnemy(hit,n.dmg);
+    return;
+  }
   const splashR=n.splashR!=null?n.splashR:GREN_SPLASH_R*S.mods.grenSplashMult;
   const dmg=n.dmg!=null?n.dmg:GREN_DMG*S.mods.troopDmgMult;
   S.enemies.forEach(e=>{if(dist(e,{x:n.tx,y:n.ty})<=splashR)damageEnemy(e,dmg)});
@@ -2433,18 +2442,17 @@ function update(dt){
         if(gren){launchNade(t,best);t.cd=GREN_CD/S.mods.grenFireRateMult}
         else if(arty){launchProjectile(t,best,{speed:ARTY_PROJ_SPEED,dmg:ARTY_DMG,splashR:ARTY_SPLASH_R,color:C.condensed,big:true});t.cd=ARTY_CD}
         else if(mech){
-          // shotgun blast: several weak, instant-hit pellets (no blast radius — each one's just
-          // a direct hit like a Squad's shot) scattered around the target, so a tight cluster of
-          // enemies can each catch one instead of a single point taking it all. Fired from
-          // whichever side cannon didn't fire last time, alternating shot to shot.
+          // shotgun blast: several weak pellets, each a visible travelling tracer-line projectile
+          // (see launchProjectile/explodeNade's pellet branch) scattered around the target, so a
+          // tight cluster of enemies can each catch one instead of a single point taking it all —
+          // but no pellet carries a blast radius of its own. Fired from whichever side cannon
+          // didn't fire last time, alternating shot to shot.
           t.ang=Math.atan2(best.y-t.y,best.x-t.x);
           const perp=t.ang+(t.mechSide?Math.PI/2:-Math.PI/2);
           const muzzle={x:t.x+Math.cos(perp)*9,y:t.y+Math.sin(perp)*9};
           for(let i=0;i<MECH_PELLETS;i++){
             const jx=best.x+rnd(-MECH_PELLET_SPREAD,MECH_PELLET_SPREAD),jy=best.y+rnd(-MECH_PELLET_SPREAD,MECH_PELLET_SPREAD);
-            let hit=null,hd=MECH_PELLET_HIT_R;
-            S.enemies.forEach(e=>{const d=dist(e,{x:jx,y:jy});if(d<hd){hd=d;hit=e}});
-            if(hit){damageEnemy(hit,MECH_DMG*S.mods.troopDmgMult);tracer(muzzle,hit,C.mech)}
+            launchProjectile(muzzle,{x:jx,y:jy},{speed:MECH_PROJ_SPEED,dmg:MECH_DMG*S.mods.troopDmgMult,color:C.mech,pellet:true});
           }
           t.mechSide=!t.mechSide;
           t.cd=MECH_CD;
@@ -3010,8 +3018,16 @@ function draw(){
     if(t.sanity<SANITY_MAX)sanityBar(t.x,t.y-10,16,t.sanity/SANITY_MAX);
     if(!t.tetherOk)drawCutGlyph(t.x,t.y); if(t.following)drawFollowGlyph(t.x,t.y);
     if(sel&&t.dest){ctx.strokeStyle='rgba(94,200,255,0.35)';ctx.beginPath();ctx.moveTo(t.x,t.y);ctx.lineTo(t.dest.x,t.dest.y);ctx.stroke()}});
-  // grenades/artillery shells in flight
-  S.nades.forEach(n=>{ctx.fillStyle=n.color||C.accent;ctx.beginPath();ctx.arc(n.x,n.y,n.big?6:4,0,Math.PI*2);ctx.fill()});
+  // grenades/artillery shells in flight — a Mech pellet instead draws as a short tracer line
+  // trailing back along its flight path, not a dot, so the shotgun spread actually reads as a
+  // spray of fired rounds rather than only flashing on whatever each one happens to hit.
+  S.nades.forEach(n=>{
+    if(n.pellet){
+      const dx=n.tx-n.x0,dy=n.ty-n.y0,L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L,len=14;
+      ctx.strokeStyle=n.color||C.mech;ctx.lineWidth=2;ctx.beginPath();
+      ctx.moveTo(n.x-ux*len,n.y-uy*len);ctx.lineTo(n.x,n.y);ctx.stroke();
+    }else{ctx.fillStyle=n.color||C.accent;ctx.beginPath();ctx.arc(n.x,n.y,n.big?6:4,0,Math.PI*2);ctx.fill()}
+  });
   // harvesters
   S.harvesters.forEach(h=>{const sel=S.sel.harv.has(h.id);if(sel){ctx.strokeStyle=C.harv;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(h.x,h.y,h.r+5,0,Math.PI*2);ctx.stroke()}
     ctx.fillStyle=h.flashT>0?'#fff':C.harv;ctx.fillRect(h.x-h.r,h.y-h.r,h.r*2,h.r*2);
