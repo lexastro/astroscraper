@@ -601,7 +601,7 @@ function currentTier(v){
 }
 
 // ---------- state ----------
-let S, cam, mouse={x:0,y:0,wx:0,wy:0,down:false,drag:null,panning:false,touchStart:null}, keys={}, buildMode=null, lastT=0, msgT=0, terrain, terrainCv, prodMenuOpen=false;
+let S, cam, mouse={x:0,y:0,wx:0,wy:0,down:false,drag:null,panning:false,touchStart:null,wallDragging:false}, keys={}, buildMode=null, lastT=0, msgT=0, terrain, terrainCv, prodMenuOpen=false;
 // touch input state: multi-touch pinch-zoom, long-press-then-drag box select, tap-to-command, manual double-tap
 let touchPts=new Map(), pinch=null, longPressTimer=null, lastTap=null;
 // ---------- main menu / landing zone ----------
@@ -1537,7 +1537,7 @@ cv.addEventListener('pointerdown',e=>{
       pinch={dist:Math.hypot(a.x-b.x,a.y-b.y),z:cam.z,mid:{x:(a.x+b.x)/2,y:(a.y+b.y)/2}};
       return;
     }
-    if(buildMode){tryBuild(w);return}
+    if(buildMode){tryBuild(w);if(buildMode==='wall')mouse.wallDragging=true;return}
     // don't commit to pan-vs-select yet: a quick drag pans the camera, holding still briefly
     // then dragging draws a selection box (set once the timer below fires) — see pointermove/up.
     mouse.touchStart={x:e.clientX,y:e.clientY,wx:w.x,wy:w.y,moved:false};
@@ -1553,12 +1553,15 @@ cv.addEventListener('pointerdown',e=>{
   if(e.button===1||(e.button===0&&keys[' '])){mouse.panning=true;mouse.x=e.clientX;mouse.y=e.clientY;return}
   if(e.button===2){rightClick(w);return}
   if(e.button===0){
-    if(buildMode){tryBuild(w);return}
+    if(buildMode){tryBuild(w);if(buildMode==='wall')mouse.wallDragging=true;return}
     mouse.down=true;mouse.drag={x0:w.x,y0:w.y,x1:w.x,y1:w.y,moved:false};
   }
 });
 cv.addEventListener('pointermove',e=>{
   const w=toWorld(e.clientX,e.clientY);mouse.wx=w.x;mouse.wy=w.y;
+  // click-and-drag wall building: each new grid cell the pointer crosses while held down gets its
+  // own wall queued — tryBuild already no-ops quietly on a cell that's taken, out of range, etc.
+  if(mouse.wallDragging){if(buildMode==='wall')tryBuild(w);return}
   if(e.pointerType==='touch'&&touchPts.has(e.pointerId))touchPts.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(pinch&&touchPts.size>=2){
     const ids=[...touchPts.keys()];const a=touchPts.get(ids[0]),b=touchPts.get(ids[1]);
@@ -1581,6 +1584,7 @@ cv.addEventListener('pointermove',e=>{
   if(mouse.drag){mouse.drag.x1=w.x;mouse.drag.y1=w.y;if(Math.abs(w.x-mouse.drag.x0)+Math.abs(w.y-mouse.drag.y0)>6)mouse.drag.moved=true}
 });
 cv.addEventListener('pointerup',e=>{
+  if(mouse.wallDragging){mouse.wallDragging=false;return}
   if(e.pointerType==='touch'){
     touchPts.delete(e.pointerId);
     if(pinch){if(touchPts.size<2)pinch=null;return}
