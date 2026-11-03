@@ -72,6 +72,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 .throttle .thStat.dat{color:var(--dat)} .throttle .thStat.condensed{color:var(--condensed)}
 .mini{position:absolute;right:max(16px,env(safe-area-inset-right,0px));bottom:max(12px,env(safe-area-inset-bottom,0px));border:1px solid var(--line);background:var(--panel);border-radius:4px;overflow:hidden;cursor:pointer}
 .mini canvas{display:block}
+.miniToggle{display:none}
 .help{position:absolute;right:max(16px,env(safe-area-inset-right,0px));top:calc(env(safe-area-inset-top,0px) + 70px);background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:10px 12px;max-width:270px;font-size:12px;line-height:1.45;color:var(--muted)}
 .help b{color:var(--fg);font-weight:600} .help kbd{font-family:var(--mono);background:var(--panel2);padding:0 4px;border-radius:3px;color:var(--fg)}
 .help button{position:absolute;top:4px;right:6px;background:none;border:0;color:var(--muted);cursor:pointer;font-size:14px}
@@ -165,6 +166,15 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   .buildOverflowPanel.open{display:flex}
   #buildMoreBtn{display:inline-flex;align-items:center;justify-content:center;min-width:44px}
   .prod{bottom:max(88px,calc(88px + env(safe-area-inset-bottom,0px)))}
+  /* minimap: minimized by default above the build bar, with an expand/collapse icon */
+  .mini{bottom:max(70px,calc(70px + env(safe-area-inset-bottom,0px)));width:60px;height:60px;transition:width .15s ease,height .15s ease}
+  .mini canvas{width:60px;height:60px}
+  .mini.expanded{width:180px;height:180px}
+  .mini.expanded canvas{width:180px;height:180px}
+  .miniToggle{display:flex;align-items:center;justify-content:center;position:absolute;top:2px;right:2px;
+    width:20px;height:20px;border-radius:50%;background:rgba(11,14,18,.75);border:1px solid var(--line);
+    color:var(--fg);font-size:11px;line-height:1;cursor:pointer;z-index:1}
+  .zoomCtrl{bottom:max(260px,calc(260px + env(safe-area-inset-bottom,0px)))}
 }
 @media (max-width:600px){.stat{min-width:70px}.stat .v{font-size:14px}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}.overlay{animation:none}.bar i.hp.low{animation:none}}
@@ -223,7 +233,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <button id="bBuildArtillery" class="prodBtn" hidden><span><span class="icon">☄</span>Artillery</span><span class="cost" id="cArtilleryCost">140 dat</span></button>
 </div>
 
-<div class="mini"><canvas id="mini" width="180" height="180"></canvas></div>
+<div class="mini" id="miniWrap"><canvas id="mini" width="180" height="180"></canvas><button id="miniToggle" class="miniToggle" aria-label="Expand minimap">⤢</button></div>
 <div class="zoomCtrl" id="zoomCtrl"><button id="zoomIn" aria-label="Zoom in">+</button><button id="zoomOut" aria-label="Zoom out">−</button></div>
 
 <div class="help" id="help">
@@ -1463,7 +1473,20 @@ document.getElementById('bPause').onclick=toggleDrillPause;
 document.getElementById('helpClose').onclick=()=>{document.getElementById('help').hidden=true};
 document.getElementById('ovBtn').onclick=()=>{document.getElementById('overlay').hidden=true;openMainMenu()};
 document.getElementById('pauseResumeBtn').onclick=togglePause;
-mini.addEventListener('pointerdown',e=>{const r=mini.getBoundingClientRect();cam.x=(e.clientX-r.left)/r.width*W;cam.y=(e.clientY-r.top)/r.height*H;clampCam()});
+const miniWrap=document.getElementById('miniWrap'), miniToggle=document.getElementById('miniToggle');
+function setMiniExpanded(v){
+  miniWrap.classList.toggle('expanded',v);
+  miniToggle.textContent=v?'⤡':'⤢';
+  miniToggle.setAttribute('aria-label',v?'Collapse minimap':'Expand minimap');
+}
+miniToggle.addEventListener('pointerdown',e=>{e.stopPropagation()});
+miniToggle.addEventListener('click',()=>setMiniExpanded(!miniWrap.classList.contains('expanded')));
+mini.addEventListener('pointerdown',e=>{
+  // on narrow screens the minimap starts minimized (see .miniToggle in CSS) — tapping it while
+  // minimized expands it instead of panning the camera, same as tapping the expand icon
+  if(getComputedStyle(miniToggle).display!=='none'&&!miniWrap.classList.contains('expanded')){setMiniExpanded(true);return}
+  const r=mini.getBoundingClientRect();cam.x=(e.clientX-r.left)/r.width*W;cam.y=(e.clientY-r.top)/r.height*H;clampCam()
+});
 document.getElementById('zoomIn').onclick=()=>{cam.z=Math.min(2.2,cam.z*1.2);clampCam()};
 document.getElementById('zoomOut').onclick=()=>{cam.z=Math.max(0.35,cam.z*0.8333);clampCam()};
 document.getElementById('helpToggleBtn').onclick=()=>{document.getElementById('help').classList.toggle('open')};
