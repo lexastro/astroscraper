@@ -338,7 +338,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <canvas id="menuMap" width="480" height="480"></canvas>
   <p id="menuHint">Click inside the dashed Rim band to choose your landing zone.</p>
   <div class="menuMeta">
-    <div class="metaRow"><span class="k">Condensed Crystal</span><span class="v" id="metaCondensed">0</span></div>
+    <div class="metaRow"><span class="k">Living Crystal</span><span class="v" id="metaLiving">0</span></div>
     <button id="openUnlocksBtn" class="metaUnlock">Unlocks</button>
   </div>
   <button id="launchBtn" disabled>Launch Mission</button>
@@ -347,8 +347,8 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 
 <div class="overlay" id="unlocksOverlay" hidden>
   <h1>Unlocks</h1>
-  <p>Spend Condensed Crystal — earned by draining veins — to permanently unlock a unit for every future run.</p>
-  <div class="metaRow"><span class="k">Condensed Crystal</span><span class="v" id="unlocksCondensed">0</span></div>
+  <p>Spend Living Crystal — the hidden vein's reward — to permanently unlock a unit for every future run.</p>
+  <div class="metaRow"><span class="k">Living Crystal</span><span class="v" id="unlocksLiving">0</span></div>
   <div class="unlockCards" id="unlockCards"></div>
   <button id="unlocksBackBtn" class="secondary">Back</button>
 </div>
@@ -415,7 +415,9 @@ const COST={wall:5,turret:75,relay:15,depot:150,harvester:75,troop:30,builder:20
 // not cookies, since this never needs to leave the browser or ride along with a server request,
 // and localStorage holds far more than a cookie's ~4KB.
 const META_KEY='datascraper_meta_v1';
-const ARTY_UNLOCK_COST=50, GREN_UNLOCK_COST=15;
+// Unlocks are now priced in Living Crystal, not Condensed — it's the rarer of the two (only a
+// handful of veins ever yield any), so even these small costs mean something.
+const ARTY_UNLOCK_COST=2, GREN_UNLOCK_COST=1;
 function loadMeta(){
   try{
     const raw=localStorage.getItem(META_KEY);
@@ -423,11 +425,11 @@ function loadMeta(){
       const m=JSON.parse(raw);
       // recordingConsent is tri-state: true (allowed), false (disabled), undefined (never asked
       // — the consent screen shows until this becomes one of the other two).
-      return {condensedBank:m.condensedBank|0,unlockArtillery:!!m.unlockArtillery,unlockGrenadier:!!m.unlockGrenadier,
+      return {condensedBank:m.condensedBank|0,livingBank:m.livingBank|0,unlockArtillery:!!m.unlockArtillery,unlockGrenadier:!!m.unlockGrenadier,
         recordingConsent:m.recordingConsent===true?true:m.recordingConsent===false?false:undefined};
     }
   }catch(e){}
-  return {condensedBank:0,unlockArtillery:false,unlockGrenadier:false,recordingConsent:undefined};
+  return {condensedBank:0,livingBank:0,unlockArtillery:false,unlockGrenadier:false,recordingConsent:undefined};
 }
 function saveMeta(){try{localStorage.setItem(META_KEY,JSON.stringify(meta))}catch(e){}}
 let meta=loadMeta();
@@ -756,7 +758,7 @@ document.getElementById('launchBtn').onclick=()=>{
   document.getElementById('menuOverlay').hidden=true;
   reset(landingSel);
 };
-// Shared by every "spend Condensed Crystal to permanently unlock X" unit — Artillery, Grenadier,
+// Shared by every "spend Living Crystal to permanently unlock X" unit — Artillery, Grenadier,
 // and whatever else joins them later. Rendered as shop cards on the separate Unlocks panel
 // (see renderUnlockCards) rather than as individual buttons in the main menu itself.
 const UNLOCKS=[
@@ -764,27 +766,27 @@ const UNLOCKS=[
   {flag:'unlockArtillery',cost:ARTY_UNLOCK_COST,name:'Artillery',icon:'☄'},
 ];
 function refreshMenuMeta(){
-  document.getElementById('metaCondensed').textContent=meta.condensedBank;
+  document.getElementById('metaLiving').textContent=meta.livingBank;
   const rb=document.getElementById('recordingToggleBtn');
   rb.textContent=meta.recordingConsent?'Gameplay Recording: On (click to disable)':'Gameplay Recording: Off (click to enable)';
   const allUnlocked=UNLOCKS.every(u=>meta[u.flag]);
   document.getElementById('debugUnlockAllBtn').textContent=allUnlocked?'[Debug] Lock everything again':'[Debug] Unlock everything free';
 }
 function renderUnlockCards(){
-  document.getElementById('unlocksCondensed').textContent=meta.condensedBank;
+  document.getElementById('unlocksLiving').textContent=meta.livingBank;
   const host=document.getElementById('unlockCards');
   host.innerHTML='';
   UNLOCKS.forEach(u=>{
     const card=document.createElement('div');
     card.className='unlockCard'+(meta[u.flag]?' unlocked':'');
     card.innerHTML=`<span class="ucIcon">${u.icon}</span><span class="ucName">${u.name}</span>`+
-      `<span class="ucPrice">${u.cost} Condensed Crystal</span>`+
+      `<span class="ucPrice">${u.cost} Living Crystal</span>`+
       `<button class="metaUnlock${meta[u.flag]?' unlocked':''}">${meta[u.flag]?'Unlocked':'Unlock'}</button>`;
     const btn=card.querySelector('button');
-    btn.disabled=meta[u.flag]||meta.condensedBank<u.cost;
+    btn.disabled=meta[u.flag]||meta.livingBank<u.cost;
     btn.onclick=()=>{
-      if(meta[u.flag]||meta.condensedBank<u.cost)return;
-      meta.condensedBank-=u.cost;
+      if(meta[u.flag]||meta.livingBank<u.cost)return;
+      meta.livingBank-=u.cost;
       meta[u.flag]=true;
       saveMeta();
       renderUnlockCards();
@@ -2591,13 +2593,16 @@ function update(dt){
   {const vm=S.mods.visionMult;
   unveil(B.x,B.y,BASE_VISION*vm);S.troops.forEach(t=>unveil(t.x,t.y,TROOP_VISION*vm*S.mods.squadRangeMult));S.harvesters.forEach(h=>unveil(h.x,h.y,HARV_VISION*vm));S.builders.forEach(bu=>unveil(bu.x,bu.y,BUILDER_VISION*vm));}
 }
-// Called exactly once per run, right as it ends (win or lose) — banks whatever Condensed Crystal
-// was collected into the persistent save, same as a roguelite "you keep what you earned" payout.
+// Called exactly once per run, right as it ends (win or lose) — banks whatever Condensed and
+// Living Crystal were collected into the persistent save, same as a roguelite "you keep what you
+// earned" payout. Living Crystal is what Unlocks actually spends; Condensed just keeps accruing.
 function showOverlay(t,s){
   meta.condensedBank+=S.condensed;
+  meta.livingBank+=S.living;
   saveMeta();
   document.getElementById('ovTitle').textContent=t;
-  document.getElementById('ovText').textContent=`${s} Banked ${S.condensed} Condensed Crystal (total: ${meta.condensedBank}).`;
+  document.getElementById('ovText').textContent=`${s} Banked ${S.condensed} Condensed Crystal (total: ${meta.condensedBank})`+
+    (S.living?` and ${S.living} Living Crystal (total: ${meta.livingBank}).`:'.');
   document.getElementById('overlay').hidden=false;
 }
 const TIER_ORDER=Object.keys(TIER_MULT);
