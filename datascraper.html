@@ -80,6 +80,13 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 .overlay button:disabled{opacity:.4;cursor:default}
 #menuMap{width:min(78vw,60vh,440px);height:min(78vw,60vh,440px);background:#10151b;border:1px solid var(--line);border-radius:4px;cursor:crosshair;touch-action:none}
 #menuHint{font-size:12px}
+.menuMeta{display:flex;flex-direction:column;align-items:center;gap:8px;margin:2px 0}
+.menuMeta .metaRow{display:flex;gap:8px;align-items:baseline;font-family:var(--mono)}
+.menuMeta .metaRow .k{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.menuMeta .metaRow .v{font-size:16px;color:var(--condensed)}
+.metaUnlock{background:var(--panel2);border:1px solid var(--condensed);color:var(--fg);font:inherit;font-size:12px;padding:8px 14px;border-radius:4px;cursor:pointer}
+.metaUnlock:disabled{opacity:.4;cursor:default}
+.metaUnlock.unlocked{border-color:var(--ally);color:var(--ally);cursor:default}
 .rewardCards{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;max-width:900px}
 .rewardCard{width:190px;min-height:210px;background:var(--panel2);border:2px solid var(--line);border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:8px;cursor:pointer;text-align:left;color:var(--fg);font:inherit;transition:transform .12s ease}
 .rewardCard:hover{transform:translateY(-5px)}
@@ -137,6 +144,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <button id="bBuildGrenadier" class="prodBtn"><span>Grenadier</span><span class="cost" id="cGrenadierCost">45 dat</span></button>
   <button id="bBuildHarv" class="prodBtn"><span>Harvester</span><span class="cost" id="cHarvCost">20 dat</span></button>
   <button id="bBuildBuilder" class="prodBtn"><span>Builder</span><span class="cost" id="cBuilderCost">75 dat</span></button>
+  <button id="bBuildArtillery" class="prodBtn" hidden><span>Artillery</span><span class="cost" id="cArtilleryCost">140 dat</span></button>
 </div>
 
 <div class="mini"><canvas id="mini" width="180" height="180"></canvas></div>
@@ -151,7 +159,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 </div>
 
 <div class="overlay" id="overlay" hidden>
-  <h1 id="ovTitle"></h1><p id="ovText"></p><button id="ovBtn">Restart</button>
+  <h1 id="ovTitle"></h1><p id="ovText"></p><button id="ovBtn">Return to Base</button>
 </div>
 
 <div class="overlay" id="pauseOverlay" hidden>
@@ -168,6 +176,10 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <p>Pick a landing zone on the Rim for the Bastion to touch down, then launch the mission.</p>
   <canvas id="menuMap" width="480" height="480"></canvas>
   <p id="menuHint">Click inside the dashed Rim band to choose your landing zone.</p>
+  <div class="menuMeta">
+    <div class="metaRow"><span class="k">Condensed Crystal</span><span class="v" id="metaCondensed">0</span></div>
+    <button id="unlockArtyBtn" class="metaUnlock"></button>
+  </div>
   <button id="launchBtn" disabled>Launch Mission</button>
 </div>
 
@@ -187,6 +199,11 @@ const GREN_HP=100, GREN_RANGE=190, GREN_DMG=14, GREN_CD=1.3, GREN_SPLASH_R=70, G
 // than a Grenadier's round, but a much slower fire rate, and it will only ever fire on an enemy
 // the player has actually revealed (visible()), not just anything that wanders into range.
 const BIGGUN_RANGE=460, BIGGUN_CD=2.4, BIGGUN_DMG=22, BIGGUN_SPLASH_R=115, BIGGUN_PROJ_SPEED=260;
+// Artillery: a meta-unlocked squad variant (see META_* below) — its range covers the whole map
+// (it only ever fires on an enemy the player has actually revealed, same restriction as Big
+// Guns, so that range isn't omniscient), but its reload is enormous and it moves at a crawl —
+// a slow, heavy-hitting support piece, not something you lead an assault with.
+const ARTY_R=10, ARTY_HP=90, ARTY_SPEED=55, ARTY_RANGE=7000, ARTY_CD=14, ARTY_DMG=70, ARTY_SPLASH_R=150, ARTY_PROJ_SPEED=200;
 const HARV_R=8, HARV_SPEED=105, HARV_VISION=280, CARRY=24;
 const BUILDER_R=7, BUILDER_SPEED=100, BUILDER_VISION=200;
 const WALL_BUILD_T=1, TURRET_BUILD_T=5, RELAY_BUILD_T=3, DEPOT_BUILD_T=4, REPAIR_HPS=25, REPAIR_DAT_PER_SEC=1;
@@ -203,7 +220,21 @@ const BASE_GUN_RANGE=260, BASE_GUN_DMG=18, BASE_GUN_CD=0.5;
 // deliberately untouched, so it's no shortcut around scouting or the Living Crystal triangulation.
 const PING_RADIUS=2200, PING_CD=60;
 const WALL_HP=220;
-const COST={wall:5,turret:50,relay:15,depot:150,harvester:20,troop:30,builder:75,grenadier:45};
+const COST={wall:5,turret:50,relay:15,depot:150,harvester:20,troop:30,builder:75,grenadier:45,artillery:140};
+// Persistent meta-progression: saved to localStorage, carried across runs and page reloads —
+// not cookies, since this never needs to leave the browser or ride along with a server request,
+// and localStorage holds far more than a cookie's ~4KB.
+const META_KEY='datascraper_meta_v1';
+const ARTY_UNLOCK_COST=15;
+function loadMeta(){
+  try{
+    const raw=localStorage.getItem(META_KEY);
+    if(raw){const m=JSON.parse(raw);return {condensedBank:m.condensedBank|0,unlockArtillery:!!m.unlockArtillery}}
+  }catch(e){}
+  return {condensedBank:0,unlockArtillery:false};
+}
+function saveMeta(){try{localStorage.setItem(META_KEY,JSON.stringify(meta))}catch(e){}}
+let meta=loadMeta();
 const ZONE_R=200;
 const TCELL=60, TGX=Math.ceil(W/TCELL), TGY=Math.ceil(H/TCELL), MUD_MULT=0.55;
 // Terrain values: 0 plain, 1 mud (slow), 2 rock (impassable to everyone), 3 rift (impassable to
@@ -368,7 +399,7 @@ function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
 function key(gx,gy){return gx+','+gy}
 function bandAt(x,y){const d=Math.abs(y-EPI.y);return d<=CORE_R?'core':d<=DENSE_R?'dense':'rim'}
 
-function mkTroop(id,kind){kind=kind||'troop';const hp=kind==='grenadier'?GREN_HP:70;return {id,kind,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp,maxHp:hp,r:TROOP_R,dest:null,target:null,state:'idle',cd:0,tetherOk:true,severed:false,sanity:SANITY_MAX,trail:null,cableHp:0,cableLen:0,cableMaxed:false,following:false,followAng:0,followDist:0}}
+function mkTroop(id,kind){kind=kind||'troop';const hp=kind==='artillery'?ARTY_HP:kind==='grenadier'?GREN_HP:70;const r=kind==='artillery'?ARTY_R:TROOP_R;return {id,kind,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp,maxHp:hp,r,dest:null,target:null,state:'idle',cd:0,tetherOk:true,severed:false,sanity:SANITY_MAX,trail:null,cableHp:0,cableLen:0,cableMaxed:false,following:false,followAng:0,followDist:0}}
 function mkHarv(id){return {id,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp:50,maxHp:50,r:HARV_R,dest:null,node:null,carry:0,state:'idle',autoLoop:true,hv:0,tetherOk:true,severed:false,sanity:SANITY_MAX,trail:null,cableHp:0,cableLen:0,cableMaxed:false,following:false,followAng:0,followDist:0}}
 function mkBuilder(id){return {id,x:S.base.x+rnd(-30,30),y:S.base.y+rnd(-30,30),hp:40,maxHp:40,r:BUILDER_R,dest:null,state:'idle',mode:'build',target:null,tetherOk:true,severed:false,sanity:SANITY_MAX,trail:null,cableHp:0,cableLen:0,cableMaxed:false,following:false,followAng:0,followDist:0}}
 // Stats for the hostile unit a mobile ally becomes if its Sanity ever hits 0 — a notch weaker
@@ -376,6 +407,7 @@ function mkBuilder(id){return {id,x:S.base.x+rnd(-30,30),y:S.base.y+rnd(-30,30),
 const CORRUPT_STATS={
   troop:{r:TROOP_R+1,hp:50,speed:TROOP_SPEED,dmg:8},
   grenadier:{r:TROOP_R+2,hp:70,speed:TROOP_SPEED,dmg:10},
+  artillery:{r:ARTY_R+1,hp:60,speed:ARTY_SPEED,dmg:14},
   harvester:{r:HARV_R+1,hp:35,speed:HARV_SPEED,dmg:4},
   builder:{r:BUILDER_R+1,hp:30,speed:BUILDER_SPEED,dmg:4},
 };
@@ -526,6 +558,38 @@ document.getElementById('launchBtn').onclick=()=>{
   document.getElementById('menuOverlay').hidden=true;
   reset(landingSel);
 };
+function refreshMenuMeta(){
+  document.getElementById('metaCondensed').textContent=meta.condensedBank;
+  const btn=document.getElementById('unlockArtyBtn');
+  if(meta.unlockArtillery){
+    btn.textContent='Artillery Unlocked';
+    btn.disabled=true;
+    btn.classList.add('unlocked');
+  }else{
+    btn.textContent=`Unlock Artillery — ${ARTY_UNLOCK_COST} Condensed Crystal`;
+    btn.disabled=meta.condensedBank<ARTY_UNLOCK_COST;
+    btn.classList.remove('unlocked');
+  }
+}
+document.getElementById('unlockArtyBtn').onclick=()=>{
+  if(meta.unlockArtillery||meta.condensedBank<ARTY_UNLOCK_COST)return;
+  meta.condensedBank-=ARTY_UNLOCK_COST;
+  meta.unlockArtillery=true;
+  saveMeta();
+  refreshMenuMeta();
+};
+// Opens the main menu again after a run ends — landingSel (and the preview map) carry over from
+// the last run so a quick relaunch needs no re-picking, but the player can still choose a new spot.
+function openMainMenu(){
+  menuOpen=true;
+  S.paused=true;
+  document.getElementById('menuOverlay').hidden=false;
+  refreshMenuMeta();
+  drawMenuMap();
+  const launchBtn=document.getElementById('launchBtn');
+  if(landingSel){launchBtn.disabled=false;document.getElementById('menuHint').textContent='Landing zone selected — launch when ready.'}
+  else{launchBtn.disabled=true;document.getElementById('menuHint').textContent='Click inside the dashed Rim band to choose your landing zone.'}
+}
 function spawnEnemy(x,y,kind){
   const big=kind==='wave'&&Math.random()<0.2;
   const sab=kind==='saboteur';
@@ -1129,13 +1193,14 @@ document.getElementById('bBuildTroop').onclick=buildTroop;
 document.getElementById('bBuildGrenadier').onclick=buildGrenadier;
 document.getElementById('bBuildHarv').onclick=buildHarvester;
 document.getElementById('bBuildBuilder').onclick=buildBuilderUnit;
+document.getElementById('bBuildArtillery').onclick=buildArtillery;
 document.querySelectorAll('#throttlePanel button[data-th]').forEach(b=>b.onclick=()=>{
   if(S.base.locked)return; // speed is locked in for the drill once it's started
   tryLockdown(throttleValue(+b.dataset.th));
 });
 document.getElementById('bPause').onclick=toggleDrillPause;
 document.getElementById('helpClose').onclick=()=>{document.getElementById('help').hidden=true};
-document.getElementById('ovBtn').onclick=()=>reset(landingSel);
+document.getElementById('ovBtn').onclick=()=>{document.getElementById('overlay').hidden=true;openMainMenu()};
 document.getElementById('pauseResumeBtn').onclick=togglePause;
 mini.addEventListener('pointerdown',e=>{const r=mini.getBoundingClientRect();cam.x=(e.clientX-r.left)/r.width*W;cam.y=(e.clientY-r.top)/r.height*H;clampCam()});
 function closeProdMenu(){prodMenuOpen=false;const el=document.getElementById('prodMenu');if(el)el.hidden=true}
@@ -1165,6 +1230,14 @@ function buildBuilderUnit(){
   S.dat-=COST.builder;
   S.builders.push(mkBuilder(Date.now()+Math.floor(Math.random()*1000)));
   msg('Builder constructed.');
+  updateBuildBar();
+}
+function buildArtillery(){
+  if(!meta.unlockArtillery)return;
+  if(S.dat<COST.artillery){msg('Not enough Dat Crystal for an artillery piece.');return}
+  S.dat-=COST.artillery;
+  S.troops.push(mkTroop(Date.now()+Math.floor(Math.random()*1000),'artillery'));
+  msg('Artillery piece deployed.');
   updateBuildBar();
 }
 function resumeAutoLoop(){
@@ -1255,6 +1328,9 @@ function updateBuildBar(){
     document.getElementById('bBuildGrenadier').disabled=S.dat<COST.grenadier;
     document.getElementById('bBuildHarv').disabled=S.dat<COST.harvester;
     document.getElementById('bBuildBuilder').disabled=S.dat<COST.builder;
+    const ab=document.getElementById('bBuildArtillery');
+    ab.hidden=!meta.unlockArtillery;
+    ab.disabled=S.dat<COST.artillery;
   }
   // the throttle panel doubles as the "pick a speed to begin" prompt: visible as soon as the
   // Bastion is parked on a found vein, buttons still clickable (picking one starts the drill at
@@ -1719,7 +1795,7 @@ function update(dt){
   tetherPass(S.harvesters,HARV_SPEED*S.mods.moveSpeedMult,dt);
   tetherPass(S.builders,BUILDER_SPEED*S.mods.moveSpeedMult,dt);
   // Sanity hit 0 — the unit snaps and defects to the enemy side
-  S.troops=S.troops.filter(t=>{if(t.sanity<=0){corruptUnit(t,t.kind,t.kind==='grenadier'?'A Grenadier':'A Squad');S.sel.troops.delete(t.id);return false}return true});
+  S.troops=S.troops.filter(t=>{if(t.sanity<=0){corruptUnit(t,t.kind,t.kind==='grenadier'?'A Grenadier':t.kind==='artillery'?'An Artillery Piece':'A Squad');S.sel.troops.delete(t.id);return false}return true});
   S.harvesters=S.harvesters.filter(h=>{if(h.sanity<=0){corruptUnit(h,'harvester','A Harvester');S.sel.harv.delete(h.id);return false}return true});
   S.builders=S.builders.filter(bu=>{if(bu.sanity<=0){releaseBuilderClaim(bu);corruptUnit(bu,'builder','A Builder');S.sel.bu.delete(bu.id);return false}return true});
 
@@ -1727,23 +1803,27 @@ function update(dt){
   // fight and reveal vision — they just do it unpowered while their Sanity drains.
   S.troops.forEach(t=>{
     t.cd-=dt;
-    const gren=t.kind==='grenadier';
-    const range=(gren?GREN_RANGE:TROOP_RANGE)*S.mods.squadRangeMult;
+    const gren=t.kind==='grenadier', arty=t.kind==='artillery';
+    const range=(arty?ARTY_RANGE:gren?GREN_RANGE:TROOP_RANGE)*S.mods.squadRangeMult;
+    const speed=arty?ARTY_SPEED:TROOP_SPEED;
     const factor=roughFactor(t.x,t.y);
-    if(t.following){followMove(t,TROOP_SPEED,dt)}
+    if(t.following){followMove(t,speed,dt)}
     else if(t.state==='move'&&t.dest){
       const aim=waypointFor(t,t.dest.x,t.dest.y);
-      moveToward(t,aim,TROOP_SPEED*factor,dt);
+      moveToward(t,aim,speed*factor,dt);
       if(dist(t,t.dest)<4){t.dest=null;t.state='idle'}
     }
     else if(t.state==='attack'){
       if(!t.target||t.target.hp<=0){t.target=null;t.state='idle'}
-      else if(dist(t,t.target)>range-10){const aim=waypointFor(t,t.target.x,t.target.y);moveToward(t,aim,TROOP_SPEED*factor,dt)}
+      else if(dist(t,t.target)>range-10){const aim=waypointFor(t,t.target.x,t.target.y);moveToward(t,aim,speed*factor,dt)}
     }
-    // auto fire — a following troop still defends itself along the way
-    if(t.cd<=0){let best=null,bd=range;S.enemies.forEach(e=>{const d=dist(e,t);if(d<bd){bd=d;best=e}});
+    // auto fire — a following troop still defends itself along the way. Artillery only ever
+    // fires on an enemy the player has actually revealed (visible()) — its map-spanning range
+    // isn't omniscient, same restriction as the Big Guns reward card.
+    if(t.cd<=0){let best=null,bd=range;S.enemies.forEach(e=>{if(arty&&!visible(e))return;const d=dist(e,t);if(d<bd){bd=d;best=e}});
       if(best){
         if(gren){launchNade(t,best);t.cd=GREN_CD/S.mods.grenFireRateMult}
+        else if(arty){launchProjectile(t,best,{speed:ARTY_PROJ_SPEED,dmg:ARTY_DMG,splashR:ARTY_SPLASH_R,color:C.condensed,big:true});t.cd=ARTY_CD}
         else{damageEnemy(best,TROOP_DMG*S.mods.troopDmgMult);tracer(t,best,C.ally);t.cd=TROOP_CD}
         if(t.state==='idle'&&bd>range*0.7)t.target=best;
       }
@@ -2016,7 +2096,15 @@ function update(dt){
   {const vm=S.mods.visionMult;
   unveil(B.x,B.y,BASE_VISION*vm);S.troops.forEach(t=>unveil(t.x,t.y,TROOP_VISION*vm*S.mods.squadRangeMult));S.harvesters.forEach(h=>unveil(h.x,h.y,HARV_VISION*vm));S.builders.forEach(bu=>unveil(bu.x,bu.y,BUILDER_VISION*vm));}
 }
-function showOverlay(t,s){document.getElementById('ovTitle').textContent=t;document.getElementById('ovText').textContent=s;document.getElementById('overlay').hidden=false}
+// Called exactly once per run, right as it ends (win or lose) — banks whatever Condensed Crystal
+// was collected into the persistent save, same as a roguelite "you keep what you earned" payout.
+function showOverlay(t,s){
+  meta.condensedBank+=S.condensed;
+  saveMeta();
+  document.getElementById('ovTitle').textContent=t;
+  document.getElementById('ovText').textContent=`${s} Banked ${S.condensed} Condensed Crystal (total: ${meta.condensedBank}).`;
+  document.getElementById('overlay').hidden=false;
+}
 const TIER_ORDER=Object.keys(TIER_MULT);
 function shuffled(arr){const a=[...arr];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
 // One guaranteed card at the vein's drained tier, plus two "bonus" cards randomly drawn from the
@@ -2269,9 +2357,10 @@ function draw(){
   S.harvesters.forEach(h=>drawCable(h,C.cable));
   S.builders.forEach(bu=>drawCable(bu,C.cable));
   // troops
-  S.troops.forEach(t=>{const sel=S.sel.troops.has(t.id),gren=t.kind==='grenadier';if(sel){ctx.strokeStyle=C.ally;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(t.x,t.y,t.r+5,0,Math.PI*2);ctx.stroke()}
-    ctx.fillStyle=t.flashT>0?'#fff':gren?C.accent:C.ally;
+  S.troops.forEach(t=>{const sel=S.sel.troops.has(t.id),gren=t.kind==='grenadier',arty=t.kind==='artillery';if(sel){ctx.strokeStyle=C.ally;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(t.x,t.y,t.r+5,0,Math.PI*2);ctx.stroke()}
+    ctx.fillStyle=t.flashT>0?'#fff':gren?C.accent:arty?C.condensed:C.ally;
     if(gren){const r=t.r+2;ctx.beginPath();ctx.moveTo(t.x,t.y-r);ctx.lineTo(t.x+r,t.y);ctx.lineTo(t.x,t.y+r);ctx.lineTo(t.x-r,t.y);ctx.closePath();ctx.fill()}
+    else if(arty){const r=t.r;ctx.fillRect(t.x-r,t.y-r*0.6,r*2,r*1.2);ctx.strokeStyle=ctx.fillStyle;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(t.x,t.y);ctx.lineTo(t.x+r*1.7,t.y-r*0.9);ctx.stroke()}
     else{ctx.beginPath();ctx.arc(t.x,t.y,t.r,0,Math.PI*2);ctx.fill()}
     if(t.hp<t.maxHp)hpbar(t.x,t.y-14,16,t.hp/t.maxHp);
     if(t.sanity<SANITY_MAX)sanityBar(t.x,t.y-10,16,t.sanity/SANITY_MAX);
@@ -2386,7 +2475,7 @@ function hud(){
 
 // ---------- loop ----------
 function frame(ts){const dt=Math.min(0.05,(ts-lastT)/1000||0);lastT=ts;update(dt);draw();requestAnimationFrame(frame)}
-reset();drawMenuMap();requestAnimationFrame(frame);
+reset();drawMenuMap();refreshMenuMeta();requestAnimationFrame(frame);
 })();
 </script>
 
