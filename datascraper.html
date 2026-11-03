@@ -400,7 +400,12 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 (() => {
 'use strict';
 // ---------- constants ----------
-const W=4320,H=4320, CELL=24;
+// Map is kept square (W===H) — the menu/minimap renderers scale x and y by the same factor
+// (canvas width / W), so a non-square map would misalign every overlay (vein markers, zone
+// labels, the landing band) against the terrain image, which does stretch to fit both axes.
+// H was bumped 4320->5020 so the Rim band (see CORE_R/DENSE_R below) is as thick as the Dense
+// Field (2700-1080=1620) instead of the thinnest of the three bands; W follows to match.
+const W=5020,H=5020, CELL=24;
 const EPI={x:W/2,y:700};
 const CORE_R=1080, DENSE_R=2700;
 const BASE_R=30, BASE_SPEED=42, BUILD_R=270, BASE_VISION=450;
@@ -516,19 +521,26 @@ const DRILL_DAT_COST=3, CONDENSED_RATE=0.12;
 // many of the OTHER veins have been drained — draining the 3rd one "triangulates" it: the marker
 // snaps into view right then, wherever the vein actually sits, instead of needing to be scouted.
 const TRIANGULATE_AT=3;
+// The two Rim entries pay out noticeably less than every Dense/Core vein (richness well below
+// even the smallest of those, 40) — on top of the Rim's own tier ladder already capping out at
+// Epic instead of Legendary (see TIER_LADDER below) and the Rim's lighter wave/patrol pressure
+// (see WAVE_BASE_N/BASE_SPAWN_INTERVAL/OFFZONE_PATROL_N), so they read as a deliberately easier,
+// lower-reward option close to the landing zone rather than a shortcut to Dense/Core money.
 const VEIN_DEFS=[
   {x:1460,y:3200,richness:40},
   {x:3400,y:2350,richness:55},
   {x:1300,y:1550,richness:75},
   {x:3000,y:1450,richness:90},
-  {x:2160,y:350,richness:140,contract:true},
+  {x:1300,y:4000,richness:20},
+  {x:3700,y:4500,richness:28},
+  {x:2510,y:350,richness:140,contract:true},
 ];
 // Each mining zone has one large, rich Dat Crystal cluster of its own — paired 1:1 with
 // VEIN_DEFS by index — sitting out past a single wireless leash or cable run (MAX_CABLE_LEN=400),
 // so reaching one means stringing Relays out from the vein first, not just stumbling onto it.
 // The first zone's cluster sits closer in (~500, just 1-2 Relays) since it's the player's opening
 // vein; the rest sit ~1000 out (a couple of Relays).
-const VEIN_CLUSTERS=[[970,3300],[4150,1800],[550,2200],[4000,1450],[2160,1350]];
+const VEIN_CLUSTERS=[[970,3300],[4150,1800],[550,2200],[4000,1450],[900,4400],[4100,4100],[2510,1350]];
 // A found vein's loot tier decays one step every TIER_DECAY_T seconds it sits undrilled, down
 // to its band's floor — sitting on a discovered vein instead of moving to drill it is the thing
 // this is meant to punish. The clock only freezes while the vein is actively, unpaused,
