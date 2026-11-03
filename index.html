@@ -61,10 +61,6 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 .build button .cost{font-family:var(--mono);font-size:11px;color:var(--dat)}
 .build button:disabled{opacity:.45;cursor:default}
 .build button#bLock{border-color:var(--dat)}
-.stat.selbtn{font:inherit;color:inherit;text-align:left;cursor:pointer;pointer-events:auto}
-.stat.selbtn:hover{background:var(--panel2)}
-.stat.selbtn:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
-.stat.selbtn.sel{border-color:var(--ally)}
 .prod{position:absolute;left:50%;transform:translateX(-50%);bottom:max(76px,calc(76px + env(safe-area-inset-bottom,0px)));background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:10px 14px;pointer-events:auto;display:flex;flex-direction:column;gap:6px;min-width:190px}
 .prod b{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
 .prod .prodBtn{background:var(--panel2);border:1px solid var(--line);color:var(--fg);font:inherit;padding:8px 10px;border-radius:4px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:12px}
@@ -133,8 +129,8 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 @media (max-width:720px){.toasts{top:calc(env(safe-area-inset-top,0px) + 220px);width:240px}}
 /* --- visual polish: HUD chrome, press feedback, icons, low-HP flash --- */
 .stat,.build button,.prod,.throttle,.mini,.help{box-shadow:0 2px 8px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.04);border-radius:6px}
-.build button,.prod .prodBtn,.throttle button,.metaUnlock,.stat.selbtn,.unitActions button{transition:transform .08s ease,background .12s ease}
-.build button:active,.prod .prodBtn:active,.throttle button:active,.metaUnlock:active,.stat.selbtn:active,.unitActions button:active{transform:scale(.94);background:var(--panel2)}
+.build button,.prod .prodBtn,.throttle button,.metaUnlock,.unitActions button{transition:transform .08s ease,background .12s ease}
+.build button:active,.prod .prodBtn:active,.throttle button:active,.metaUnlock:active,.unitActions button:active{transform:scale(.94);background:var(--panel2)}
 .build button .icon,.prod .prodBtn .icon,.unitActions button .icon{margin-right:2px;font-size:13px}
 .bar i.hp.low{background:var(--enemy);animation:pulseLow 1s ease-in-out infinite}
 @keyframes pulseLow{0%,100%{opacity:1}50%{opacity:.5}}
@@ -147,10 +143,13 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
    and pinch already cover zooming) on both desktop and mobile */
 .unitSelCtrl{position:absolute;right:max(16px,env(safe-area-inset-right,0px));bottom:max(206px,calc(206px + env(safe-area-inset-bottom,0px)));
   display:flex;flex-direction:column;gap:6px;pointer-events:auto}
-.unitSelCtrl button{width:34px;height:34px;border-radius:50%;background:var(--panel);border:1px solid var(--line);color:var(--fg);
+.unitSelCtrl button{position:relative;width:34px;height:34px;border-radius:50%;background:var(--panel);border:1px solid var(--line);color:var(--fg);
   font:inherit;font-size:14px;line-height:1;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.4)}
 .unitSelCtrl button:active{transform:scale(.92);background:var(--panel2)}
 .unitSelCtrl button.sel{border-color:var(--ally);color:var(--ally)}
+.unitSelCtrl button .cnt{position:absolute;bottom:-5px;right:-5px;min-width:15px;height:15px;padding:0 3px;
+  border-radius:8px;background:var(--panel2);border:1px solid var(--line);font-family:var(--mono);
+  font-size:9px;line-height:13px;color:var(--fg)}
 .unitActions{display:flex;gap:6px;flex-wrap:wrap;padding-left:max(16px,env(safe-area-inset-left,0px))}
 .unitActions button{pointer-events:auto;background:var(--panel);border:1px solid var(--line);color:var(--fg);font:inherit;
   padding:8px 10px;border-radius:6px;cursor:pointer;display:flex;flex-direction:column;align-items:flex-start;gap:2px;
@@ -158,11 +157,9 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 .unitActions button:hover{background:var(--panel2)}
 .unitActions button.on{border-color:var(--accent);background:var(--panel2)}
 .unitActions button .key{font-family:var(--mono);font-size:10px;color:var(--muted)}
-.stat.selbtn .key{font-family:var(--mono);font-size:9px;color:var(--muted)}
 /* touch targets: comfortably tappable on a phone or any coarse (finger) pointer */
 @media (max-width:720px),(pointer:coarse){
   .build button,.prod .prodBtn,.throttle button,.metaUnlock,.unitActions button{min-height:44px;padding:10px 12px}
-  .stat.selbtn{min-height:40px}
   .unitSelCtrl button{width:44px;height:44px;font-size:16px}
 }
 /* --- mobile layout restructure --- */
@@ -190,7 +187,9 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   .miniToggle{display:flex;align-items:center;justify-content:center;position:absolute;top:2px;right:2px;
     width:20px;height:20px;border-radius:50%;background:rgba(11,14,18,.75);border:1px solid var(--line);
     color:var(--fg);font-size:11px;line-height:1;cursor:pointer;z-index:1}
-  .unitSelCtrl{bottom:max(285px,calc(285px + env(safe-area-inset-bottom,0px)))}
+  /* sits just above the minimap, whichever size it currently is (collapsed vs. expanded) */
+  .unitSelCtrl{bottom:max(165px,calc(165px + env(safe-area-inset-bottom,0px)))}
+  #miniWrap.expanded ~ .unitSelCtrl{bottom:max(285px,calc(285px + env(safe-area-inset-bottom,0px)))}
 }
 @media (max-width:600px){.stat{min-width:70px}.stat .v{font-size:14px}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}.overlay{animation:none}.bar i.hp.low{animation:none}}
@@ -207,9 +206,6 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   </div>
   <div class="stat"><span class="k">⛨ Bastion</span><span class="v" id="hBase">—</span><div class="bar"><i class="hp" id="hBaseBar" style="width:100%"></i></div></div>
   <div class="stat obj"><span class="k" id="hObjK">Veins</span><span class="v" id="hObj">—</span><div class="bar"><i id="hObjBar" style="width:0%"></i></div></div>
-  <button class="stat selbtn" id="hTroopsBtn"><span class="k">▲ Squads</span><span class="v" id="hTroops">—</span><span class="key">T</span></button>
-  <button class="stat selbtn" id="hHarvBtn"><span class="k">⛏ Harvesters</span><span class="v" id="hHarv">—</span><span class="key">H</span></button>
-  <button class="stat selbtn" id="hBuildersBtn"><span class="k">⚒ Builders</span><span class="v" id="hBuilders">—</span><span class="key">U</span></button>
 </div>
 <button class="helpToggleBtn" id="helpToggleBtn" aria-label="Show controls">?</button>
 <div class="toasts" id="toasts"></div>
@@ -254,9 +250,9 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 
 <div class="mini" id="miniWrap"><canvas id="mini" width="180" height="180"></canvas><button id="miniToggle" class="miniToggle" aria-label="Expand minimap">⤢</button></div>
 <div class="unitSelCtrl" id="unitSelCtrl">
-  <button id="selTroopsBtn2" aria-label="Select all Squads">▲</button>
-  <button id="selHarvBtn2" aria-label="Select all Harvesters">⛏</button>
-  <button id="selBuBtn2" aria-label="Select all Builders">⚒</button>
+  <button id="selTroopsBtn2" aria-label="Select all Squads">▲<span class="cnt" id="cntTroops2">0</span></button>
+  <button id="selHarvBtn2" aria-label="Select all Harvesters">⛏<span class="cnt" id="cntHarv2">0</span></button>
+  <button id="selBuBtn2" aria-label="Select all Builders">⚒<span class="cnt" id="cntBu2">0</span></button>
 </div>
 
 <div class="help" id="help">
@@ -1490,9 +1486,6 @@ function selectAllUnitsOfKind(kind){
   else if(kind==='harv')S.harvesters.forEach(h=>S.sel.harv.add(h.id));
   else if(kind==='bu')S.builders.forEach(bu=>S.sel.bu.add(bu.id));
 }
-document.getElementById('hTroopsBtn').onclick=()=>selectAllUnitsOfKind('troops');
-document.getElementById('hHarvBtn').onclick=()=>selectAllUnitsOfKind('harv');
-document.getElementById('hBuildersBtn').onclick=()=>selectAllUnitsOfKind('bu');
 document.getElementById('selTroopsBtn2').onclick=()=>selectAllUnitsOfKind('troops');
 document.getElementById('selHarvBtn2').onclick=()=>selectAllUnitsOfKind('harv');
 document.getElementById('selBuBtn2').onclick=()=>selectAllUnitsOfKind('bu');
@@ -2788,12 +2781,9 @@ function hud(){
     $('hObjBar').style.width=(100*doneCount/S.veins.length)+'%';
     if(ready){$('thBurn').textContent='pick Slow/Normal/Fast';$('thRate').textContent='to begin'}
   }
-  $('hTroops').textContent=S.troops.length+(S.sel.troops.size?` (${S.sel.troops.size} sel)`:'');
-  $('hHarv').textContent=S.harvesters.length+(S.sel.harv.size?` (${S.sel.harv.size} sel)`:'');
-  $('hBuilders').textContent=S.builders.length+(S.sel.bu.size?` (${S.sel.bu.size} sel)`:'');
-  document.getElementById('hTroopsBtn').classList.toggle('sel',S.sel.troops.size>0);
-  document.getElementById('hHarvBtn').classList.toggle('sel',S.sel.harv.size>0);
-  document.getElementById('hBuildersBtn').classList.toggle('sel',S.sel.bu.size>0);
+  $('cntTroops2').textContent=S.troops.length;
+  $('cntHarv2').textContent=S.harvesters.length;
+  $('cntBu2').textContent=S.builders.length;
   document.getElementById('selTroopsBtn2').classList.toggle('sel',S.sel.troops.size>0);
   document.getElementById('selHarvBtn2').classList.toggle('sel',S.sel.harv.size>0);
   document.getElementById('selBuBtn2').classList.toggle('sel',S.sel.bu.size>0);
