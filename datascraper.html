@@ -105,6 +105,14 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 .rewardCard .rcTier{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.09em;font-weight:700}
 .rewardCard .rcName{font-weight:600;font-size:15px;line-height:1.25}
 .rewardCard .rcDesc{font-size:12px;color:var(--muted);line-height:1.42;flex:1}
+.unlockCards{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;max-width:600px}
+.unlockCard{width:160px;background:var(--panel2);border:2px solid var(--line);border-radius:8px;padding:16px;
+  display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center}
+.unlockCard .ucIcon{font-size:34px;color:var(--condensed)}
+.unlockCard .ucName{font-weight:600;font-size:15px}
+.unlockCard .ucPrice{font-family:var(--mono);font-size:13px;color:var(--condensed)}
+.unlockCard.unlocked{border-color:var(--ally)}
+.unlockCard.unlocked .ucIcon{color:var(--ally)}
 /* --- gameplay announcements: a dismissible, color-coded toast stack over the left side of the
    play area; most recent is largest, the next few shrink, older ones fall off the end --- */
 .toasts{position:absolute;left:max(16px,env(safe-area-inset-left,0px));top:calc(env(safe-area-inset-top,0px) + 150px);
@@ -295,12 +303,19 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <p id="menuHint">Click inside the dashed Rim band to choose your landing zone.</p>
   <div class="menuMeta">
     <div class="metaRow"><span class="k">Condensed Crystal</span><span class="v" id="metaCondensed">0</span></div>
-    <button id="unlockGrenBtn" class="metaUnlock"></button>
-    <button id="unlockArtyBtn" class="metaUnlock"></button>
+    <button id="openUnlocksBtn" class="metaUnlock">Unlocks</button>
     <button id="recordingToggleBtn" class="metaUnlock secondary"></button>
     <button id="debugUnlockAllBtn" class="metaUnlock secondary">[Debug] Unlock everything free</button>
   </div>
   <button id="launchBtn" disabled>Launch Mission</button>
+</div>
+
+<div class="overlay" id="unlocksOverlay" hidden>
+  <h1>Unlocks</h1>
+  <p>Spend Condensed Crystal — earned by draining veins — to permanently unlock a unit for every future run.</p>
+  <div class="metaRow"><span class="k">Condensed Crystal</span><span class="v" id="unlocksCondensed">0</span></div>
+  <div class="unlockCards" id="unlockCards"></div>
+  <button id="unlocksBackBtn" class="secondary">Back</button>
 </div>
 
 <div class="overlay" id="consentOverlay" hidden>
@@ -697,44 +712,61 @@ document.getElementById('launchBtn').onclick=()=>{
   document.getElementById('menuOverlay').hidden=true;
   reset(landingSel);
 };
-// Shared by every "spend Condensed Crystal to permanently unlock X" button — Artillery,
-// Grenadier, and whatever else joins them later.
+// Shared by every "spend Condensed Crystal to permanently unlock X" unit — Artillery, Grenadier,
+// and whatever else joins them later. Rendered as shop cards on the separate Unlocks panel
+// (see renderUnlockCards) rather than as individual buttons in the main menu itself.
 const UNLOCKS=[
-  {btn:'unlockGrenBtn',flag:'unlockGrenadier',cost:GREN_UNLOCK_COST,name:'Grenadier'},
-  {btn:'unlockArtyBtn',flag:'unlockArtillery',cost:ARTY_UNLOCK_COST,name:'Artillery'},
+  {flag:'unlockGrenadier',cost:GREN_UNLOCK_COST,name:'Grenadier',icon:'✺'},
+  {flag:'unlockArtillery',cost:ARTY_UNLOCK_COST,name:'Artillery',icon:'☄'},
 ];
 function refreshMenuMeta(){
   document.getElementById('metaCondensed').textContent=meta.condensedBank;
-  UNLOCKS.forEach(u=>{
-    const btn=document.getElementById(u.btn);
-    if(meta[u.flag]){
-      btn.textContent=`${u.name} Unlocked`;
-      btn.disabled=true;
-      btn.classList.add('unlocked');
-    }else{
-      btn.textContent=`Unlock ${u.name} — ${u.cost} Condensed Crystal`;
-      btn.disabled=meta.condensedBank<u.cost;
-      btn.classList.remove('unlocked');
-    }
-  });
   const rb=document.getElementById('recordingToggleBtn');
   rb.textContent=meta.recordingConsent?'Gameplay Recording: On (click to disable)':'Gameplay Recording: Off (click to enable)';
+  const allUnlocked=UNLOCKS.every(u=>meta[u.flag]);
+  document.getElementById('debugUnlockAllBtn').textContent=allUnlocked?'[Debug] Lock everything again':'[Debug] Unlock everything free';
 }
-UNLOCKS.forEach(u=>{
-  document.getElementById(u.btn).onclick=()=>{
-    if(meta[u.flag]||meta.condensedBank<u.cost)return;
-    meta.condensedBank-=u.cost;
-    meta[u.flag]=true;
-    saveMeta();
-    refreshMenuMeta();
-  };
-});
-// Dev convenience: grants every unlock without spending anything, so testing a build doesn't
-// require actually grinding Condensed Crystal first.
+function renderUnlockCards(){
+  document.getElementById('unlocksCondensed').textContent=meta.condensedBank;
+  const host=document.getElementById('unlockCards');
+  host.innerHTML='';
+  UNLOCKS.forEach(u=>{
+    const card=document.createElement('div');
+    card.className='unlockCard'+(meta[u.flag]?' unlocked':'');
+    card.innerHTML=`<span class="ucIcon">${u.icon}</span><span class="ucName">${u.name}</span>`+
+      `<span class="ucPrice">${u.cost} Condensed Crystal</span>`+
+      `<button class="metaUnlock${meta[u.flag]?' unlocked':''}">${meta[u.flag]?'Unlocked':'Unlock'}</button>`;
+    const btn=card.querySelector('button');
+    btn.disabled=meta[u.flag]||meta.condensedBank<u.cost;
+    btn.onclick=()=>{
+      if(meta[u.flag]||meta.condensedBank<u.cost)return;
+      meta.condensedBank-=u.cost;
+      meta[u.flag]=true;
+      saveMeta();
+      renderUnlockCards();
+      refreshMenuMeta();
+    };
+    host.appendChild(card);
+  });
+}
+document.getElementById('openUnlocksBtn').onclick=()=>{
+  document.getElementById('menuOverlay').hidden=true;
+  document.getElementById('unlocksOverlay').hidden=false;
+  renderUnlockCards();
+};
+document.getElementById('unlocksBackBtn').onclick=()=>{
+  document.getElementById('unlocksOverlay').hidden=true;
+  document.getElementById('menuOverlay').hidden=false;
+};
+// Dev convenience: grants (or, toggled again, revokes) every unlock without spending anything, so
+// testing a build doesn't require actually grinding Condensed Crystal first — and testing the
+// locked state doesn't require a second browser profile.
 document.getElementById('debugUnlockAllBtn').onclick=()=>{
-  UNLOCKS.forEach(u=>{meta[u.flag]=true});
+  const allUnlocked=UNLOCKS.every(u=>meta[u.flag]);
+  UNLOCKS.forEach(u=>{meta[u.flag]=!allUnlocked});
   saveMeta();
   refreshMenuMeta();
+  renderUnlockCards();
 };
 // Applies the player's stored choice to the actual PostHog client — opt_out_capturing_by_default
 // in the init config above means nothing records until this (or the consent screen) runs.
@@ -760,6 +792,7 @@ function openMainMenu(){
   menuOpen=true;
   S.paused=true;
   document.getElementById('menuOverlay').hidden=false;
+  document.getElementById('unlocksOverlay').hidden=true;
   refreshMenuMeta();
   drawMenuMap();
   const launchBtn=document.getElementById('launchBtn');
