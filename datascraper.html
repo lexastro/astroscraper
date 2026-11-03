@@ -426,11 +426,12 @@ const BIGGUN_RANGE=460, BIGGUN_CD=2.4, BIGGUN_DMG=22, BIGGUN_SPLASH_R=115, BIGGU
 const ARTY_R=10, ARTY_HP=90, ARTY_SPEED=55, ARTY_RANGE=7000, ARTY_CD=14, ARTY_DMG=70, ARTY_SPLASH_R=150, ARTY_PROJ_SPEED=200;
 // Mech: a meta-unlocked squad variant built for durability over speed — the tankiest combat unit
 // and highly resistant to Sanity drain while severed (MECH_SANITY_RESIST multiplies the normal
-// drain rate), but slower than a plain Squad. Fires a short-range shotgun blast of several weak
-// pellets (each with its own small splash, so the burst covers a wide area rather than one point)
-// alternating out of its left and right side cannons.
+// drain rate), but slower than a plain Squad. Fires a short-range shotgun blast of several weak,
+// instant-hit pellets (no blast radius of their own, same as a plain Squad's shot — just several
+// of them scattered around the target so a cluster of enemies can each eat one) alternating out
+// of its left and right side cannons.
 const MECH_R=11, MECH_HP=160, MECH_SPEED=85, MECH_RANGE=140, MECH_DMG=5, MECH_CD=1.8,
-  MECH_SPLASH_R=50, MECH_PROJ_SPEED=380, MECH_PELLETS=4, MECH_PELLET_SPREAD=26, MECH_SANITY_RESIST=0.15;
+  MECH_PELLETS=4, MECH_PELLET_SPREAD=26, MECH_PELLET_HIT_R=30, MECH_SANITY_RESIST=0.15;
 const HARV_R=8, HARV_SPEED=105, HARV_VISION=280, CARRY=24;
 const BUILDER_R=7, BUILDER_SPEED=100, BUILDER_VISION=200;
 const WALL_BUILD_T=1, TURRET_BUILD_T=5, RELAY_BUILD_T=3, DEPOT_BUILD_T=4, REPAIR_HPS=25, REPAIR_DAT_PER_SEC=1;
@@ -2432,15 +2433,18 @@ function update(dt){
         if(gren){launchNade(t,best);t.cd=GREN_CD/S.mods.grenFireRateMult}
         else if(arty){launchProjectile(t,best,{speed:ARTY_PROJ_SPEED,dmg:ARTY_DMG,splashR:ARTY_SPLASH_R,color:C.condensed,big:true});t.cd=ARTY_CD}
         else if(mech){
-          // shotgun blast: several weak pellets, each with its own splash, scattered around the
-          // target rather than one pinpoint hit — fired from whichever side cannon didn't fire
-          // last time, so the muzzle flash/origin alternates left-right shot to shot.
+          // shotgun blast: several weak, instant-hit pellets (no blast radius — each one's just
+          // a direct hit like a Squad's shot) scattered around the target, so a tight cluster of
+          // enemies can each catch one instead of a single point taking it all. Fired from
+          // whichever side cannon didn't fire last time, alternating shot to shot.
           t.ang=Math.atan2(best.y-t.y,best.x-t.x);
           const perp=t.ang+(t.mechSide?Math.PI/2:-Math.PI/2);
           const muzzle={x:t.x+Math.cos(perp)*9,y:t.y+Math.sin(perp)*9};
           for(let i=0;i<MECH_PELLETS;i++){
             const jx=best.x+rnd(-MECH_PELLET_SPREAD,MECH_PELLET_SPREAD),jy=best.y+rnd(-MECH_PELLET_SPREAD,MECH_PELLET_SPREAD);
-            launchProjectile(muzzle,{x:jx,y:jy},{speed:MECH_PROJ_SPEED,dmg:MECH_DMG*S.mods.troopDmgMult,splashR:MECH_SPLASH_R,color:C.mech});
+            let hit=null,hd=MECH_PELLET_HIT_R;
+            S.enemies.forEach(e=>{const d=dist(e,{x:jx,y:jy});if(d<hd){hd=d;hit=e}});
+            if(hit){damageEnemy(hit,MECH_DMG*S.mods.troopDmgMult);tracer(muzzle,hit,C.mech)}
           }
           t.mechSide=!t.mechSide;
           t.cd=MECH_CD;
@@ -2998,7 +3002,7 @@ function draw(){
       const legW=t.r*0.42,legH=t.r*1.7,bodyW=t.r*1.7,bodyH=t.r*0.95;
       ctx.fillRect(-bodyW/2-legW,-legH/2,legW,legH);
       ctx.fillRect(bodyW/2,-legH/2,legW,legH);
-      ctx.fillRect(-bodyW/2,-bodyH/2,bodyW,bodyH);
+      ctx.fillRect(-bodyW/2,legH/2-bodyH,bodyW,bodyH); // bottom-aligned with the legs, not centered
       ctx.restore();
     }
     else{ctx.beginPath();ctx.arc(t.x,t.y,t.r,0,Math.PI*2);ctx.fill()}
