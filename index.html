@@ -418,6 +418,7 @@ function reset(landing){
   S.veins.forEach(v=>clearDisk(v.x,v.y,ZONE_R+40));
   ensureConnectivity([{x:S.base.x,y:S.base.y},...S.veins.map(v=>({x:v.x,y:v.y})),...VEIN_CLUSTERS.map(([x,y])=>({x,y})),...riftPockets]);
   closeHoles(S.base.x,S.base.y);
+  ensureBastionAccess(S.veins.map(v=>({x:v.x,y:v.y})));
   terrainCv=buildTerrainCanvas();
 
   // Dat Crystal deposits: the Rim is thick with small, low-yield nodes — common and unremarkable,
@@ -643,6 +644,46 @@ function ensureConnectivity(points){
       carveLine(points[i-1].x,points[i-1].y,points[i].x,points[i].y,1);
     }
   }
+}
+// Same flood-fill as bfsReachable, but Bastion-aware: rift tiles block it too, same as rock.
+function bfsReachableBastion(sx,sy){
+  const seen=new Uint8Array(TGX*TGY);
+  const scx=Math.floor(sx/TCELL),scy=Math.floor(sy/TCELL);
+  if(scx<0||scy<0||scx>=TGX||scy>=TGY)return seen;
+  const startId=scy*TGX+scx; seen[startId]=1;
+  const q=[startId]; let qi=0;
+  while(qi<q.length){
+    const id=q[qi++]; const cx=id%TGX, cy=(id-cx)/TGX;
+    const dirs=[[1,0],[-1,0],[0,1],[0,-1]];
+    for(const [dx,dy] of dirs){
+      const nx=cx+dx,ny=cy+dy; if(nx<0||ny<0||nx>=TGX||ny>=TGY)continue;
+      const nid=ny*TGX+nx; if(seen[nid]||terrain[nid]===2||terrain[nid]===RIFT)continue;
+      seen[nid]=1; q.push(nid);
+    }
+  }
+  return seen;
+}
+// A mining zone fully ringed by rift lobes would be reachable by harvesters/troops but never by
+// the Bastion itself — not a route the player can actually drill from. For any such point, carve
+// the shortest possible corridor in from whichever Bastion-reachable cell sits nearest, so there's
+// always at least a thin trail letting the Bastion through, even if rift wraps most of the way
+// around it.
+function ensureBastionAccess(points){
+  const seen=bfsReachableBastion(S.base.x,S.base.y);
+  points.forEach(p=>{
+    const pcx=Math.floor(p.x/TCELL),pcy=Math.floor(p.y/TCELL);
+    if(pcx<0||pcy<0||pcx>=TGX||pcy>=TGY||seen[pcy*TGX+pcx])return;
+    let best=null,bestD=Infinity;
+    for(let r=1;r<=Math.max(TGX,TGY)&&!best;r++){
+      for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){
+        if(Math.max(Math.abs(dx),Math.abs(dy))!==r)continue;
+        const gx=pcx+dx,gy=pcy+dy; if(gx<0||gy<0||gx>=TGX||gy>=TGY)continue;
+        if(!seen[gy*TGX+gx])continue;
+        const d=dx*dx+dy*dy; if(d<bestD){bestD=d;best={x:gx*TCELL+TCELL/2,y:gy*TCELL+TCELL/2}}
+      }
+    }
+    if(best)carveLine(p.x,p.y,best.x,best.y,1);
+  });
 }
 // Seal off every pocket of open ground that isn't reachable from (sx,sy) by turning it
 // to rock, so no walkable "holes" exist for troops or resource nodes to get stranded in.
