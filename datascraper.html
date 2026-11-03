@@ -948,7 +948,10 @@ function pushToast(text,type){
   while(toastLog.length>TOAST_MAX)clearTimeout(toastLog.pop().timer);
   renderToasts();
 }
-function msg(s){pushToast(s,inferToastType(s));msgT=S.t}
+// reset() (called once at page load, and again on every "Play" launch) fires an initial hint via
+// msg() — suppressed while any menu screen is up front, so no toast is sitting there before the
+// player has even started a run.
+function msg(s){if(menuOpen)return;pushToast(s,inferToastType(s));msgT=S.t}
 
 // ---------- terrain & pathfinding ----------
 function genTerrain(){
