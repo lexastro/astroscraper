@@ -875,10 +875,16 @@ const META_UPGRADES=[
    desc:'Dampens incoming impacts. +10% Squad/Grenadier/Artillery/Mech HP per purchase.'},
   {key:'pingRange',name:'Deep Scan Antenna',icon:'◉',max:2,costs:[15,20],stacking:false,pct:[10,20],unit:'ping range',
    desc:'Extends the Ping sensor sweep. +10% range per purchase.'},
+  {key:'squadFireRate',name:'Rapid Loaders',icon:'⚡',max:3,costs:[10,15,20],stacking:false,pct:[5,10,15],unit:'Squad fire rate',
+   desc:'Tightens Squad reload cycles. +5% fire rate per purchase.'},
+  {key:'pickupRange',name:'Magnetic Collectors',icon:'✦',max:3,costs:[10,15,20],stacking:false,pct:[20,40,60],unit:'crystal pickup range',
+   desc:'Widens the pickup radius for dropped Dat Crystal shards. +20% range per purchase.'},
 ];
 function bastionHpBonus(){return (meta.upgrades.bastionHp||0)*250}
 function unitHpMult(){const t=meta.upgrades.unitHp||0;return t>0?1+META_UPGRADES[1].pct[t-1]/100:1}
 function pingRangeMult(){const t=meta.upgrades.pingRange||0;return t>0?1+META_UPGRADES[2].pct[t-1]/100:1}
+function squadFireRateMult(){const t=meta.upgrades.squadFireRate||0;return t>0?1+META_UPGRADES[3].pct[t-1]/100:1}
+function pickupRangeMult(){const t=meta.upgrades.pickupRange||0;return t>0?1+META_UPGRADES[4].pct[t-1]/100:1}
 function refreshMenuMeta(){
   document.getElementById('metaLiving').textContent=meta.livingBank;
   document.getElementById('metaCondensed').textContent=meta.condensedBank;
@@ -2566,7 +2572,7 @@ function update(dt){
           t.mechSide=!t.mechSide;
           t.cd=MECH_CD;
         }
-        else{damageEnemy(best,TROOP_DMG*S.mods.troopDmgMult);tracer(t,best,C.ally);t.cd=TROOP_CD}
+        else{damageEnemy(best,TROOP_DMG*S.mods.troopDmgMult);tracer(t,best,C.ally);t.cd=TROOP_CD/squadFireRateMult()}
         if(t.state==='idle'&&bd>range*0.7)t.target=best;
       }
     }
@@ -2861,7 +2867,7 @@ function update(dt){
   if(S.shards.length){
     const looters=S.troops.concat(S.harvesters).concat(S.builders);
     S.shards=S.shards.filter(sh=>{
-      const got=looters.some(u=>dist(u,sh)<u.r+10);
+      const got=looters.some(u=>dist(u,sh)<u.r+10*pickupRangeMult());
       if(got){S.dat+=sh.amt;floatText(sh.x,sh.y-10,'+'+sh.amt,C.dat);sfx.gather();spark(sh.x,sh.y,C.dat,3);updateBuildBar()}
       return !got;
     });
