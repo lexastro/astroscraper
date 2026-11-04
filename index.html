@@ -1627,7 +1627,13 @@ cv.addEventListener('pointermove',e=>{
 cv.addEventListener('pointerup',e=>{
   if(mouse.wallDragging){
     mouse.wallDragging=false;
-    if(e.pointerType==='touch'&&mouse.wallPlacedTouch)setBuild(null);
+    if(e.pointerType==='touch'){
+      // without this, the finger that placed the wall stays stuck in touchPts forever (this
+      // branch returns before the normal touch cleanup below runs), so the next single-finger
+      // touch sees a leftover point, reads as a 2-finger pinch, and the camera "zooms" on a pan.
+      touchPts.delete(e.pointerId);
+      if(mouse.wallPlacedTouch)setBuild(null);
+    }
     mouse.wallPlacedTouch=false;
     return;
   }
