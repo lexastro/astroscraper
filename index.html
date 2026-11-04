@@ -361,7 +361,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <b>Touch:</b> tap to select · tap empty ground/an enemy/a resource to move/attack/harvest · drag to pan · hold still then drag to box-select · pinch to zoom · double-tap to select all of a kind<br>
   <b>Build:</b> <kbd>1</kbd> wall · <kbd>2</kbd> turret · <kbd>3</kbd> relay · <kbd>4</kbd> depot (drop-off closer than the Bastion) — walls/turrets need the Bastion locked down drilling, relays/depots can go up any time · right-click a still-queued structure to cancel it for a full refund<br>
   <b>Tether:</b> wireless works freely on the Rim; past it, units need a live cable back to the Bastion or a Relay, or they go dark — chain Relays to push your reach further out. A dark unit still takes orders, but its Sanity drains; reconnect in time to recover it, or it defects into a hostile Corrupted enemy<br>
-  <kbd>N</kbd> ping (reveals far-off Dat Crystal, 60s cooldown) · <kbd>V</kbd> follow Bastion (escorts it as it moves, until given another order) · <kbd>G</kbd> repair mode · <kbd>R</kbd> resume harvester auto-gather · <kbd>Esc</kbd> cancel, or pause the whole game if nothing's open · <kbd>`</kbd> reveal map (debug)
+  <kbd>N</kbd> ping, then click a spot within the dashed ring to scan it (permanently finds deposits and vein mining points there, shows enemies there for 20s; 60s cooldown) · <kbd>V</kbd> follow Bastion (escorts it as it moves, until given another order) · <kbd>G</kbd> repair mode · <kbd>R</kbd> resume harvester auto-gather · <kbd>Esc</kbd> cancel, or pause the whole game if nothing's open · <kbd>`</kbd> reveal map (debug)
 </div>
 
 <!-- Guided tutorial: one instruction at a time, advancing on its own as the player does each thing. -->
@@ -606,10 +606,12 @@ const MARTYR_R=90, MARTYR_DMG=40;
 // back to the Bastion. Like a Relay it can be queued any time, locked down or not.
 const DEPOT_HP=150;
 const BASE_GUN_RANGE=260, BASE_GUN_DMG=18, BASE_GUN_CD=0.5;
-// Bastion ability: an instant long-range sensor sweep that marks every undiscovered Dat Crystal
-// deposit within PING_RADIUS as found, regardless of vision/fog — veins and their mine points are
-// deliberately untouched, so it's no shortcut around scouting or the Living Crystal triangulation.
-const PING_RADIUS=687.5, PING_CD=60;
+// Bastion ability, two steps: press Ping (N), then click a spot within PING_REACH of the Bastion
+// (scaled by the Deep Scan Antenna upgrade). A sensor pulse lands there and:
+//  - permanently discovers everything in PING_REVEAL_R: Dat Crystal deposits and vein mining
+//    points (never the hidden contract vein — that still has to be triangulated);
+//  - lifts the fog over that circle and shows the enemies in it for PING_ENEMY_T seconds only.
+const PING_REACH=2400, PING_REVEAL_R=450, PING_ENEMY_T=20, PING_CD=60;
 const WALL_HP=220;
 const COST={wall:5,turret:75,relay:15,depot:150,harvester:75,troop:30,builder:20,grenadier:45,artillery:140,mech:90};
 // Persistent meta-progression: saved to localStorage, carried across runs and page reloads —
@@ -941,7 +943,7 @@ function reset(landing){
       cableLenAdd:0,cableHpMult:1,condensedMult:1,livingMult:1,fastBonus:0,freeRelayCharges:0,
       grenFireRateMult:1,grenSplashMult:1,squadRangeMult:1,bigGuns:false,bastionShootWhileDrilling:false,
       energySurgeLevel:0,armedRelays:false,martyrs:false},
-    rewardChoice:null,pingRing:null,paused:false,
+    rewardChoice:null,pingRing:null,pings:[],paused:false,
     sel:{base:false,troops:new Set(),harv:new Set(),bu:new Set()}};
   for(let i=0;i<4;i++) S.troops.push(mkTroop(i));
   for(let i=0;i<2;i++) S.harvesters.push(mkHarv(i));
@@ -1035,7 +1037,7 @@ function reset(landing){
   rand=Math.random; // map built — live gameplay goes back to unseeded randomness
   cam={x:S.base.x,y:S.base.y,z:1};
   fogX.globalCompositeOperation='source-over'; fogX.fillStyle='#000'; fogX.fillRect(0,0,fogC.width,fogC.height);
-  S.sel.base=true; buildMode=null; updateBuildBar();
+  S.sel.base=true; buildMode=null; pingMode=false; updateBuildBar();
   document.getElementById('overlay').hidden=true;
   document.getElementById('pauseOverlay').hidden=true;
   msg('Scout a marked vein to find its mining point, then press L to begin drilling.');
@@ -1127,7 +1129,7 @@ const META_UPGRADES=[
   {key:'unitHp',name:'Kinetic Dampers',icon:'✚',max:3,costs:[10,15,20],stacking:false,pct:[10,20,30],unit:'combat unit HP',
    desc:'Dampens incoming impacts. +10% Squad/Grenadier/Artillery/Mech HP per purchase.'},
   {key:'pingRange',name:'Deep Scan Antenna',icon:'◉',max:2,costs:[15,20],stacking:false,pct:[10,20],unit:'ping range',
-   desc:'Extends the Ping sensor sweep. +10% range per purchase.'},
+   desc:'Lets you Ping farther from the Bastion. +10% range per purchase.'},
   {key:'squadFireRate',name:'Rapid Loaders',icon:'⚡',max:3,costs:[10,15,20],stacking:false,pct:[5,10,15],unit:'Squad fire rate',
    desc:'Tightens Squad reload cycles. +5% fire rate per purchase.'},
   {key:'pickupRange',name:'Magnetic Collectors',icon:'✦',max:3,costs:[10,15,20],stacking:false,pct:[20,40,60],unit:'crystal pickup range',
@@ -2109,6 +2111,7 @@ cv.addEventListener('pointerdown',e=>{
       pinch={dist:Math.hypot(a.x-b.x,a.y-b.y),z:cam.z,mid:{x:(a.x+b.x)/2,y:(a.y+b.y)/2}};
       return;
     }
+    if(pingMode){firePing(w);return}
     if(buildMode){
       const placed=tryBuild(w);
       if(buildMode==='wall'){mouse.wallDragging=true;mouse.wallPlacedTouch=placed}
@@ -2130,6 +2133,7 @@ cv.addEventListener('pointerdown',e=>{
   if(e.button===1||(e.button===0&&keys[' '])){mouse.panning=true;mouse.x=e.clientX;mouse.y=e.clientY;return}
   if(e.button===2){rightClick(w);return}
   if(e.button===0){
+    if(pingMode){firePing(w);return}
     if(buildMode){tryBuild(w);if(buildMode==='wall')mouse.wallDragging=true;return}
     mouse.down=true;mouse.drag={x0:w.x,y0:w.y,x1:w.x,y1:w.y,moved:false};
   }
@@ -2234,7 +2238,7 @@ cv.addEventListener('wheel',e=>{e.preventDefault();const w0=toWorld(e.clientX,e.
 addEventListener('keydown',e=>{
   if(menuOpen||e.target.tagName==='INPUT')return; keys[e.key.toLowerCase()]=true; keys[e.key]=true;
   if(e.key==='1')setBuild('wall'); else if(e.key==='2')setBuild('turret'); else if(e.key==='3')setBuild('relay'); else if(e.key==='4')setBuild('depot');
-  else if(e.key==='Escape'){if(!document.getElementById('drillSelectOverlay').hidden){closeDrillSelect()}else if(buildMode||prodMenuOpen){setBuild(null);closeProdMenu()}else togglePause()} else if(e.key.toLowerCase()==='b'){S.sel.troops.clear();S.sel.harv.clear();S.sel.bu.clear();S.sel.base=true}
+  else if(e.key==='Escape'){if(!document.getElementById('drillSelectOverlay').hidden){closeDrillSelect()}else if(pingMode){setPingMode(false)}else if(buildMode||prodMenuOpen){setBuild(null);closeProdMenu()}else togglePause()} else if(e.key.toLowerCase()==='b'){S.sel.troops.clear();S.sel.harv.clear();S.sel.bu.clear();S.sel.base=true}
   else if(e.key.toLowerCase()==='t'){selectAllUnitsOfKind('troops')}
   else if(e.key.toLowerCase()==='h'){selectAllUnitsOfKind('harv')}
   else if(e.key.toLowerCase()==='u'){selectAllUnitsOfKind('bu')}
@@ -2392,7 +2396,7 @@ function toggleRepairMode(){
   sfx.click();
   updateBuildBar();
 }
-function setBuild(m){buildMode=m;closeProdMenu();updateBuildBar()}
+function setBuild(m){buildMode=m;if(m)pingMode=false;closeProdMenu();updateBuildBar()}
 function updateBuildBar(){
   document.querySelectorAll('#buildBar button[data-mode]').forEach(b=>{
     b.classList.toggle('on',b.dataset.mode===buildMode);
@@ -2410,7 +2414,8 @@ function updateBuildBar(){
   const pgb=document.getElementById('bPing');
   if(pgb){
     pgb.disabled=S.base.pingCd>0;
-    document.getElementById('bPingLabel').textContent=S.base.pingCd>0?`Ping (${Math.ceil(S.base.pingCd)}s)`:'Ping';
+    pgb.classList.toggle('on',pingMode);
+    document.getElementById('bPingLabel').textContent=S.base.pingCd>0?`Ping (${Math.ceil(S.base.pingCd)}s)`:pingMode?'Pick a spot…':'Ping';
   }
   document.getElementById('bResumeAuto').hidden=S.sel.harv.size===0;
   const rb=document.getElementById('bToggleRepair');
@@ -2556,19 +2561,40 @@ function togglePause(){
   document.getElementById('pauseOverlay').hidden=!S.paused;
   sfx.click();
 }
-// Instant long-range sensor sweep: marks every undiscovered Dat Crystal deposit within
-// PING_RADIUS as found, no vision or scouting needed. 60s cooldown, usable locked down or not.
+// Ping, step one: arm targeting (see PING_* above). Pressing it again, right-clicking or Esc
+// cancels. 60s cooldown once fired, usable locked down or not.
+let pingMode=false;
+function pingReach(){return PING_REACH*pingRangeMult()}
 function tryPing(){
+  if(pingMode){setPingMode(false);return}
   if(S.base.pingCd>0){msg('Ping is still recharging.');return}
-  const radius=PING_RADIUS*pingRangeMult();
-  let found=0;
-  S.nodes.forEach(n=>{if(!n.found&&n.amt>0&&dist(n,S.base)<=radius){n.found=true;found++}});
-  S.base.pingCd=PING_CD;
-  S.pingRing={x:S.base.x,y:S.base.y,t:0,dur:1.1,r:radius};
-  msg(found?`Ping swept the area — ${found} Dat Crystal deposit${found===1?'':'s'} found.`:'Ping swept the area — nothing new in range.');
-  sfx.ping();
-  updateBuildBar();
+  setBuild(null);
+  setPingMode(true);
+  msg('Ping armed — click a spot within range to scan it. Right-click or Esc to cancel.');
+  sfx.click();
 }
+function setPingMode(on){pingMode=on;updateBuildBar()}
+// Ping, step two: fire at w. Returns false (and stays armed) if w is out of reach.
+function firePing(w){
+  if(dist(w,S.base)>pingReach()){msg('Out of ping range — pick a spot inside the dashed ring.');return false}
+  const r=PING_REVEAL_R;
+  let deposits=0,veins=0;
+  S.nodes.forEach(n=>{if(!n.found&&n.amt>0&&dist(n,w)<=r){n.found=true;deposits++}});
+  S.veins.forEach(v=>{if(!v.contract&&!v.done&&!v.mine.found&&dist(v.mine,w)<=r){v.mine.found=true;v.decayElapsed=0;veins++}});
+  const enemies=S.enemies.filter(e=>dist(e,w)<=r).length;
+  S.pings.push({x:w.x,y:w.y,r,t:PING_ENEMY_T});
+  S.base.pingCd=PING_CD;
+  S.pingRing={x:w.x,y:w.y,t:0,dur:1.1,r};
+  setPingMode(false);
+  const found=[];
+  if(veins)found.push(`${veins} vein mining point${veins===1?'':'s'}`);
+  if(deposits)found.push(`${deposits} Dat Crystal deposit${deposits===1?'':'s'}`);
+  msg(`Ping landed — ${found.length?found.join(' and ')+' found':'no new deposits'}; ${enemies?enemies+' enemies':'no enemies'} spotted (visible for ${PING_ENEMY_T}s).`);
+  sfx.ping();
+  return true;
+}
+// Enemies (and the fog) stay lifted inside a ping's circle while its timer runs.
+function inActivePing(p){return S.pings.some(pg=>dist(p,pg)<pg.r)}
 
 // Right-clicking directly on a structure that's still under construction (queued, not yet
 // built) cancels it and refunds its Dat Crystal cost instead of issuing a move/repair order —
@@ -2656,6 +2682,7 @@ function guardMove(t,range,speed,dt){
   }
 }
 function rightClick(w){
+  if(pingMode){setPingMode(false);return}
   if(buildMode){setBuild(null);return}
   if(cancelPendingBuild(w))return;
   const rawT=[...S.sel.troops].map(id=>S.troops.find(t=>t.id===id)).filter(Boolean);
@@ -2785,7 +2812,7 @@ function dropoffPoint(h){
   S.depots.forEach(de=>{if(!de.built||de.hp<=0)return;const d=dist(h,de);if(d<bd){bd=d;best={x:de.x,y:de.y,r:26}}});
   return best;
 }
-function visible(p){const vm=S.mods.visionMult;if(dist(p,S.base)<BASE_VISION*vm)return true;if(S.troops.some(t=>dist(t,p)<TROOP_VISION*vm*S.mods.squadRangeMult))return true;if(S.harvesters.some(h=>dist(h,p)<HARV_VISION*vm))return true;return S.builders.some(b=>dist(b,p)<BUILDER_VISION*vm)}
+function visible(p){const vm=S.mods.visionMult;if(dist(p,S.base)<BASE_VISION*vm)return true;if(S.pings.length&&inActivePing(p))return true;if(S.troops.some(t=>dist(t,p)<TROOP_VISION*vm*S.mods.squadRangeMult))return true;if(S.harvesters.some(h=>dist(h,p)<HARV_VISION*vm))return true;return S.builders.some(b=>dist(b,p)<BUILDER_VISION*vm)}
 function moveToward(o,d,sp,dt){const dx=d.x-o.x,dy=d.y-o.y,L=Math.hypot(dx,dy);if(L<1)return 0;const s=Math.min(L,sp*dt);o.x+=dx/L*s;o.y+=dy/L*s;return L-s}
 function tracer(a,b,col){S.tracers.push({x1:a.x,y1:a.y,x2:b.x,y2:b.y,t:0.12,col})}
 function hitFlash(o){o.flashT=0.12}
@@ -3073,6 +3100,7 @@ function update(dt){
   B.gunCd-=dt;
   if(B.pingCd>0)B.pingCd=Math.max(0,B.pingCd-dt);
   if(S.pingRing){S.pingRing.t+=dt;if(S.pingRing.t>=S.pingRing.dur)S.pingRing=null}
+  if(S.pings.length)S.pings=S.pings.filter(pg=>(pg.t-=dt)>0);
   if(!B.locked||S.mods.bastionShootWhileDrilling){
     let best=null,bd=BASE_GUN_RANGE;S.enemies.forEach(e=>{const d=dist(e,B);if(d<bd){bd=d;best=e}});
     if(best&&B.gunCd<=0){damageEnemy(best,BASE_GUN_DMG);tracer(B,best,C.accent);B.gunCd=BASE_GUN_CD}
@@ -3507,7 +3535,7 @@ function update(dt){
   dimX.globalCompositeOperation='destination-out';
   const unveil=(x,y,r)=>{const g=dimX.createRadialGradient(x/FOG_S,y/FOG_S,r*0.6/FOG_S,x/FOG_S,y/FOG_S,r/FOG_S);g.addColorStop(0,'rgba(0,0,0,1)');g.addColorStop(1,'rgba(0,0,0,0)');dimX.fillStyle=g;dimX.beginPath();dimX.arc(x/FOG_S,y/FOG_S,r/FOG_S,0,Math.PI*2);dimX.fill()};
   {const vm=S.mods.visionMult;
-  unveil(B.x,B.y,BASE_VISION*vm);S.troops.forEach(t=>unveil(t.x,t.y,TROOP_VISION*vm*S.mods.squadRangeMult));S.harvesters.forEach(h=>unveil(h.x,h.y,HARV_VISION*vm));S.builders.forEach(bu=>unveil(bu.x,bu.y,BUILDER_VISION*vm));}
+  unveil(B.x,B.y,BASE_VISION*vm);S.pings.forEach(pg=>unveil(pg.x,pg.y,pg.r));S.troops.forEach(t=>unveil(t.x,t.y,TROOP_VISION*vm*S.mods.squadRangeMult));S.harvesters.forEach(h=>unveil(h.x,h.y,HARV_VISION*vm));S.builders.forEach(bu=>unveil(bu.x,bu.y,BUILDER_VISION*vm));}
 }
 // Called exactly once per run, right as it ends (win or lose) — banks whatever Condensed and
 // Living Crystal were collected into the persistent save, same as a roguelite "you keep what you
@@ -3790,7 +3818,11 @@ function draw(){
     ctx.strokeStyle=C.cable;ctx.globalAlpha=0.2*bwt;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(B.x,B.y,WIRELESS_TOL_DENSE*S.mods.relayTolMult,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;
   }
   if(S.sel.base){ctx.strokeStyle=C.ally;ctx.lineWidth=1.5;ctx.setLineDash([4,4]);ctx.beginPath();ctx.arc(B.x,B.y,B.r+10,0,Math.PI*2);ctx.stroke();ctx.setLineDash([])}
-  if(S.pingRing){const pr=S.pingRing,pt=pr.t/pr.dur;ctx.globalAlpha=Math.max(0,1-pt);ctx.strokeStyle=C.dat;ctx.lineWidth=3;ctx.beginPath();ctx.arc(pr.x,pr.y,(pr.r||PING_RADIUS)*pt,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1}
+  if(S.pingRing){const pr=S.pingRing,pt=pr.t/pr.dur;ctx.globalAlpha=Math.max(0,1-pt);ctx.strokeStyle=C.dat;ctx.lineWidth=3;ctx.beginPath();ctx.arc(pr.x,pr.y,pr.r*pt,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1}
+  // active pings: a faint ring that drains away (clockwise arc) as its 20s of enemy vision runs out
+  S.pings.forEach(pg=>{const f=pg.t/PING_ENEMY_T;ctx.strokeStyle=C.dat;ctx.lineWidth=2/cam.z;
+    ctx.globalAlpha=0.18;ctx.beginPath();ctx.arc(pg.x,pg.y,pg.r,0,Math.PI*2);ctx.stroke();
+    ctx.globalAlpha=0.6;ctx.beginPath();ctx.arc(pg.x,pg.y,pg.r,-Math.PI/2,-Math.PI/2+Math.PI*2*f);ctx.stroke();ctx.globalAlpha=1});
   if(B.dest){ctx.strokeStyle='rgba(94,200,255,0.5)';ctx.setLineDash([6,6]);ctx.beginPath();ctx.moveTo(B.x,B.y);ctx.lineTo(B.dest.x,B.dest.y);ctx.stroke();ctx.setLineDash([])}
   // cables (drawn under the units they belong to)
   S.relays.forEach(r=>{if(r.built)drawCable(r,C.cable)});
@@ -3876,6 +3908,13 @@ function draw(){
   drawTutorialTarget();
   // map edge
   ctx.strokeStyle=C.line;ctx.lineWidth=3/cam.z;ctx.strokeRect(0,0,W,H);
+  // ping targeting preview: the reach ring around the Bastion, and the scan circle under the cursor
+  if(pingMode){const reach=pingReach(),ok=dist({x:mouse.wx,y:mouse.wy},B)<=reach,col=ok?C.dat:C.enemy;
+    ctx.strokeStyle=C.dat;ctx.globalAlpha=0.45;ctx.lineWidth=1.5/cam.z;ctx.setLineDash([10/cam.z,8/cam.z]);
+    ctx.beginPath();ctx.arc(B.x,B.y,reach,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
+    ctx.globalAlpha=0.12;ctx.fillStyle=col;ctx.beginPath();ctx.arc(mouse.wx,mouse.wy,PING_REVEAL_R,0,Math.PI*2);ctx.fill();
+    ctx.globalAlpha=0.8;ctx.strokeStyle=col;ctx.lineWidth=2/cam.z;ctx.beginPath();ctx.arc(mouse.wx,mouse.wy,PING_REVEAL_R,0,Math.PI*2);ctx.stroke();
+    ctx.beginPath();ctx.arc(mouse.wx,mouse.wy,6/cam.z,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1}
   // build preview
   if(buildMode){const ok=(B.locked||buildMode==='relay'||buildMode==='depot')&&inBuildRange({x:mouse.wx,y:mouse.wy})&&terrainAt(mouse.wx,mouse.wy)!==2&&S.dat>=COST[buildMode];ctx.globalAlpha=0.6;
     if(buildMode==='wall'){const gx=Math.floor(mouse.wx/CELL)*CELL,gy=Math.floor(mouse.wy/CELL)*CELL;ctx.fillStyle=ok?'#8d9aa8':C.enemy;ctx.fillRect(gx+1,gy+1,CELL-2,CELL-2)}
