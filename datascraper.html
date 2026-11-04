@@ -333,6 +333,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 <div class="overlay rewardOverlay" id="rewardOverlay" hidden>
   <h1 id="rewardTitle">Choose a Reward</h1>
   <div class="rewardCards" id="rewardCards"></div>
+  <button id="rerollBtn" class="secondary">Reroll</button>
 </div>
 
 <div class="overlay" id="mainMenuOverlay">
@@ -583,6 +584,11 @@ const TIER_DECAY_T=60;
 // never offer a Legendary card — there's no separate restriction to maintain here, the existing
 // tier-decay ladder does it for free.
 const TIER_TRADE_DAT={Common:60,Rare:140,Epic:260,Legendary:450};
+// Rerolling a reward choice costs Condensed Crystal — the same currency that gets banked into
+// meta-progression at run's end — and gets pricier each time, tracked on S.rerollCount so the
+// escalation persists for the whole run rather than resetting at every new vein's choice.
+const REROLL_BASE_COST=10, REROLL_COST_STEP=8;
+function rerollCost(){return REROLL_BASE_COST+S.rerollCount*REROLL_COST_STEP}
 // Spawns n fresh Squads / Grenadiers with guaranteed-unique ids, for the recruit-style reward
 // cards below.
 function spawnFreeTroops(n,kind){for(let i=0;i<n;i++)S.troops.push(mkTroop(Date.now()+Math.floor(Math.random()*1000)+i,kind))}
@@ -701,7 +707,7 @@ function corruptUnit(u,type,label){
 }
 
 function reset(landing){
-  S={t:0,dat:40,living:0,condensed:0,over:null,
+  S={t:0,dat:40,living:0,condensed:0,over:null,rerollCount:0,
     base:{x:landing?landing.x:W/2,y:landing?landing.y:H-400,hp:450+bastionHpBonus(),maxHp:450+bastionHpBonus(),r:BASE_R,dest:null,locked:false,gunCd:0,bigGunCd:0,pingCd:0},
     troops:[],harvesters:[],builders:[],relays:[],depots:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],shards:[],nades:[],
     veins:[],activeVein:null,throttleMul:1,ambientT:30,
@@ -2904,9 +2910,27 @@ function showRewardChoice(tier){
     btn.onclick=()=>pickReward(i);
     host.appendChild(btn);
   });
+  const cost=rerollCost();
+  const rb=document.getElementById('rerollBtn');
+  rb.textContent=`Reroll (${cost} ⬢)`;
+  rb.disabled=S.condensed<cost;
   document.getElementById('rewardOverlay').hidden=false;
   sfx.veinDone();
 }
+// Spends escalating Condensed Crystal — the same currency banked into meta-progression at run's
+// end — to reroll the current choice at the same tier. S.rerollCount never resets mid-run, so the
+// price keeps climbing no matter how many different veins' choices it's spent across.
+function rerollReward(){
+  const choice=S.rewardChoice;
+  if(!choice)return;
+  const cost=rerollCost();
+  if(S.condensed<cost)return;
+  S.condensed-=cost;
+  S.rerollCount++;
+  sfx.click();
+  showRewardChoice(choice.tier);
+}
+document.getElementById('rerollBtn').onclick=rerollReward;
 function pickReward(i){
   const choice=S.rewardChoice;
   if(!choice)return;
