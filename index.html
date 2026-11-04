@@ -905,22 +905,45 @@ const CORRUPT_STATS={
   builder:{r:BUILDER_R+1,hp:30,speed:BUILDER_SPEED,dmg:4},
   mech:{r:MECH_R+1,hp:95,speed:MECH_SPEED,dmg:16},
 };
-function corruptUnit(u,type,label){
+// reason: 'sanity' (lost signal too long — the default) or 'death' (killed by an enemy and
+// reanimated; see queueReanimation). Only the messages differ.
+function corruptUnit(u,type,label,reason){
+  const fallen=reason==='death';
   if(S.mods.martyrs){
     // caller is mid-filter over whichever array u belongs to, so that array still includes u —
     // exclude it explicitly rather than relying on it already being gone.
     S.enemies.forEach(e=>{if(dist(e,u)<=MARTYR_R)damageEnemy(e,MARTYR_DMG)});
-    S.troops.concat(S.harvesters).concat(S.builders).forEach(a=>{if(a!==u&&dist(a,u)<=MARTYR_R){a.hp-=MARTYR_DMG;hitFlash(a)}});
+    S.troops.concat(S.harvesters).concat(S.builders).forEach(a=>{if(a!==u&&dist(a,u)<=MARTYR_R){a.hp-=MARTYR_DMG;a.lastHitBy='martyr';hitFlash(a)}});
     if(dist(S.base,u)<=MARTYR_R){S.base.hp-=MARTYR_DMG;hitFlash(S.base)}
-    msg(`${label} lost its mind and detonated!`);
+    msg(fallen?`${label} detonated as it rose again!`:`${label} lost its mind and detonated!`);
     burst(u.x,u.y,C.enemy,24,180,0.6);sfx.explode();shakeScreen(7,0.35);
     return;
   }
   const st=CORRUPT_STATS[type];
   S.enemies.push({x:u.x,y:u.y,r:st.r,hp:st.hp,maxHp:st.hp,speed:st.speed,dmg:st.dmg,cd:0,kind:'corrupted',
     target:null,aggro:1e9,home:{x:u.x,y:u.y},ang:rnd(0,Math.PI*2),faceT:rnd(1,3),stunT:0});
-  msg(`${label} lost its mind and turned hostile!`);
+  msg(fallen?`${label} has risen again — corrupted and hostile!`:`${label} lost its mind and turned hostile!`);
   burst(u.x,u.y,C.zone,16,130,0.5);sfx.sever();shakeScreen(5,0.25);
+}
+// Death by enemy hands isn't the end: a unit an enemy kills lies still for REANIMATE_T, then rises
+// as a Corrupted enemy (or, with Martyrs, detonates as it rises). Units lost any other way — a
+// Martyr blast, say — just die. lastHitBy is stamped on every hit an ally takes.
+const REANIMATE_T=1;
+function unitLabel(u,type){
+  if(type==='harvester')return 'A fallen Harvester';
+  if(type==='builder')return 'A fallen Builder';
+  return 'A fallen '+(u.kind==='grenadier'?'Grenadier':u.kind==='artillery'?'Artillery Piece':u.kind==='mech'?'Mech':'Squad');
+}
+function queueReanimation(u,type){
+  S.reanim.push({x:u.x,y:u.y,r:u.r,type,label:unitLabel(u,type),t:REANIMATE_T});
+}
+function updateReanimation(dt){
+  S.reanim=S.reanim.filter(c=>{
+    c.t-=dt;
+    if(c.t>0)return true;
+    corruptUnit(c,c.type,c.label,'death');
+    return false;
+  });
 }
 
 function reset(landing){
@@ -943,7 +966,7 @@ function reset(landing){
       cableLenAdd:0,cableHpMult:1,condensedMult:1,livingMult:1,fastBonus:0,freeRelayCharges:0,
       grenFireRateMult:1,grenSplashMult:1,squadRangeMult:1,bigGuns:false,bastionShootWhileDrilling:false,
       energySurgeLevel:0,armedRelays:false,martyrs:false},
-    rewardChoice:null,pingRing:null,pings:[],paused:false,
+    rewardChoice:null,pingRing:null,pings:[],reanim:[],paused:false,
     sel:{base:false,troops:new Set(),harv:new Set(),bu:new Set()}};
   for(let i=0;i<4;i++) S.troops.push(mkTroop(i));
   for(let i=0;i<2;i++) S.harvesters.push(mkHarv(i));
@@ -3101,6 +3124,7 @@ function update(dt){
   if(B.pingCd>0)B.pingCd=Math.max(0,B.pingCd-dt);
   if(S.pingRing){S.pingRing.t+=dt;if(S.pingRing.t>=S.pingRing.dur)S.pingRing=null}
   if(S.pings.length)S.pings=S.pings.filter(pg=>(pg.t-=dt)>0);
+  if(S.reanim.length)updateReanimation(dt);
   if(!B.locked||S.mods.bastionShootWhileDrilling){
     let best=null,bd=BASE_GUN_RANGE;S.enemies.forEach(e=>{const d=dist(e,B);if(d<bd){bd=d;best=e}});
     if(best&&B.gunCd<=0){damageEnemy(best,BASE_GUN_DMG);tracer(B,best,C.accent);B.gunCd=BASE_GUN_CD}
@@ -3432,7 +3456,7 @@ function update(dt){
     const reach=e.r+(tgt.r||12)+4;
     if(dist(e,tgt)<=reach&&!wallBetween(e,tgt)){
       if(e.cd<=0){
-        tgt.hp-=e.dmg; hitFlash(tgt); spark(tgt.x,tgt.y,C.enemy,2); e.cd=0.8;
+        tgt.hp-=e.dmg; tgt.lastHitBy='enemy'; hitFlash(tgt); spark(tgt.x,tgt.y,C.enemy,2); e.cd=0.8;
         if(tgt===B){shakeScreen(3,0.15);sfx.damage()}
       }
       return;
@@ -3492,6 +3516,10 @@ function update(dt){
       if(!de.wasDestroyed){de.wasDestroyed=true;msg('A Depot was destroyed — repair it before harvesters can drop off there again.');burst(de.x,de.y,C.dat,10,110,0.5);sfx.relayDown();shakeScreen(4,0.2)}
     } else if(de.wasDestroyed)de.wasDestroyed=false;
   });
+  // units killed by an enemy go down and, a moment later, get back up corrupted
+  S.troops.forEach(t=>{if(t.hp<=0){S.sel.troops.delete(t.id);if(t.lastHitBy==='enemy')queueReanimation(t,t.kind||'troop')}});
+  S.harvesters.forEach(h=>{if(h.hp<=0){S.sel.harv.delete(h.id);if(h.lastHitBy==='enemy')queueReanimation(h,'harvester')}});
+  S.builders.forEach(bu=>{if(bu.hp<=0){S.sel.bu.delete(bu.id);if(bu.lastHitBy==='enemy')queueReanimation(bu,'builder')}});
   S.troops=S.troops.filter(t=>t.hp>0); S.troops.forEach(t=>{if(dist(t,B)<B.r+30&&!S.enemies.some(e=>dist(e,t)<200))t.hp=Math.min(t.maxHp,t.hp+6*dt)});
   S.harvesters=S.harvesters.filter(h=>h.hp>0); S.harvesters.forEach(h=>{if(dist(h,B)<B.r+30&&!S.enemies.some(e=>dist(e,h)<200))h.hp=Math.min(h.maxHp,h.hp+6*dt)});
   S.builders.forEach(bu=>{if(bu.hp<=0)releaseBuilderClaim(bu)});
@@ -3884,6 +3912,13 @@ function draw(){
     if(bu.sanity<SANITY_MAX)sanityBar(bu.x,bu.y-10,16,bu.sanity/SANITY_MAX);
     if(!bu.tetherOk)drawCutGlyph(bu.x,bu.y); if(bu.following)drawFollowGlyph(bu.x,bu.y);
     if(sel&&bu.dest){ctx.strokeStyle='rgba(79,209,197,0.35)';ctx.beginPath();ctx.moveTo(bu.x,bu.y);ctx.lineTo(bu.dest.x,bu.dest.y);ctx.stroke()}});
+  // fallen units mid-reanimation: a grey husk, with a violet ring closing in on it and the husk
+  // flushing violet as the moment it rises gets closer
+  S.reanim.forEach(c=>{const p=1-Math.max(0,c.t)/REANIMATE_T, fl=0.75+0.25*Math.sin(performance.now()/45);
+    ctx.globalAlpha=0.85;ctx.fillStyle='#4a4f57';ctx.beginPath();ctx.arc(c.x,c.y,c.r,0,Math.PI*2);ctx.fill();
+    ctx.globalAlpha=p*0.8*fl;ctx.fillStyle=C.zone;ctx.beginPath();ctx.arc(c.x,c.y,c.r,0,Math.PI*2);ctx.fill();
+    ctx.globalAlpha=0.35+0.5*p;ctx.strokeStyle=C.zone;ctx.lineWidth=2;ctx.beginPath();ctx.arc(c.x,c.y,c.r+4+(1-p)*22,0,Math.PI*2);ctx.stroke();
+    ctx.globalAlpha=1});
   // enemies (only visible)
   S.enemies.forEach(e=>{if(!debugNoFog&&!visible(e))return;const a=e.ang,brute=e.kind==='brute';ctx.fillStyle=e.flashT>0?'#fff':(e.core?'#0a0a0a':(e.kind==='roam'?'#d9775f':e.kind==='saboteur'?C.cable:e.kind==='corrupted'?C.zone:C.enemy));ctx.beginPath();
     ctx.moveTo(e.x+Math.cos(a)*e.r*1.3,e.y+Math.sin(a)*e.r*1.3);ctx.lineTo(e.x+Math.cos(a+2.5)*e.r,e.y+Math.sin(a+2.5)*e.r);ctx.lineTo(e.x+Math.cos(a-2.5)*e.r,e.y+Math.sin(a-2.5)*e.r);ctx.closePath();ctx.fill();
