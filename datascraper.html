@@ -1297,6 +1297,33 @@ function drawPulseRing(src,R,col,I,vx0,vy0,vx1,vy1){
     ctx.globalAlpha=Math.min(1,I*g*1.1);ctx.lineWidth=1.1;seg(m,b,dlo,dhi);
   });
 }
+// The crack network, drawn live each frame so the fog can hide it: the cracks in view go into a
+// screen-sized layer, in depth buckets — shallow cracks faint hairlines, deep ones dark and
+// thicker — then the vision mask erases every part nothing can currently see, and the layer goes
+// onto the ground. (Energy pulses through the cracks are light, drawn separately above the fog.)
+const CRACK_DEPTH_BUCKETS=6;
+function drawCrackNet(vw,vh,shkx,shky,x0,y0,x1,y1){
+  const net=S.crackNet,dep=S.crackDepth; if(!net)return;
+  const dpr=devicePixelRatio;
+  if(crackLayer.width!==cv.width||crackLayer.height!==cv.height){crackLayer.width=cv.width;crackLayer.height=cv.height}
+  const L=crackLX;
+  L.setTransform(1,0,0,1,0,0);L.globalCompositeOperation='source-over';L.clearRect(0,0,crackLayer.width,crackLayer.height);
+  L.setTransform(dpr,0,0,dpr,0,0);L.translate(vw/2+shkx,vh/2+shky);L.scale(cam.z,cam.z);L.translate(-cam.x,-cam.y);
+  L.lineCap='round';
+  const vis=[];
+  for(let k=0;k<dep.length;k++){const i=k*4,ax=net[i],ay=net[i+1],bx=net[i+2],by=net[i+3];
+    if((ax<x0&&bx<x0)||(ax>x1&&bx>x1)||(ay<y0&&by<y0)||(ay>y1&&by>y1))continue;vis.push(k)}
+  for(let b=0;b<CRACK_DEPTH_BUCKETS;b++){
+    const lo=b/CRACK_DEPTH_BUCKETS,hi=(b+1)/CRACK_DEPTH_BUCKETS,f=(b+0.5)/CRACK_DEPTH_BUCKETS,last=b===CRACK_DEPTH_BUCKETS-1;
+    const pick=vis.filter(k=>dep[k]>=lo&&(dep[k]<hi||last));if(!pick.length)continue;
+    L.strokeStyle=`rgba(3,4,7,${(0.28+0.7*f).toFixed(3)})`;L.lineWidth=0.5+2.1*f*f;L.beginPath();
+    pick.forEach(k=>{const i=k*4;L.moveTo(net[i],net[i+1]);L.lineTo(net[i+2],net[i+3])});L.stroke();
+    if(f>0.5){L.strokeStyle=`rgba(255,255,255,${(0.05*f).toFixed(3)})`;L.lineWidth=0.6;L.beginPath();
+      pick.forEach(k=>{const i=k*4;L.moveTo(net[i]+1,net[i+1]+1);L.lineTo(net[i+2]+1,net[i+3]+1)});L.stroke()}
+  }
+  if(!debugNoFog){L.globalCompositeOperation='destination-out';L.imageSmoothingEnabled=true;L.drawImage(fogMaskC,0,0,W,H);L.globalCompositeOperation='source-over'}
+  ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.drawImage(crackLayer,0,0);ctx.restore();
+}
 // Stray pockets sit UNDER the ground: drawn into the world pass right after the terrain (so units,
 // fog and everything else sit on top), with overlay and a light screen blend that brighten and tint
 // the ground's own texture rather than painting over it, plus only a faint bit of light at the core.
@@ -1376,6 +1403,11 @@ let fogC=document.createElement('canvas'), fogX; const FOG_S=6; fogC.width=W/FOG
 // punched fully clear around whatever currently has vision — terrain stays legible there, but
 // units/enemies don't render outside visible() anyway, so nothing out of sight shows through it.
 let dimC=document.createElement('canvas'), dimX; dimC.width=W/FOG_S; dimC.height=H/FOG_S; dimX=dimC.getContext('2d');
+// Vision mask: opaque everywhere nothing can currently see, punched clear (with the same soft edges
+// as the dim veil) around every vision source — used to erase the crack network under the fog.
+let fogMaskC=document.createElement('canvas'), fogMaskX; fogMaskC.width=W/FOG_S; fogMaskC.height=H/FOG_S; fogMaskX=fogMaskC.getContext('2d');
+// Screen-sized layer the visible cracks are drawn into each frame before the mask is applied.
+let crackLayer=document.createElement('canvas'), crackLX=crackLayer.getContext('2d');
 let debugNoFog=false; // dev toggle: reveal the whole map and all enemies, bypassing fog/visibility
 
 // Every map is generated from a seed. rnd() normally draws from Math.random, but reset() points
@@ -2292,18 +2324,7 @@ function buildTerrainCanvas(){
       x2.beginPath();x2.moveTo(px,py);x2.lineTo(px+Math.cos(a)*len,py+Math.sin(a)*len);x2.stroke();
     }
   }
-  // the map-wide crack network, baked in as dark dead lines (energy pulses light them up live)
-  if(S.crackNet){const net=S.crackNet,dep=S.crackDepth,B=6;x2.lineCap='round';
-    // drawn in depth buckets: shallow cracks are faint hairlines, deep ones dark and thicker
-    for(let b=0;b<B;b++){
-      const lo=b/B,hi=(b+1)/B,f=(b+0.5)/B;
-      x2.strokeStyle=`rgba(3,4,7,${(0.28+0.7*f).toFixed(3)})`;x2.lineWidth=0.5+2.1*f*f;x2.beginPath();
-      for(let k=0;k<dep.length;k++){const d=dep[k];if(d<lo||(d>=hi&&b<B-1))continue;const i=k*4;x2.moveTo(net[i],net[i+1]);x2.lineTo(net[i+2],net[i+3])}
-      x2.stroke();
-      if(f>0.5){x2.strokeStyle=`rgba(255,255,255,${(0.05*f).toFixed(3)})`;x2.lineWidth=0.6;x2.beginPath();
-        for(let k=0;k<dep.length;k++){const d=dep[k];if(d<lo||(d>=hi&&b<B-1))continue;const i=k*4;x2.moveTo(net[i]+1,net[i+1]+1);x2.lineTo(net[i+2]+1,net[i+3]+1)}x2.stroke()}
-    }
-  }
+  // (the crack network is drawn live each frame instead — see drawCrackNet — so the fog can hide it)
   // depth-band tint radiating out from the Black Flame epicenter in rings — the whole reason this
   // is "a zone"
   const maxD=EPI_REACH+100;
@@ -4147,7 +4168,11 @@ function update(dt){
   dimX.clearRect(0,0,dimC.width,dimC.height);
   dimX.globalCompositeOperation='source-over'; dimX.fillStyle='rgba(0,0,0,0.44)'; dimX.fillRect(0,0,dimC.width,dimC.height);
   dimX.globalCompositeOperation='destination-out';
-  const unveil=(x,y,r)=>{const g=dimX.createRadialGradient(x/FOG_S,y/FOG_S,r*0.6/FOG_S,x/FOG_S,y/FOG_S,r/FOG_S);g.addColorStop(0,'rgba(0,0,0,1)');g.addColorStop(1,'rgba(0,0,0,0)');dimX.fillStyle=g;dimX.beginPath();dimX.arc(x/FOG_S,y/FOG_S,r/FOG_S,0,Math.PI*2);dimX.fill()};
+  fogMaskX.globalCompositeOperation='source-over'; fogMaskX.clearRect(0,0,fogMaskC.width,fogMaskC.height); fogMaskX.fillStyle='#000'; fogMaskX.fillRect(0,0,fogMaskC.width,fogMaskC.height);
+  fogMaskX.globalCompositeOperation='destination-out';
+  const unveil=(x,y,r)=>{const g=dimX.createRadialGradient(x/FOG_S,y/FOG_S,r*0.6/FOG_S,x/FOG_S,y/FOG_S,r/FOG_S);g.addColorStop(0,'rgba(0,0,0,1)');g.addColorStop(1,'rgba(0,0,0,0)');
+    dimX.fillStyle=g;dimX.beginPath();dimX.arc(x/FOG_S,y/FOG_S,r/FOG_S,0,Math.PI*2);dimX.fill();
+    fogMaskX.fillStyle=g;fogMaskX.beginPath();fogMaskX.arc(x/FOG_S,y/FOG_S,r/FOG_S,0,Math.PI*2);fogMaskX.fill()};
   {const vm=S.mods.visionMult;
   unveil(B.x,B.y,BASE_VISION*vm);S.pings.forEach(pg=>unveil(pg.x,pg.y,pg.r));S.troops.forEach(t=>unveil(t.x,t.y,TROOP_VISION*vm*S.mods.squadRangeMult));S.harvesters.forEach(h=>unveil(h.x,h.y,HARV_VISION*vm));S.builders.forEach(bu=>unveil(bu.x,bu.y,BUILDER_VISION*vm));}
 }
@@ -4377,6 +4402,7 @@ function draw(){
   const x0=cam.x-vw/2/cam.z,y0=cam.y-vh/2/cam.z,x1=cam.x+vw/2/cam.z,y1=cam.y+vh/2/cam.z;
   // ground (terrain + depth-band tint) + grid
   ctx.drawImage(terrainCv,0,0,W,H);
+  drawCrackNet(vw,vh,shkx,shky,x0,y0,x1,y1);
   ctx.strokeStyle='rgba(255,255,255,0.035)';ctx.lineWidth=1/cam.z;ctx.beginPath();
   for(let gx=Math.floor(Math.max(0,x0)/120)*120;gx<Math.min(W,x1);gx+=120){ctx.moveTo(gx,Math.max(0,y0));ctx.lineTo(gx,Math.min(H,y1))}
   for(let gy=Math.floor(Math.max(0,y0)/120)*120;gy<Math.min(H,y1);gy+=120){ctx.moveTo(Math.max(0,x0),gy);ctx.lineTo(Math.min(W,x1),gy)}
