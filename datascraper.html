@@ -660,6 +660,9 @@ const OFFZONE_PATROL_DIST=550, OFFZONE_PATROL_N={rim:3,dense:5,core:10};
 // not a random spot each time — far enough out that you can see them coming and react, not just
 // react to them already being on top of you.
 const WAVE_FRONT_HALF=260; // half-width of the line a wave spawns along, across its approach
+// How long before the drill warm-up ends the first wave sets off — roughly its walk in from
+// WAVE_SPAWN_DIST, so it arrives as drilling starts.
+const FIRST_WAVE_LEAD=9;
 const WAVE_SPAWN_DIST=820,WAVE_BASE_N={rim:5,dense:10,core:22};
 // Saboteurs are a separate threat while drilling: tiny, individually-fragile swarms that beeline
 // for whichever built Relay is nearest the vein (and opportunistically chew its cable on the way
@@ -2503,12 +2506,13 @@ function tryLockdown(throttle){
   if(!v){msg('Move the Bastion onto a found vein\'s marker first.');return}
   S.throttleMul=throttle==null?1:throttle;
   S.base.locked=true; S.base.dest=null;
-  // waveT/saboteurT/startT aren't set until prep finishes (see the update loop) — nothing should
-  // be counting down, let alone spawning, while the drill is still just warming up. waveDir is
+  // waveT/saboteurT/startT aren't set until prep finishes (see the update loop). The one exception
+  // is the first wave, launched FIRST_WAVE_LEAD before prep ends so it arrives as drilling starts
+  // rather than partway through (or after) a short, fast drill. waveDir is
   // rolled right away, though, so its directional arrow is up for the whole warm-up and the
   // player has the full 60s to actually see it and dig in before the first wave arrives.
   const prep=tutorialMap?TUTORIAL_PREP_TIME:PREP_TIME;
-  S.activeVein=v; v.drillProg=0; v.prepT=prep; v.stalled=false; v.paused=false; v.waveDir=rnd(0,Math.PI*2);
+  S.activeVein=v; v.drillProg=0; v.prepT=prep; v.stalled=false; v.paused=false; v.waveDir=rnd(0,Math.PI*2); v.firstWaveSent=false;
   const tier=currentTier(v);
   msg(`Drill warming up over the ${v.band} vein — ${prep}s until drilling begins at ${tier} tier, ${S.throttleMul===0.5?'Slow':S.throttleMul===1?'Normal':'Fast'} throttle.`);
   sfx.build();
@@ -2830,6 +2834,20 @@ function findRepairTarget(bu){
   return found;
 }
 
+// One drilling wave: spawns WAVE_SPAWN_DIST out from the vein in its wave direction, spread along
+// a wide front across the approach (not a tight clump that would all set off down the same line).
+function spawnVeinWave(v){
+  const n=Math.round(WAVE_BASE_N[v.band]*(0.7+0.3*S.throttleMul));
+  const a=v.waveDir, sx=v.x+Math.cos(a)*WAVE_SPAWN_DIST, sy=v.y+Math.sin(a)*WAVE_SPAWN_DIST;
+  const px=-Math.sin(a), py=Math.cos(a);
+  for(let i=0;i<n;i++){
+    const lat=rnd(-WAVE_FRONT_HALF,WAVE_FRONT_HALF), dep=rnd(-70,70);
+    const p=nearestPlain(Math.max(20,Math.min(W-20,sx+px*lat+Math.cos(a)*dep)),Math.max(20,Math.min(H-20,sy+py*lat+Math.sin(a)*dep)));
+    spawnEnemy(p.x,p.y,'wave');
+  }
+  msg(`Wave incoming from the ${a<Math.PI?'south':'north'}${Math.cos(a)>0?'east':'west'}.`);
+  sfx.wave();
+}
 // ---------- update ----------
 function update(dt){
   if(S.over||S.rewardChoice||S.paused)return; S.t+=dt;
@@ -2842,6 +2860,10 @@ function update(dt){
     const v=S.activeVein;
     if(v.prepT>0){
       v.prepT=Math.max(0,v.prepT-dt);
+      // The first wave sets off FIRST_WAVE_LEAD before the warm-up ends, so it's arriving just as
+      // the drill bites in. Launching it only once drilling had started meant it spent most of a
+      // short drill still walking in — a Rim vein on Fast could drain before it ever got there.
+      if(!v.firstWaveSent&&v.prepT<=FIRST_WAVE_LEAD){v.firstWaveSent=true;spawnVeinWave(v)}
       if(v.prepT<=0){
         v.startT=S.t;
         v.waveT=BASE_SPAWN_INTERVAL[v.band]/S.throttleMul;
@@ -2865,19 +2887,8 @@ function update(dt){
     }
     v.waveT-=dt;
     if(v.waveT<=0){
-      const n=Math.round(WAVE_BASE_N[v.band]*(0.7+0.3*S.throttleMul));
-      const a=v.waveDir, sx=v.x+Math.cos(a)*WAVE_SPAWN_DIST, sy=v.y+Math.sin(a)*WAVE_SPAWN_DIST;
-      // spread along a wide front across the approach direction, not a tight clump that would
-      // all set off down the same line
-      const px=-Math.sin(a), py=Math.cos(a);
-      for(let i=0;i<n;i++){
-        const lat=rnd(-WAVE_FRONT_HALF,WAVE_FRONT_HALF), dep=rnd(-70,70);
-        const p=nearestPlain(Math.max(20,Math.min(W-20,sx+px*lat+Math.cos(a)*dep)),Math.max(20,Math.min(H-20,sy+py*lat+Math.sin(a)*dep)));
-        spawnEnemy(p.x,p.y,'wave');
-      }
+      spawnVeinWave(v);
       v.waveT=BASE_SPAWN_INTERVAL[v.band]/S.throttleMul;
-      msg(`Wave incoming from the ${a<Math.PI?'south':'north'}${Math.cos(a)>0?'east':'west'}.`);
-      sfx.wave();
     }
     v.saboteurT-=dt;
     if(v.saboteurT<=0){
