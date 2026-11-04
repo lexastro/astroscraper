@@ -1141,7 +1141,7 @@ function emergeVein(site,o){
     reward:o.contract?{dat:50,living:3}:{dat:Math.round(site.richness*1.2)},
     mine:{x:site.x+Math.cos(ang)*rad,y:site.y+Math.sin(ang)*rad,found:false},
     site,ripeT:o.ripeT||0,crackedT:0,seen:false,collapsed:false,goneT:0,pulsePh:rnd(0,PULSE_PERIOD),
-    haze:{x:rnd(-260,260),y:rnd(-260,260)}};
+    haze:o.haze||{x:rnd(-260,260),y:rnd(-260,260)},opening:!!o.opening};
   v.hot=mkHotspots(v); v.cracks=crackLines(rand,v.x,v.y,v.r*0.95,7,12,24,0.28);
   site.vein=v; S.veins.push(v);
   if(!o.contract)indexPulse(v,PULSE_REACH);
@@ -1434,6 +1434,19 @@ function reset(landing){
   S.sites=[...layout.veins.filter(v=>!v.contract),...layout.extra].map(st=>({x:st.x,y:st.y,band:st.band,richness:st.richness,vein:null}));
   {const cs=layout.veins.find(v=>v.contract);S.contractSite={x:cs.x,y:cs.y,band:cs.band,richness:cs.richness,vein:null}}
   S.crackNet=genCrackNet();
+  // Which sites start with a live vein (and how far along each is) is part of the map, decided
+  // here before the landing spot is known — so picking a landing spot in the preview never
+  // reshuffles them. The veins themselves are created once the terrain is final (below).
+  const startPicks=[];
+  ['rim','dense','core'].forEach(band=>{
+    const pool=S.sites.filter(st=>st.band===band);
+    for(let k=0;k<VEINS_PER_BAND&&pool.length;k++){
+      const ok=pool.filter(st=>!startPicks.some(p=>dist(p.site,st)<700));
+      const from=ok.length?ok:pool, st=from[Math.floor(rnd(0,from.length))];
+      pool.splice(pool.indexOf(st),1);
+      startPicks.push({site:st,ripeT:rnd(0,RIPEN_STEP_T*1.6),haze:{x:rnd(-260,260),y:rnd(-260,260)}});
+    }
+  });
   // Dat Crystal deposits: the Rim is thick with small, low-yield nodes — common and unremarkable,
   // just enough to keep the economy moving without needing to push deeper right away. A spread
   // through the Dense Field and outer Core, then more scattered anywhere out past the Dense Field.
@@ -1458,7 +1471,8 @@ function reset(landing){
   ensureConnectivity([{x:S.base.x,y:S.base.y},...allSites.map(v=>({x:v.x,y:v.y})),...S.clusters.map(([x,y])=>({x,y})),...riftPockets]);
   closeHoles(S.base.x,S.base.y);
   ensureBastionAccess(allSites.map(v=>({x:v.x,y:v.y})));
-  terrainCv=buildTerrainCanvas();
+  // the ground texture rolls from its own fixed stream so it doesn't change with the landing spot
+  {const landingRand=rand;rand=seededRng(mapSeed*131+17);terrainCv=buildTerrainCanvas();rand=landingRand}
 
   nodeSpots.forEach(n=>{const p=nearestPlain(n.x,n.y);S.nodes.push({x:p.x,y:p.y,amt:n.amt,max:n.max,found:false})});
   // a few are always planted right by the Bastion's starting spot — inside the radius enemies
@@ -1498,14 +1512,12 @@ function reset(landing){
   // they don't all collapse together.
   S.veins=[];S.respawnQ=[];S.drained=0;S.contractAwake=false;S.strays=[];S.bearings=[];S.triMark=null;
   emergeVein(S.contractSite,{contract:true});
+  startPicks.forEach(p=>emergeVein(p.site,{ripeT:p.ripeT,haze:p.haze}));
+  // the opening vein: if no starting vein is close to the landing, a fresh one emerges at the
+  // nearest Rim site (it isn't part of the preview's haze, so the preview doesn't shift)
   {const rim=S.sites.filter(st=>st.band==='rim');
-   const open=rim.reduce((a,b)=>dist(b,S.base)<dist(a,S.base)?b:a);emergeVein(open,{ripeT:0})}
-  ['rim','dense','core'].forEach(band=>{
-    let guard=0;
-    while(S.veins.filter(v=>!v.contract&&v.band===band).length<VEINS_PER_BAND&&guard++<6){
-      const st=pickSite(band);if(!st)break;emergeVein(st,{ripeT:rnd(0,RIPEN_STEP_T*1.6)});
-    }
-  });
+   const open=rim.reduce((a,b)=>dist(b,S.base)<dist(a,S.base)?b:a);
+   if(!open.vein&&(tutorialMap||!S.veins.some(v=>!v.contract&&dist(v,S.base)<1100)))emergeVein(open,{ripeT:0,opening:true})}
   for(let i=0;i<STRAY_COUNT;i++){const st={x:0,y:0,live:true,t:0};S.strays.push(st);placeStray(st)}
   // The Core is deliberately saturated on top of the scatter above — a guaranteed, heavy
   // population across the whole band rather than relying on where the random packs happened to land.
@@ -1552,7 +1564,7 @@ function drawMenuMap(){
   // No vein markers before landing — just a haze of energy roughly where veins are stirring (each
   // haze sits a few hundred units off its vein), so landing is still an informed choice.
   menuCx.save();menuCx.globalCompositeOperation='lighter';
-  S.veins.forEach(v=>{if(v.contract||!veinAlive(v))return;const hx=(v.x+v.haze.x)*s,hy=(v.y+v.haze.y)*s,hr=520*s;
+  S.veins.forEach(v=>{if(v.contract||v.opening||!veinAlive(v))return;const hx=(v.x+v.haze.x)*s,hy=(v.y+v.haze.y)*s,hr=520*s;
     const g=menuCx.createRadialGradient(hx,hy,0,hx,hy,hr);g.addColorStop(0,CARD_TIER_COLOR[ripeTier(v)]);g.addColorStop(1,'rgba(0,0,0,0)');
     menuCx.globalAlpha=0.32;menuCx.fillStyle=g;menuCx.beginPath();menuCx.arc(hx,hy,hr,0,Math.PI*2);menuCx.fill()});
   menuCx.restore();
