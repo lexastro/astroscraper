@@ -3995,29 +3995,38 @@ reset();drawMenuMap();refreshMenuMeta();requestAnimationFrame(frame);
 // Title-screen build marker: the live latest commit on master, not a hand-maintained string — a
 // baked-in value can never equal its own commit's hash (the hash is computed FROM the file's
 // content), so this fetches it instead. Purely cosmetic; any failure (offline, rate-limited,
-// opened straight from disk with no network) just leaves it blank.
+// opened straight from disk with no network) falls back to the last list this browser fetched
+// successfully, and only stays blank if there's never been one.
 // The same single request also brings back the last few commits, whose subject lines double as a
 // one-sentence changelog: the newest shows beside the version, and "What's new" lists the rest.
-const CHANGELOG_N=8;
+// GitHub allows each visitor's IP only 60 of these an hour, which a few busy reloads can use up —
+// hence keeping the last good copy in localStorage.
+const CHANGELOG_N=8, CHANGELOG_KEY='datascraper_changelog_v1';
+function renderChangelog(list){
+  if(!Array.isArray(list)||!list.length)return;
+  document.getElementById('versionText').textContent=`v${list[0].sha} — ${list[0].subject}`;
+  const ol=document.getElementById('changesList');
+  ol.innerHTML='';
+  list.forEach((c,i)=>{
+    const li=document.createElement('li');
+    const when=c.date?new Date(c.date).toLocaleDateString(undefined,{month:'short',day:'numeric'}):'';
+    const meta=document.createElement('span');meta.className='chMeta';meta.textContent=`v${c.sha}${when?' · '+when:''}${i===0?' · current':''}`;
+    const txt=document.createElement('span');txt.className='chText';txt.textContent=c.subject;
+    li.append(meta,txt);ol.appendChild(li);
+  });
+  document.getElementById('changesBtn').hidden=false;
+}
+function cachedChangelog(){try{return JSON.parse(localStorage.getItem(CHANGELOG_KEY)||'null')}catch(e){return null}}
 fetch(`https://api.github.com/repos/lexastro/astroscraper/commits?sha=master&per_page=${CHANGELOG_N}`)
   .then(r=>r.ok?r.json():Promise.reject())
-  .then(list=>{
-    if(!Array.isArray(list)||!list.length||!list[0].sha)return;
-    const subject=c=>((c.commit&&c.commit.message)||'').split('\n')[0].trim();
-    document.getElementById('versionText').textContent=`v${list[0].sha.slice(0,7)} — ${subject(list[0])}`;
-    const ol=document.getElementById('changesList');
-    ol.innerHTML='';
-    list.forEach((c,i)=>{
-      const li=document.createElement('li');
-      const when=c.commit&&c.commit.author&&c.commit.author.date?new Date(c.commit.author.date).toLocaleDateString(undefined,{month:'short',day:'numeric'}):'';
-      const meta=document.createElement('span');meta.className='chMeta';meta.textContent=`v${c.sha.slice(0,7)}${when?' · '+when:''}${i===0?' · current':''}`;
-      const txt=document.createElement('span');txt.className='chText';txt.textContent=subject(c);
-      li.append(meta,txt);ol.appendChild(li);
-    });
-    document.getElementById('changesBtn').hidden=false;
+  .then(raw=>{
+    if(!Array.isArray(raw)||!raw.length||!raw[0].sha)return Promise.reject();
+    const list=raw.map(c=>({sha:c.sha.slice(0,7),subject:((c.commit&&c.commit.message)||'').split('\n')[0].trim(),
+      date:c.commit&&c.commit.author&&c.commit.author.date||''}));
+    try{localStorage.setItem(CHANGELOG_KEY,JSON.stringify(list))}catch(e){}
+    renderChangelog(list);
   })
-  .catch(()=>{});
-document.getElementById('changesBtn').onclick=()=>{const p=document.getElementById('changesPanel');p.hidden=!p.hidden};
+  .catch(()=>renderChangelog(cachedChangelog()));document.getElementById('changesBtn').onclick=()=>{const p=document.getElementById('changesPanel');p.hidden=!p.hidden};
 document.getElementById('changesClose').onclick=()=>{document.getElementById('changesPanel').hidden=true};
 // Gameplay recording consent: ask once, up front, before the main menu is usable; a past choice
 // (allowed or disabled) is applied straight away instead of asking again.
