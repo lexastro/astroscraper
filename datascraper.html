@@ -402,6 +402,9 @@ const CORE_R=1080, DENSE_R=2700;
 // Core enemies are a visibly tougher tier — black body, red outline — rather than just a palette
 // swap of the same stats.
 const CORE_ENEMY_HP_MULT=1.8;
+// Brute: a rare, lumbering Core-only guardian — tanky and very slow, but when it finally goes
+// down it ruptures into a small swarm of saboteurs rather than just dying quietly.
+const BRUTE_R=22, BRUTE_HP=420, BRUTE_SPEED=20, BRUTE_DMG=20, BRUTE_CHANCE=0.05, BRUTE_BURST_MIN=4, BRUTE_BURST_MAX=7;
 const BASE_R=30, BASE_SPEED=42, BUILD_R=270, BASE_VISION=450;
 // Squad firing cooldown, range +50% (165 -> 247.5).
 const TROOP_R=7, TROOP_SPEED=125, TROOP_VISION=340, TROOP_RANGE=247.5, TROOP_DMG=7, TROOP_CD=1.3;
@@ -969,11 +972,16 @@ function openMainMenu(){
   else{launchBtn.disabled=true;document.getElementById('menuHint').textContent='Click inside the dashed Rim band to choose your landing zone.'}
 }
 function spawnEnemy(x,y,kind){
+  const core=bandAt(x,y)==='core';
+  // Brutes only ever show up as a rare roll on a Core roam spawn — never on a wave/saboteur/
+  // ambient call — so they read as something you stumble across guarding the Core, not something
+  // that comes at you in a rush.
+  if(kind==='roam'&&core&&Math.random()<BRUTE_CHANCE)kind='brute';
+  const brute=kind==='brute';
   const big=kind==='wave'&&Math.random()<0.2;
   const sab=kind==='saboteur';
-  const core=bandAt(x,y)==='core';
-  const hp=Math.round((big?120:sab?4:34)*(core?CORE_ENEMY_HP_MULT:1));
-  S.enemies.push({x,y,r:big?13:sab?4:8,hp,maxHp:hp,speed:big?48:sab?105:78,dmg:big?12:sab?1.5:5,cd:0,kind,core,target:null,aggro:kind==='roam'?260:1e9,home:{x,y},ang:rnd(0,Math.PI*2),faceT:rnd(1,3)});
+  const hp=brute?BRUTE_HP:Math.round((big?120:sab?4:34)*(core?CORE_ENEMY_HP_MULT:1));
+  S.enemies.push({x,y,r:brute?BRUTE_R:big?13:sab?4:8,hp,maxHp:hp,speed:brute?BRUTE_SPEED:big?48:sab?105:78,dmg:brute?BRUTE_DMG:big?12:sab?1.5:5,cd:0,kind,core,target:null,aggro:kind==='roam'||brute?260:1e9,home:{x,y},ang:rnd(0,Math.PI*2),faceT:rnd(1,3)});
 }
 // Where the player's actual mining is happening right now — the average position of harvesters
 // currently working a node (falling back to all harvesters, then the Bastion) — rather than just
@@ -2641,7 +2649,7 @@ function update(dt){
     } else {
       allies.forEach(t=>{const d=dist(t,e);if(d<bd){bd=d;tgt=t}});
     }
-    if(e.kind==='roam'){
+    if(e.kind==='roam'||e.kind==='brute'){
       if(!tgt&&dist(e,B)<e.aggro+120)tgt=B;
     } else if(e.kind!=='saboteur'){
       if(!tgt||bd>220){let bt=B,btd=dist(e,B);
@@ -2654,7 +2662,7 @@ function update(dt){
     // face whoever they're engaging; otherwise idle fidget with a random heading
     if(tgt)e.ang=Math.atan2(tgt.y-e.y,tgt.x-e.x);
     else{e.faceT-=dt;if(e.faceT<=0){e.ang=rnd(0,Math.PI*2);e.faceT=rnd(1.5,3.5)}}
-    if(e.kind==='roam'&&!tgt){
+    if((e.kind==='roam'||e.kind==='brute')&&!tgt){
       const factor=roughFactor(e.x,e.y);
       if(e.patrol){
         const P=e.patrol, dest=P.dir>0?P.b:P.a;
@@ -2695,7 +2703,25 @@ function update(dt){
   cableSeverPass(allies.concat(S.relays.filter(r=>r.built)),dt);
 
   // deaths
-  S.enemies=S.enemies.filter(e=>{if(e.hp<=0){burst(e.x,e.y,e.kind==='saboteur'?C.cable:C.enemy,5,90);sfx.kill();if(Math.random()<0.35)S.shards.push({x:e.x+rnd(-8,8),y:e.y+rnd(-8,8),amt:Math.round(rnd(1,3)),rot:rnd(0,Math.PI*2)});return false}return true});
+  const bruteDeaths=[];
+  S.enemies=S.enemies.filter(e=>{if(e.hp<=0){
+    const brute=e.kind==='brute';
+    burst(e.x,e.y,brute?'#ff2a2a':e.kind==='saboteur'?C.cable:C.enemy,brute?20:5,brute?150:90,brute?0.6:undefined);
+    sfx.kill();
+    if(Math.random()<0.35)S.shards.push({x:e.x+rnd(-8,8),y:e.y+rnd(-8,8),amt:Math.round(rnd(1,3)),rot:rnd(0,Math.PI*2)});
+    if(brute)bruteDeaths.push({x:e.x,y:e.y});
+    return false}return true});
+  // a Brute going down ruptures into a saboteur swarm right where it fell, instead of just dying
+  bruteDeaths.forEach(p=>{
+    const n=Math.round(rnd(BRUTE_BURST_MIN,BRUTE_BURST_MAX));
+    for(let i=0;i<n;i++){
+      const ang=rnd(0,Math.PI*2),rad=rnd(10,40);
+      const sp=nearestPlain(p.x+Math.cos(ang)*rad,p.y+Math.sin(ang)*rad);
+      spawnEnemy(sp.x,sp.y,'saboteur');
+    }
+    shakeScreen(5,0.3);
+    msg('A Brute has burst apart — saboteurs are swarming out of the wreckage!');
+  });
   S.turrets.forEach(t=>{if(t.hp<=0){burst(t.x,t.y,C.accent,10,110,0.5);sfx.relayDown()}});
   S.turrets=S.turrets.filter(t=>t.hp>0);
   // a destroyed Relay stays put instead of vanishing — it just goes fully dark (no tether, no
@@ -3063,9 +3089,10 @@ function draw(){
     if(!bu.tetherOk)drawCutGlyph(bu.x,bu.y); if(bu.following)drawFollowGlyph(bu.x,bu.y);
     if(sel&&bu.dest){ctx.strokeStyle='rgba(79,209,197,0.35)';ctx.beginPath();ctx.moveTo(bu.x,bu.y);ctx.lineTo(bu.dest.x,bu.dest.y);ctx.stroke()}});
   // enemies (only visible)
-  S.enemies.forEach(e=>{if(!debugNoFog&&!visible(e))return;const a=e.ang;ctx.fillStyle=e.flashT>0?'#fff':(e.core?'#0a0a0a':(e.kind==='roam'?'#d9775f':e.kind==='saboteur'?C.cable:e.kind==='corrupted'?C.zone:C.enemy));ctx.beginPath();
+  S.enemies.forEach(e=>{if(!debugNoFog&&!visible(e))return;const a=e.ang,brute=e.kind==='brute';ctx.fillStyle=e.flashT>0?'#fff':(e.core?'#0a0a0a':(e.kind==='roam'?'#d9775f':e.kind==='saboteur'?C.cable:e.kind==='corrupted'?C.zone:C.enemy));ctx.beginPath();
     ctx.moveTo(e.x+Math.cos(a)*e.r*1.3,e.y+Math.sin(a)*e.r*1.3);ctx.lineTo(e.x+Math.cos(a+2.5)*e.r,e.y+Math.sin(a+2.5)*e.r);ctx.lineTo(e.x+Math.cos(a-2.5)*e.r,e.y+Math.sin(a-2.5)*e.r);ctx.closePath();ctx.fill();
-    if(e.core){ctx.strokeStyle=e.flashT>0?'#fff':'#ff2a2a';ctx.lineWidth=1.5;ctx.stroke()}
+    if(e.core){ctx.strokeStyle=e.flashT>0?'#fff':'#ff2a2a';ctx.lineWidth=brute?3:1.5;ctx.stroke()}
+    if(brute){ctx.globalAlpha=0.45;ctx.strokeStyle='#ff2a2a';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(e.x,e.y,e.r+7,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1}
     if(e.hp<e.maxHp)hpbar(e.x,e.y-e.r-8,e.r*2+4,e.hp/e.maxHp)});
   // tracers
   S.tracers.forEach(t=>{ctx.strokeStyle=t.col;ctx.globalAlpha=t.t/0.12;ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(t.x1,t.y1);ctx.lineTo(t.x2,t.y2);ctx.stroke()});ctx.globalAlpha=1;
