@@ -145,12 +145,29 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 .consentRow{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
 .overlay button.secondary{background:var(--panel2);color:var(--fg);border:1px solid var(--line)}
 .rewardCards{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;max-width:900px}
-.rewardCard{width:190px;min-height:210px;background:var(--panel2);border:2px solid var(--line);border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:8px;cursor:pointer;text-align:left;color:var(--fg);font:inherit;transition:transform .12s ease}
-.rewardCard:hover{transform:translateY(-5px)}
-.rewardCard.trade{border-style:dashed;background:var(--panel)}
-.rewardCard .rcTier{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.09em;font-weight:700}
-.rewardCard .rcName{font-weight:600;font-size:15px;line-height:1.25}
-.rewardCard .rcDesc{font-size:12px;color:var(--muted);line-height:1.42;flex:1}
+/* Reward cards share one neutral dark-grey face; the tier only shows in the outline (--tc, set
+   per card), its glow, and the tier label — so the colour reads as rarity at a glance.
+   ".overlay button.rewardCard" (not just ".rewardCard") to out-specificity the generic gold
+   ".overlay button" style, same as the drill cards above. */
+.overlay button.rewardCard{--tc:#a9b4c0;position:relative;width:190px;min-height:210px;
+  background:linear-gradient(180deg,#26272b 0%,#1d1e21 100%);
+  border:2px solid var(--tc);border-radius:10px;padding:14px 14px 16px;
+  display:flex;flex-direction:column;gap:8px;cursor:pointer;text-align:left;color:var(--fg);font:inherit;
+  box-shadow:0 0 0 1px rgba(0,0,0,.6),0 0 14px -4px var(--tc),0 6px 16px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.05);
+  transition:transform .14s ease,box-shadow .14s ease}
+.overlay button.rewardCard:hover,.overlay button.rewardCard:focus-visible{transform:translateY(-5px);outline:none;
+  box-shadow:0 0 0 1px rgba(0,0,0,.6),0 0 22px -2px var(--tc),0 10px 22px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.06)}
+.overlay button.rewardCard:active{transform:translateY(-2px)}
+.overlay button.rewardCard.trade{border-style:dashed}
+.rewardCard .rcTier{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.1em;font-weight:700;color:var(--tc);
+  padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,.07)}
+.rewardCard .rcTier::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--tc);box-shadow:0 0 6px var(--tc)}
+.rewardCard .rcName{font-weight:600;font-size:15px;line-height:1.25;color:#eef1f4}
+.rewardCard .rcDesc{font-size:12px;color:#9aa3ad;line-height:1.45;flex:1}
+.overlay button.rewardCard.legendary{animation:legendGlow 2.4s ease-in-out infinite}
+@keyframes legendGlow{0%,100%{box-shadow:0 0 0 1px rgba(0,0,0,.6),0 0 14px -4px var(--tc),0 6px 16px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.05)}
+  50%{box-shadow:0 0 0 1px rgba(0,0,0,.6),0 0 24px -2px var(--tc),0 6px 16px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.05)}}
+.overlay button.rewardCard.legendary:hover{animation:none}
 .unlockCards{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;max-width:600px}
 /* desktop gets a wider shop row so 3+ upgrade cards sit on one line instead of wrapping early */
 @media (min-width:720px){.unlockCards{max-width:920px}}
@@ -264,7 +281,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   #miniWrap.expanded ~ .unitSelCtrl{bottom:max(285px,calc(285px + env(safe-area-inset-bottom,0px)))}
 }
 @media (max-width:600px){.stat{min-width:70px}.stat .v{font-size:14px}}
-@media (prefers-reduced-motion:reduce){*{transition:none!important}.overlay{animation:none}.bar i.hp.low{animation:none}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}.overlay{animation:none}.bar i.hp.low{animation:none}.overlay button.rewardCard.legendary{animation:none}}
 </style>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;600&display=swap">
 
@@ -797,6 +814,9 @@ const C={ally:css('--ally'),enemy:css('--enemy'),dat:css('--dat'),living:css('--
 // Tier colors reuse existing semantic tokens rather than inventing new ones: gold/accent for
 // Legendary, the zone purple for Epic, ally blue for Rare, muted grey for Common.
 const TIER_COLOR={Legendary:C.accent,Epic:C.zone,Rare:C.ally,Common:C.muted};
+// Reward-card outlines: same hues, except Common uses a lighter silver so its outline still reads
+// against the cards' dark-grey face.
+const CARD_TIER_COLOR={...TIER_COLOR,Common:'#b3bcc6'};
 function currentTier(v){
   const ladder=TIER_LADDER[v.band];
   const elapsed=v.decayElapsed||0;
@@ -3410,11 +3430,11 @@ function showRewardChoice(tier){
   const host=document.getElementById('rewardCards');
   host.innerHTML='';
   cards.forEach((c,i)=>{
-    const col=c.kind==='trade'?C.dat:TIER_COLOR[c.tier];
+    const trade=c.kind==='trade', col=trade?C.dat:CARD_TIER_COLOR[c.tier];
     const btn=document.createElement('button');
-    btn.className='rewardCard'+(c.kind==='trade'?' trade':'');
-    btn.style.borderColor=col;
-    btn.innerHTML=`<span class="rcTier" style="color:${col}">${c.kind==='trade'?'Trade':c.tier}</span><span class="rcName">${c.name}</span><span class="rcDesc">${c.desc}</span>`;
+    btn.className='rewardCard'+(trade?' trade':'')+(!trade&&c.tier==='Legendary'?' legendary':'');
+    btn.style.setProperty('--tc',col);
+    btn.innerHTML=`<span class="rcTier">${trade?'Trade':c.tier}</span><span class="rcName">${c.name}</span><span class="rcDesc">${c.desc}</span>`;
     btn.onclick=()=>pickReward(i);
     host.appendChild(btn);
   });
