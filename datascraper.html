@@ -339,9 +339,10 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <h1>Datascraper</h1>
   <button id="playBtn">Play</button>
   <button id="settingsBtn" class="secondary">Settings</button>
-  <!-- Bump this on every change that gets pushed, so a refresh of the GitHub Pages build is
-       easy to confirm at a glance from the title screen. -->
-  <div class="versionTag">v2026.11.04</div>
+  <!-- Filled in at load from the GitHub API with the actual latest commit on master — the same
+       short hash `git push` prints as its destination ref — so it always matches the live build
+       with no manual bumping. See the fetch call near the bottom of the main script. -->
+  <div class="versionTag" id="versionTag"></div>
 </div>
 
 <div class="overlay" id="menuOverlay" hidden>
@@ -3192,6 +3193,14 @@ function hud(){
 // ---------- loop ----------
 function frame(ts){const dt=Math.min(0.05,(ts-lastT)/1000||0);lastT=ts;update(dt);draw();requestAnimationFrame(frame)}
 reset();drawMenuMap();refreshMenuMeta();requestAnimationFrame(frame);
+// Title-screen build marker: the live latest commit on master, not a hand-maintained string — a
+// baked-in value can never equal its own commit's hash (the hash is computed FROM the file's
+// content), so this fetches it instead. Purely cosmetic; any failure (offline, rate-limited,
+// opened straight from disk with no network) just leaves it blank.
+fetch('https://api.github.com/repos/lexastro/astroscraper/commits/master')
+  .then(r=>r.ok?r.json():Promise.reject())
+  .then(d=>{const el=document.getElementById('versionTag');if(el&&d&&d.sha)el.textContent='v'+d.sha.slice(0,7)})
+  .catch(()=>{});
 // Gameplay recording consent: ask once, up front, before the main menu is usable; a past choice
 // (allowed or disabled) is applied straight away instead of asking again.
 if(meta.recordingConsent===undefined)document.getElementById('consentOverlay').hidden=false;
