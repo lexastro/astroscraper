@@ -102,9 +102,23 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
    Unlocks panel, once it has several upgrade cards) scrolls from its actual top instead of
    centering the content and clipping the overflowing part completely out of scroll range */
 .overlay{position:absolute;inset:0;background:rgba(5,7,10,.78);display:flex;align-items:safe center;justify-content:safe center;flex-direction:column;gap:14px;text-align:center;padding:24px;z-index:20;overflow-y:auto}
-.versionTag{position:absolute;left:0;right:0;bottom:calc(10px + env(safe-area-inset-bottom,0px));text-align:center;font-family:var(--mono);font-size:11px;color:var(--muted);opacity:.5;pointer-events:none}
+.versionTag{position:absolute;left:16px;right:16px;bottom:calc(10px + env(safe-area-inset-bottom,0px));display:flex;justify-content:center;align-items:center;gap:10px;flex-wrap:wrap;
+  text-align:center;font-family:var(--mono);font-size:11px;color:var(--muted);pointer-events:none}
+.versionTag #versionText{opacity:.65}
+.overlay button.changesBtn{pointer-events:auto;background:none;border:none;padding:0;font:inherit;font-size:11px;font-weight:400;color:var(--accent);text-decoration:underline;cursor:pointer;opacity:.85}
+.overlay button.changesBtn:hover{opacity:1}
+.changesPanel{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(36px + env(safe-area-inset-bottom,0px));width:min(480px,calc(100vw - 32px));max-height:min(52vh,420px);overflow:auto;
+  background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px 14px 12px;text-align:left;box-shadow:0 6px 20px rgba(0,0,0,.5);z-index:2}
+.changesPanel[hidden]{display:none}
+.chHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;font-size:13px}
+.chHead .changesBtn{text-decoration:none;font-size:16px;line-height:1;color:var(--muted)}
+#changesList{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+#changesList li{display:flex;flex-direction:column;gap:1px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+#changesList li:last-child{border-bottom:none;padding-bottom:0}
+.chMeta{font-family:var(--mono);font-size:10px;color:var(--muted)}
+.chText{font-size:12.5px;color:var(--fg);line-height:1.4}
 /* clears the build bar, which still shows (dimly, through the overlay) behind the main menu */
-@media (max-width:720px){.versionTag{bottom:calc(66px + env(safe-area-inset-bottom,0px))}}
+@media (max-width:720px){.versionTag{bottom:calc(66px + env(safe-area-inset-bottom,0px))}.changesPanel{bottom:calc(92px + env(safe-area-inset-bottom,0px))}}
 .overlay h1{font-family:var(--mono);font-weight:500;font-size:26px;margin:0;letter-spacing:.04em;text-wrap:balance}
 .overlay p{margin:0;color:var(--muted);max-width:40ch}
 .overlay button{background:var(--accent);color:#1a1200;border:0;font:inherit;font-weight:600;padding:10px 18px;border-radius:4px;cursor:pointer}
@@ -387,7 +401,11 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <!-- Filled in at load from the GitHub API with the actual latest commit on master — the same
        short hash `git push` prints as its destination ref — so it always matches the live build
        with no manual bumping. See the fetch call near the bottom of the main script. -->
-  <div class="versionTag" id="versionTag"></div>
+  <div class="versionTag" id="versionTag"><span id="versionText"></span><button id="changesBtn" class="changesBtn" hidden>What's new</button></div>
+  <div class="changesPanel" id="changesPanel" hidden>
+    <div class="chHead"><b>Recent changes</b><button id="changesClose" class="changesBtn" aria-label="Close">×</button></div>
+    <ol id="changesList"></ol>
+  </div>
 </div>
 
 <div class="overlay" id="menuOverlay" hidden>
@@ -3939,10 +3957,29 @@ reset();drawMenuMap();refreshMenuMeta();requestAnimationFrame(frame);
 // baked-in value can never equal its own commit's hash (the hash is computed FROM the file's
 // content), so this fetches it instead. Purely cosmetic; any failure (offline, rate-limited,
 // opened straight from disk with no network) just leaves it blank.
-fetch('https://api.github.com/repos/lexastro/astroscraper/commits/master')
+// The same single request also brings back the last few commits, whose subject lines double as a
+// one-sentence changelog: the newest shows beside the version, and "What's new" lists the rest.
+const CHANGELOG_N=8;
+fetch(`https://api.github.com/repos/lexastro/astroscraper/commits?sha=master&per_page=${CHANGELOG_N}`)
   .then(r=>r.ok?r.json():Promise.reject())
-  .then(d=>{const el=document.getElementById('versionTag');if(el&&d&&d.sha)el.textContent='v'+d.sha.slice(0,7)})
+  .then(list=>{
+    if(!Array.isArray(list)||!list.length||!list[0].sha)return;
+    const subject=c=>((c.commit&&c.commit.message)||'').split('\n')[0].trim();
+    document.getElementById('versionText').textContent=`v${list[0].sha.slice(0,7)} — ${subject(list[0])}`;
+    const ol=document.getElementById('changesList');
+    ol.innerHTML='';
+    list.forEach((c,i)=>{
+      const li=document.createElement('li');
+      const when=c.commit&&c.commit.author&&c.commit.author.date?new Date(c.commit.author.date).toLocaleDateString(undefined,{month:'short',day:'numeric'}):'';
+      const meta=document.createElement('span');meta.className='chMeta';meta.textContent=`v${c.sha.slice(0,7)}${when?' · '+when:''}${i===0?' · current':''}`;
+      const txt=document.createElement('span');txt.className='chText';txt.textContent=subject(c);
+      li.append(meta,txt);ol.appendChild(li);
+    });
+    document.getElementById('changesBtn').hidden=false;
+  })
   .catch(()=>{});
+document.getElementById('changesBtn').onclick=()=>{const p=document.getElementById('changesPanel');p.hidden=!p.hidden};
+document.getElementById('changesClose').onclick=()=>{document.getElementById('changesPanel').hidden=true};
 // Gameplay recording consent: ask once, up front, before the main menu is usable; a past choice
 // (allowed or disabled) is applied straight away instead of asking again.
 if(meta.recordingConsent===undefined)document.getElementById('consentOverlay').hidden=false;
