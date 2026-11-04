@@ -61,13 +61,6 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 .build button .cost{font-family:var(--mono);font-size:11px;color:var(--dat)}
 .build button:disabled{opacity:.45;cursor:default}
 .build button#bLock{border-color:var(--dat)}
-.prod{position:absolute;left:50%;transform:translateX(-50%);bottom:max(76px,calc(76px + env(safe-area-inset-bottom,0px)));background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:10px 14px;pointer-events:auto;display:flex;flex-direction:column;gap:6px;min-width:190px}
-.prod b{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
-.prod .prodBtn{background:var(--panel2);border:1px solid var(--line);color:var(--fg);font:inherit;padding:8px 10px;border-radius:4px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:12px}
-.prod .prodBtn:hover{border-color:var(--harv)}
-.prod .prodBtn:disabled{opacity:.45;cursor:default}
-.prod .prodBtn .cost{font-family:var(--mono);font-size:11px;color:var(--dat)}
-.prod #prodClose{position:absolute;top:4px;right:6px;background:none;border:0;color:var(--muted);cursor:pointer;font-size:14px}
 /* live drilling readout only (speed picking now happens in the #drillSelectOverlay popup) — a
    flex child of .bottomBar, stacked above unitActions/the build bar on the left, well clear of
    both the toast stack (top-left) and the always-on help panel (top-right on desktop) */
@@ -186,9 +179,9 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 }
 /* --- visual polish: HUD chrome, press feedback, icons, low-HP flash --- */
 .stat,.build button,.prod,.throttle,.mini,.help{box-shadow:0 2px 8px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.04);border-radius:6px}
-.build button,.prod .prodBtn,.throttle button,.metaUnlock,.unitActions button{transition:transform .08s ease,background .12s ease}
-.build button:active,.prod .prodBtn:active,.throttle button:active,.metaUnlock:active,.unitActions button:active{transform:scale(.94);background:var(--panel2)}
-.build button .icon,.prod .prodBtn .icon,.unitActions button .icon{margin-right:2px;font-size:13px}
+.build button,.throttle button,.metaUnlock,.unitActions button{transition:transform .08s ease,background .12s ease}
+.build button:active,.throttle button:active,.metaUnlock:active,.unitActions button:active{transform:scale(.94);background:var(--panel2)}
+.build button .icon,.unitActions button .icon{margin-right:2px;font-size:13px}
 .bar i.hp.low{background:var(--enemy);animation:pulseLow 1s ease-in-out infinite}
 @keyframes pulseLow{0%,100%{opacity:1}50%{opacity:.5}}
 .overlay{animation:fadeIn .18s ease}
@@ -213,10 +206,12 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   box-shadow:0 2px 8px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.04)}
 .unitActions button:hover{background:var(--panel2)}
 .unitActions button.on{border-color:var(--accent);background:var(--panel2)}
+.unitActions button:disabled{opacity:.45;cursor:default}
 .unitActions button .key{font-family:var(--mono);font-size:10px;color:var(--muted)}
+.unitActions button .cost{font-family:var(--mono);font-size:11px;color:var(--dat)}
 /* touch targets: comfortably tappable on a phone or any coarse (finger) pointer */
 @media (max-width:720px),(pointer:coarse){
-  .build button,.prod .prodBtn,.throttle button,.metaUnlock,.unitActions button{min-height:44px;padding:10px 12px}
+  .build button,.throttle button,.metaUnlock,.unitActions button{min-height:44px;padding:10px 12px}
   .unitSelCtrl button{width:44px;height:44px;font-size:16px}
 }
 /* --- mobile layout restructure --- */
@@ -235,7 +230,6 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   .build button .cost,.build button .key{display:none}
   .unitActions{padding-left:8px}
   .unitActions button .key{display:none}
-  .prod{bottom:max(88px,calc(88px + env(safe-area-inset-bottom,0px)))}
   /* minimap: minimized by default above the build bar (with margin), with an expand/collapse icon */
   .mini{bottom:max(90px,calc(90px + env(safe-area-inset-bottom,0px)));width:60px;height:60px;transition:width .15s ease,height .15s ease}
   .mini canvas{width:60px;height:60px}
@@ -283,6 +277,12 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
     <button id="bResumeAuto" hidden><span class="icon">↻</span><span>Resume Auto-Gather</span><span class="key">R</span></button>
     <button id="bToggleRepair" hidden><span class="icon">⚙</span><span id="bRepairLabel">Auto-Repair: On</span><span class="key">G</span></button>
     <button id="bFollow" hidden><span class="icon">➤</span><span id="bFollowLabel">Follow Bastion</span><span class="key">V</span></button>
+    <button id="bBuildTroop" hidden><span class="icon">▲</span><span>Squad</span><span class="cost" id="cTroopCost">30 dat</span></button>
+    <button id="bBuildGrenadier" hidden><span class="icon">✺</span><span>Grenadier</span><span class="cost" id="cGrenadierCost">45 dat</span></button>
+    <button id="bBuildHarv" hidden><span class="icon">⛏</span><span>Harvester</span><span class="cost" id="cHarvCost">75 dat</span></button>
+    <button id="bBuildBuilder" hidden><span class="icon">⚒</span><span>Builder</span><span class="cost" id="cBuilderCost">20 dat</span></button>
+    <button id="bBuildArtillery" hidden><span class="icon">☄</span><span>Artillery</span><span class="cost" id="cArtilleryCost">140 dat</span></button>
+    <button id="bBuildMech" hidden><span class="icon">◫</span><span>Mech</span><span class="cost" id="cMechCost">90 dat</span></button>
   </div>
   <div class="build" id="buildBar">
     <button id="bWall" data-mode="wall"><span class="icon">▭</span><span>Wall</span><span class="cost" id="cWall">5 dat</span><span class="key">1</span></button>
@@ -294,19 +294,9 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   </div>
 </div>
 
-<div class="prod" id="prodMenu" hidden>
-  <button id="prodClose" aria-label="Close">×</button>
-  <b>Build at Bastion</b>
-  <button id="bBuildTroop" class="prodBtn"><span><span class="icon">▲</span>Squad</span><span class="cost" id="cTroopCost">30 dat</span></button>
-  <button id="bBuildGrenadier" class="prodBtn" hidden><span><span class="icon">✺</span>Grenadier</span><span class="cost" id="cGrenadierCost">45 dat</span></button>
-  <button id="bBuildHarv" class="prodBtn"><span><span class="icon">⛏</span>Harvester</span><span class="cost" id="cHarvCost">75 dat</span></button>
-  <button id="bBuildBuilder" class="prodBtn"><span><span class="icon">⚒</span>Builder</span><span class="cost" id="cBuilderCost">20 dat</span></button>
-  <button id="bBuildArtillery" class="prodBtn" hidden><span><span class="icon">☄</span>Artillery</span><span class="cost" id="cArtilleryCost">140 dat</span></button>
-  <button id="bBuildMech" class="prodBtn" hidden><span><span class="icon">◫</span>Mech</span><span class="cost" id="cMechCost">90 dat</span></button>
-</div>
-
 <div class="mini" id="miniWrap"><canvas id="mini" width="180" height="180"></canvas><button id="miniToggle" class="miniToggle" aria-label="Expand minimap">⤢</button></div>
 <div class="unitSelCtrl" id="unitSelCtrl">
+  <button id="selBaseBtn2" aria-label="Select Bastion">⛨</button>
   <button id="selTroopsBtn2" aria-label="Select all Squads">▲<span class="cnt" id="cntTroops2">0</span></button>
   <button id="selHarvBtn2" aria-label="Select all Harvesters">⛏<span class="cnt" id="cntHarv2">0</span></button>
   <button id="selBuBtn2" aria-label="Select all Builders">⚒<span class="cnt" id="cntBu2">0</span></button>
@@ -624,7 +614,7 @@ function currentTier(v){
 }
 
 // ---------- state ----------
-let S, cam, mouse={x:0,y:0,wx:0,wy:0,down:false,drag:null,panning:false,touchStart:null,wallDragging:false}, keys={}, buildMode=null, lastT=0, msgT=0, terrain, terrainCv, prodMenuOpen=false;
+let S, cam, mouse={x:0,y:0,wx:0,wy:0,down:false,drag:null,panning:false,touchStart:null,wallDragging:false,wallPlacedTouch:false}, keys={}, buildMode=null, lastT=0, msgT=0, terrain, terrainCv, prodMenuOpen=false;
 // touch input state: multi-touch pinch-zoom, long-press-then-drag box select, tap-to-command, manual double-tap
 let touchPts=new Map(), pinch=null, longPressTimer=null, lastTap=null;
 // ---------- main menu / landing zone ----------
@@ -688,7 +678,7 @@ function reset(landing){
   for(let i=0;i<4;i++) S.troops.push(mkTroop(i));
   for(let i=0;i<2;i++) S.harvesters.push(mkHarv(i));
   for(let i=0;i<2;i++) S.builders.push(mkBuilder(i));
-  prodMenuOpen=false; document.getElementById('prodMenu').hidden=true;
+  prodMenuOpen=false;
 
   genTerrain();
   VEIN_DEFS.forEach(vd=>{
@@ -1562,7 +1552,12 @@ cv.addEventListener('pointerdown',e=>{
       pinch={dist:Math.hypot(a.x-b.x,a.y-b.y),z:cam.z,mid:{x:(a.x+b.x)/2,y:(a.y+b.y)/2}};
       return;
     }
-    if(buildMode){tryBuild(w);if(buildMode==='wall')mouse.wallDragging=true;return}
+    if(buildMode){
+      const placed=tryBuild(w);
+      if(buildMode==='wall'){mouse.wallDragging=true;mouse.wallPlacedTouch=placed}
+      else if(placed)setBuild(null);
+      return;
+    }
     // don't commit to pan-vs-select yet: a quick drag pans the camera, holding still briefly
     // then dragging draws a selection box (set once the timer below fires) — see pointermove/up.
     mouse.touchStart={x:e.clientX,y:e.clientY,wx:w.x,wy:w.y,moved:false};
@@ -1586,7 +1581,7 @@ cv.addEventListener('pointermove',e=>{
   const w=toWorld(e.clientX,e.clientY);mouse.wx=w.x;mouse.wy=w.y;
   // click-and-drag wall building: each new grid cell the pointer crosses while held down gets its
   // own wall queued — tryBuild already no-ops quietly on a cell that's taken, out of range, etc.
-  if(mouse.wallDragging){if(buildMode==='wall')tryBuild(w);return}
+  if(mouse.wallDragging){if(buildMode==='wall'){if(tryBuild(w))mouse.wallPlacedTouch=true}return}
   if(e.pointerType==='touch'&&touchPts.has(e.pointerId))touchPts.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(pinch&&touchPts.size>=2){
     const ids=[...touchPts.keys()];const a=touchPts.get(ids[0]),b=touchPts.get(ids[1]);
@@ -1609,7 +1604,12 @@ cv.addEventListener('pointermove',e=>{
   if(mouse.drag){mouse.drag.x1=w.x;mouse.drag.y1=w.y;if(Math.abs(w.x-mouse.drag.x0)+Math.abs(w.y-mouse.drag.y0)>6)mouse.drag.moved=true}
 });
 cv.addEventListener('pointerup',e=>{
-  if(mouse.wallDragging){mouse.wallDragging=false;return}
+  if(mouse.wallDragging){
+    mouse.wallDragging=false;
+    if(e.pointerType==='touch'&&mouse.wallPlacedTouch)setBuild(null);
+    mouse.wallPlacedTouch=false;
+    return;
+  }
   if(e.pointerType==='touch'){
     touchPts.delete(e.pointerId);
     if(pinch){if(touchPts.size<2)pinch=null;return}
@@ -1695,19 +1695,19 @@ document.getElementById('bFollow').onclick=followSelected;
 // Shared by the top HUD selector buttons, their mobile equivalents next to the zoom controls, and
 // the T/H/U hotkeys — one selection path for "select every unit of this kind" everywhere it appears.
 function selectAllUnitsOfKind(kind){
-  S.sel.base=false;
+  S.sel.base=kind==='base';
   if(kind!=='troops')S.sel.troops.clear();
   if(kind!=='harv')S.sel.harv.clear();
   if(kind!=='bu')S.sel.bu.clear();
-  closeProdMenu();
+  if(kind==='base')prodMenuOpen=true; else closeProdMenu();
   if(kind==='troops')S.troops.forEach(t=>S.sel.troops.add(t.id));
   else if(kind==='harv')S.harvesters.forEach(h=>S.sel.harv.add(h.id));
   else if(kind==='bu')S.builders.forEach(bu=>S.sel.bu.add(bu.id));
 }
+document.getElementById('selBaseBtn2').onclick=()=>selectAllUnitsOfKind('base');
 document.getElementById('selTroopsBtn2').onclick=()=>selectAllUnitsOfKind('troops');
 document.getElementById('selHarvBtn2').onclick=()=>selectAllUnitsOfKind('harv');
 document.getElementById('selBuBtn2').onclick=()=>selectAllUnitsOfKind('bu');
-document.getElementById('prodClose').onclick=closeProdMenu;
 document.getElementById('bBuildTroop').onclick=buildTroop;
 document.getElementById('bBuildGrenadier').onclick=buildGrenadier;
 document.getElementById('bBuildHarv').onclick=buildHarvester;
@@ -1734,7 +1734,7 @@ mini.addEventListener('pointerdown',e=>{
   const r=mini.getBoundingClientRect();cam.x=(e.clientX-r.left)/r.width*W;cam.y=(e.clientY-r.top)/r.height*H;clampCam()
 });
 document.getElementById('helpToggleBtn').onclick=()=>{document.getElementById('help').classList.toggle('open')};
-function closeProdMenu(){prodMenuOpen=false;const el=document.getElementById('prodMenu');if(el)el.hidden=true}
+function closeProdMenu(){prodMenuOpen=false}
 function buildTroop(){
   if(S.dat<COST.troop){msg('Not enough Dat Crystal for a new squad.');return}
   S.dat-=COST.troop;
@@ -1861,22 +1861,22 @@ function updateBuildBar(){
     ||[...S.sel.harv].some(id=>{const h=S.harvesters.find(x=>x.id===id);return h&&h.following})
     ||[...S.sel.bu].some(id=>{const b=S.builders.find(x=>x.id===id);return b&&b.following});
   fb.classList.toggle('on',anyFollowSel);
-  const pm=document.getElementById('prodMenu');
-  if(pm){
-    pm.hidden=!prodMenuOpen||!S.sel.base;
-    document.getElementById('bBuildTroop').disabled=S.dat<COST.troop;
-    const gb=document.getElementById('bBuildGrenadier');
-    gb.hidden=!meta.unlockGrenadier;
-    gb.disabled=S.dat<COST.grenadier;
-    document.getElementById('bBuildHarv').disabled=S.dat<COST.harvester;
-    document.getElementById('bBuildBuilder').disabled=S.dat<COST.builder;
-    const ab=document.getElementById('bBuildArtillery');
-    ab.hidden=!meta.unlockArtillery;
-    ab.disabled=S.dat<COST.artillery;
-    const mb=document.getElementById('bBuildMech');
-    mb.hidden=!meta.unlockMech;
-    mb.disabled=S.dat<COST.mech;
-  }
+  const prodVisible=prodMenuOpen&&S.sel.base;
+  const bt=document.getElementById('bBuildTroop');
+  bt.hidden=!prodVisible; bt.disabled=S.dat<COST.troop;
+  const gb=document.getElementById('bBuildGrenadier');
+  gb.hidden=!prodVisible||!meta.unlockGrenadier;
+  gb.disabled=S.dat<COST.grenadier;
+  const hb=document.getElementById('bBuildHarv');
+  hb.hidden=!prodVisible; hb.disabled=S.dat<COST.harvester;
+  const bb=document.getElementById('bBuildBuilder');
+  bb.hidden=!prodVisible; bb.disabled=S.dat<COST.builder;
+  const ab=document.getElementById('bBuildArtillery');
+  ab.hidden=!prodVisible||!meta.unlockArtillery;
+  ab.disabled=S.dat<COST.artillery;
+  const mb=document.getElementById('bBuildMech');
+  mb.hidden=!prodVisible||!meta.unlockMech;
+  mb.disabled=S.dat<COST.mech;
   // Speed picking now happens in the #drillSelectOverlay popup (see openDrillSelect); this panel
   // is just a live readout once the drill is actually running.
   const tp=document.getElementById('throttlePanel');
@@ -2103,6 +2103,7 @@ function tryBuild(w){
   }
   sfx.click();
   updateBuildBar();
+  return true;
 }
 
 // ---------- helpers ----------
@@ -3128,6 +3129,7 @@ function hud(){
   $('cntTroops2').textContent=S.troops.length;
   $('cntHarv2').textContent=S.harvesters.length;
   $('cntBu2').textContent=S.builders.length;
+  document.getElementById('selBaseBtn2').classList.toggle('sel',S.sel.base);
   document.getElementById('selTroopsBtn2').classList.toggle('sel',S.sel.troops.size>0);
   document.getElementById('selHarvBtn2').classList.toggle('sel',S.sel.harv.size>0);
   document.getElementById('selBuBtn2').classList.toggle('sel',S.sel.bu.size>0);
