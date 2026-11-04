@@ -310,7 +310,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <b>Goal:</b> harvesters gather Dat Crystal automatically. Scout a vein (dashed circle), park the Bastion on its marker, press <kbd>L</kbd> to drill — the drill spends 60s warming up (no burn, no waves yet) before it actually starts. Drain veins for rewards — drain 3 and the hidden Living Crystal vein reveals itself; drain that one to win.<br>
   <b>Controls:</b> drag to select · right-click to move/attack/harvest · <kbd>WASD</kbd> or middle-drag to pan, scroll to zoom<br>
   <b>Touch:</b> tap to select · tap empty ground/an enemy/a resource to move/attack/harvest · drag to pan · hold still then drag to box-select · pinch to zoom · double-tap to select all of a kind<br>
-  <b>Build:</b> <kbd>1</kbd> wall · <kbd>2</kbd> turret · <kbd>3</kbd> relay · <kbd>4</kbd> depot (drop-off closer than the Bastion) — walls/turrets need the Bastion locked down drilling, relays/depots can go up any time<br>
+  <b>Build:</b> <kbd>1</kbd> wall · <kbd>2</kbd> turret · <kbd>3</kbd> relay · <kbd>4</kbd> depot (drop-off closer than the Bastion) — walls/turrets need the Bastion locked down drilling, relays/depots can go up any time · right-click a still-queued structure to cancel it for a full refund<br>
   <b>Tether:</b> wireless works freely on the Rim; past it, units need a live cable back to the Bastion or a Relay, or they go dark — chain Relays to push your reach further out. A dark unit still takes orders, but its Sanity drains; reconnect in time to recover it, or it defects into a hostile Corrupted enemy<br>
   <kbd>N</kbd> ping (reveals far-off Dat Crystal, 60s cooldown) · <kbd>V</kbd> follow Bastion (escorts it as it moves, until given another order) · <kbd>G</kbd> repair mode · <kbd>R</kbd> resume harvester auto-gather · <kbd>Esc</kbd> cancel, or pause the whole game if nothing's open · <kbd>`</kbd> reveal map (debug)
 </div>
@@ -1310,6 +1310,9 @@ function terrainAt(x,y){
 }
 // Movement slowdown for anything that isn't the Bastion — mud and rift both count as rough ground.
 function roughFactor(x,y){const v=terrainAt(x,y);return(v===1||v===RIFT)?MUD_MULT:1}
+// Enemies are native to the rift — only mud slows them down, so they can't be kited into a rift
+// lobe to buy free time the way a player unit's own mud penalty would.
+function enemyRoughFactor(x,y){return terrainAt(x,y)===1?MUD_MULT:1}
 function tcost(cx,cy,forBastion){
   if(cx<0||cy<0||cx>=TGX||cy>=TGY)return Infinity;
   const v=terrain[cy*TGX+cx];
@@ -2072,8 +2075,34 @@ function tryPing(){
   updateBuildBar();
 }
 
+// Right-clicking directly on a structure that's still under construction (queued, not yet
+// built) cancels it and refunds its Dat Crystal cost instead of issuing a move/repair order —
+// lets the player undo a misplaced wall/turret/relay/depot before committing a builder to it.
+function findPendingBuild(w){
+  for(const [k,wall] of S.walls){if(!wall.built&&dist(wall,w)<CELL*0.8)return{kind:'wall',obj:wall,key:k}}
+  let hit=S.turrets.find(t=>!t.built&&dist(t,w)<26); if(hit)return{kind:'turret',obj:hit};
+  hit=S.relays.find(r=>!r.built&&dist(r,w)<26); if(hit)return{kind:'relay',obj:hit};
+  hit=S.depots.find(d=>!d.built&&dist(d,w)<26); if(hit)return{kind:'depot',obj:hit};
+  return null;
+}
+function cancelPendingBuild(w){
+  const hit=findPendingBuild(w);
+  if(!hit)return false;
+  const {kind,obj,key:k}=hit;
+  S.builders.forEach(bu=>{if(bu.target===obj){bu.target=null;bu.state='idle'}});
+  if(kind==='wall')S.walls.delete(k);
+  else if(kind==='turret')S.turrets=S.turrets.filter(t=>t!==obj);
+  else if(kind==='relay'){S.relays=S.relays.filter(r=>r!==obj);if(obj.wasFree)S.mods.freeRelayCharges++}
+  else if(kind==='depot')S.depots=S.depots.filter(d=>d!==obj);
+  const refund=(kind==='relay'&&obj.wasFree)?0:COST[kind];
+  S.dat+=refund;
+  msg(refund>0?`${kind[0].toUpperCase()+kind.slice(1)} cancelled — ${refund} Dat Crystal refunded.`:`${kind[0].toUpperCase()+kind.slice(1)} cancelled.`);
+  sfx.click();updateBuildBar();
+  return true;
+}
 function rightClick(w){
   if(buildMode){setBuild(null);return}
+  if(cancelPendingBuild(w))return;
   const rawT=[...S.sel.troops].map(id=>S.troops.find(t=>t.id===id)).filter(Boolean);
   const rawH=[...S.sel.harv].map(id=>S.harvesters.find(h=>h.id===id)).filter(Boolean);
   const rawBu=[...S.sel.bu].map(id=>S.builders.find(b=>b.id===id)).filter(Boolean);
@@ -2133,7 +2162,10 @@ function turretPowered(tu){
 // Same boundary as turretPowered: a harvester's auto-gather only chases deposits within the
 // Bastion's own build range, or a live (tethered) Relay's — not the looser wireless/cable reach
 // units use just to stay connected. Keeps auto-gather from beelining out past the active network.
+// The Rim is the exception — wireless works freely there (same fiction as the tether rules), so
+// any scouted deposit in the Rim band is fair game regardless of how far it is from the network.
 function inHarvestRange(p){
+  if(bandAt(p.x,p.y)==='rim')return true;
   if(dist(p,S.base)<=BUILD_R)return true;
   return S.relays.some(r=>r.built&&r.tetherOk&&dist(p,r)<=BUILD_R);
 }
@@ -2159,7 +2191,7 @@ function tryBuild(w){
     if(dist(w,S.base)<BASE_R+14||S.turrets.some(t=>dist(t,w)<26)||S.relays.some(r=>dist(r,w)<40)||S.depots.some(d=>dist(d,w)<26))return;
     const k=key(Math.floor(w.x/CELL),Math.floor(w.y/CELL));if(S.walls.has(k))return;
     S.relays.push({x:w.x,y:w.y,hp:RELAY_HP,maxHp:RELAY_HP,kind:'relay',built:false,buildT:0,buildTotal:RELAY_BUILD_T,builder:null,repairer:null,
-      state:null,tetherOk:false,trail:null,cableHp:0,cableLen:0,cableMaxed:false,reconnectT:0,
+      state:null,tetherOk:false,trail:null,cableHp:0,cableLen:0,cableMaxed:false,reconnectT:0,wasFree:freeRelay,
       surgeT:energySurgeInterval(S.mods.energySurgeLevel),gunCd:0,ang:0});S.dat-=cost;
     if(freeRelay){S.mods.freeRelayCharges--;msg('Relay queued for free — a builder needs to finish it.')}
     else msg('Relay queued — a builder needs to finish it.');
@@ -2465,9 +2497,10 @@ function update(dt){
     if(best&&B.gunCd<=0){damageEnemy(best,BASE_GUN_DMG);tracer(B,best,C.accent);B.gunCd=BASE_GUN_CD}
   }
   // Big Guns (reward card): a slow, long-range, big-blast artillery piece bolted onto the
-  // Bastion — unlike the gun above it never goes quiet while drilling, but it will only ever
-  // fire on an enemy the player has actually revealed, not anything merely in range.
-  if(S.mods.bigGuns){
+  // Bastion — it goes quiet while drilling same as the gun above, unless the Targeting Computer
+  // upgrade keeps weapons live through drilling too; it will only ever fire on an enemy the
+  // player has actually revealed, not anything merely in range.
+  if(S.mods.bigGuns&&(!B.locked||S.mods.bastionShootWhileDrilling)){
     B.bigGunCd-=dt;
     if(B.bigGunCd<=0){
       let best=null,bd=BIGGUN_RANGE;
@@ -2745,7 +2778,7 @@ function update(dt){
     if(tgt)e.ang=Math.atan2(tgt.y-e.y,tgt.x-e.x);
     else{e.faceT-=dt;if(e.faceT<=0){e.ang=rnd(0,Math.PI*2);e.faceT=rnd(1.5,3.5)}}
     if((e.kind==='roam'||e.kind==='brute')&&!tgt){
-      const factor=roughFactor(e.x,e.y);
+      const factor=enemyRoughFactor(e.x,e.y);
       if(e.patrol){
         const P=e.patrol, dest=P.dir>0?P.b:P.a;
         const aim=waypointFor(e,dest.x,dest.y);
@@ -2770,7 +2803,7 @@ function update(dt){
     const probes=[{x:e.x+ux*look,y:e.y+uy*look},{x:e.x+ux*look-uy*perp,y:e.y+uy*look+ux*perp},{x:e.x+ux*look+uy*perp,y:e.y+uy*look-ux*perp}];
     let w=null; for(const pt of probes){w=wallAt(pt.x,pt.y); if(w)break}
     if(w){if(e.cd<=0){w.hp-=e.dmg*1.5;hitFlash(w);spark(w.x,w.y,C.enemy,2);e.cd=0.8;if(w.hp<=0)S.walls.delete(key(w.gx,w.gy))}return}
-    const factor=roughFactor(e.x,e.y);
+    const factor=enemyRoughFactor(e.x,e.y);
     moveToward(e,aim,e.speed*factor,dt);
   });
   // enemy separation — crowd pressure must not shove anyone clean through a wall
@@ -2835,11 +2868,16 @@ function update(dt){
   }
   if(S.troops.length===0&&!S.troopsLostMsg){S.troopsLostMsg=true;msg('All squads lost. New squads form at the Bastion in 20s.');S.respawnT=20}
   if(S.respawnT!==undefined){S.respawnT-=dt;if(S.respawnT<=0){S.respawnT=undefined;S.troopsLostMsg=false;for(let i=0;i<2;i++)S.troops.push(mkTroop(Date.now()+i))}}
-  if(S.harvesters.length===0&&!S.harvLostMsg){S.harvLostMsg=true;msg('All harvesters lost. A free one forms at the Bastion in 45s.');S.harvRespawnT=45}
-  if(S.harvRespawnT!==undefined){S.harvRespawnT-=dt;if(S.harvRespawnT<=0){S.harvRespawnT=undefined;S.harvLostMsg=false;S.harvesters.push(mkHarv(Date.now()))}}
+  if(S.harvesters.length===0&&!S.harvLostMsg){S.harvLostMsg=true;msg('All harvesters lost. A free one forms at the Bastion in 45s.');S.harvRespawnT=45;S.harvRespawnWarn10=false;S.harvRespawnWarn3=false}
+  if(S.harvRespawnT!==undefined){
+    S.harvRespawnT-=dt;
+    if(S.harvRespawnT<=10&&!S.harvRespawnWarn10){S.harvRespawnWarn10=true;msg('Free Harvester arriving in 10s.')}
+    if(S.harvRespawnT<=3&&!S.harvRespawnWarn3){S.harvRespawnWarn3=true;msg('Free Harvester arriving in 3s.')}
+    if(S.harvRespawnT<=0){S.harvRespawnT=undefined;S.harvLostMsg=false;S.harvesters.push(mkHarv(Date.now()))}
+  }
   S.tracers=S.tracers.filter(t=>(t.t-=dt)>0);
   S.nades=S.nades.filter(n=>{n.t+=dt;const pt=Math.min(1,n.t/n.dur);n.x=n.x0+(n.tx-n.x0)*pt;n.y=n.y0+(n.ty-n.y0)*pt;if(pt>=1){explodeNade(n);return false}return true});
-  if(B.hp<=0){S.over='lose';sfx.lose();shakeScreen(10,0.6);burst(B.x,B.y,C.enemy,30,160,0.9);showOverlay('Bastion destroyed','The crew and the crystal are lost to the zone. Try fortifying before you push deeper.')}
+  if(B.hp<=0){S.over='lose';sfx.lose();shakeScreen(10,0.6);burst(B.x,B.y,C.enemy,30,160,0.9);showOverlay('Bastion destroyed','The crew and the crystal are lost to the zone. Try fortifying before you push deeper.',0.5)}
 
   // juice: particles drift and fade, floating text rises and fades, screen shake decays, hit
   // flashes fade out on everything that can take damage.
@@ -2862,12 +2900,13 @@ function update(dt){
 // Called exactly once per run, right as it ends (win or lose) — banks whatever Condensed and
 // Living Crystal were collected into the persistent save, same as a roguelite "you keep what you
 // earned" payout. Living Crystal is what Unlocks actually spends; Condensed just keeps accruing.
-function showOverlay(t,s){
-  meta.condensedBank+=S.condensed;
+function showOverlay(t,s,payoutMult){
+  const paidOut=Math.round(S.condensed*(payoutMult===undefined?1:payoutMult));
+  meta.condensedBank+=paidOut;
   meta.livingBank+=S.living;
   saveMeta();
   document.getElementById('ovTitle').textContent=t;
-  document.getElementById('ovText').textContent=`${s} Banked ${S.condensed} Condensed Crystal (total: ${meta.condensedBank})`+
+  document.getElementById('ovText').textContent=`${s} Banked ${paidOut} Condensed Crystal (total: ${meta.condensedBank})`+
     (S.living?` and ${S.living} Living Crystal (total: ${meta.livingBank}).`:'.');
   document.getElementById('overlay').hidden=false;
 }
