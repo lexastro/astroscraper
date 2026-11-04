@@ -534,8 +534,15 @@ const ARTY_R=10, ARTY_HP=90, ARTY_SPEED=55, ARTY_RANGE=7000, ARTY_CD=14, ARTY_DM
 // round), but resolve as a single direct hit on whatever's nearest where they land — no blast
 // radius of their own — scattered around the target so a cluster of enemies can each eat one,
 // alternating out of its left and right side cannons.
-const MECH_R=11, MECH_HP=160, MECH_SPEED=85, MECH_RANGE=140, MECH_DMG=5, MECH_CD=1.8,
+// MECH_CD: 1.8s baseline, fire rate +10%.
+const MECH_R=11, MECH_HP=160, MECH_SPEED=85, MECH_RANGE=140, MECH_DMG=5, MECH_CD=1.8/1.1,
   MECH_PROJ_SPEED=460, MECH_PELLETS=4, MECH_PELLET_SPREAD=26, MECH_PELLET_HIT_R=30, MECH_SANITY_RESIST=0.15;
+// Mech short-range engage: its shotgun range is short, so an idle Mech that sees an enemy within
+// MECH_ENGAGE_R steps forward until it's in range — but it's leashed to its post (where it was last
+// ordered to, or where it stopped) and never strays more than MECH_LEASH from it, walking back once
+// nothing's left to shoot. Keeps it from standing idle while something pecks at it from just out of
+// range, without letting it chase off across the map.
+const MECH_ENGAGE_R=300, MECH_LEASH=200;
 const HARV_R=8, HARV_SPEED=105, HARV_VISION=280, CARRY=24;
 const BUILDER_R=7, BUILDER_SPEED=100, BUILDER_VISION=200;
 const WALL_BUILD_T=1, TURRET_BUILD_T=5, RELAY_BUILD_T=3, DEPOT_BUILD_T=4, REPAIR_HPS=25, REPAIR_DAT_PER_SEC=1;
@@ -1767,6 +1774,25 @@ function astar(x0,y0,x1,y1,forBastion,forEnemy){
   path.push({x:x1,y:y1});
   return path;
 }
+// Idle Mech behaviour (see MECH_ENGAGE_R/MECH_LEASH): close to firing range on the nearest
+// revealed enemy within reach of its post, never stepping beyond the leash; with nothing to
+// engage, walk back to the post.
+function mechEngage(t,range,speed,dt){
+  if(!t.post)t.post={x:t.x,y:t.y};
+  let near=null,nd=MECH_ENGAGE_R;
+  S.enemies.forEach(e=>{if(!visible(e))return;const d=dist(e,t);if(d<nd&&dist(e,t.post)<MECH_LEASH+range){nd=d;near=e}});
+  if(near){
+    if(nd<=range-10)return; // already in range — the auto-fire below handles it
+    const ox=t.x,oy=t.y,od=dist(t,t.post);
+    t.ang=Math.atan2(near.y-t.y,near.x-t.x);
+    moveToward(t,waypointFor(t,near.x,near.y),speed,dt);
+    const nd2=dist(t,t.post);
+    if(nd2>MECH_LEASH&&nd2>od){t.x=ox;t.y=oy} // at the end of its leash — hold here
+  }else if(dist(t,t.post)>6){
+    t.ang=Math.atan2(t.post.y-t.y,t.post.x-t.x);
+    moveToward(t,waypointFor(t,t.post.x,t.post.y),speed,dt);
+  }
+}
 // Enemy approach spreading. Pathing straight at the target sends every enemy down the same line,
 // so each one gets its own flank bias (e.flank, -1..1) and, while still far off, steers for a point
 // swung around the target by up to FLANK_ANGLE on that side, at FLANK_R_FRAC of its current
@@ -2938,17 +2964,18 @@ function update(dt){
     const range=(arty?ARTY_RANGE:gren?GREN_RANGE:mech?MECH_RANGE:TROOP_RANGE)*S.mods.squadRangeMult;
     const speed=arty?ARTY_SPEED:mech?MECH_SPEED:TROOP_SPEED;
     const factor=roughFactor(t.x,t.y);
-    if(t.following){followMove(t,speed,dt)}
+    if(t.following){followMove(t,speed,dt);if(mech)t.post={x:t.x,y:t.y}}
     else if(t.state==='move'&&t.dest){
       if(mech)t.ang=Math.atan2(t.dest.y-t.y,t.dest.x-t.x);
       const aim=waypointFor(t,t.dest.x,t.dest.y);
       moveToward(t,aim,speed*factor,dt);
-      if(dist(t,t.dest)<4){t.dest=null;t.state='idle'}
+      if(dist(t,t.dest)<4){t.dest=null;t.state='idle';if(mech)t.post={x:t.x,y:t.y}}
     }
     else if(t.state==='attack'){
-      if(!t.target||t.target.hp<=0){t.target=null;t.state='idle'}
+      if(!t.target||t.target.hp<=0){t.target=null;t.state='idle';if(mech)t.post={x:t.x,y:t.y}}
       else if(dist(t,t.target)>range-10){if(mech)t.ang=Math.atan2(t.target.y-t.y,t.target.x-t.x);const aim=waypointFor(t,t.target.x,t.target.y);moveToward(t,aim,speed*factor,dt)}
     }
+    else if(mech&&t.state==='idle')mechEngage(t,range,speed*factor,dt);
     // auto fire — a following troop still defends itself along the way. Artillery only ever
     // fires on an enemy the player has actually revealed (visible()) — its map-spanning range
     // isn't omniscient, same restriction as the Big Guns reward card.
