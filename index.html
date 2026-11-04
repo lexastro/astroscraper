@@ -1108,18 +1108,43 @@ document.getElementById('dmStrike').onclick=()=>doStrike();
 const NET_CRACKS_PER_MPX=11, PULSE_PERIOD=2.2, PULSE_SPEED=230, PULSE_REACH=600, PULSE_W=16;
 const SITE_KNOT_MAINS=9, SITE_DEEPEN_R=800;
 // A vein's glow comes from its mining point and stays tight around it.
-const VEIN_GLOW_R=115;
+const VEIN_GLOW_R=170;
 // Pulse timing by tier: richer veins draw energy in more often and faster; an unstable vein pulls
 // frantically. period = seconds between waves, travel = seconds for a wave to run in from
 // PULSE_REACH to the mining point.
 const PULSE_TIMING={Common:{period:2.4,travel:2.6},Rare:{period:1.8,travel:2.2},Epic:{period:1.3,travel:1.8},Legendary:{period:0.9,travel:1.4}};
 const PULSE_TIMING_UNSTABLE={period:0.22,travel:0.6};
-function pulseTier(v){
-  if(S.activeVein===v&&v.meter&&v.meter.phase==='drill')return v.meter.yieldTier;
-  if(S.activeVein===v&&v.lockIdx!=null)return TIER_LADDER[v.band][v.lockIdx];
-  return ripeTier(v);
+// Everything the player reads off a vein — its colour and its pulse rate — moves CONTINUOUSLY with
+// time, not in tier steps: ripePos runs linearly from 0 (just emerged, lowest tier) to the top of
+// the band's ladder at its peak, and colour and timing are blended between neighbouring tiers by
+// it. Through the unstable phase, the centre's colour runs linearly toward red and the pulse rate
+// linearly toward the frantic unstable rate. (The tier actually paid still steps — ripeTier.)
+function ripePos(v){
+  const L=TIER_LADDER[v.band];
+  if(S.activeVein===v&&v.meter&&v.meter.phase==='drill')return L.indexOf(v.meter.yieldTier)>=0?L.indexOf(v.meter.yieldTier):L.length-1;
+  if(S.activeVein===v&&v.lockIdx!=null)return v.lockIdx;
+  return Math.min(L.length-1,(v.ripeT||0)/RIPEN_STEP_T);
 }
-function pulseTiming(v){return isUnstable(v)?PULSE_TIMING_UNSTABLE:PULSE_TIMING[pulseTier(v)]}
+function parseCol(c){
+  c=String(c).trim();
+  if(c[0]==='#'){if(c.length===4)c='#'+c[1]+c[1]+c[2]+c[2]+c[3]+c[3];return [parseInt(c.slice(1,3),16),parseInt(c.slice(3,5),16),parseInt(c.slice(5,7),16)]}
+  const m=c.match(/[\d.]+/g);return m?[+m[0],+m[1],+m[2]]:[255,255,255];
+}
+function mixCol(a,b,t){const A=parseCol(a),B=parseCol(b);return `rgb(${Math.round(A[0]+(B[0]-A[0])*t)},${Math.round(A[1]+(B[1]-A[1])*t)},${Math.round(A[2]+(B[2]-A[2])*t)})`}
+// the vein's tier colour, blended between neighbouring tiers by how far it has ripened
+function tierBlendCol(v){
+  if(S.activeVein===v&&v.meter&&v.meter.phase==='drill')return CARD_TIER_COLOR[v.meter.yieldTier];
+  const L=TIER_LADDER[v.band], p=ripePos(v), i=Math.floor(p), f=p-i;
+  return mixCol(CARD_TIER_COLOR[L[i]],CARD_TIER_COLOR[L[Math.min(i+1,L.length-1)]],f);
+}
+function pulseTiming(v){
+  const L=TIER_LADDER[v.band], p=ripePos(v), i=Math.floor(p), f=p-i;
+  const a=PULSE_TIMING[L[i]], b=PULSE_TIMING[L[Math.min(i+1,L.length-1)]];
+  let period=a.period+(b.period-a.period)*f, travel=a.travel+(b.travel-a.travel)*f;
+  const u=unstableFrac(v);
+  if(u>0){period+=(PULSE_TIMING_UNSTABLE.period-period)*u;travel+=(PULSE_TIMING_UNSTABLE.travel-travel)*u}
+  return {period,travel};
+}
 // How much light a crack lets through: shallow hairlines barely glow, deep fissures blaze.
 function depthGlow(d){return 0.15+0.85*d*d}
 function genCrackNet(sites){
@@ -1207,7 +1232,7 @@ function pickSite(band){
 function collapseVein(v,quiet){
   v.collapsed=true; v.goneT=0;
   S.stabs.forEach(st=>{if(st.vein===v){st.hp=0;st.silent=true}});
-  if(v.seen&&!quiet){msg(`A ${ripeTier(v)} vein has collapsed.`);burst(v.x,v.y,C.enemy,18,130,0.6)}
+  if(v.seen&&!quiet){msg('A vein has collapsed.');burst(v.x,v.y,C.enemy,18,130,0.6)}
 }
 function updateVeinLife(dt){
   S.veins.forEach(v=>{
@@ -1217,12 +1242,11 @@ function updateVeinLife(dt){
     if(!v.contract&&veinAlive(v))v.pulseClock=(v.pulseClock||0)+dt/pulseTiming(v).period;
     if(!veinAlive(v)||S.activeVein===v)return;
     if(holdsAtPeak(v)){v.ripeT=Math.min((v.ripeT||0)+dt,ripePeakT(v));return}
-    const prevIdx=ripeIdx(v), wasUnstable=isUnstable(v);
+    const wasUnstable=isUnstable(v);
     v.ripeT=(v.ripeT||0)+dt;
     if(v.ripeT>=ripePeakT(v)+UNSTABLE_T){collapseVein(v);return}
     if(!v.seen)return;
-    if(ripeIdx(v)>prevIdx&&isUnstable(v))msg(`A vein has peaked at ${ripeTier(v)} — it's unstable and will collapse in ${UNSTABLE_T}s.`);
-    else if(!wasUnstable&&isUnstable(v))msg(`A ${ripeTier(v)} vein is unstable — it will collapse in ${UNSTABLE_T}s.`);
+    if(!wasUnstable&&isUnstable(v))msg('A vein has gone unstable — it will collapse soon.');
   });
   // spent veins linger as dark cracks, then free their site and queue a replacement
   // (the replacement's countdown starts the moment a vein dies, not once it's finished fading)
@@ -1274,7 +1298,7 @@ function takeBearing(st){
   S.bearings.push({x:st.x,y:st.y,ang,target:tgt,born:S.t});
   const others=S.bearings.filter(b=>b.target===tgt);
   if(others.length<2){
-    msg(tgt.contract?'Bearing taken on the contract vein — take another from a stray off to the side to triangulate it.':`Bearing taken toward a ${ripeTier(tgt)} vein — a second bearing from another angle will pinpoint it.`);
+    msg(tgt.contract?'Bearing taken on the contract vein — take another from a stray off to the side to triangulate it.':`Bearing taken toward a vein — a second bearing from another angle will pinpoint it.`);
     return;
   }
   const crossing=others.some(b=>b!==S.bearings[S.bearings.length-1]&&(()=>{let d=Math.abs(b.ang-ang)%Math.PI;d=Math.min(d,Math.PI-d);return d>=BEARING_MIN_ANGLE})());
@@ -1284,7 +1308,7 @@ function takeBearing(st){
   S.triMark={x:tgt.x,y:tgt.y,t:0};
   S.bearings=S.bearings.filter(b=>b.target!==tgt);
   burst(tgt.x,tgt.y,tgt.contract?C.living:CARD_TIER_COLOR[ripeTier(tgt)],30,200,0.9); sfx.veinDone(); shakeScreen(4,0.3);
-  msg(tgt.contract?'Triangulated — the bearings cross right on the contract vein. Its marker is revealed.':`Triangulated — a ${ripeTier(tgt)} vein located, mining point and all.`);
+  msg(tgt.contract?'Triangulated — the bearings cross right on the contract vein. Its marker is revealed.':'Triangulated — a vein located, mining point and all.');
 }
 function updateStrays(dt){
   const allies=S.troops.concat(S.harvesters).concat(S.builders);
@@ -1389,7 +1413,7 @@ function drawExplorationLight(vx0,vy0,vx1,vy1,vw,vh,shkx,shky){
     const drilling=S.activeVein===v&&v.meter&&v.meter.phase==='drill';
     // waves run IN from PULSE_REACH to the mining point, always in the reward tier's colour —
     // faint where they start, brightening as they converge, then sinking into the glow
-    const col=CARD_TIER_COLOR[pulseTier(v)], tm=pulseTiming(v), ph=(v.pulseClock||0)%1;
+    const col=tierBlendCol(v), tm=pulseTiming(v), ph=(v.pulseClock||0)%1;
     for(let j=0;j<12;j++){
       const age=(ph+j)*tm.period; if(age>tm.travel)break;
       const R=PULSE_REACH*(1-age/tm.travel);
@@ -1410,7 +1434,7 @@ function drawExplorationLight(vx0,vy0,vx1,vy1,vw,vh,shkx,shky){
   ctx.save();
   // bearing beams: dashed lines out from the stray they were taken at, in the target's colour
   S.bearings.forEach(b=>{
-    const col=b.target.contract?C.living:CARD_TIER_COLOR[ripeTier(b.target)], L=4200;
+    const col=b.target.contract?C.living:tierBlendCol(b.target), L=4200;
     ctx.globalAlpha=0.7;ctx.strokeStyle=col;ctx.lineWidth=2.2/Math.max(0.6,cam.z);ctx.setLineDash([14,10]);ctx.lineDashOffset=-S.t*30;
     ctx.beginPath();ctx.moveTo(b.x,b.y);ctx.lineTo(b.x+Math.cos(b.ang)*L,b.y+Math.sin(b.ang)*L);ctx.stroke();ctx.setLineDash([]);
     ctx.globalAlpha=0.9;ctx.beginPath();ctx.arc(b.x,b.y,9,0,Math.PI*2);ctx.stroke();
@@ -1689,7 +1713,7 @@ function drawMenuMap(){
   // haze sits a few hundred units off its vein), so landing is still an informed choice.
   menuCx.save();menuCx.globalCompositeOperation='lighter';
   S.veins.forEach(v=>{if(v.contract||v.opening||!veinAlive(v))return;const hx=(v.x+v.haze.x)*s,hy=(v.y+v.haze.y)*s,hr=520*s;
-    const g=menuCx.createRadialGradient(hx,hy,0,hx,hy,hr);g.addColorStop(0,CARD_TIER_COLOR[ripeTier(v)]);g.addColorStop(1,'rgba(0,0,0,0)');
+    const g=menuCx.createRadialGradient(hx,hy,0,hx,hy,hr);g.addColorStop(0,tierBlendCol(v));g.addColorStop(1,'rgba(0,0,0,0)');
     menuCx.globalAlpha=0.32;menuCx.fillStyle=g;menuCx.beginPath();menuCx.arc(hx,hy,hr,0,Math.PI*2);menuCx.fill()});
   menuCx.restore();
   S.clusters.forEach(([x,y])=>{menuCx.fillStyle=C.dat;menuCx.fillRect(x*s-2,y*s-2,4,4)});
@@ -4344,9 +4368,10 @@ function veinEnergy(v){
   const cur=S.activeVein===v;
   if(cur&&v.meter&&v.meter.phase==='drill'){const th=S.throttleMul;return {col:CARD_TIER_COLOR[v.meter.yieldTier],glow:0.75+0.25*Math.sin(t*6*th),core:1,flow:th}}
   if(cur)return {col:CARD_TIER_COLOR[TIER_LADDER[v.band][v.lockIdx]],glow:0.6+0.3*Math.sin(t*4),core:0.95};
-  const tier=ripeTier(v), frac=Math.min(1,v.ripeT/Math.max(1,ripePeakT(v)));
-  if(isUnstable(v))return {col:C.enemy,glow:0.85+0.15*Math.sin(t*14),core:1}; // the centre runs red; incoming pulses keep the tier colour
-  return {col:CARD_TIER_COLOR[tier],glow:0.45+0.2*Math.sin(t*(1.5+3*frac)),core:0.8};
+  // colour and brightness climb steadily as it ripens; through the unstable phase the centre runs
+  // linearly to red (incoming pulses keep the tier colour)
+  const frac=Math.min(1,(v.ripeT||0)/Math.max(1,ripePeakT(v))), u=unstableFrac(v);
+  return {col:u>0?mixCol(tierBlendCol(v),C.enemy,u):tierBlendCol(v),glow:0.5+0.3*frac+0.2*u,core:0.8+0.2*frac};
 }
 function crackPath(pts,n,jit){
   ctx.beginPath();
@@ -4356,22 +4381,23 @@ function crackPath(pts,n,jit){
 // point light up, brightest at the point and fading within VEIN_GLOW_R, each crack lit by how deep
 // it is — with a slow ripple, or ripples running inward while it's being drilled. No outline, no
 // pattern of its own: the same cracks that are dark everywhere else.
-const VEIN_GLOW_RINGS=8;
+const VEIN_GLOW_RINGS=12;
 function drawVeinCracks(v){
   if(!v.pd)return;
   const en=veinEnergy(v), net=S.crackNet, dep=S.crackDepth, R=VEIN_GLOW_R, flick=en.jitter?0.55+0.45*Math.random():1;
   if(en.glow<=0&&!veinAlive(v)&&!v.collapsed)return; // drained: back to dead dark cracks
   ctx.save();ctx.lineCap='round';ctx.globalCompositeOperation='lighter';ctx.strokeStyle=en.col;
   // a small bloom right at the mining point
-  const g0=ctx.createRadialGradient(v.mine.x,v.mine.y,0,v.mine.x,v.mine.y,R*0.45);g0.addColorStop(0,en.col);g0.addColorStop(1,'rgba(0,0,0,0)');
-  ctx.globalAlpha=0.5*(0.4+0.6*en.glow)*flick;ctx.fillStyle=g0;ctx.beginPath();ctx.arc(v.mine.x,v.mine.y,R*0.45,0,Math.PI*2);ctx.fill();
+  const g0=ctx.createRadialGradient(v.mine.x,v.mine.y,0,v.mine.x,v.mine.y,R*0.6);
+  g0.addColorStop(0,en.col);g0.addColorStop(0.25,mixCol(en.col,'#000',0.55));g0.addColorStop(0.6,mixCol(en.col,'#000',0.88));g0.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.globalAlpha=0.45*(0.4+0.6*en.glow)*flick;ctx.fillStyle=g0;ctx.beginPath();ctx.arc(v.mine.x,v.mine.y,R*0.6,0,Math.PI*2);ctx.fill();
   let k0=0;
   for(let b=0;b<VEIN_GLOW_RINGS;b++){
     const k1=lowerBound(v.pd,R*(b+1)/VEIN_GLOW_RINGS);
     if(k1<=k0)continue;
     const f=(b+0.5)/VEIN_GLOW_RINGS;
     const ripple=en.flow?0.5+0.5*Math.sin(f*7+S.t*4*en.flow):0.8+0.2*Math.sin(f*5-S.t*1.5);
-    const I=Math.pow(1-f,1.4)*ripple*flick;
+    const I=Math.exp(-3.4*f*f)*ripple*flick; // gaussian falloff — no edge
     [[0,0.35],[0.35,0.65],[0.65,1.01]].forEach(([dlo,dhi])=>{
       ctx.beginPath();
       for(let k=k0;k<k1;k++){const i=v.pi[k],d=dep[i>>2];if(d<dlo||d>=dhi)continue;ctx.moveTo(net[i],net[i+1]);ctx.lineTo(net[i+2],net[i+3])}
@@ -4480,30 +4506,8 @@ function draw(){
       }
     }
     if(v.done||v.contract){ctx.fillStyle=v.contract?C.living:C.zone;ctx.font='500 22px '+css('--mono');ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(v.done?'✓':'◆',v.x,v.y)}
-    if((v.mine.found||debugNoFog)&&!v.done){
-      ctx.globalAlpha=1;ctx.save();ctx.translate(v.mine.x,v.mine.y);
-      ctx.strokeStyle=C.dat;ctx.lineWidth=2;
-      ctx.beginPath();ctx.moveTo(-9,-9);ctx.lineTo(9,9);ctx.moveTo(9,-9);ctx.lineTo(-9,9);ctx.stroke();
-      ctx.beginPath();ctx.arc(0,0,14,0,Math.PI*2);ctx.strokeStyle='rgba(154,211,106,0.55)';ctx.lineWidth=1.5;ctx.stroke();
-      ctx.restore();
-    }
-    // ripeness readout above a scouted vein (hidden while it's locked on — the drill meter takes
-    // over then): its current tier, and either the countdown to the next tier, or — once it has
-    // peaked — the countdown to collapse, or a ruptured vein's cracked timer.
-    if(v.seen&&veinAlive(v)&&!cur&&!v.contract){
-      ctx.globalAlpha=1;
-      const tier=ripeTier(v), col=CARD_TIER_COLOR[tier], ix=v.x, iy=v.y-v.r-28;
-      let label, lc=col;
-      if(v.crackedT>0){label=`CRACKED ${Math.ceil(v.crackedT)}s`;lc=C.enemy}
-      else if(isUnstable(v)){const left=ripePeakT(v)+UNSTABLE_T-v.ripeT;label=`${tier} · UNSTABLE ${Math.ceil(left)}s`;lc=Math.sin(S.t*10)>0?C.enemy:col}
-      else{const left=RIPEN_STEP_T-(v.ripeT%RIPEN_STEP_T),nx=TIER_LADDER[v.band][ripeIdx(v)+1];label=`${tier} → ${nx} ${Math.ceil(left)}s`}
-      ctx.save();ctx.translate(ix,iy);
-      ctx.fillStyle=col;ctx.strokeStyle='rgba(0,0,0,0.55)';ctx.lineWidth=1.2;
-      ctx.beginPath();ctx.moveTo(0,-8);ctx.lineTo(6,0);ctx.lineTo(0,8);ctx.lineTo(-6,0);ctx.closePath();ctx.fill();ctx.stroke();
-      ctx.restore();
-      ctx.fillStyle=lc;ctx.font='700 11px '+css('--mono');ctx.textAlign='center';ctx.textBaseline='middle';
-      ctx.fillText(label, ix, iy-16);
-    }
+    // no marker on the mining point and no tier label: the vein's glow is centred on the mining
+    // point, and its colour and pulse rate are how you read how ripe it is
     ctx.restore()});
   drawStrayPockets(x0,y0,x1,y1);
   // Dat Crystal deposits
@@ -4734,9 +4738,9 @@ function drawMini(){const s=mini.width/W;mctx.fillStyle='#10151b';mctx.fillRect(
   mctx.drawImage(terrainCv,0,0,W,H,0,0,mini.width,mini.height);
   if(!debugNoFog){mctx.save();mctx.scale(s,s);mctx.drawImage(dimC,0,0,W,H);mctx.restore()}
   // sighted veins in their tier colour (drained/collapsed ones faint), live strays, and bearing beams
-  S.veins.forEach(v=>{if(!debugNoFog&&(v.contract?!v.mine.found:!v.seen))return;mctx.strokeStyle=v.contract?C.living:CARD_TIER_COLOR[ripeTier(v)];mctx.fillStyle=mctx.strokeStyle;mctx.globalAlpha=veinAlive(v)?1:0.3;mctx.beginPath();mctx.arc(v.x*s,v.y*s,2.5,0,Math.PI*2);mctx.fill();mctx.globalAlpha=1});
+  S.veins.forEach(v=>{if(!debugNoFog&&(v.contract?!v.mine.found:!v.seen))return;mctx.strokeStyle=v.contract?C.living:tierBlendCol(v);mctx.fillStyle=mctx.strokeStyle;mctx.globalAlpha=veinAlive(v)?1:0.3;mctx.beginPath();mctx.arc(v.x*s,v.y*s,2.5,0,Math.PI*2);mctx.fill();mctx.globalAlpha=1});
   S.strays.forEach(st=>{if(!st.live||sightAt(st)<=0)return;mctx.fillStyle=STRAY_COL;mctx.globalAlpha=0.6+0.4*Math.sin(S.t*3);mctx.beginPath();mctx.arc(st.x*s,st.y*s,2.5,0,Math.PI*2);mctx.fill();mctx.globalAlpha=1});
-  S.bearings.forEach(b=>{mctx.strokeStyle=b.target.contract?C.living:CARD_TIER_COLOR[ripeTier(b.target)];mctx.globalAlpha=0.7;mctx.lineWidth=1;mctx.setLineDash([3,3]);mctx.beginPath();mctx.moveTo(b.x*s,b.y*s);mctx.lineTo((b.x+Math.cos(b.ang)*4200)*s,(b.y+Math.sin(b.ang)*4200)*s);mctx.stroke();mctx.setLineDash([]);mctx.globalAlpha=1});
+  S.bearings.forEach(b=>{mctx.strokeStyle=b.target.contract?C.living:tierBlendCol(b.target);mctx.globalAlpha=0.7;mctx.lineWidth=1;mctx.setLineDash([3,3]);mctx.beginPath();mctx.moveTo(b.x*s,b.y*s);mctx.lineTo((b.x+Math.cos(b.ang)*4200)*s,(b.y+Math.sin(b.ang)*4200)*s);mctx.stroke();mctx.setLineDash([]);mctx.globalAlpha=1});
   S.nodes.forEach(n=>{if((n.found||debugNoFog)&&n.amt>0){mctx.fillStyle=C.dat;mctx.fillRect(n.x*s-1.5,n.y*s-1.5,3,3)}});
   S.relays.forEach(r=>{if(r.built){mctx.fillStyle=C.cable;mctx.fillRect(r.x*s-2,r.y*s-2,4,4)}});
   S.depots.forEach(de=>{if(de.built){mctx.fillStyle=de.hp>0?C.dat:C.enemy;mctx.fillRect(de.x*s-2,de.y*s-2,4,4)}});
@@ -4782,7 +4786,7 @@ function hud(){
     const ready=canLockdown();
     const cv=S.veins.find(v=>v.contract);
     $('hObjK').textContent=S.contractAwake?'Contract vein':'Veins';
-    $('hObj').textContent=ready?`ready to drill (${currentTier(ready)} tier) — press L`:
+    $('hObj').textContent=ready?'ready to drill — press L':
       S.contractAwake?(cv&&cv.mine.found?'located — drill it to win':'triangulate it from stray energy'):`${S.drained}/${TRIANGULATE_AT} drained`;
     $('hObjBar').style.width=(100*Math.min(1,S.drained/TRIANGULATE_AT))+'%';
   }
