@@ -628,7 +628,8 @@ const OFFZONE_PATROL_DIST=550, OFFZONE_PATROL_N={rim:3,dense:5,core:10};
 // Waves for the vein being drilled always come from one fixed direction (rolled at lockdown),
 // not a random spot each time — far enough out that you can see them coming and react, not just
 // react to them already being on top of you.
-const WAVE_SPAWN_DIST=820, WAVE_BASE_N={rim:5,dense:10,core:22};
+const WAVE_FRONT_HALF=260; // half-width of the line a wave spawns along, across its approach
+const WAVE_SPAWN_DIST=820,WAVE_BASE_N={rim:5,dense:10,core:22};
 // Saboteurs are a separate threat while drilling: tiny, individually-fragile swarms that beeline
 // for whichever built Relay is nearest the vein (and opportunistically chew its cable on the way
 // there, same as any enemy near a cable), rather than joining the main wave's raid. A single one
@@ -1384,8 +1385,10 @@ function spawnOffZonePatrol(){
   const band=bandAt(center.x,center.y);
   const n=Math.round(OFFZONE_PATROL_N[band]*patrolPressure());
   const a=rnd(0,Math.PI*2), sx=center.x+Math.cos(a)*OFFZONE_PATROL_DIST, sy=center.y+Math.sin(a)*OFFZONE_PATROL_DIST;
+  const px=-Math.sin(a), py=Math.cos(a);
   for(let i=0;i<n;i++){
-    const p=nearestPlain(Math.max(20,Math.min(W-20,sx+rnd(-90,90))),Math.max(20,Math.min(H-20,sy+rnd(-90,90))));
+    const lat=rnd(-WAVE_FRONT_HALF,WAVE_FRONT_HALF), dep=rnd(-70,70);
+    const p=nearestPlain(Math.max(20,Math.min(W-20,sx+px*lat+Math.cos(a)*dep)),Math.max(20,Math.min(H-20,sy+py*lat+Math.sin(a)*dep)));
     spawnEnemy(p.x,p.y,'wave');
   }
   msg('A patrol has spotted your mining operation and is closing in.');
@@ -1682,11 +1685,14 @@ function roughFactor(x,y){const v=terrainAt(x,y);return(v===1||v===RIFT)?MUD_MUL
 // Enemies are native to the rift — only mud slows them down, so they can't be kited into a rift
 // lobe to buy free time the way a player unit's own mud penalty would.
 function enemyRoughFactor(x,y){return terrainAt(x,y)===1?MUD_MULT:1}
-function tcost(cx,cy,forBastion){
+// forEnemy: rift doesn't slow enemies (see enemyRoughFactor), so their pathing treats it as
+// ordinary ground — otherwise every enemy funnels into the same narrow plain corridors through the
+// rift-choked Dense Field and arrives in single file.
+function tcost(cx,cy,forBastion,forEnemy){
   if(cx<0||cy<0||cx>=TGX||cy>=TGY)return Infinity;
   const v=terrain[cy*TGX+cx];
   if(v===2||(forBastion&&v===RIFT))return Infinity;
-  return (v===1||v===RIFT)?2.4:1;
+  return (v===1||(v===RIFT&&!forEnemy))?2.4:1;
 }
 function nearestPlain(x,y){
   if(terrainAt(x,y)!==2)return{x,y};
@@ -1713,7 +1719,7 @@ class MinHeap{
     return top?top[1]:undefined}
   empty(){return this.a.length===0}
 }
-function astar(x0,y0,x1,y1,forBastion){
+function astar(x0,y0,x1,y1,forBastion,forEnemy){
   const sx=Math.floor(x0/TCELL),sy=Math.floor(y0/TCELL),gx=Math.floor(x1/TCELL),gy=Math.floor(y1/TCELL);
   if(sx<0||sy<0||sx>=TGX||sy>=TGY||gx<0||gy<0||gx>=TGX||gy>=TGY)return null;
   if(tcost(gx,gy,forBastion)===Infinity)return null;
@@ -1737,7 +1743,7 @@ function astar(x0,y0,x1,y1,forBastion){
       if(dx!==0&&dy!==0&&(tcost(cx+dx,cy,forBastion)===Infinity||tcost(cx,cy+dy,forBastion)===Infinity))continue;
       const nx=cx+dx,ny=cy+dy;
       if(nx<0||ny<0||nx>=TGX||ny>=TGY)continue;
-      const cost=tcost(nx,ny,forBastion); if(cost===Infinity)continue;
+      const cost=tcost(nx,ny,forBastion,forEnemy); if(cost===Infinity)continue;
       const nid=ny*TGX+nx; if(closed[nid])continue;
       const ng=gScore[cur]+base*cost;
       if(ng<gScore[nid]){gScore[nid]=ng;came[nid]=cur;heap.push(nid,ng+octileXY(nx,ny,gx,gy))}
@@ -1755,13 +1761,33 @@ function astar(x0,y0,x1,y1,forBastion){
   path.push({x:x1,y:y1});
   return path;
 }
+// Enemy approach spreading. Pathing straight at the target sends every enemy down the same line,
+// so each one gets its own flank bias (e.flank, -1..1) and, while still far off, steers for a point
+// swung around the target by up to FLANK_ANGLE on that side, at FLANK_R_FRAC of its current
+// distance (capped at FLANK_MAX_R). That point slides in as the enemy closes, so a group fans out
+// into a broad front that wraps around the target rather than queueing behind its leader. Inside
+// FLANK_MIN_D, or whenever the flanking line isn't open ground, it paths straight in as before.
+const FLANK_ANGLE=0.95, FLANK_R_FRAC=0.6, FLANK_MAX_R=340, FLANK_MIN_D=90, FLANK_RECHECK=0.3;
+function enemyApproachPoint(e,tgt){
+  if(e.flank===undefined)e.flank=rnd(-1,1);
+  const d=dist(e,tgt);
+  if(d<FLANK_MIN_D)return waypointFor(e,tgt.x,tgt.y);
+  const R=Math.min(FLANK_MAX_R,d*FLANK_R_FRAC), a=Math.atan2(e.y-tgt.y,e.x-tgt.x)+e.flank*FLANK_ANGLE;
+  const p={x:tgt.x+Math.cos(a)*R,y:tgt.y+Math.sin(a)*R};
+  // Re-checked a few times a second rather than every frame — a couple of line tests per enemy.
+  if(e._flChk===undefined||S.t-e._flChk>FLANK_RECHECK||e._flTgt!==tgt){
+    e._flChk=S.t; e._flTgt=tgt;
+    e._flOk=inMap(p.x,p.y,20)&&lineClear(e.x,e.y,p.x,p.y,false)&&lineClear(p.x,p.y,tgt.x,tgt.y,false);
+  }
+  return e._flOk?p:waypointFor(e,tgt.x,tgt.y);
+}
 function waypointFor(u,tx,ty){
   const forBastion=u===S.base;
   const goal={x:tx,y:ty};
   if(!u._pg||Math.hypot(u._pg.x-goal.x,u._pg.y-goal.y)>40){
     u._pg=goal;
     if(lineClear(u.x,u.y,tx,ty,forBastion)){u._path=null;u._blocked=false}
-    else{u._path=astar(u.x,u.y,tx,ty,forBastion);u._blocked=!u._path}
+    else{u._path=astar(u.x,u.y,tx,ty,forBastion,!!u._enemy);u._blocked=!u._path}
     u._pi=0;
   }
   if(u._path&&u._path.length){
@@ -2764,8 +2790,12 @@ function update(dt){
     if(v.waveT<=0){
       const n=Math.round(WAVE_BASE_N[v.band]*(0.7+0.3*S.throttleMul));
       const a=v.waveDir, sx=v.x+Math.cos(a)*WAVE_SPAWN_DIST, sy=v.y+Math.sin(a)*WAVE_SPAWN_DIST;
+      // spread along a wide front across the approach direction, not a tight clump that would
+      // all set off down the same line
+      const px=-Math.sin(a), py=Math.cos(a);
       for(let i=0;i<n;i++){
-        const p=nearestPlain(Math.max(20,Math.min(W-20,sx+rnd(-90,90))),Math.max(20,Math.min(H-20,sy+rnd(-90,90))));
+        const lat=rnd(-WAVE_FRONT_HALF,WAVE_FRONT_HALF), dep=rnd(-70,70);
+        const p=nearestPlain(Math.max(20,Math.min(W-20,sx+px*lat+Math.cos(a)*dep)),Math.max(20,Math.min(H-20,sy+py*lat+Math.sin(a)*dep)));
         spawnEnemy(p.x,p.y,'wave');
       }
       v.waveT=BASE_SPAWN_INTERVAL[v.band]/S.throttleMul;
@@ -3137,7 +3167,7 @@ function update(dt){
   // enemies
   const allies=S.troops.concat(S.harvesters).concat(S.builders);
   S.enemies.forEach(e=>{
-    e.cd-=dt;
+    e.cd-=dt; e._enemy=true; // pathing flag: rift is ordinary ground for enemies (see tcost)
     // Energy Surge stun: frozen in place, can't attack, but still gets shoved by crowd separation
     // below (that's physics, not action) and its own attack cooldown keeps ticking down.
     // A Surge knockback slides the stunned enemy outward, easing off fast; walls, solid rock and
@@ -3196,7 +3226,7 @@ function update(dt){
       }
       return;
     }
-    const aim=waypointFor(e,tgt.x,tgt.y);
+    const aim=enemyApproachPoint(e,tgt);
     const dx=aim.x-e.x,dy=aim.y-e.y,L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L,look=e.r+6,perp=e.r*0.6;
     const probes=[{x:e.x+ux*look,y:e.y+uy*look},{x:e.x+ux*look-uy*perp,y:e.y+uy*look+ux*perp},{x:e.x+ux*look+uy*perp,y:e.y+uy*look-ux*perp}];
     let w=null; for(const pt of probes){w=wallAt(pt.x,pt.y); if(w)break}
