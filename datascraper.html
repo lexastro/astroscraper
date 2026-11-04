@@ -1098,35 +1098,50 @@ document.getElementById('dmStrike').onclick=()=>doStrike();
 // close-spaced near the vein and fading with distance. The light shows through the fog, so the way
 // to find a vein is to watch where the energy comes from and walk upstream. A vein itself only
 // appears once a unit actually sees it (or a Ping or triangulation reveals it).
-// The network is fine-grained — short steps, lots of branching, at the same scale as the cracks
-// inside a mining zone — and each vein site is a dense knot of cracks radiating out of it, part of
-// the same network. A live vein has no separate drawing of its own: it's just this network lighting
-// up around its site (see drawVeinCracks).
-const NET_CRACKS_PER_MPX=14, PULSE_PERIOD=2.4, PULSE_SPEED=260, PULSE_REACH=900, PULSE_W=35;
-const SITE_KNOT_MAINS=8, VEIN_GLOW_REACH=1.45; // glow fades out to this × the zone radius
+// The network looks like cracked glass: fine lines that run straight, then kink sharply, and
+// split off at steep angles. Every segment has a DEPTH (0..1) — how deep and open that crack is —
+// shown by how dark and thick it's drawn, and used for how much light comes through it when energy
+// passes. Each crack has its own base depth, branches are shallower, and everything deepens close
+// to a vein site: each site is a knot of the deepest cracks in the network, fanning out from the
+// point where a vein's mining spot would sit. So the ground itself hints where veins can be.
+const NET_CRACKS_PER_MPX=11, PULSE_PERIOD=2.2, PULSE_SPEED=230, PULSE_REACH=600, PULSE_W=16;
+const SITE_KNOT_MAINS=9, SITE_DEEPEN_R=420;
+// A vein's glow comes from its mining point and stays tight around it.
+const VEIN_GLOW_R=115;
+// How much light a crack lets through: shallow hairlines barely glow, deep fissures blaze.
+function depthGlow(d){return 0.15+0.85*d*d}
 function genCrackNet(sites){
-  const segs=[];
-  const grow=(x,y,a,len,depth,jit,brP)=>{
+  const segs=[], dep=[];
+  const grow=(x,y,a,len,depth,base,turnP,brP)=>{
     let d=0;
     while(d<len){
-      const st=rnd(8,14);a+=rnd(-jit,jit);
+      const st=rnd(14,38);
+      if(rnd(0,1)<turnP)a+=(rnd(0,1)<0.5?1:-1)*rnd(0.35,1.0); else a+=rnd(-0.05,0.05);
       const nx=x+Math.cos(a)*st, ny=y+Math.sin(a)*st;
       if(nx<40||ny<40||nx>W-40||ny>H-40)return;
-      segs.push(x,y,nx,ny);x=nx;y=ny;d+=st;
-      if(depth<2&&rnd(0,1)<brP)grow(x,y,a+(rnd(0,1)<0.5?1:-1)*rnd(0.5,1.1),len*rnd(0.3,0.5),depth+1,jit,brP);
+      segs.push(x,y,nx,ny); dep.push(base*(1-0.35*d/len)); x=nx;y=ny;d+=st;
+      if(depth<2&&rnd(0,1)<brP)grow(x,y,a+(rnd(0,1)<0.5?1:-1)*rnd(0.5,1.3),len*rnd(0.25,0.5),depth+1,base*0.6,turnP,brP);
     }
   };
   const n=Math.round(W*H/1e6*NET_CRACKS_PER_MPX);
-  for(let i=0;i<n;i++)grow(rnd(80,W-80),rnd(80,H-80),rnd(0,Math.PI*2),rnd(300,900),0,0.45,0.07);
-  // a tight knot of fissures radiating out of every place a vein can emerge
+  for(let i=0;i<n;i++)grow(rnd(80,W-80),rnd(80,H-80),rnd(0,Math.PI*2),rnd(250,800),0,rnd(0.12,0.45),0.3,0.06);
+  // the knot at every site: deep fissures fanning out from (very near) its centre
   sites.forEach(st=>{
-    // uneven lengths and a loose centre, so the knot has no clean round edge
     for(let k=0;k<SITE_KNOT_MAINS;k++){
-      const a=k/SITE_KNOT_MAINS*Math.PI*2+rnd(-0.6,0.6);
-      grow(st.x+rnd(-30,30),st.y+rnd(-30,30),a,ZONE_R*rnd(0.45,1.4),0,0.55,0.28);
+      const a=k/SITE_KNOT_MAINS*Math.PI*2+rnd(-0.5,0.5);
+      grow(st.x+rnd(-6,6),st.y+rnd(-6,6),a,ZONE_R*rnd(0.4,1.2),0,rnd(0.85,1),0.3,0.18);
     }
   });
-  return new Float32Array(segs);
+  // everything deepens toward a site
+  const out=new Float32Array(segs), depth=new Float32Array(dep);
+  for(let k=0;k<depth.length;k++){
+    const mx=(out[k*4]+out[k*4+2])/2, my=(out[k*4+1]+out[k*4+3])/2;
+    let md=Infinity;for(const st of sites){const d=Math.hypot(mx-st.x,my-st.y);if(d<md)md=d}
+    const near=Math.exp(-Math.pow(md/SITE_DEEPEN_R,2));
+    depth[k]=Math.min(1,depth[k]+0.55*near*(1-depth[k]));
+  }
+  S.crackDepth=depth;
+  return out;
 }
 // Per-source index of nearby network segments, sorted by distance from the source — a pulse ring
 // at radius R just lights the slice of this list between R-2·PULSE_W and R.
@@ -1149,7 +1164,7 @@ function veinAlive(v){return !v.done&&!v.collapsed}
 const VEINS_PER_BAND=2, GONE_T=20, EMERGE_DELAY=[12,28];
 function emergeVein(site,o){
   o=o||{};
-  const ang=rnd(0,Math.PI*2), rad=rnd(0,ZONE_R*0.55);
+  const ang=rnd(0,Math.PI*2), rad=rnd(0,14); // the mining point is the heart of the site's crack knot
   const v={x:site.x,y:site.y,r:ZONE_R,richness:site.richness,drillProg:0,done:false,contract:!!o.contract,band:site.band,waveT:0,
     reward:o.contract?{dat:50,living:3}:{dat:Math.round(site.richness*1.2)},
     mine:{x:site.x+Math.cos(ang)*rad,y:site.y+Math.sin(ang)*rad,found:false},
@@ -1159,7 +1174,7 @@ function emergeVein(site,o){
   site.vein=v; S.veins.push(v);
   // index the network around it: its zone (what lights up as the vein) and, for ordinary veins,
   // out to how far its pulses carry
-  indexPulse(v,o.contract?ZONE_R*VEIN_GLOW_REACH:Math.max(PULSE_REACH,ZONE_R*VEIN_GLOW_REACH));
+  {const src={x:v.mine.x,y:v.mine.y};indexPulse(src,o.contract?VEIN_GLOW_R:Math.max(PULSE_REACH,VEIN_GLOW_R));v.pd=src.pd;v.pi=src.pi}
   // a guard cluster camps every vein, sized by how deep it sits
   if(o.guards!==false){
     const n=v.band==='core'?rnd(20,28):v.band==='dense'?rnd(8,13):rnd(3,6);
@@ -1215,7 +1230,7 @@ function updateVeinLife(dt){
 // it's revealed on the map, mining point and all. For ordinary veins that's just a shortcut — you
 // can always follow the pulses instead. But once the contract vein stirs (after TRIANGULATE_AT
 // drains) every bearing points to it, and triangulation is the only way to find it.
-const STRAY_COUNT=6, STRAY_TOUCH_R=80, STRAY_RESPAWN_T=40, STRAY_REACH=450, BEARING_ERR=0.1, BEARING_MIN_ANGLE=0.35, BEARING_LIFE=240;
+const STRAY_COUNT=6, STRAY_TOUCH_R=80, STRAY_RESPAWN_T=40, STRAY_REACH=320, BEARING_ERR=0.1, BEARING_MIN_ANGLE=0.35, BEARING_LIFE=240;
 const STRAY_COL='#bfefff';
 function placeStray(st){
   for(let t=0;t<60;t++){
@@ -1269,14 +1284,18 @@ function updateStrays(dt){
 
 // ---- drawing ----
 function drawPulseRing(src,R,col,I,vx0,vy0,vx1,vy1){
-  const pd=src.pd,pi=src.pi,net=S.crackNet;
+  const pd=src.pd,pi=src.pi,net=S.crackNet,dep=S.crackDepth;
   const a=lowerBound(pd,R-2*PULSE_W), m=lowerBound(pd,R-PULSE_W), b=lowerBound(pd,R);
   if(a>=b)return;
-  const seg=(lo,hi)=>{ctx.beginPath();for(let k=lo;k<hi;k++){const i=pi[k],x1=net[i],y1=net[i+1],x2=net[i+2],y2=net[i+3];
+  // drawn in three depth groups, each as bright as the light its cracks let through
+  const seg=(lo,hi,dlo,dhi)=>{ctx.beginPath();for(let k=lo;k<hi;k++){const i=pi[k],d=dep[i>>2];if(d<dlo||d>=dhi)continue;const x1=net[i],y1=net[i+1],x2=net[i+2],y2=net[i+3];
     if((x1<vx0&&x2<vx0)||(x1>vx1&&x2>vx1)||(y1<vy0&&y2<vy0)||(y1>vy1&&y2>vy1))continue;ctx.moveTo(x1,y1);ctx.lineTo(x2,y2)}ctx.stroke()};
   ctx.strokeStyle=col;
-  ctx.globalAlpha=0.3*I;ctx.lineWidth=3.5;seg(a,b);
-  ctx.globalAlpha=0.95*I;ctx.lineWidth=1.4;seg(m,b);
+  [[0,0.35],[0.35,0.65],[0.65,1.01]].forEach(([dlo,dhi])=>{
+    const g=depthGlow((dlo+dhi)/2);
+    ctx.globalAlpha=0.25*I*g;ctx.lineWidth=2.4;seg(a,b,dlo,dhi);
+    ctx.globalAlpha=Math.min(1,I*g*1.1);ctx.lineWidth=1.1;seg(m,b,dlo,dhi);
+  });
 }
 // Pulses, stray pockets and bearing beams are light — drawn above the fog.
 function drawExplorationLight(vx0,vy0,vx1,vy1){
@@ -1289,15 +1308,15 @@ function drawExplorationLight(vx0,vy0,vx1,vy1){
       const R=(((S.t+v.pulsePh)%PULSE_PERIOD)+k*PULSE_PERIOD)*PULSE_SPEED;
       if(R>PULSE_REACH)break;
       // pulses fade in as they leave the zone, so there's no bright ring marking its edge
-      const fadeIn=Math.max(0,Math.min(1,(R-v.r*0.5)/(v.r*1.1)));
+      const fadeIn=Math.max(0,Math.min(1,(R-VEIN_GLOW_R*0.6)/(VEIN_GLOW_R*0.9)));
       if(fadeIn<=0)continue;
-      const I=fadeIn*Math.pow(1-R/PULSE_REACH,1.8)*(uns?0.5+0.5*Math.random():1);
+      const I=fadeIn*Math.pow(1-R/PULSE_REACH,2.2)*(uns?0.5+0.5*Math.random():1);
       drawPulseRing(v,R,col,I,vx0,vy0,vx1,vy1);
     }
   });
   S.strays.forEach((st,k)=>{
     if(!st.live||!st.pd)return;
-    const R=((S.t+st.pulsePh)%PULSE_PERIOD)*PULSE_SPEED*0.6;
+    const R=((S.t+st.pulsePh)%PULSE_PERIOD)*PULSE_SPEED*0.7;
     if(R<STRAY_REACH)drawPulseRing(st,R,STRAY_COL,0.55*Math.pow(1-R/STRAY_REACH,1.2),vx0,vy0,vx1,vy1);
     // the pocket itself, welling up under the ground
     const p=0.5+0.5*Math.sin(S.t*2.6+k), Rg=52+10*p;
@@ -2264,9 +2283,17 @@ function buildTerrainCanvas(){
     }
   }
   // the map-wide crack network, baked in as dark dead lines (energy pulses light them up live)
-  if(S.crackNet){const net=S.crackNet;x2.lineCap='round';
-    x2.strokeStyle='rgba(4,5,8,0.9)';x2.lineWidth=1.8;x2.beginPath();for(let i=0;i<net.length;i+=4){x2.moveTo(net[i],net[i+1]);x2.lineTo(net[i+2],net[i+3])}x2.stroke();
-    x2.strokeStyle='rgba(255,255,255,0.045)';x2.lineWidth=0.7;x2.beginPath();for(let i=0;i<net.length;i+=4){x2.moveTo(net[i]+1,net[i+1]+1);x2.lineTo(net[i+2]+1,net[i+3]+1)}x2.stroke()}
+  if(S.crackNet){const net=S.crackNet,dep=S.crackDepth,B=6;x2.lineCap='round';
+    // drawn in depth buckets: shallow cracks are faint hairlines, deep ones dark and thicker
+    for(let b=0;b<B;b++){
+      const lo=b/B,hi=(b+1)/B,f=(b+0.5)/B;
+      x2.strokeStyle=`rgba(3,4,7,${(0.28+0.7*f).toFixed(3)})`;x2.lineWidth=0.5+2.1*f*f;x2.beginPath();
+      for(let k=0;k<dep.length;k++){const d=dep[k];if(d<lo||(d>=hi&&b<B-1))continue;const i=k*4;x2.moveTo(net[i],net[i+1]);x2.lineTo(net[i+2],net[i+3])}
+      x2.stroke();
+      if(f>0.5){x2.strokeStyle=`rgba(255,255,255,${(0.05*f).toFixed(3)})`;x2.lineWidth=0.6;x2.beginPath();
+        for(let k=0;k<dep.length;k++){const d=dep[k];if(d<lo||(d>=hi&&b<B-1))continue;const i=k*4;x2.moveTo(net[i]+1,net[i+1]+1);x2.lineTo(net[i+2]+1,net[i+3]+1)}x2.stroke()}
+    }
+  }
   // depth-band tint radiating out from the Black Flame epicenter in rings — the whole reason this
   // is "a zone"
   const maxD=EPI_REACH+100;
@@ -4245,27 +4272,33 @@ function crackPath(pts,n,jit){
   ctx.beginPath();
   for(let k=0;k<n;k++){const p=pts[k],jx=jit?(Math.random()-0.5)*jit:0,jy=jit?(Math.random()-0.5)*jit:0;k?ctx.lineTo(p.x+jx,p.y+jy):ctx.moveTo(p.x+jx,p.y+jy)}
 }
-// A vein is drawn as its patch of the crack network lighting up: the segments around its site, in
-// rings from the centre out — brightest in the middle, fading toward the edge, with a slow ripple
-// (and, while it's being drilled, ripples running inward toward the drill). No outline, no
-// separate pattern: the same cracks you see dark everywhere else.
-const VEIN_GLOW_RINGS=12;
+// A vein is its mining point glowing up through the crack network: the cracks right around the
+// point light up, brightest at the point and fading within VEIN_GLOW_R, each crack lit by how deep
+// it is — with a slow ripple, or ripples running inward while it's being drilled. No outline, no
+// pattern of its own: the same cracks that are dark everywhere else.
+const VEIN_GLOW_RINGS=8;
 function drawVeinCracks(v){
   if(!v.pd)return;
-  const en=veinEnergy(v), net=S.crackNet, R=v.r*VEIN_GLOW_REACH, flick=en.jitter?0.55+0.45*Math.random():1;
+  const en=veinEnergy(v), net=S.crackNet, dep=S.crackDepth, R=VEIN_GLOW_R, flick=en.jitter?0.55+0.45*Math.random():1;
   if(en.glow<=0&&!veinAlive(v)&&!v.collapsed)return; // drained: back to dead dark cracks
   ctx.save();ctx.lineCap='round';ctx.globalCompositeOperation='lighter';ctx.strokeStyle=en.col;
+  // a small bloom right at the mining point
+  const g0=ctx.createRadialGradient(v.mine.x,v.mine.y,0,v.mine.x,v.mine.y,R*0.45);g0.addColorStop(0,en.col);g0.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.globalAlpha=0.5*(0.4+0.6*en.glow)*flick;ctx.fillStyle=g0;ctx.beginPath();ctx.arc(v.mine.x,v.mine.y,R*0.45,0,Math.PI*2);ctx.fill();
   let k0=0;
   for(let b=0;b<VEIN_GLOW_RINGS;b++){
     const k1=lowerBound(v.pd,R*(b+1)/VEIN_GLOW_RINGS);
     if(k1<=k0)continue;
     const f=(b+0.5)/VEIN_GLOW_RINGS;
-    const ripple=en.flow?0.5+0.5*Math.sin(f*9+S.t*4*en.flow):0.8+0.2*Math.sin(f*6-S.t*1.5);
-    const I=Math.pow(1-f,1.3)*ripple*flick;
-    ctx.beginPath();
-    for(let k=k0;k<k1;k++){const i=v.pi[k];ctx.moveTo(net[i],net[i+1]);ctx.lineTo(net[i+2],net[i+3])}
-    if(en.glow>0){ctx.globalAlpha=Math.min(1,0.4*en.glow*I);ctx.lineWidth=7;ctx.stroke()}
-    ctx.globalAlpha=Math.min(1,1.5*en.core*(0.6+0.4*en.glow)*I);ctx.lineWidth=1.8;ctx.stroke();
+    const ripple=en.flow?0.5+0.5*Math.sin(f*7+S.t*4*en.flow):0.8+0.2*Math.sin(f*5-S.t*1.5);
+    const I=Math.pow(1-f,1.4)*ripple*flick;
+    [[0,0.35],[0.35,0.65],[0.65,1.01]].forEach(([dlo,dhi])=>{
+      ctx.beginPath();
+      for(let k=k0;k<k1;k++){const i=v.pi[k],d=dep[i>>2];if(d<dlo||d>=dhi)continue;ctx.moveTo(net[i],net[i+1]);ctx.lineTo(net[i+2],net[i+3])}
+      const gl=depthGlow((dlo+dhi)/2);
+      if(en.glow>0){ctx.globalAlpha=Math.min(1,0.4*en.glow*I*gl);ctx.lineWidth=5;ctx.stroke()}
+      ctx.globalAlpha=Math.min(1,1.6*en.core*(0.6+0.4*en.glow)*I*gl);ctx.lineWidth=1.4;ctx.stroke();
+    });
     k0=k1;
   }
   ctx.restore();
