@@ -443,6 +443,17 @@ const RELAY_RECONNECT_T=2.5;
 // Turret firing rate +100% (cooldown halved from 0.65s to 0.325s), range -25% (240 -> 180).
 const TURRET_RANGE=180, TURRET_DMG=14, TURRET_CD=0.325, TURRET_HP=150;
 const RELAY_HP=100;
+// Energy Surge (reward card): every powered, tethered Relay pulses on a timer while a vein is
+// actively being drilled, stunning nearby enemies — II/III both pulse every 5s instead of 10s,
+// and only III adds damage on top of the stun.
+const ENERGY_SURGE_R=200, ENERGY_SURGE_STUN_T=3, ENERGY_SURGE_DMG=18;
+function energySurgeInterval(level){return level>=2?5:10}
+// Armed Relays (reward card): a tethered Relay fires on enemies like a Turret, at half the
+// damage and half the fire rate.
+const RELAY_GUN_RANGE=TURRET_RANGE, RELAY_GUN_DMG=TURRET_DMG/2, RELAY_GUN_CD=TURRET_CD*2;
+// Martyrs (reward card): a unit that would otherwise corrupt detonates instead, right where it
+// stands — damaging enemies and friendlies alike in the blast.
+const MARTYR_R=90, MARTYR_DMG=40;
 // A Depot is a forward drop-off point — no power needed, just has to be standing (hp>0) — so a
 // harvester working a far-flung cluster can dump its load there instead of hauling all the way
 // back to the Bastion. Like a Relay it can be queued any time, locked down or not.
@@ -595,6 +606,9 @@ const UPGRADES={
     {id:'cable1',name:'Spooled Cable',desc:'Max tether cable length +150.',apply:()=>{S.mods.cableLenAdd+=150}},
     {id:'recruit1',name:'Fresh Recruits',desc:'+3 free Squads, right now.',apply:()=>{spawnFreeTroops(3,'troop')}},
     {id:'biggun',name:'Big Guns',desc:"Mounts an artillery piece on the Bastion — slower fire rate than a Grenadier, but longer range and a bigger blast. Only ever fires on enemies you've actually revealed.",apply:()=>{S.mods.bigGuns=true}},
+    {id:'energySurge1',name:'Energy Surge I',desc:'Every 10s, Relays tethered during mining burst with energy, stunning nearby enemies for 3s.',apply:()=>{S.mods.energySurgeLevel=Math.max(S.mods.energySurgeLevel,1)}},
+    {id:'armedRelays',name:'Armed Relays',desc:'Tethered Relays fire on enemies like a Turret — half the damage, half the fire rate.',apply:()=>{S.mods.armedRelays=true}},
+    {id:'martyrs',name:'Martyrs',desc:'A unit that would corrupt detonates instead, damaging enemies and friendlies alike nearby.',apply:()=>{S.mods.martyrs=true}},
   ],
   Epic:[
     {id:'carry3',name:'Reinforced Haulers III',desc:'Harvester carry capacity +75%.',apply:()=>{S.mods.carryMult*=1.75}},
@@ -602,12 +616,14 @@ const UPGRADES={
     {id:'dmg3',name:'Battle Drills III',desc:'Squad damage +30%.',apply:()=>{S.mods.troopDmgMult*=1.3}},
     {id:'tactical',name:'Tactical Reinforcements',desc:'+5 free Squads, +3 free Grenadiers, right now.',apply:()=>{spawnFreeTroops(5,'troop');spawnFreeTroops(3,'grenadier')}},
     {id:'targeting',name:'Targeting Computer',desc:'The Bastion gun keeps firing while drilling instead of going quiet.',apply:()=>{S.mods.bastionShootWhileDrilling=true}},
+    {id:'energySurge2',name:'Energy Surge II',desc:'Energy Surge now bursts every 5s instead of 10s.',apply:()=>{S.mods.energySurgeLevel=Math.max(S.mods.energySurgeLevel,2)}},
   ],
   Legendary:[
     {id:'carry4',name:'Reinforced Haulers IV',desc:'Harvester carry capacity +100%.',apply:()=>{S.mods.carryMult*=2.0}},
     {id:'overdrive',name:'Overdrive Capacitor',desc:'Fast throttle is dramatically faster (burns and pays out more to match).',apply:()=>{S.mods.fastBonus+=1.0}},
     {id:'cablehp2',name:'Hardened Network',desc:'All tether cable HP +150%.',apply:()=>{S.mods.cableHpMult*=2.5}},
     {id:'living1',name:'Rich Vein Memory',desc:'Living Crystal yield ×2 for the rest of the run.',apply:()=>{S.mods.livingMult*=2}},
+    {id:'energySurge3',name:'Energy Surge III',desc:'Energy Surge still bursts every 5s, and now damages enemies caught in it too.',apply:()=>{S.mods.energySurgeLevel=Math.max(S.mods.energySurgeLevel,3)}},
   ],
 };
 
@@ -667,9 +683,19 @@ const CORRUPT_STATS={
   mech:{r:MECH_R+1,hp:95,speed:MECH_SPEED,dmg:16},
 };
 function corruptUnit(u,type,label){
+  if(S.mods.martyrs){
+    // caller is mid-filter over whichever array u belongs to, so that array still includes u —
+    // exclude it explicitly rather than relying on it already being gone.
+    S.enemies.forEach(e=>{if(dist(e,u)<=MARTYR_R)damageEnemy(e,MARTYR_DMG)});
+    S.troops.concat(S.harvesters).concat(S.builders).forEach(a=>{if(a!==u&&dist(a,u)<=MARTYR_R){a.hp-=MARTYR_DMG;hitFlash(a)}});
+    if(dist(S.base,u)<=MARTYR_R){S.base.hp-=MARTYR_DMG;hitFlash(S.base)}
+    msg(`${label} lost its mind and detonated!`);
+    burst(u.x,u.y,C.enemy,24,180,0.6);sfx.explode();shakeScreen(7,0.35);
+    return;
+  }
   const st=CORRUPT_STATS[type];
   S.enemies.push({x:u.x,y:u.y,r:st.r,hp:st.hp,maxHp:st.hp,speed:st.speed,dmg:st.dmg,cd:0,kind:'corrupted',
-    target:null,aggro:1e9,home:{x:u.x,y:u.y},ang:rnd(0,Math.PI*2),faceT:rnd(1,3)});
+    target:null,aggro:1e9,home:{x:u.x,y:u.y},ang:rnd(0,Math.PI*2),faceT:rnd(1,3),stunT:0});
   msg(`${label} lost its mind and turned hostile!`);
   burst(u.x,u.y,C.zone,16,130,0.5);sfx.sever();shakeScreen(5,0.25);
 }
@@ -685,7 +711,8 @@ function reset(landing){
     // reset back to baseline (1 / 0 / false) by a fresh reset(), never persisted between runs.
     mods:{carryMult:1,troopDmgMult:1,moveSpeedMult:1,visionMult:1,relayTolMult:1,drillBurnMult:1,
       cableLenAdd:0,cableHpMult:1,condensedMult:1,livingMult:1,fastBonus:0,freeRelayCharges:0,
-      grenFireRateMult:1,grenSplashMult:1,squadRangeMult:1,bigGuns:false,bastionShootWhileDrilling:false},
+      grenFireRateMult:1,grenSplashMult:1,squadRangeMult:1,bigGuns:false,bastionShootWhileDrilling:false,
+      energySurgeLevel:0,armedRelays:false,martyrs:false},
     rewardChoice:null,pingRing:null,paused:false,
     sel:{base:false,troops:new Set(),harv:new Set(),bu:new Set()}};
   for(let i=0;i<4;i++) S.troops.push(mkTroop(i));
@@ -988,7 +1015,7 @@ function spawnEnemy(x,y,kind){
   const big=kind==='wave'&&Math.random()<0.2;
   const sab=kind==='saboteur';
   const hp=brute?BRUTE_HP:Math.round((big?120:sab?4:34)*(core?CORE_ENEMY_HP_MULT:1));
-  S.enemies.push({x,y,r:brute?BRUTE_R:big?13:sab?4:8,hp,maxHp:hp,speed:brute?BRUTE_SPEED:big?48:sab?105:78,dmg:brute?BRUTE_DMG:big?12:sab?1.5:5,cd:0,kind,core,target:null,aggro:kind==='roam'||brute?260:1e9,home:{x,y},ang:rnd(0,Math.PI*2),faceT:rnd(1,3)});
+  S.enemies.push({x,y,r:brute?BRUTE_R:big?13:sab?4:8,hp,maxHp:hp,speed:brute?BRUTE_SPEED:big?48:sab?105:78,dmg:brute?BRUTE_DMG:big?12:sab?1.5:5,cd:0,kind,core,target:null,aggro:kind==='roam'||brute?260:1e9,home:{x,y},ang:rnd(0,Math.PI*2),faceT:rnd(1,3),stunT:0});
 }
 // Where the player's actual mining is happening right now — the average position of harvesters
 // currently working a node (falling back to all harvesters, then the Bastion) — rather than just
@@ -2126,7 +2153,8 @@ function tryBuild(w){
     if(dist(w,S.base)<BASE_R+14||S.turrets.some(t=>dist(t,w)<26)||S.relays.some(r=>dist(r,w)<40)||S.depots.some(d=>dist(d,w)<26))return;
     const k=key(Math.floor(w.x/CELL),Math.floor(w.y/CELL));if(S.walls.has(k))return;
     S.relays.push({x:w.x,y:w.y,hp:RELAY_HP,maxHp:RELAY_HP,kind:'relay',built:false,buildT:0,buildTotal:RELAY_BUILD_T,builder:null,repairer:null,
-      state:null,tetherOk:false,trail:null,cableHp:0,cableLen:0,cableMaxed:false,reconnectT:0});S.dat-=cost;
+      state:null,tetherOk:false,trail:null,cableHp:0,cableLen:0,cableMaxed:false,reconnectT:0,
+      surgeT:energySurgeInterval(S.mods.energySurgeLevel),gunCd:0,ang:0});S.dat-=cost;
     if(freeRelay){S.mods.freeRelayCharges--;msg('Relay queued for free — a builder needs to finish it.')}
     else msg('Relay queued — a builder needs to finish it.');
   }else{
@@ -2238,6 +2266,7 @@ const sfx={
   damage(){if(!sfxReady('damage',0.3))return;tone(90,0.12,'triangle',0.08)},
   ping(){tone(700,0.1,'sine',0.08);tone(1100,0.35,'sine',0.07,0.1)},
   explode(){tone(90,0.2,'sawtooth',0.1,0,40);tone(50,0.3,'square',0.08,0.03,30)},
+  surge(){if(!sfxReady('surge',0.2))return;tone(900,0.08,'sine',0.07);tone(1400,0.12,'sine',0.06,0.05,1800)},
 };
 // Only a FINISHED wall is a solid obstacle — a queued/under-construction site is just a ghost preview.
 function wallAt(x,y){
@@ -2648,10 +2677,44 @@ function update(dt){
     if(best){tu.ang=Math.atan2(best.y-tu.y,best.x-tu.x);if(tu.cd<=0){damageEnemy(best,TURRET_DMG);tracer(tu,best,C.accent);tu.cd=TURRET_CD}}
   });
 
+  // Energy Surge (reward card): every powered, tethered Relay pulses on a timer while a vein is
+  // actively being drilled — only counts down/fires during that window, so parking Relays doesn't
+  // farm free stuns between veins.
+  if(S.mods.energySurgeLevel>0){
+    const drilling=B.locked&&S.activeVein&&!S.activeVein.paused&&!S.activeVein.stalled;
+    S.relays.forEach(r=>{
+      if(!r.built||!r.tetherOk){r.surgeT=energySurgeInterval(S.mods.energySurgeLevel);return}
+      if(!drilling)return;
+      r.surgeT-=dt;
+      if(r.surgeT>0)return;
+      r.surgeT=energySurgeInterval(S.mods.energySurgeLevel);
+      S.enemies.forEach(e=>{
+        if(dist(e,r)>ENERGY_SURGE_R)return;
+        e.stunT=Math.max(e.stunT||0,ENERGY_SURGE_STUN_T);
+        hitFlash(e);
+        if(S.mods.energySurgeLevel>=3)damageEnemy(e,ENERGY_SURGE_DMG);
+      });
+      burst(r.x,r.y,'#8fe3ff',22,200,0.55);sfx.surge();
+    });
+  }
+  // Armed Relays (reward card): a tethered Relay fires like a Turret, half the damage and half
+  // the fire rate.
+  if(S.mods.armedRelays){
+    S.relays.forEach(r=>{
+      if(!r.built||!r.tetherOk)return;
+      r.gunCd-=dt;
+      let best=null,bd=RELAY_GUN_RANGE;S.enemies.forEach(e=>{const d=dist(e,r);if(d<bd){bd=d;best=e}});
+      if(best){r.ang=Math.atan2(best.y-r.y,best.x-r.x);if(r.gunCd<=0){damageEnemy(best,RELAY_GUN_DMG);tracer(r,best,C.accent);r.gunCd=RELAY_GUN_CD}}
+    });
+  }
+
   // enemies
   const allies=S.troops.concat(S.harvesters).concat(S.builders);
   S.enemies.forEach(e=>{
     e.cd-=dt;
+    // Energy Surge stun: frozen in place, can't attack, but still gets shoved by crowd separation
+    // below (that's physics, not action) and its own attack cooldown keeps ticking down.
+    if(e.stunT>0){e.stunT-=dt;return}
     let tgt=null,bd=e.aggro;
     if(e.kind==='saboteur'){
       // single-minded: ignore allies entirely, always make for whichever built Relay is nearest
@@ -3007,6 +3070,7 @@ function draw(){
     }
     ctx.fillStyle=r.flashT>0?'#fff':(r.tetherOk?'#3b4652':'#2a2d31');ctx.strokeStyle=r.tetherOk?C.cable:C.enemy;ctx.lineWidth=2;
     ctx.beginPath();ctx.moveTo(r.x,r.y-12);ctx.lineTo(r.x+9,r.y+8);ctx.lineTo(r.x-9,r.y+8);ctx.closePath();ctx.fill();ctx.stroke();
+    if(S.mods.armedRelays&&r.tetherOk){ctx.strokeStyle=C.accent;ctx.lineWidth=2.5;ctx.beginPath();ctx.moveTo(r.x,r.y);ctx.lineTo(r.x+Math.cos(r.ang)*13,r.y+Math.sin(r.ang)*13);ctx.stroke()}
     if(!r.tetherOk)drawCutGlyph(r.x,r.y);
     if(r.state==='cut'&&r.reconnectT>0){
       ctx.fillStyle='rgba(0,0,0,0.6)';ctx.fillRect(r.x-11,r.y+15,22,3);
