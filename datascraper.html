@@ -111,6 +111,8 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 .overlay button:disabled{opacity:.4;cursor:default}
 #menuMap{width:min(78vw,60vh,440px);height:min(78vw,60vh,440px);background:#10151b;border:1px solid var(--line);border-radius:4px;cursor:crosshair;touch-action:none}
 #menuHint{font-size:12px}
+#mapTypeLabel{font-size:12px;max-width:440px;text-align:center;margin:0}
+#mapTypeLabel b{color:var(--accent)}
 .mapRow{display:flex;align-items:center;gap:12px;font-size:12px}
 #mapSeedLabel{color:var(--muted);font-family:var(--mono)}
 .menuMeta{display:flex;flex-direction:column;align-items:center;gap:8px;margin:2px 0}
@@ -352,7 +354,8 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <h1>Datascraper</h1>
   <p>Pick a landing zone on the Rim for the Bastion to touch down, then launch the mission.</p>
   <canvas id="menuMap" width="480" height="480"></canvas>
-  <p id="menuHint">Click inside the dashed Rim band to choose your landing zone.</p>
+  <p id="mapTypeLabel"></p>
+  <p id="menuHint">Click out in the Rim, beyond the dashed ring, to choose your landing zone.</p>
   <div class="mapRow"><span id="mapSeedLabel"></span><button id="newMapBtn" class="metaUnlock secondary">New map</button></div>
   <div class="menuMeta">
     <div class="metaRow"><span class="crystalIcon living">❖</span><span class="v" id="metaLiving">0</span></div>
@@ -408,8 +411,67 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 // H was bumped 4320->5020 so the Rim band (see CORE_R/DENSE_R below) is as thick as the Dense
 // Field (2700-1080=1620) instead of the thinnest of the three bands; W follows to match.
 const W=5020,H=5020, CELL=24;
-const EPI={x:W/2,y:700};
-const CORE_R=1080, DENSE_R=2700;
+// The Black Flame epicenter moves map to map (see rollLayout) and the three depth bands are rings
+// around it: Core within CORE_R, Dense Field out to DENSE_R, Rim beyond that. Where the epicenter
+// sits decides the map's whole shape — hugging an edge, tucked in a corner, or dead centre with
+// the Rim wrapped around all four corners — so these are `let`, rewritten per map.
+let EPI={x:W/2,y:700};
+let CORE_R=1080, DENSE_R=2700;
+// Distance from the epicenter to the farthest map corner — the deepest anything on the map can be
+// from the Black Flame, used to normalise "how deep" readings and the band tint gradient.
+let EPI_REACH=5000;
+// Epicenter layouts. `pos` places the epicenter for a given roll; `core`/`dense` are the band
+// radii. A centred epicenter gets tighter bands so a Rim ring still fits in the corners.
+const LAYOUTS=[
+  {id:'edge',name:'Edge',core:1080,dense:2700,pos:()=>{
+    const side=Math.floor(rnd(0,4)), along=rnd(W/2-800,W/2+800), inset=rnd(600,800);
+    return side===0?{x:along,y:inset}:side===1?{x:W-inset,y:along}:side===2?{x:along,y:H-inset}:{x:inset,y:along}}},
+  {id:'corner',name:'Corner',core:1200,dense:3000,pos:()=>{
+    const cx=rnd(0,1)<0.5, cy=rnd(0,1)<0.5, ix=rnd(650,900), iy=rnd(650,900);
+    return {x:cx?ix:W-ix,y:cy?iy:H-iy}}},
+  {id:'centre',name:'Central',core:1000,dense:2150,pos:()=>({x:W/2+rnd(-250,250),y:H/2+rnd(-250,250)})},
+];
+// Map types reshape the terrain generator. Each one leans the map toward a different way of
+// playing: Canyon toward walls and chokepoints, Swamp toward range and Relays, Shattered toward
+// foot raids into many small rift pockets, Open Plain toward straight fights with big packs.
+//   mud/rock: [blob count, min radius, max radius] in terrain cells
+//   ridges: long rock walls (with gaps), pockets: rift pocket count, pocketScale: their size,
+//   pocketGap: min spacing between them, deposits: rich deposits per pocket, packs: roaming packs
+const MAP_TYPES=[
+  {id:'mixed',name:'Badlands',desc:'A bit of everything — mud, rock and rift pockets.',
+   mud:[16,3,7],rock:[16,3,7],ridges:0,pockets:4,pocketScale:1,pocketGap:1600,deposits:5,packs:20},
+  {id:'canyon',name:'Canyon',desc:'Long rock ridges carve the map into lanes and chokepoints.',
+   mud:[8,3,6],rock:[6,2,4],ridges:9,pockets:3,pocketScale:0.9,pocketGap:1600,deposits:5,packs:20},
+  {id:'swamp',name:'Swamp',desc:'Mud everywhere — slow going for every unit you field.',
+   mud:[42,4,9],rock:[7,2,5],ridges:0,pockets:3,pocketScale:0.9,pocketGap:1600,deposits:5,packs:18},
+  {id:'shattered',name:'Shattered',desc:'Many small rift pockets, each hiding a rich deposit.',
+   mud:[12,3,6],rock:[12,3,6],ridges:0,pockets:9,pocketScale:0.55,pocketGap:900,deposits:3,packs:20},
+  {id:'plain',name:'Open Plain',desc:'Little cover and bigger roaming packs.',
+   mud:[6,2,4],rock:[5,2,4],ridges:0,pockets:2,pocketScale:1,pocketGap:1600,deposits:6,packs:30},
+];
+let mapType=MAP_TYPES[0], mapLayout=LAYOUTS[0];
+function epiDist(x,y){return Math.hypot(x-EPI.x,y-EPI.y)}
+function inMap(x,y,m){return x>=m&&y>=m&&x<=W-m&&y<=H-m}
+// A random in-bounds point whose distance from the epicenter falls in [d0,d1]. Polar sampling
+// with rejection on the map margin; after enough misses it settles for the in-bounds point that
+// came closest, so callers always get a usable spot.
+function pointInRing(d0,d1,margin){
+  let best=null,bestErr=Infinity;
+  for(let t=0;t<80;t++){
+    const a=rnd(0,Math.PI*2), d=rnd(d0,d1), x=EPI.x+Math.cos(a)*d, y=EPI.y+Math.sin(a)*d;
+    if(inMap(x,y,margin))return{x,y};
+    const cx=Math.max(margin,Math.min(W-margin,x)), cy=Math.max(margin,Math.min(H-margin,y));
+    const e=Math.abs(epiDist(cx,cy)-d); if(e<bestErr){bestErr=e;best={x:cx,y:cy}}
+  }
+  return best;
+}
+// Rolls the map's layout and type from the seeded stream and applies the band geometry.
+function rollLayout(){
+  mapLayout=LAYOUTS[Math.floor(rnd(0,LAYOUTS.length))];
+  mapType=MAP_TYPES[Math.floor(rnd(0,MAP_TYPES.length))];
+  EPI=mapLayout.pos(); CORE_R=mapLayout.core; DENSE_R=mapLayout.dense;
+  EPI_REACH=Math.max(...[[0,0],[W,0],[0,H],[W,H]].map(([x,y])=>epiDist(x,y)));
+}
 // Core enemies are a visibly tougher tier — black body, red outline — rather than just a palette
 // swap of the same stats.
 const CORE_ENEMY_HP_MULT=1.8;
@@ -505,7 +567,7 @@ const TCELL=60, TGX=Math.ceil(W/TCELL), TGY=Math.ceil(H/TCELL), MUD_MULT=0.55;
 // the Bastion only — troops, harvesters and builders cross it at mud speed). Rift pockets each
 // seed one outsized Dat Crystal deposit, so reaching the map's richest nodes means sending units
 // in on their own rather than just parking the Bastion on top of them.
-const RIFT=3, RIFT_POCKETS=4, RIFT_DEPOSITS_PER_POCKET=5;
+const RIFT=3; // rift pocket count and deposits per pocket are per map type (MAP_TYPES)
 // Tether: the Rim always has free wireless range (see wirelessTol below). These Dense/Core
 // tolerances are currently unused — WIRELESS_ENABLED is off, so a unit past the Rim always needs
 // a live physical cable regardless of these.
@@ -560,16 +622,17 @@ const TRIANGULATE_AT=3;
 // (see WAVE_BASE_N/BASE_SPAWN_INTERVAL/OFFZONE_PATROL_N), so they read as a deliberately easier,
 // lower-reward option close to the landing zone rather than a shortcut to Dense/Core money.
 // Vein positions are rolled fresh for every map (see placeVeins) — each slot fixes only the band
-// a vein lands in and how rich it is. y0/y1 is the slot's allowed vertical range, kept a zone's
-// width inside its band so the whole zone reads as that band.
+// a vein lands in and how rich it is. ring() gives the slot's allowed distance from the epicenter,
+// kept about a zone's width inside its band so the whole zone reads as that band. The first
+// (opening) vein sits on the Dense Field's outer edge, closest to the Rim.
 const VEIN_SLOTS=[
-  {band:'dense',y0:1980,y1:3200,richness:40},
-  {band:'dense',y0:1980,y1:3200,richness:55},
-  {band:'core',y0:900,y1:1600,richness:75},
-  {band:'core',y0:900,y1:1600,richness:90},
-  {band:'rim',y0:3650,y1:4800,richness:20},
-  {band:'rim',y0:3650,y1:4800,richness:28},
-  {band:'core',y0:250,y1:450,richness:140,contract:true},
+  {band:'dense',ring:()=>[DENSE_R-ZONE_R-550,DENSE_R-ZONE_R-50],richness:40},
+  {band:'dense',ring:()=>[CORE_R+ZONE_R+100,DENSE_R-ZONE_R-50],richness:55},
+  {band:'core',ring:()=>[CORE_R*0.5,CORE_R-ZONE_R*0.6],richness:75},
+  {band:'core',ring:()=>[CORE_R*0.5,CORE_R-ZONE_R*0.6],richness:90},
+  {band:'rim',ring:()=>[DENSE_R+ZONE_R+150,DENSE_R+1400],richness:20},
+  {band:'rim',ring:()=>[DENSE_R+ZONE_R+150,DENSE_R+1400],richness:28},
+  {band:'core',ring:()=>[0,CORE_R*0.35],richness:140,contract:true},
 ];
 // Veins in the same band stay well apart so a band's pair spreads across the map; veins in
 // different bands only need to stay clear of each other's zones.
@@ -590,14 +653,15 @@ function placeVeins(){
     for(let pass=0;pass<4&&!best;pass++){
       const loosen=1-pass*0.25;
       for(let t=0;t<60;t++){
-        const x=slot.contract?rnd(900,W-900):rnd(VEIN_X_MARGIN,W-VEIN_X_MARGIN), y=rnd(slot.y0,slot.y1);
+        const [d0,d1]=slot.ring(), {x,y}=pointInRing(d0,d1,VEIN_X_MARGIN);
         if(veins.some(v=>Math.hypot(v.x-x,v.y-y)<(v.band===slot.band&&!v.contract&&!slot.contract?VEIN_SAME_BAND_GAP:VEIN_GAP)*loosen))continue;
-        if(riftPockets.some(p=>Math.hypot(p.x-x,p.y-y)<(RIFT_CORE_R+ZONE_R)*loosen))continue;
+        if(riftPockets.some(p=>Math.hypot(p.x-x,p.y-y)<(RIFT_CORE_R*mapType.pocketScale+ZONE_R)*loosen))continue;
         best={x,y};break;
       }
     }
-    if(!best)best={x:rnd(VEIN_X_MARGIN,W-VEIN_X_MARGIN),y:rnd(slot.y0,slot.y1)};
-    veins.push({...slot,x:best.x,y:best.y});
+    if(!best){const [d0,d1]=slot.ring();best=pointInRing(d0,d1,VEIN_X_MARGIN)}
+    // band is read from where the vein actually landed, in case a fallback spot strayed
+    veins.push({...slot,x:best.x,y:best.y,band:bandAt(best.x,best.y)});
   });
   const clusters=[];
   veins.forEach((v,i)=>{
@@ -707,7 +771,15 @@ let touchPts=new Map(), pinch=null, longPressTimer=null, lastTap=null;
 // never pokes off the world or into the Dense band.
 let menuOpen=true, landingSel=null;
 const LANDING_MARGIN=260;
-const RIM_X0=LANDING_MARGIN, RIM_X1=W-LANDING_MARGIN, RIM_Y0=EPI.y+DENSE_R+LANDING_MARGIN, RIM_Y1=H-LANDING_MARGIN;
+// A legal landing spot: inside the map margin and at least LANDING_MARGIN out past the Dense
+// Field's edge (the dashed ring on the landing preview).
+function canLandAt(x,y){return inMap(x,y,LANDING_MARGIN)&&epiDist(x,y)>=DENSE_R+LANDING_MARGIN}
+// Where the Bastion sits on the preview before a spot is picked: the deepest-Rim corner, pulled in.
+function defaultLanding(){
+  const cs=[[500,500],[W-500,500],[500,H-500],[W-500,H-500]];
+  let best=cs[0];cs.forEach(c=>{if(epiDist(c[0],c[1])>epiDist(best[0],best[1]))best=c});
+  return{x:best[0],y:best[1]};
+}
 const menuCv=document.getElementById('menuMap'), menuCx=menuCv.getContext('2d');
 // fogC used to be a second, fully-opaque "never explored" layer underneath dimC — removed as the
 // darkest fog tier; fogX/fogC now exist only for the one-shot Zone Mapping upgrade's
@@ -730,7 +802,7 @@ let mapSeed=newMapSeed();
 function rnd(a,b){return a+rand()*(b-a)}
 function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
 function key(gx,gy){return gx+','+gy}
-function bandAt(x,y){const d=Math.abs(y-EPI.y);return d<=CORE_R?'core':d<=DENSE_R?'dense':'rim'}
+function bandAt(x,y){const d=epiDist(x,y);return d<=CORE_R?'core':d<=DENSE_R?'dense':'rim'}
 
 function mkTroop(id,kind){kind=kind||'troop';const baseHp=kind==='artillery'?ARTY_HP:kind==='grenadier'?GREN_HP:kind==='mech'?MECH_HP:70;const hp=Math.round(baseHp*unitHpMult());const r=kind==='artillery'?ARTY_R:kind==='mech'?MECH_R:TROOP_R;return {id,kind,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp,maxHp:hp,r,dest:null,target:null,state:'idle',cd:0,ang:-Math.PI/2,mechSide:false,tetherOk:true,severed:false,sanity:SANITY_MAX,trail:null,cableHp:0,cableLen:0,cableMaxed:false,following:false,followAng:0,followDist:0}}
 function mkHarv(id){return {id,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp:50,maxHp:50,r:HARV_R,dest:null,node:null,carry:0,state:'idle',autoLoop:true,hv:0,tetherOk:true,severed:false,sanity:SANITY_MAX,trail:null,cableHp:0,cableLen:0,cableMaxed:false,following:false,followAng:0,followDist:0}}
@@ -764,8 +836,15 @@ function corruptUnit(u,type,label){
 }
 
 function reset(landing){
+  // Map layout comes first, entirely from the map seed and independent of where the Bastion lands:
+  // epicenter + map type, terrain, veins, clusters, and where every deposit gets rolled. That way
+  // picking a different landing spot on the same seed only changes things right around the
+  // Bastion, not the whole map.
+  rand=seededRng(mapSeed);
+  rollLayout();
+  const land=landing||defaultLanding();
   S={t:0,dat:40,living:0,condensed:0,over:null,rerollCount:0,
-    base:{x:landing?landing.x:W/2,y:landing?landing.y:H-400,hp:450+bastionHpBonus(),maxHp:450+bastionHpBonus(),r:BASE_R,dest:null,locked:false,gunCd:0,bigGunCd:0,pingCd:0},
+    base:{x:land.x,y:land.y,hp:450+bastionHpBonus(),maxHp:450+bastionHpBonus(),r:BASE_R,dest:null,locked:false,gunCd:0,bigGunCd:0,pingCd:0},
     troops:[],harvesters:[],builders:[],relays:[],depots:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],shards:[],nades:[],
     veins:[],activeVein:null,throttleMul:1,ambientT:30,
     minedWindowAmt:0,minedWindowT:0,offZonePatrolCd:OFFZONE_MINE_WINDOW,
@@ -783,11 +862,7 @@ function reset(landing){
   for(let i=0;i<2;i++) S.builders.push(mkBuilder(i));
   prodMenuOpen=false;
 
-  // Map layout comes first, entirely from the map seed and independent of where the Bastion lands:
-  // terrain, veins, clusters, and where every deposit gets rolled. That way picking a different
-  // landing spot on the same seed only changes things right around the Bastion, not the whole map.
-  S.mapSeed=mapSeed;
-  rand=seededRng(mapSeed);
+  S.mapSeed=mapSeed; S.mapType=mapType.id; S.mapLayout=mapLayout.id;
   genTerrain();
   const layout=placeVeins();
   S.clusters=layout.clusters;
@@ -802,8 +877,8 @@ function reset(landing){
   // through the Dense Field and outer Core, then more scattered anywhere out past the Dense Field.
   // Only their rough positions are rolled here; they're snapped to open ground once terrain is final.
   const nodeSpots=[];
-  for(let i=0;i<10;i++)nodeSpots.push({x:rnd(500,W-500),y:rnd(1300,4000),amt:Math.round(rnd(20,38)),max:38});
-  for(let i=0;i<10;i++)nodeSpots.push({x:rnd(120,W-120),y:rnd(EPI.y+DENSE_R+60,H-120),amt:Math.round(rnd(20,38)),max:38});
+  for(let i=0;i<10;i++)nodeSpots.push({...pointInRing(CORE_R*0.7,DENSE_R+400,500),amt:Math.round(rnd(20,38)),max:38});
+  for(let i=0;i<10;i++)nodeSpots.push({...pointInRing(DENSE_R+60,EPI_REACH,120),amt:Math.round(rnd(20,38)),max:38});
   // The per-vein cluster: rarer to find than a scattered node, but pays off big once a harvester
   // squad can actually park there.
   S.clusters.forEach(([cx,cy])=>{
@@ -836,15 +911,15 @@ function reset(landing){
   // the Bastion can't follow — a harvester (or a squad clearing the way for one) has to go in on
   // foot to bring any of it back.
   riftPockets.forEach(p=>{
-    for(let i=0;i<RIFT_DEPOSITS_PER_POCKET;i++){
-      const ang=rnd(0,Math.PI*2), rad=rnd(0,130);
+    for(let i=0;i<mapType.deposits;i++){
+      const ang=rnd(0,Math.PI*2), rad=rnd(0,130*mapType.pocketScale);
       const x=Math.max(60,Math.min(W-60,p.x+Math.cos(ang)*rad)), y=Math.max(60,Math.min(H-60,p.y+Math.sin(ang)*rad));
       S.nodes.push({x,y,amt:Math.round(rnd(160,240)),max:240,found:false});
     }
   });
 
   // roaming packs patrol/idle across the map; denser and more aggressive the deeper their patch is
-  for(let i=0;i<20;i++){const px=rnd(300,W-300),py=rnd(300,H-300);if(Math.hypot(px-S.base.x,py-S.base.y)<700)continue;
+  for(let i=0;i<mapType.packs;i++){const px=rnd(300,W-300),py=rnd(300,H-300);if(Math.hypot(px-S.base.x,py-S.base.y)<700)continue;
     const band=bandAt(px,py);
     let patrol=null;
     if(rand()<0.3){
@@ -862,8 +937,10 @@ function reset(landing){
   });
   // The Core is deliberately saturated on top of the scatter above — a guaranteed, heavy
   // population across the whole band rather than relying on where the random packs happened to land.
-  for(let i=0;i<16;i++){
-    const px=rnd(150,W-150), py=rnd(Math.max(0,EPI.y-CORE_R),Math.min(H,EPI.y+CORE_R));
+  // (The Core is a disk around the epicenter now rather than a full-width strip, so it gets fewer
+  // packs than the old 16 to keep a similar density.)
+  for(let i=0;i<9;i++){
+    const {x:px,y:py}=pointInRing(0,CORE_R,150);
     if(Math.hypot(px-S.base.x,py-S.base.y)<700)continue;
     const packSize=rnd(6,10);
     for(let j=0;j<packSize;j++){const p=nearestPlain(px+rnd(-60,60),py+rnd(-60,60));spawnEnemy(p.x,p.y,'roam')}
@@ -882,16 +959,23 @@ function reset(landing){
 function drawMenuMap(){
   const s=menuCv.width/W;
   document.getElementById('mapSeedLabel').textContent='Map #'+mapSeed;
+  document.getElementById('mapTypeLabel').innerHTML=`<b>${mapType.name}</b> · ${mapLayout.name} epicenter — ${mapType.desc}`;
   menuCx.fillStyle='#10151b';menuCx.fillRect(0,0,menuCv.width,menuCv.height);
   menuCx.drawImage(terrainCv,0,0,W,H,0,0,menuCv.width,menuCv.height);
-  menuCx.fillStyle='rgba(180,139,255,0.14)';menuCx.fillRect(0,0,menuCv.width,(EPI.y+CORE_R)*s);
-  menuCx.fillStyle='rgba(180,139,255,0.07)';menuCx.fillRect(0,(EPI.y+CORE_R)*s,menuCv.width,(DENSE_R-CORE_R)*s);
+  const ex=EPI.x*s, ey=EPI.y*s;
+  menuCx.fillStyle='rgba(180,139,255,0.07)';menuCx.beginPath();menuCx.arc(ex,ey,DENSE_R*s,0,Math.PI*2);menuCx.fill();
+  menuCx.fillStyle='rgba(180,139,255,0.10)';menuCx.beginPath();menuCx.arc(ex,ey,CORE_R*s,0,Math.PI*2);menuCx.fill();
+  // labels sit along the line from the epicenter toward the far side of the map, where every
+  // band is guaranteed to have room
+  let fx=0,fy=0,fd=-1;[[0,0],[W,0],[0,H],[W,H]].forEach(([x,y])=>{const d=epiDist(x,y);if(d>fd){fd=d;fx=x;fy=y}});
+  const ux=(fx-EPI.x)/fd, uy=(fy-EPI.y)/fd, lab=(d,dy)=>[Math.max(40,Math.min(menuCv.width-40,(EPI.x+ux*d)*s)),Math.max(14,Math.min(menuCv.height-8,(EPI.y+uy*d)*s+(dy||0)))];
   menuCx.font='600 11px '+css('--mono');menuCx.fillStyle=C.muted;menuCx.textAlign='center';
-  menuCx.fillText('CORE',menuCv.width/2,EPI.y*s+4);
-  menuCx.fillText('DENSE FIELD',menuCv.width/2,(EPI.y+DENSE_R)*s-34);
-  menuCx.fillStyle=C.accent;menuCx.fillText('RIM',menuCv.width/2,(EPI.y+DENSE_R)*s+22);
+  menuCx.fillText('CORE',...lab(0,4));
+  menuCx.fillText('DENSE FIELD',...lab((CORE_R+DENSE_R)/2));
+  menuCx.fillStyle=C.accent;menuCx.fillText('RIM',...lab(DENSE_R+LANDING_MARGIN+260));
+  // the landing line: anywhere on open ground outside this ring (and off the map edge) is legal
   menuCx.strokeStyle=C.accent;menuCx.setLineDash([5,4]);menuCx.lineWidth=1.5;
-  menuCx.strokeRect(RIM_X0*s,RIM_Y0*s,(RIM_X1-RIM_X0)*s,(RIM_Y1-RIM_Y0)*s);
+  menuCx.beginPath();menuCx.arc(ex,ey,(DENSE_R+LANDING_MARGIN)*s,0,Math.PI*2);menuCx.stroke();
   menuCx.setLineDash([]);
   S.veins.forEach(v=>{if(v.contract)return;menuCx.strokeStyle=C.zone;menuCx.lineWidth=1;menuCx.beginPath();menuCx.arc(v.x*s,v.y*s,v.r*s,0,Math.PI*2);menuCx.stroke()});
   S.clusters.forEach(([x,y])=>{menuCx.fillStyle=C.dat;menuCx.fillRect(x*s-2,y*s-2,4,4)});
@@ -903,8 +987,8 @@ function drawMenuMap(){
 menuCv.addEventListener('pointerdown',e=>{
   const r=menuCv.getBoundingClientRect();
   const x=(e.clientX-r.left)/r.width*W, y=(e.clientY-r.top)/r.height*H;
-  if(x<RIM_X0||x>RIM_X1||y<RIM_Y0||y>RIM_Y1){
-    document.getElementById('menuHint').textContent='Pick a spot inside the dashed Rim band.';
+  if(!canLandAt(x,y)){
+    document.getElementById('menuHint').textContent='Pick a spot out in the Rim, beyond the dashed ring.';
     return;
   }
   const tt=terrainAt(x,y);
@@ -927,7 +1011,7 @@ function rollNewMap(){
   landingSel=null;
   reset();
   document.getElementById('launchBtn').disabled=true;
-  document.getElementById('menuHint').textContent='Click inside the dashed Rim band to choose your landing zone.';
+  document.getElementById('menuHint').textContent='Click out in the Rim, beyond the dashed ring, to choose your landing zone.';
   drawMenuMap();
 }
 document.getElementById('newMapBtn').onclick=rollNewMap;
@@ -1119,12 +1203,12 @@ function miningActivityCenter(){
 }
 // 0 right at the Rim's outer edge, 1 at the epicenter — a continuous read on how deep the
 // Bastion currently sits, for scaling threat pressure smoothly rather than only in band steps.
-function depthFactor(y){return Math.max(0,Math.min(1,1-Math.abs(y-EPI.y)/(H-EPI.y)))}
+function depthFactor(x,y){return Math.max(0,Math.min(1,1-epiDist(x,y)/EPI_REACH))}
 // How flush the bank is, capped so a maxed-out Depot stockpile doesn't spiral pressure forever.
 function bankFactor(){return Math.min(1.5,S.dat/400)}
 // A deep, loaded operation draws a much bigger, much more frequent off-zone patrol than an
 // early, cash-poor one still parked near the Rim.
-function patrolPressure(){return 1+depthFactor(S.base.y)*1.2+bankFactor()*0.8}
+function patrolPressure(){return 1+depthFactor(S.base.x,S.base.y)*1.2+bankFactor()*0.8}
 function spawnOffZonePatrol(){
   const center=miningActivityCenter();
   const band=bandAt(center.x,center.y);
@@ -1206,10 +1290,36 @@ function genTerrain(){
       }
     }
   }
-  blob(1,16,3,7,0.85); // mud patches
-  blob(2,16,3,7,0.85); // rock outcrops (override mud) — as common as mud, so picking a route through is a real puzzle
+  const T=mapType;
+  blob(1,T.mud[0],T.mud[1],T.mud[2],0.85); // mud patches
+  blob(2,T.rock[0],T.rock[1],T.rock[2],0.85); // rock outcrops (override mud), so picking a route through is a real puzzle
+  for(let i=0;i<T.ridges;i++)paintRidge();
   placeRifts();
   fillDenseRift();
+}
+// Canyon ridges: a long, wandering wall of rock — a chain of jittered segments 1 or 3 cells thick —
+// with one or two gaps left open in it, so it splits the ground into lanes joined at chokepoints.
+// (Anything a ridge fully seals off still gets a path carved back in by ensureConnectivity.)
+function paintRidge(){
+  let x=rnd(300,W-300), y=rnd(300,H-300), a=rnd(0,Math.PI*2);
+  const segs=Math.floor(rnd(5,9)), segLen=rnd(260,420), w=rnd(0,1)<0.5?1:2;
+  const gaps=new Set([Math.floor(rnd(1,segs-1)),Math.floor(rnd(0,segs))]);
+  for(let s=0;s<segs;s++){
+    a+=rnd(-0.6,0.6);
+    const nx=Math.max(100,Math.min(W-100,x+Math.cos(a)*segLen)), ny=Math.max(100,Math.min(H-100,y+Math.sin(a)*segLen));
+    if(!gaps.has(s))paintLine(x,y,nx,ny,w,2);
+    x=nx;y=ny;
+  }
+}
+function paintLine(x0,y0,x1,y1,w,type){
+  const d=Math.hypot(x1-x0,y1-y0); const steps=Math.max(1,Math.ceil(d/(TCELL*0.5)));
+  for(let i=0;i<=steps;i++){
+    const t=i/steps,cx=Math.floor((x0+(x1-x0)*t)/TCELL),cy=Math.floor((y0+(y1-y0)*t)/TCELL);
+    for(let dy=-w+1;dy<w;dy++)for(let dx=-w+1;dx<w;dx++){
+      const gx=cx+dx,gy=cy+dy; if(gx<0||gy<0||gx>=TGX||gy>=TGY)continue;
+      terrain[gy*TGX+gx]=type;
+    }
+  }
 }
 function clearDisk(x,y,r){paintDisk(x,y,r,0)}
 function paintDisk(x,y,r,type){
@@ -1219,7 +1329,7 @@ function paintDisk(x,y,r,type){
     if(Math.hypot(gx-cx,gy-cy)*TCELL<=r)terrain[gy*TGX+gx]=type;
   }
 }
-// Picks RIFT_POCKETS centers spread across the map (from the map seed alone, so they show up in
+// Picks the map type's rift pocket centers spread across the map (from the map seed alone, so they show up in
 // the landing picker's preview and the player can land clear of them) and
 // stamps each with a sprawling cluster of overlapping disks — a guaranteed full-radius one at
 // the center (so deposit placement never has to dodge leftover rock) plus several further-flung,
@@ -1229,36 +1339,41 @@ const RIFT_CORE_R=480, RIFT_LOBES=4, RIFT_LOBE_OFFSET=300, RIFT_LOBE_MIN_R=240, 
 let riftPockets=[];
 function placeRifts(){
   riftPockets=[];
-  for(let tries=0;tries<RIFT_POCKETS*8&&riftPockets.length<RIFT_POCKETS;tries++){
-    const x=rnd(700,W-700), y=rnd(EPI.y+CORE_R+200,H-700);
-    if(riftPockets.some(p=>Math.hypot(p.x-x,p.y-y)<1600))continue;
+  const T=mapType, k=T.pocketScale, edge=Math.max(250,700*k);
+  for(let tries=0;tries<T.pockets*10&&riftPockets.length<T.pockets;tries++){
+    // outside the Core, anywhere from the Dense Field outward
+    const {x,y}=pointInRing(CORE_R+200,EPI_REACH,edge);
+    if(epiDist(x,y)<CORE_R+200)continue;
+    if(riftPockets.some(p=>Math.hypot(p.x-x,p.y-y)<T.pocketGap))continue;
     riftPockets.push({x,y});
   }
   riftPockets.forEach(p=>{
-    paintDisk(p.x,p.y,RIFT_CORE_R,RIFT);
+    paintDisk(p.x,p.y,RIFT_CORE_R*k,RIFT);
     for(let i=0;i<RIFT_LOBES;i++){
-      const ang=rnd(0,Math.PI*2), off=rnd(RIFT_LOBE_OFFSET*0.3,RIFT_LOBE_OFFSET);
-      paintDisk(p.x+Math.cos(ang)*off,p.y+Math.sin(ang)*off,rnd(RIFT_LOBE_MIN_R,RIFT_LOBE_MAX_R),RIFT);
+      const ang=rnd(0,Math.PI*2), off=rnd(RIFT_LOBE_OFFSET*0.3,RIFT_LOBE_OFFSET)*k;
+      paintDisk(p.x+Math.cos(ang)*off,p.y+Math.sin(ang)*off,rnd(RIFT_LOBE_MIN_R,RIFT_LOBE_MAX_R)*k,RIFT);
     }
   });
 }
-// The Dense Field is blanketed in rift — driving the Bastion straight north out of the Rim isn't
-// an option in there. A handful of winding corridors (each a chain of jittered carveLine segments,
-// not a straight cut) are guaranteed clear all the way through, from just inside the Rim to just
-// inside the Core, so there's always a real — if narrow and indirect — route in. Everything else
-// in the band stays open to troops/harvesters/builders, just not the Bastion.
+// The Dense Field is blanketed in rift — driving the Bastion straight in from the Rim isn't an
+// option in there. A handful of winding corridors (each a chain of jittered carveLine segments,
+// not a straight cut) are guaranteed clear all the way through, from just inside the Rim inward
+// to just inside the Core, so there's always a real — if narrow and indirect — route in.
+// Everything else in the band stays open to troops/harvesters/builders, just not the Bastion.
 const DENSE_RIFT_PROB=0.82, DENSE_CORRIDORS=3, DENSE_CORRIDOR_W=1, DENSE_CORRIDOR_STEPS=7, DENSE_CORRIDOR_JITTER=150;
 function fillDenseRift(){
-  const y0=EPI.y+CORE_R, y1=EPI.y+DENSE_R;
-  const gy0=Math.floor(y0/TCELL), gy1=Math.floor(y1/TCELL);
-  for(let gy=gy0;gy<=gy1;gy++)for(let gx=0;gx<TGX;gx++){
-    if(rand()<DENSE_RIFT_PROB)terrain[gy*TGX+gx]=RIFT;
+  for(let gy=0;gy<TGY;gy++)for(let gx=0;gx<TGX;gx++){
+    const d=epiDist(gx*TCELL+TCELL/2,gy*TCELL+TCELL/2);
+    if(d>=CORE_R&&d<=DENSE_R&&rand()<DENSE_RIFT_PROB)terrain[gy*TGX+gx]=RIFT;
   }
-  const spanY=(y1-y0)+300, stepY=spanY/DENSE_CORRIDOR_STEPS;
-  for(let i=0;i<DENSE_CORRIDORS;i++){
-    let px=rnd(250,W-250), py=y1+150;
+  // A Central epicenter's Dense Field is a full ring with more ground to cross, so it gets an extra corridor.
+  const n=DENSE_CORRIDORS+(mapLayout.id==='centre'?1:0);
+  const stepD=((DENSE_R+150)-(CORE_R-150))/DENSE_CORRIDOR_STEPS;
+  for(let i=0;i<n;i++){
+    let {x:px,y:py}=pointInRing(DENSE_R+150,DENSE_R+150,150);
     for(let s=0;s<DENSE_CORRIDOR_STEPS;s++){
-      const ny=py-stepY, nx=Math.max(150,Math.min(W-150,px+rnd(-DENSE_CORRIDOR_JITTER,DENSE_CORRIDOR_JITTER)));
+      const d=epiDist(px,py)||1, ux=(EPI.x-px)/d, uy=(EPI.y-py)/d, j=rnd(-DENSE_CORRIDOR_JITTER,DENSE_CORRIDOR_JITTER);
+      const nx=Math.max(150,Math.min(W-150,px+ux*stepD-uy*j)), ny=Math.max(150,Math.min(H-150,py+uy*stepD+ux*j));
       carveLine(px,py,nx,ny,DENSE_CORRIDOR_W);
       px=nx;py=ny;
     }
@@ -1373,11 +1488,11 @@ function buildTerrainCanvas(){
       x2.beginPath();x2.moveTo(px,py);x2.lineTo(px+Math.cos(a)*len,py+Math.sin(a)*len);x2.stroke();
     }
   }
-  // depth-band tint running down from the Black Flame epicenter as horizontal bands spanning the
-  // whole width — the whole reason this is "a zone"
-  const maxD=H-EPI.y+100;
+  // depth-band tint radiating out from the Black Flame epicenter in rings — the whole reason this
+  // is "a zone"
+  const maxD=EPI_REACH+100;
   const coreT=CORE_R/maxD, denseT=DENSE_R/maxD;
-  const grad=x2.createLinearGradient(0,EPI.y,0,H+100);
+  const grad=x2.createRadialGradient(EPI.x,EPI.y,0,EPI.x,EPI.y,maxD);
   grad.addColorStop(0,'rgba(255,90,40,0.45)');
   grad.addColorStop(Math.max(0.001,coreT-0.03),'rgba(255,90,40,0.45)');
   grad.addColorStop(coreT+0.02,'rgba(178,100,255,0.30)');
