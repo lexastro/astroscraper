@@ -4382,7 +4382,8 @@ function crackPath(pts,n,jit){
 // it is — with a slow ripple, or ripples running inward while it's being drilled. No outline, no
 // pattern of its own: the same cracks that are dark everywhere else.
 const VEIN_GLOW_RINGS=12;
-function drawVeinCracks(v){
+function drawVeinCracks(v,target){
+  const ctx=target; // draws into the vision-masked vein layer (see drawVeinLight)
   if(!v.pd)return;
   const en=veinEnergy(v), net=S.crackNet, dep=S.crackDepth, R=VEIN_GLOW_R, flick=en.jitter?0.55+0.45*Math.random():1;
   if(en.glow<=0&&!veinAlive(v)&&!v.collapsed)return; // drained: back to dead dark cracks
@@ -4409,8 +4410,25 @@ function drawVeinCracks(v){
   }
   ctx.restore();
 }
+// The vein light layer: veins' glow and hotspots are drawn into it in world space, then the vision
+// mask clears it wherever nothing can currently see, and it's added onto the ground as light — so
+// a vein respects the fog exactly like the cracks and pulses do.
+let veinLayer=document.createElement('canvas'), veinLX=veinLayer.getContext('2d');
+function beginVeinLight(vw,vh,shkx,shky){
+  const dpr=devicePixelRatio, L=veinLX;
+  if(veinLayer.width!==cv.width||veinLayer.height!==cv.height){veinLayer.width=cv.width;veinLayer.height=cv.height}
+  L.setTransform(1,0,0,1,0,0);L.globalCompositeOperation='source-over';L.globalAlpha=1;L.clearRect(0,0,veinLayer.width,veinLayer.height);
+  L.setTransform(dpr,0,0,dpr,0,0);L.translate(vw/2+shkx,vh/2+shky);L.scale(cam.z,cam.z);L.translate(-cam.x,-cam.y);
+  return L;
+}
+function endVeinLight(){
+  const L=veinLX;
+  if(!debugNoFog){L.save();L.globalAlpha=1;L.globalCompositeOperation='destination-out';L.imageSmoothingEnabled=true;L.drawImage(fogMaskC,0,0,W,H);L.restore()}
+  ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.globalCompositeOperation='lighter';ctx.globalAlpha=1;ctx.drawImage(veinLayer,0,0);ctx.restore();
+}
 // Free hotspots read as energy welling up from below the surface: a soft glow that breathes.
-function drawHotspots(v){
+function drawHotspots(v,target){
+  const ctx=target;
   if(v.done||!v.mine.found||!v.hot)return;
   const en=veinEnergy(v), aiming=buildMode==='stabilizer';
   ctx.save();ctx.globalCompositeOperation='lighter';
@@ -4478,13 +4496,15 @@ function draw(){
   for(let gx=Math.floor(Math.max(0,x0)/120)*120;gx<Math.min(W,x1);gx+=120){ctx.moveTo(gx,Math.max(0,y0));ctx.lineTo(gx,Math.min(H,y1))}
   for(let gy=Math.floor(Math.max(0,y0)/120)*120;gy<Math.min(H,y1);gy+=120){ctx.moveTo(Math.max(0,x0),gy);ctx.lineTo(Math.min(W,x1),gy)}
   ctx.stroke();
-  // veins
+  // veins: their glow and hotspots go into a vision-masked light layer (so only the part of a vein
+  // your units can currently see shows); the drill ring, warm-up text and wave arrow stay on top
+  const VL=beginVeinLight(vw,vh,shkx,shky);
   S.veins.forEach((v,i)=>{
     if(!debugNoFog&&(v.contract?!v.mine.found:!v.seen))return; // unsighted veins only show as energy pulses
     if(v.x+v.r+60<x0||v.x-v.r-60>x1||v.y+v.r+80<y0||v.y-v.r-60>y1)return; // off-screen
     const cur=S.activeVein===v;ctx.save();
-    drawVeinCracks(v);
-    drawHotspots(v);
+    drawVeinCracks(v,VL);
+    drawHotspots(v,VL);
     ctx.globalAlpha=v.done?0.25:cur?0.9:0.45;
     if(cur&&!v.done){
       ctx.lineWidth=4;ctx.strokeStyle=C.accent;ctx.beginPath();ctx.arc(v.mine.x,v.mine.y,38,-Math.PI/2,-Math.PI/2+Math.PI*2*v.drillProg/v.richness);ctx.stroke();
@@ -4509,6 +4529,7 @@ function draw(){
     // no marker on the mining point and no tier label: the vein's glow is centred on the mining
     // point, and its colour and pulse rate are how you read how ripe it is
     ctx.restore()});
+  endVeinLight();
   drawStrayPockets(x0,y0,x1,y1);
   // Dat Crystal deposits
   S.nodes.forEach(n=>{if((!n.found&&!debugNoFog)||n.amt<=0)return;const s=8+8*n.amt/n.max;ctx.fillStyle=C.dat;ctx.beginPath();for(let k=0;k<6;k++){const a=k*Math.PI/3;ctx.lineTo(n.x+Math.cos(a)*s,n.y+Math.sin(a)*s)}ctx.closePath();ctx.globalAlpha=0.85;ctx.fill();ctx.globalAlpha=1;
