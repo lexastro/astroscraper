@@ -111,6 +111,20 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 .overlay button:disabled{opacity:.4;cursor:default}
 #menuMap{width:min(78vw,60vh,440px);height:min(78vw,60vh,440px);background:#10151b;border:1px solid var(--line);border-radius:4px;cursor:crosshair;touch-action:none}
 #menuHint{font-size:12px}
+.tutPanel{position:absolute;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top,0px) + 72px);z-index:20;
+  width:min(440px,calc(100vw - 32px));background:var(--panel);border:1px solid var(--accent);border-radius:6px;
+  padding:10px 14px 12px;font-size:13px;line-height:1.5;color:var(--fg);box-shadow:0 4px 18px rgba(0,0,0,.5)}
+.tutPanel[hidden]{display:none}
+.tutHead{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--muted);font-family:var(--mono);margin-bottom:4px}
+.tutPanel b{color:var(--accent);font-size:14px}
+.tutPanel p{margin:4px 0 8px}
+.tutPanel kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--line);border-radius:3px;padding:0 4px;background:var(--panel2)}
+.tutBtns{display:flex;justify-content:flex-end;align-items:center;gap:10px}
+.tutBtns button:not(.tutLink){font:inherit;font-size:12px;padding:6px 14px;border-radius:4px;cursor:pointer;background:var(--accent);color:#111;border:none}
+.tutBtns button.secondary{background:var(--panel2);color:var(--fg);border:1px solid var(--line)}
+.tutLink{background:none;border:none;color:var(--muted);font:inherit;font-size:11px;cursor:pointer;text-decoration:underline;padding:0}
+.tutBtns .tutLink{margin-right:auto}
+@media (max-width:720px){.tutPanel{top:calc(env(safe-area-inset-top,0px) + 60px);font-size:12px}}
 #mapTypeLabel{font-size:12px;max-width:440px;text-align:center;margin:0}
 #mapTypeLabel b{color:var(--accent)}
 .mapRow{display:flex;align-items:center;gap:12px;font-size:12px}
@@ -319,6 +333,14 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <kbd>N</kbd> ping (reveals far-off Dat Crystal, 60s cooldown) · <kbd>V</kbd> follow Bastion (escorts it as it moves, until given another order) · <kbd>G</kbd> repair mode · <kbd>R</kbd> resume harvester auto-gather · <kbd>Esc</kbd> cancel, or pause the whole game if nothing's open · <kbd>`</kbd> reveal map (debug)
 </div>
 
+<!-- Guided tutorial: one instruction at a time, advancing on its own as the player does each thing. -->
+<div class="tutPanel" id="tutPanel" hidden>
+  <div class="tutHead"><span id="tutStep"></span><button id="tutExit" class="tutLink">Exit tutorial</button></div>
+  <b id="tutTitle"></b>
+  <p id="tutText"></p>
+  <div class="tutBtns"><button id="tutSkipStep" class="tutLink">Skip this step</button><button id="tutAlt" class="secondary" hidden></button><button id="tutNext" hidden>Next</button></div>
+</div>
+
 <div class="overlay" id="overlay" hidden>
   <h1 id="ovTitle"></h1><p id="ovText"></p><button id="ovBtn">Return to Base</button>
 </div>
@@ -343,6 +365,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 <div class="overlay" id="mainMenuOverlay">
   <h1>Datascraper</h1>
   <button id="playBtn">Play</button>
+  <button id="tutorialBtn" class="secondary">Tutorial</button>
   <button id="settingsBtn" class="secondary">Settings</button>
   <!-- Filled in at load from the GitHub API with the actual latest commit on master — the same
        short hash `git push` prints as its destination ref — so it always matches the live build
@@ -450,6 +473,11 @@ const MAP_TYPES=[
    mud:[6,2,4],rock:[5,2,4],ridges:0,pockets:2,pocketScale:1,pocketGap:1600,deposits:6,packs:30},
 ];
 let mapType=MAP_TYPES[0], mapLayout=LAYOUTS[0];
+// Set while building/playing the guided tutorial's map: a fixed seed and layout, no roaming
+// packs, a bigger starting Dat stockpile and a shorter drill warm-up, so the first vein is a calm
+// place to learn the loop. Cleared again as soon as the tutorial ends.
+let tutorialMap=false;
+const TUTORIAL_SEED=4242, TUTORIAL_START_DAT=200, TUTORIAL_PREP_TIME=20;
 function epiDist(x,y){return Math.hypot(x-EPI.x,y-EPI.y)}
 function inMap(x,y,m){return x>=m&&y>=m&&x<=W-m&&y<=H-m}
 // A random in-bounds point whose distance from the epicenter falls in [d0,d1]. Polar sampling
@@ -469,6 +497,8 @@ function pointInRing(d0,d1,margin){
 function rollLayout(){
   mapLayout=LAYOUTS[Math.floor(rnd(0,LAYOUTS.length))];
   mapType=MAP_TYPES[Math.floor(rnd(0,MAP_TYPES.length))];
+  // the tutorial always plays on the classic layout: an Edge epicenter over Badlands terrain
+  if(tutorialMap){mapLayout=LAYOUTS[0];mapType=MAP_TYPES[0]}
   EPI=mapLayout.pos(); CORE_R=mapLayout.core; DENSE_R=mapLayout.dense;
   EPI_REACH=Math.max(...[[0,0],[W,0],[0,H],[W,H]].map(([x,y])=>epiDist(x,y)));
 }
@@ -843,7 +873,7 @@ function reset(landing){
   rand=seededRng(mapSeed);
   rollLayout();
   const land=landing||defaultLanding();
-  S={t:0,dat:40,living:0,condensed:0,over:null,rerollCount:0,
+  S={t:0,dat:tutorialMap?TUTORIAL_START_DAT:40,living:0,condensed:0,over:null,rerollCount:0,
     base:{x:land.x,y:land.y,hp:450+bastionHpBonus(),maxHp:450+bastionHpBonus(),r:BASE_R,dest:null,locked:false,gunCd:0,bigGunCd:0,pingCd:0},
     troops:[],harvesters:[],builders:[],relays:[],depots:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],shards:[],nades:[],
     veins:[],activeVein:null,throttleMul:1,ambientT:30,
@@ -919,7 +949,7 @@ function reset(landing){
   });
 
   // roaming packs patrol/idle across the map; denser and more aggressive the deeper their patch is
-  for(let i=0;i<mapType.packs;i++){const px=rnd(300,W-300),py=rnd(300,H-300);if(Math.hypot(px-S.base.x,py-S.base.y)<700)continue;
+  for(let i=0;i<(tutorialMap?0:mapType.packs);i++){const px=rnd(300,W-300),py=rnd(300,H-300);if(Math.hypot(px-S.base.x,py-S.base.y)<700)continue;
     const band=bandAt(px,py);
     let patrol=null;
     if(rand()<0.3){
@@ -1171,6 +1201,7 @@ document.getElementById('recordingToggleBtn').onclick=()=>setRecordingConsent(!m
 // Opens the main menu again after a run ends — every new run gets a freshly rolled map, so the
 // landing spot is picked again on it.
 function openMainMenu(){
+  endTutorialState();
   menuOpen=true;
   document.getElementById('mainMenuOverlay').hidden=false;
   document.getElementById('menuOverlay').hidden=true;
@@ -1178,6 +1209,145 @@ function openMainMenu(){
   document.getElementById('settingsOverlay').hidden=true;
   refreshMenuMeta();
   rollNewMap();
+}
+// ---------- guided tutorial ----------
+// A fixed, calm map (see tutorialMap) and a list of steps. Each step shows one instruction in
+// #tutPanel; steps with a done() check advance on their own the moment the player does the thing,
+// steps without one wait for Next. target() marks where on the map to look — a pulsing ring in
+// the world, plus an arrow at the screen edge when it's off-screen.
+let tutorial=null;
+function compass(dx,dy){
+  const a=Math.atan2(dy,dx)*180/Math.PI, dirs=['east','south-east','south','south-west','west','north-west','north','north-east'];
+  return dirs[((Math.round(a/45)%8)+8)%8];
+}
+function tutVein(){return tutorial?S.veins[tutorial.vein]:null}
+const TUTORIAL_STEPS=[
+  {title:'Welcome to Datascraper',
+   text:()=>`You command the <b>Bastion</b> — a mobile drilling rig — and its crew. The goal of every run: drill crystal veins across the zone, growing stronger with each one, until you can crack the hidden contract vein near the Black Flame at the map's heart. This tutorial walks you through your first vein.`},
+  {title:'Look around',
+   text:()=>`Pan the camera with <kbd>WASD</kbd> or the arrow keys (or middle-mouse drag), and scroll to zoom. Press <kbd>F</kbd> any time to snap back to the Bastion.`,
+   done:()=>Math.hypot(cam.x-tutorial.cam0.x,cam.y-tutorial.cam0.y)>250||Math.abs(cam.z-tutorial.cam0.z)>0.15},
+  {title:'Select your Squads',
+   text:()=>`The blue triangles are your <b>Squads</b> — your fighters and scouts. Drag a box around them to select them, or press <kbd>T</kbd> to select every Squad at once.`,
+   done:()=>S.sel.troops.size>0},
+  {title:'Scout the vein',
+   text:()=>{const v=tutVein();return `Veins are the dashed circles. There's one to the <b>${compass(v.x-S.base.x,v.y-S.base.y)}</b> (highlighted). <b>Right-click inside it</b> to send your Squads in — they'll fight off the creatures guarding it and find the exact spot to drill.`},
+   target:()=>{const v=tutVein();return{x:v.x,y:v.y,r:v.r+20}},
+   done:()=>tutVein().mine.found},
+  {title:'Dat Crystal',
+   text:()=>`Found it! While your Squads scouted, your orange <b>Harvesters</b> were gathering <b>Dat Crystal</b> (◆, top left) all on their own. Dat is what you spend on everything — buildings, new units, and fuel for the drill.`},
+  {title:'Move the Bastion',
+   text:()=>`Now bring the rig over. Click the Bastion (or press <kbd>B</kbd>) to select it, then <b>right-click the glowing mining point</b> inside the vein. It's slow, so give it a moment to roll over.`,
+   target:()=>{const v=tutVein();return{x:v.mine.x,y:v.mine.y,r:40}},
+   done:()=>!!canLockdown()||S.base.locked},
+  {title:'Start drilling',
+   text:()=>`The Bastion is in position. Press <kbd>L</kbd> (or <b>Begin Drilling</b> in the bottom bar) and pick a drill speed — <b>Normal</b> is a good start. Faster pays more but burns more Dat and draws more enemies.`,
+   done:()=>S.base.locked},
+  {title:'Build a Turret',
+   text:()=>`The drill warms up before it starts — no enemies yet, so dig in. Press <kbd>2</kbd> and click inside the Bastion's ring to place a <b>Turret</b>. Your Builders will put it up. (Walls <kbd>1</kbd> and Turrets <kbd>2</kbd> can only be built while drilling.)`,
+   target:()=>({x:S.base.x,y:S.base.y,r:BUILD_R}),
+   done:()=>S.turrets.some(t=>t.built)},
+  {title:'Hold the line',
+   text:()=>`Once the drill bites in, waves attack from the direction of the red arrow. Keep your Squads near the Bastion and watch your Dat — the drill burns it as it runs, and stalls if you run dry. Hold out until the vein is drained.`,
+   done:()=>tutVein().done},
+  {title:'Pick a reward',
+   text:()=>`Vein drained! Every drained vein lets you pick one upgrade card for the rest of the run — or sell it for Dat. Choose one now.`,
+   done:()=>!S.rewardChoice},
+  {title:'Extend your reach with Relays',
+   text:()=>`Out on the Rim, your units' wireless link works anywhere. Deeper in, they need a cable back to the Bastion or a <b>Relay</b>, or they lose signal and slowly go mad. Press <kbd>3</kbd> and place a Relay near the edge of the Bastion's ring.`,
+   target:()=>({x:S.base.x,y:S.base.y,r:BUILD_R}),
+   done:()=>S.relays.some(r=>r.built)},
+  {title:"That's the loop",
+   text:()=>`Scout a vein, drill it, defend it, take an upgrade, push deeper. Veins nearer the Black Flame pay far more but are guarded far harder. Drain three and the hidden <b>contract vein</b> reveals itself — drain that to win the run. Crystal you bring home buys permanent upgrades between runs.`,
+   finish:true},
+];
+function startTutorial(){
+  tutorialMap=true; mapSeed=TUTORIAL_SEED;
+  reset(); // first pass just to learn where this seed puts its Rim veins
+  // Land a short walk from the Rim vein nearest the default spot: on open ground, on the outer
+  // side of the vein (away from the epicenter) so the Bastion starts in the safest part of the map.
+  const rimIdx=S.veins.map((v,i)=>i).filter(i=>S.veins[i].band==='rim'&&!S.veins[i].contract);
+  const d0=defaultLanding();
+  const vi=rimIdx.reduce((a,b)=>dist(S.veins[b],d0)<dist(S.veins[a],d0)?b:a);
+  const v=S.veins[vi], out=Math.atan2(v.y-EPI.y,v.x-EPI.x);
+  let land=null;
+  for(let k=0;k<24&&!land;k++){
+    const a=out+(k%2?1:-1)*Math.ceil(k/2)*0.26, x=v.x+Math.cos(a)*620, y=v.y+Math.sin(a)*620;
+    if(canLandAt(x,y)&&terrainAt(x,y)===0)land={x,y};
+  }
+  menuOpen=false;
+  ['mainMenuOverlay','menuOverlay','unlocksOverlay','settingsOverlay'].forEach(id=>document.getElementById(id).hidden=true);
+  reset(land||d0);
+  tutorial={step:0,vein:vi,cam0:{x:cam.x,y:cam.y,z:cam.z}};
+  renderTutorialStep();
+}
+function endTutorialState(){
+  tutorial=null; tutorialMap=false;
+  document.getElementById('tutPanel').hidden=true;
+}
+function renderTutorialStep(){
+  const st=TUTORIAL_STEPS[tutorial.step];
+  document.getElementById('tutPanel').hidden=false;
+  document.getElementById('tutStep').textContent=`Tutorial · ${tutorial.step+1} / ${TUTORIAL_STEPS.length}`;
+  document.getElementById('tutTitle').textContent=st.title;
+  document.getElementById('tutText').innerHTML=st.text();
+  const next=document.getElementById('tutNext'), alt=document.getElementById('tutAlt');
+  next.hidden=!!st.done; next.textContent=st.finish?'Finish tutorial':'Next';
+  alt.hidden=!st.finish; alt.textContent='Keep playing';
+  document.getElementById('tutSkipStep').hidden=!st.done;
+}
+function advanceTutorial(){
+  if(!tutorial)return;
+  tutorial.step++;
+  if(tutorial.step>=TUTORIAL_STEPS.length){finishTutorial(true);return}
+  sfx.resume();
+  renderTutorialStep();
+}
+// Runs every frame, even while the game is paused (e.g. under the reward overlay).
+function tutTick(){
+  if(!tutorial||menuOpen)return;
+  const st=TUTORIAL_STEPS[tutorial.step];
+  if(st.done&&st.done())advanceTutorial();
+}
+// "Finish" returns to the main menu; "Keep playing" just closes the guide and leaves the run
+// going, back on normal rules for any further veins.
+function finishTutorial(toMenu){
+  if(toMenu){openMainMenu();return}
+  endTutorialState();
+}
+document.getElementById('tutorialBtn').onclick=startTutorial;
+document.getElementById('tutNext').onclick=()=>{const st=TUTORIAL_STEPS[tutorial.step];if(st.finish)finishTutorial(true);else advanceTutorial()};
+document.getElementById('tutAlt').onclick=()=>finishTutorial(false);
+document.getElementById('tutSkipStep').onclick=advanceTutorial;
+document.getElementById('tutExit').onclick=()=>finishTutorial(true);
+// World-space highlight for the current step's target, plus an edge-of-screen arrow pointing to it
+// when it's off-screen. Called from draw(): drawTutorialTarget inside the world transform,
+// drawTutorialArrow after it's been reset to screen space.
+function tutTarget(){
+  if(!tutorial)return null;
+  const st=TUTORIAL_STEPS[tutorial.step];
+  return st.target?st.target():null;
+}
+function drawTutorialTarget(){
+  const t=tutTarget(); if(!t)return;
+  const p=(Math.sin(performance.now()/260)+1)/2;
+  ctx.strokeStyle=C.accent;ctx.lineWidth=3/cam.z;ctx.globalAlpha=0.5+p*0.5;
+  ctx.setLineDash([12/cam.z,8/cam.z]);ctx.beginPath();ctx.arc(t.x,t.y,t.r+p*10,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
+  ctx.globalAlpha=1;
+}
+function drawTutorialArrow(vw,vh){
+  const t=tutTarget(); if(!t)return;
+  const sx=(t.x-cam.x)*cam.z+vw/2, sy=(t.y-cam.y)*cam.z+vh/2, m=60;
+  if(sx>m&&sy>m&&sx<vw-m&&sy<vh-m)return; // on screen — the ring is enough
+  // Orbits the middle of the screen rather than hugging its edge — the edges are crowded with
+  // HUD panels and toasts that would cover it.
+  const cx=vw/2,cy=vh/2,a=Math.atan2(sy-cy,sx-cx), k=Math.min(vw,vh)*0.28;
+  const ax=cx+Math.cos(a)*k, ay=cy+Math.sin(a)*k;
+  ctx.save();ctx.translate(ax,ay);ctx.rotate(a);
+  ctx.fillStyle=C.accent;ctx.globalAlpha=0.6+0.4*(Math.sin(performance.now()/200)+1)/2;
+  ctx.beginPath();ctx.moveTo(24,0);ctx.lineTo(-12,-17);ctx.lineTo(-4,0);ctx.lineTo(-12,17);ctx.closePath();ctx.fill();
+  ctx.strokeStyle='#000';ctx.lineWidth=1.5;ctx.stroke();
+  ctx.restore();ctx.globalAlpha=1;
 }
 function spawnEnemy(x,y,kind){
   const core=bandAt(x,y)==='core';
@@ -2234,9 +2404,10 @@ function tryLockdown(throttle){
   // be counting down, let alone spawning, while the drill is still just warming up. waveDir is
   // rolled right away, though, so its directional arrow is up for the whole warm-up and the
   // player has the full 60s to actually see it and dig in before the first wave arrives.
-  S.activeVein=v; v.drillProg=0; v.prepT=PREP_TIME; v.stalled=false; v.paused=false; v.waveDir=rnd(0,Math.PI*2);
+  const prep=tutorialMap?TUTORIAL_PREP_TIME:PREP_TIME;
+  S.activeVein=v; v.drillProg=0; v.prepT=prep; v.stalled=false; v.paused=false; v.waveDir=rnd(0,Math.PI*2);
   const tier=currentTier(v);
-  msg(`Drill warming up over the ${v.band} vein — ${PREP_TIME}s until drilling begins at ${tier} tier, ${S.throttleMul===0.5?'Slow':S.throttleMul===1?'Normal':'Fast'} throttle.`);
+  msg(`Drill warming up over the ${v.band} vein — ${prep}s until drilling begins at ${tier} tier, ${S.throttleMul===0.5?'Slow':S.throttleMul===1?'Normal':'Fast'} throttle.`);
   sfx.build();
   updateBuildBar();
 }
@@ -3476,6 +3647,7 @@ function draw(){
   if(!debugNoFog){ctx.imageSmoothingEnabled=true;ctx.drawImage(dimC,0,0,W,H)}
   // floating reward text (drawn above fog so it's always legible)
   S.floaters.forEach(f=>{ctx.globalAlpha=Math.max(0,1-f.t/f.life);ctx.fillStyle=f.col;ctx.font='700 13px '+css('--mono');ctx.textAlign='center';ctx.fillText(f.text,f.x,f.y)});ctx.globalAlpha=1;
+  drawTutorialTarget();
   // map edge
   ctx.strokeStyle=C.line;ctx.lineWidth=3/cam.z;ctx.strokeRect(0,0,W,H);
   // build preview
@@ -3485,6 +3657,7 @@ function draw(){
     ctx.globalAlpha=1}
   // selection box
   if(mouse.drag&&mouse.drag.moved){const d=mouse.drag;ctx.strokeStyle=C.ally;ctx.fillStyle='rgba(94,200,255,0.1)';ctx.lineWidth=1/cam.z;ctx.fillRect(d.x0,d.y0,d.x1-d.x0,d.y1-d.y0);ctx.strokeRect(d.x0,d.y0,d.x1-d.x0,d.y1-d.y0)}
+  ctx.setTransform(dpr,0,0,dpr,0,0);drawTutorialArrow(vw,vh);
   drawMini();hud();
 }
 function hpbar(x,y,w,f){ctx.fillStyle='rgba(0,0,0,0.6)';ctx.fillRect(x-w/2,y,w,3);ctx.fillStyle=f>0.5?C.dat:f>0.25?C.accent:C.enemy;ctx.fillRect(x-w/2,y,w*Math.max(0,f),3)}
@@ -3552,7 +3725,7 @@ function hud(){
 }
 
 // ---------- loop ----------
-function frame(ts){const dt=Math.min(0.05,(ts-lastT)/1000||0);lastT=ts;update(dt);draw();requestAnimationFrame(frame)}
+function frame(ts){const dt=Math.min(0.05,(ts-lastT)/1000||0);lastT=ts;update(dt);tutTick();draw();requestAnimationFrame(frame)}
 reset();drawMenuMap();refreshMenuMeta();requestAnimationFrame(frame);
 // Title-screen build marker: the live latest commit on master, not a hand-maintained string — a
 // baked-in value can never equal its own commit's hash (the hash is computed FROM the file's
