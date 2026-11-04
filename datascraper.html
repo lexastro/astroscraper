@@ -111,6 +111,8 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 .overlay button:disabled{opacity:.4;cursor:default}
 #menuMap{width:min(78vw,60vh,440px);height:min(78vw,60vh,440px);background:#10151b;border:1px solid var(--line);border-radius:4px;cursor:crosshair;touch-action:none}
 #menuHint{font-size:12px}
+.mapRow{display:flex;align-items:center;gap:12px;font-size:12px}
+#mapSeedLabel{color:var(--muted);font-family:var(--mono)}
 .menuMeta{display:flex;flex-direction:column;align-items:center;gap:8px;margin:2px 0}
 .metaRow{display:flex;gap:8px;align-items:baseline;font-family:var(--mono)}
 .metaRow .k{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
@@ -351,6 +353,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <p>Pick a landing zone on the Rim for the Bastion to touch down, then launch the mission.</p>
   <canvas id="menuMap" width="480" height="480"></canvas>
   <p id="menuHint">Click inside the dashed Rim band to choose your landing zone.</p>
+  <div class="mapRow"><span id="mapSeedLabel"></span><button id="newMapBtn" class="metaUnlock secondary">New map</button></div>
   <div class="menuMeta">
     <div class="metaRow"><span class="crystalIcon living">❖</span><span class="v" id="metaLiving">0</span></div>
     <div class="metaRow"><span class="crystalIcon condensed">⬢</span><span class="v" id="metaCondensed">0</span></div>
@@ -556,21 +559,63 @@ const TRIANGULATE_AT=3;
 // Epic instead of Legendary (see TIER_LADDER below) and the Rim's lighter wave/patrol pressure
 // (see WAVE_BASE_N/BASE_SPAWN_INTERVAL/OFFZONE_PATROL_N), so they read as a deliberately easier,
 // lower-reward option close to the landing zone rather than a shortcut to Dense/Core money.
-const VEIN_DEFS=[
-  {x:1460,y:3200,richness:40},
-  {x:3400,y:2350,richness:55},
-  {x:1300,y:1550,richness:75},
-  {x:3000,y:1450,richness:90},
-  {x:1300,y:4000,richness:20},
-  {x:3700,y:4500,richness:28},
-  {x:2510,y:350,richness:140,contract:true},
+// Vein positions are rolled fresh for every map (see placeVeins) — each slot fixes only the band
+// a vein lands in and how rich it is. y0/y1 is the slot's allowed vertical range, kept a zone's
+// width inside its band so the whole zone reads as that band.
+const VEIN_SLOTS=[
+  {band:'dense',y0:1980,y1:3200,richness:40},
+  {band:'dense',y0:1980,y1:3200,richness:55},
+  {band:'core',y0:900,y1:1600,richness:75},
+  {band:'core',y0:900,y1:1600,richness:90},
+  {band:'rim',y0:3650,y1:4800,richness:20},
+  {band:'rim',y0:3650,y1:4800,richness:28},
+  {band:'core',y0:250,y1:450,richness:140,contract:true},
 ];
-// Each mining zone has one large, rich Dat Crystal cluster of its own — paired 1:1 with
-// VEIN_DEFS by index — sitting out past a single wireless leash or cable run (MAX_CABLE_LEN=400),
-// so reaching one means stringing Relays out from the vein first, not just stumbling onto it.
-// The first zone's cluster sits closer in (~500, just 1-2 Relays) since it's the player's opening
-// vein; the rest sit ~1000 out (a couple of Relays).
-const VEIN_CLUSTERS=[[970,3300],[4150,1800],[550,2200],[4000,1450],[900,4400],[4100,4100],[2510,1350]];
+// Veins in the same band stay well apart so a band's pair spreads across the map; veins in
+// different bands only need to stay clear of each other's zones.
+const VEIN_SAME_BAND_GAP=1500, VEIN_GAP=900, VEIN_X_MARGIN=ZONE_R+250;
+// Each mining zone has one large, rich Dat Crystal cluster of its own — paired 1:1 with its vein
+// and rolled per map along with it — sitting out past a single wireless leash or cable run
+// (MAX_CABLE_LEN=400), so reaching one means stringing Relays out from the vein first, not just
+// stumbling onto it. The first zone's cluster sits closer in (~500, just 1-2 Relays) since it's
+// the player's opening vein; the rest sit ~1000 out (a couple of Relays).
+const CLUSTER_D_FIRST=500, CLUSTER_D=1000, CLUSTER_MARGIN=150;
+// Rolls a position for every vein slot and its cluster. Rejection sampling with a relaxing
+// fallback: if a slot can't find a spot that clears every rule in its tries, the spacing rules
+// loosen, so generation always finishes.
+function placeVeins(){
+  const veins=[];
+  VEIN_SLOTS.forEach(slot=>{
+    let best=null;
+    for(let pass=0;pass<4&&!best;pass++){
+      const loosen=1-pass*0.25;
+      for(let t=0;t<60;t++){
+        const x=slot.contract?rnd(900,W-900):rnd(VEIN_X_MARGIN,W-VEIN_X_MARGIN), y=rnd(slot.y0,slot.y1);
+        if(veins.some(v=>Math.hypot(v.x-x,v.y-y)<(v.band===slot.band&&!v.contract&&!slot.contract?VEIN_SAME_BAND_GAP:VEIN_GAP)*loosen))continue;
+        if(riftPockets.some(p=>Math.hypot(p.x-x,p.y-y)<(RIFT_CORE_R+ZONE_R)*loosen))continue;
+        best={x,y};break;
+      }
+    }
+    if(!best)best={x:rnd(VEIN_X_MARGIN,W-VEIN_X_MARGIN),y:rnd(slot.y0,slot.y1)};
+    veins.push({...slot,x:best.x,y:best.y});
+  });
+  const clusters=[];
+  veins.forEach((v,i)=>{
+    const d=i===0?CLUSTER_D_FIRST:CLUSTER_D;
+    let best=null;
+    for(let t=0;t<80;t++){
+      const a=rnd(0,Math.PI*2), x=v.x+Math.cos(a)*d, y=v.y+Math.sin(a)*d;
+      if(x<CLUSTER_MARGIN||y<CLUSTER_MARGIN||x>W-CLUSTER_MARGIN||y>H-CLUSTER_MARGIN)continue;
+      if(t<60&&veins.some(o=>Math.hypot(o.x-x,o.y-y)<ZONE_R+250))continue;
+      if(t<60&&clusters.some(c=>Math.hypot(c[0]-x,c[1]-y)<600))continue;
+      best=[x,y];break;
+    }
+    // Fallback: straight toward the map centre, which is always in bounds at these distances.
+    if(!best){const a=Math.atan2(H/2-v.y,W/2-v.x);best=[v.x+Math.cos(a)*d,v.y+Math.sin(a)*d]}
+    clusters.push(best);
+  });
+  return {veins,clusters};
+}
 // A found vein's loot tier decays one step every TIER_DECAY_T seconds it sits undrilled, down
 // to its band's floor — sitting on a discovered vein instead of moving to drill it is the thing
 // this is meant to punish. The clock only freezes while the vein is actively, unpaused,
@@ -674,7 +719,15 @@ let fogC=document.createElement('canvas'), fogX; const FOG_S=6; fogC.width=W/FOG
 let dimC=document.createElement('canvas'), dimX; dimC.width=W/FOG_S; dimC.height=H/FOG_S; dimX=dimC.getContext('2d');
 let debugNoFog=false; // dev toggle: reveal the whole map and all enemies, bypassing fog/visibility
 
-function rnd(a,b){return a+Math.random()*(b-a)}
+// Every map is generated from a seed. rnd() normally draws from Math.random, but reset() points
+// `rand` at a seeded generator while it builds the map, so the same seed (and landing spot)
+// always produces the same map — which is what lets the landing picker's preview match the map
+// you actually launch into.
+function seededRng(seed){let a=seed>>>0;return()=>{a=(a+0x6D2B79F5)>>>0;let t=a;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);return((t^(t>>>14))>>>0)/4294967296}}
+let rand=Math.random;
+function newMapSeed(){return 1+Math.floor(Math.random()*99999)}
+let mapSeed=newMapSeed();
+function rnd(a,b){return a+rand()*(b-a)}
 function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
 function key(gx,gy){return gx+','+gy}
 function bandAt(x,y){const d=Math.abs(y-EPI.y);return d<=CORE_R?'core':d<=DENSE_R?'dense':'rim'}
@@ -730,31 +783,46 @@ function reset(landing){
   for(let i=0;i<2;i++) S.builders.push(mkBuilder(i));
   prodMenuOpen=false;
 
+  // Map layout comes first, entirely from the map seed and independent of where the Bastion lands:
+  // terrain, veins, clusters, and where every deposit gets rolled. That way picking a different
+  // landing spot on the same seed only changes things right around the Bastion, not the whole map.
+  S.mapSeed=mapSeed;
+  rand=seededRng(mapSeed);
   genTerrain();
-  VEIN_DEFS.forEach(vd=>{
+  const layout=placeVeins();
+  S.clusters=layout.clusters;
+  layout.veins.forEach(vd=>{
     const ang=rnd(0,Math.PI*2), rad=rnd(0,ZONE_R*0.55);
-    const band=bandAt(vd.x,vd.y);
-    S.veins.push({x:vd.x,y:vd.y,r:ZONE_R,richness:vd.richness,drillProg:0,done:false,contract:!!vd.contract,band,waveT:0,
+    S.veins.push({x:vd.x,y:vd.y,r:ZONE_R,richness:vd.richness,drillProg:0,done:false,contract:!!vd.contract,band:vd.band,waveT:0,
       reward: vd.contract?{dat:50,living:3}:{dat:Math.round(vd.richness*1.2)},
       mine:{x:vd.x+Math.cos(ang)*rad,y:vd.y+Math.sin(ang)*rad,found:false}});
   });
+  // Dat Crystal deposits: the Rim is thick with small, low-yield nodes — common and unremarkable,
+  // just enough to keep the economy moving without needing to push deeper right away. A spread
+  // through the Dense Field and outer Core, then more scattered anywhere out past the Dense Field.
+  // Only their rough positions are rolled here; they're snapped to open ground once terrain is final.
+  const nodeSpots=[];
+  for(let i=0;i<10;i++)nodeSpots.push({x:rnd(500,W-500),y:rnd(1300,4000),amt:Math.round(rnd(20,38)),max:38});
+  for(let i=0;i<10;i++)nodeSpots.push({x:rnd(120,W-120),y:rnd(EPI.y+DENSE_R+60,H-120),amt:Math.round(rnd(20,38)),max:38});
+  // The per-vein cluster: rarer to find than a scattered node, but pays off big once a harvester
+  // squad can actually park there.
+  S.clusters.forEach(([cx,cy])=>{
+    for(let i=0;i<4;i++){
+      const ang=rnd(0,Math.PI*2), rad=rnd(0,90);
+      nodeSpots.push({x:cx+Math.cos(ang)*rad,y:cy+Math.sin(ang)*rad,amt:Math.round(rnd(110,180)),max:180});
+    }
+  });
+  // Everything from here on depends on the landing spot, so it draws from its own stream —
+  // otherwise a different landing would shift every roll after it.
+  rand=seededRng(mapSeed*7919+Math.round(S.base.x)*31+Math.round(S.base.y));
   clearDisk(S.base.x,S.base.y,240);
   S.veins.forEach(v=>clearDisk(v.x,v.y,ZONE_R+40));
-  ensureConnectivity([{x:S.base.x,y:S.base.y},...S.veins.map(v=>({x:v.x,y:v.y})),...VEIN_CLUSTERS.map(([x,y])=>({x,y})),...riftPockets]);
+  ensureConnectivity([{x:S.base.x,y:S.base.y},...S.veins.map(v=>({x:v.x,y:v.y})),...S.clusters.map(([x,y])=>({x,y})),...riftPockets]);
   closeHoles(S.base.x,S.base.y);
   ensureBastionAccess(S.veins.map(v=>({x:v.x,y:v.y})));
   terrainCv=buildTerrainCanvas();
 
-  // Dat Crystal deposits: the Rim is thick with small, low-yield nodes — common and unremarkable,
-  // just enough to keep the economy moving without needing to push deeper right away.
-  const spots=[[1800,3400],[1400,2850],[2550,3400],[2900,2850],[700,2200],[3600,2200],[600,1300],[3720,1300],[1500,3900],[2800,3900]];
-  spots.forEach(([x,y])=>{const p=nearestPlain(x+rnd(-80,80),y+rnd(-80,80));S.nodes.push({x:p.x,y:p.y,amt:Math.round(rnd(20,38)),max:38,found:false})});
-  // more of them scattered anywhere out past the Dense Field band
-  for(let i=0;i<10;i++){
-    const x=rnd(120,W-120), y=rnd(EPI.y+DENSE_R+60,H-120);
-    const p=nearestPlain(x,y);
-    S.nodes.push({x:p.x,y:p.y,amt:Math.round(rnd(20,38)),max:38,found:false});
-  }
+  nodeSpots.forEach(n=>{const p=nearestPlain(n.x,n.y);S.nodes.push({x:p.x,y:p.y,amt:n.amt,max:n.max,found:false})});
   // a few are always planted right by the Bastion's starting spot — inside the radius enemies
   // won't spawn in — so the first harvesters have a safe, close deposit instead of immediately
   // setting off toward danger.
@@ -764,16 +832,6 @@ function reset(landing){
     const p=nearestPlain(x,y);
     S.nodes.push({x:p.x,y:p.y,amt:Math.round(rnd(20,38)),max:38,found:false});
   }
-  // The per-vein cluster: rarer to find than a scattered node, but pays off big once a harvester
-  // squad can actually park there.
-  VEIN_CLUSTERS.forEach(([cx,cy])=>{
-    for(let i=0;i<4;i++){
-      const ang=rnd(0,Math.PI*2), rad=rnd(0,90);
-      const p=nearestPlain(cx+Math.cos(ang)*rad,cy+Math.sin(ang)*rad);
-      S.nodes.push({x:p.x,y:p.y,amt:Math.round(rnd(110,180)),max:180,found:false});
-    }
-  });
-
   // Rift deposits: the richest nodes on the map, planted at the heart of each rift pocket where
   // the Bastion can't follow — a harvester (or a squad clearing the way for one) has to go in on
   // foot to bring any of it back.
@@ -789,7 +847,7 @@ function reset(landing){
   for(let i=0;i<20;i++){const px=rnd(300,W-300),py=rnd(300,H-300);if(Math.hypot(px-S.base.x,py-S.base.y)<700)continue;
     const band=bandAt(px,py);
     let patrol=null;
-    if(Math.random()<0.3){
+    if(rand()<0.3){
       const ang=rnd(0,Math.PI*2),len=rnd(400,900);
       const bx=Math.max(150,Math.min(W-150,px+Math.cos(ang)*len)),by=Math.max(150,Math.min(H-150,py+Math.sin(ang)*len));
       patrol={a:{x:px,y:py},b:{x:bx,y:by},dir:1};
@@ -811,6 +869,7 @@ function reset(landing){
     for(let j=0;j<packSize;j++){const p=nearestPlain(px+rnd(-60,60),py+rnd(-60,60));spawnEnemy(p.x,p.y,'roam')}
   }
 
+  rand=Math.random; // map built — live gameplay goes back to unseeded randomness
   cam={x:S.base.x,y:S.base.y,z:1};
   fogX.globalCompositeOperation='source-over'; fogX.fillStyle='#000'; fogX.fillRect(0,0,fogC.width,fogC.height);
   S.sel.base=true; buildMode=null; updateBuildBar();
@@ -822,6 +881,7 @@ function reset(landing){
 // ---------- main menu / landing zone ----------
 function drawMenuMap(){
   const s=menuCv.width/W;
+  document.getElementById('mapSeedLabel').textContent='Map #'+mapSeed;
   menuCx.fillStyle='#10151b';menuCx.fillRect(0,0,menuCv.width,menuCv.height);
   menuCx.drawImage(terrainCv,0,0,W,H,0,0,menuCv.width,menuCv.height);
   menuCx.fillStyle='rgba(180,139,255,0.14)';menuCx.fillRect(0,0,menuCv.width,(EPI.y+CORE_R)*s);
@@ -834,7 +894,7 @@ function drawMenuMap(){
   menuCx.strokeRect(RIM_X0*s,RIM_Y0*s,(RIM_X1-RIM_X0)*s,(RIM_Y1-RIM_Y0)*s);
   menuCx.setLineDash([]);
   S.veins.forEach(v=>{if(v.contract)return;menuCx.strokeStyle=C.zone;menuCx.lineWidth=1;menuCx.beginPath();menuCx.arc(v.x*s,v.y*s,v.r*s,0,Math.PI*2);menuCx.stroke()});
-  VEIN_CLUSTERS.forEach(([x,y])=>{menuCx.fillStyle=C.dat;menuCx.fillRect(x*s-2,y*s-2,4,4)});
+  S.clusters.forEach(([x,y])=>{menuCx.fillStyle=C.dat;menuCx.fillRect(x*s-2,y*s-2,4,4)});
   if(landingSel){
     menuCx.fillStyle=C.accent;menuCx.beginPath();menuCx.arc(landingSel.x*s,landingSel.y*s,6,0,Math.PI*2);menuCx.fill();
     menuCx.strokeStyle='#000';menuCx.lineWidth=1;menuCx.stroke();
@@ -847,11 +907,30 @@ menuCv.addEventListener('pointerdown',e=>{
     document.getElementById('menuHint').textContent='Pick a spot inside the dashed Rim band.';
     return;
   }
+  const tt=terrainAt(x,y);
+  if(tt===RIFT||tt===2){
+    document.getElementById('menuHint').textContent="The Bastion can't touch down on rift or rock — pick open ground.";
+    return;
+  }
   landingSel={x,y};
+  // Rebuild the preview around the chosen spot (same seed), so what's shown is exactly the map
+  // Launch Mission drops you into.
+  reset(landingSel);
   document.getElementById('launchBtn').disabled=false;
   document.getElementById('menuHint').textContent='Landing zone selected — launch when ready.';
   drawMenuMap();
 });
+// Rolls a brand-new map for the landing picker; the old landing spot is dropped since it may
+// now sit on rift or rock.
+function rollNewMap(){
+  mapSeed=newMapSeed();
+  landingSel=null;
+  reset();
+  document.getElementById('launchBtn').disabled=true;
+  document.getElementById('menuHint').textContent='Click inside the dashed Rim band to choose your landing zone.';
+  drawMenuMap();
+}
+document.getElementById('newMapBtn').onclick=rollNewMap;
 document.getElementById('launchBtn').onclick=()=>{
   if(!landingSel)return;
   menuOpen=false;
@@ -1005,30 +1084,25 @@ document.getElementById('consentAllowBtn').onclick=()=>setRecordingConsent(true)
 document.getElementById('consentDisableBtn').onclick=()=>setRecordingConsent(false);
 // Lets the player flip their choice anytime from the main menu, not just at the first-run gate.
 document.getElementById('recordingToggleBtn').onclick=()=>setRecordingConsent(!meta.recordingConsent);
-// Opens the main menu again after a run ends — landingSel (and the preview map) carry over from
-// the last run so a quick relaunch (Play, then Launch Mission) needs no re-picking, but the
-// player can still choose a new spot.
+// Opens the main menu again after a run ends — every new run gets a freshly rolled map, so the
+// landing spot is picked again on it.
 function openMainMenu(){
   menuOpen=true;
-  S.paused=true;
   document.getElementById('mainMenuOverlay').hidden=false;
   document.getElementById('menuOverlay').hidden=true;
   document.getElementById('unlocksOverlay').hidden=true;
   document.getElementById('settingsOverlay').hidden=true;
   refreshMenuMeta();
-  drawMenuMap();
-  const launchBtn=document.getElementById('launchBtn');
-  if(landingSel){launchBtn.disabled=false;document.getElementById('menuHint').textContent='Landing zone selected — launch when ready.'}
-  else{launchBtn.disabled=true;document.getElementById('menuHint').textContent='Click inside the dashed Rim band to choose your landing zone.'}
+  rollNewMap();
 }
 function spawnEnemy(x,y,kind){
   const core=bandAt(x,y)==='core';
   // Brutes only ever show up as a rare roll on a Core roam spawn — never on a wave/saboteur/
   // ambient call — so they read as something you stumble across guarding the Core, not something
   // that comes at you in a rush.
-  if(kind==='roam'&&core&&Math.random()<BRUTE_CHANCE)kind='brute';
+  if(kind==='roam'&&core&&rand()<BRUTE_CHANCE)kind='brute';
   const brute=kind==='brute';
-  const big=kind==='wave'&&Math.random()<0.2;
+  const big=kind==='wave'&&rand()<0.2;
   const sab=kind==='saboteur';
   const hp=brute?BRUTE_HP:Math.round((big?120:sab?4:34)*(core?CORE_ENEMY_HP_MULT:1));
   S.enemies.push({x,y,r:brute?BRUTE_R:big?13:sab?4:8,hp,maxHp:hp,speed:brute?BRUTE_SPEED:big?48:sab?105:78,dmg:brute?BRUTE_DMG:big?12:sab?1.5:5,cd:0,kind,core,target:null,aggro:kind==='roam'||brute?260:1e9,home:{x,y},ang:rnd(0,Math.PI*2),faceT:rnd(1,3),stunT:0});
@@ -1125,7 +1199,7 @@ function genTerrain(){
       const y0=Math.max(0,Math.floor(cy-R)),y1=Math.min(TGY-1,Math.ceil(cy+R));
       for(let gy=y0;gy<=y1;gy++)for(let gx=x0;gx<=x1;gx++){
         const d=Math.hypot(gx-cx,gy-cy)/R; if(d>1)continue;
-        if(Math.random()<prob*(1-d*0.7)){
+        if(rand()<prob*(1-d*0.7)){
           const id=gy*TGX+gx;
           if(type===2||terrain[id]===0)terrain[id]=type;
         }
@@ -1145,7 +1219,8 @@ function paintDisk(x,y,r,type){
     if(Math.hypot(gx-cx,gy-cy)*TCELL<=r)terrain[gy*TGX+gx]=type;
   }
 }
-// Picks RIFT_POCKETS centers spread across the map (clear of the chosen landing spot) and
+// Picks RIFT_POCKETS centers spread across the map (from the map seed alone, so they show up in
+// the landing picker's preview and the player can land clear of them) and
 // stamps each with a sprawling cluster of overlapping disks — a guaranteed full-radius one at
 // the center (so deposit placement never has to dodge leftover rock) plus several further-flung,
 // larger jittered ones, so the impassable ground reaches well past the deposit cluster itself —
@@ -1156,7 +1231,6 @@ function placeRifts(){
   riftPockets=[];
   for(let tries=0;tries<RIFT_POCKETS*8&&riftPockets.length<RIFT_POCKETS;tries++){
     const x=rnd(700,W-700), y=rnd(EPI.y+CORE_R+200,H-700);
-    if(Math.hypot(x-S.base.x,y-S.base.y)<1300)continue; // clear of the chosen landing spot
     if(riftPockets.some(p=>Math.hypot(p.x-x,p.y-y)<1600))continue;
     riftPockets.push({x,y});
   }
@@ -1178,7 +1252,7 @@ function fillDenseRift(){
   const y0=EPI.y+CORE_R, y1=EPI.y+DENSE_R;
   const gy0=Math.floor(y0/TCELL), gy1=Math.floor(y1/TCELL);
   for(let gy=gy0;gy<=gy1;gy++)for(let gx=0;gx<TGX;gx++){
-    if(Math.random()<DENSE_RIFT_PROB)terrain[gy*TGX+gx]=RIFT;
+    if(rand()<DENSE_RIFT_PROB)terrain[gy*TGX+gx]=RIFT;
   }
   const spanY=(y1-y0)+300, stepY=spanY/DENSE_CORRIDOR_STEPS;
   for(let i=0;i<DENSE_CORRIDORS;i++){
