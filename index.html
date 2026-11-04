@@ -506,11 +506,12 @@ function rollLayout(){
 // swap of the same stats.
 const CORE_ENEMY_HP_MULT=1.8;
 // Brute: a rare, lumbering Core-only guardian — tanky and very slow, but when it finally goes
-// down it ruptures into a big swarm of Core saboteurs rather than just dying quietly. Those are
-// always Core-tier (black body, red outline) wherever the Brute fell, and much tougher than a
-// regular saboteur (BRUTE_SAB_HP vs 4), so one burst can't be cleared by a single stray shot each.
+// down it ruptures into a big swarm of small Core fighters rather than just dying quietly.
 const BRUTE_R=22, BRUTE_HP=420, BRUTE_SPEED=20, BRUTE_DMG=20, BRUTE_CHANCE=0.05, BRUTE_BURST_MIN=18, BRUTE_BURST_MAX=22;
-const BRUTE_SAB_HP=14;
+// Swarmlings (kind 'swarm'): what a Brute bursts into. Small, quick, individually weak fighters
+// that fight like any wave enemy — they go for your units and structures, not Relays or cables
+// the way saboteurs do. Always Core-tier (black body, red outline) wherever the Brute fell.
+const SWARM_R=5, SWARM_HP=14, SWARM_SPEED=95, SWARM_DMG=2.5;
 const BASE_R=30, BASE_SPEED=42, BUILD_R=270, BASE_VISION=450;
 // Squad firing cooldown, range +50% (165 -> 247.5).
 const TROOP_R=7, TROOP_SPEED=125, TROOP_VISION=340, TROOP_RANGE=247.5, TROOP_DMG=7, TROOP_CD=1.3;
@@ -1362,9 +1363,10 @@ function spawnEnemy(x,y,kind,opts){
   if(kind==='roam'&&core&&rand()<BRUTE_CHANCE)kind='brute';
   const brute=kind==='brute';
   const big=kind==='wave'&&rand()<0.2;
-  const sab=kind==='saboteur';
-  const hp=(opts&&opts.hp)||(brute?BRUTE_HP:Math.round((big?120:sab?4:34)*(core?CORE_ENEMY_HP_MULT:1)));
-  S.enemies.push({x,y,r:brute?BRUTE_R:big?13:sab?4:8,hp,maxHp:hp,speed:brute?BRUTE_SPEED:big?48:sab?105:78,dmg:brute?BRUTE_DMG:big?12:sab?1.5:5,cd:0,kind,core,target:null,aggro:kind==='roam'||brute?260:1e9,home:{x,y},ang:rnd(0,Math.PI*2),faceT:rnd(1,3),stunT:0});
+  const sab=kind==='saboteur', swarm=kind==='swarm';
+  const hp=(opts&&opts.hp)||(brute?BRUTE_HP:swarm?SWARM_HP:Math.round((big?120:sab?4:34)*(core?CORE_ENEMY_HP_MULT:1)));
+  S.enemies.push({x,y,r:brute?BRUTE_R:big?13:sab?4:swarm?SWARM_R:8,hp,maxHp:hp,
+    speed:brute?BRUTE_SPEED:big?48:sab?105:swarm?SWARM_SPEED:78,dmg:brute?BRUTE_DMG:big?12:sab?1.5:swarm?SWARM_DMG:5,cd:0,kind,core,target:null,aggro:kind==='roam'||brute?260:1e9,home:{x,y},ang:rnd(0,Math.PI*2),faceT:rnd(1,3),stunT:0});
 }
 // Where the player's actual mining is happening right now — the average position of harvesters
 // currently working a node (falling back to all harvesters, then the Bastion) — rather than just
@@ -3258,17 +3260,17 @@ function update(dt){
     if(Math.random()<0.35)S.shards.push({x:e.x+rnd(-8,8),y:e.y+rnd(-8,8),amt:Math.round(rnd(1,3)),rot:rnd(0,Math.PI*2)});
     if(brute)bruteDeaths.push({x:e.x,y:e.y});
     return false}return true});
-  // a Brute going down ruptures into a saboteur swarm right where it fell, instead of just dying
+  // a Brute going down ruptures into a swarm of swarmlings right where it fell, instead of just dying
   bruteDeaths.forEach(p=>{
     const n=Math.round(rnd(BRUTE_BURST_MIN,BRUTE_BURST_MAX));
     for(let i=0;i<n;i++){
       const ang=rnd(0,Math.PI*2),rad=rnd(10,60);
       const sp=nearestPlain(p.x+Math.cos(ang)*rad,p.y+Math.sin(ang)*rad);
-      spawnEnemy(sp.x,sp.y,'saboteur',{core:true,hp:BRUTE_SAB_HP});
+      spawnEnemy(sp.x,sp.y,'swarm',{core:true});
     }
     burst(p.x,p.y,'#ff2a2a',30,220,0.8);
     shakeScreen(7,0.4);
-    msg('A Brute has burst apart — a swarm of Core saboteurs is pouring out of the wreckage!');
+    msg('A Brute has burst apart — a swarm is pouring out of the wreckage!');
   });
   S.turrets.forEach(t=>{if(t.hp<=0){burst(t.x,t.y,C.accent,10,110,0.5);sfx.relayDown()}});
   S.turrets=S.turrets.filter(t=>t.hp>0);
