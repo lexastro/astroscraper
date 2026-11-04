@@ -444,10 +444,14 @@ const RELAY_RECONNECT_T=2.5;
 // Turret firing rate +100% (cooldown halved from 0.65s to 0.325s), range -25% (240 -> 180).
 const TURRET_RANGE=180, TURRET_DMG=14, TURRET_CD=0.325, TURRET_HP=150;
 const RELAY_HP=100;
-// Energy Surge (reward card): every powered, tethered Relay pulses on a timer while a vein is
-// actively being drilled, stunning nearby enemies — II/III both pulse every 5s instead of 10s,
-// and only III adds damage on top of the stun.
-const ENERGY_SURGE_R=200, ENERGY_SURGE_STUN_T=3, ENERGY_SURGE_DMG=18;
+// Energy Surge (reward card): every powered, tethered Relay pulses together on one shared timer
+// while a vein is actively being drilled. Each pulse is a ring that expands out from the Relay at
+// ENERGY_SURGE_WAVE_SPEED; an enemy the ring front reaches is knocked back away from that Relay
+// and held for ENERGY_SURGE_STUN_T. II/III both pulse every 5s instead of 10s, and only III adds
+// damage on top of the stun. ENERGY_SURGE_KB is the knockback's starting speed — it decays at
+// ENERGY_SURGE_KB_DECAY per second, so the total shove is about KB/DECAY (~60px).
+const ENERGY_SURGE_R=200, ENERGY_SURGE_STUN_T=1, ENERGY_SURGE_DMG=18;
+const ENERGY_SURGE_WAVE_SPEED=450, ENERGY_SURGE_KB=360, ENERGY_SURGE_KB_DECAY=6;
 function energySurgeInterval(level){return level>=2?5:10}
 // Armed Relays (reward card): a tethered Relay fires on enemies like a Turret, at half the
 // damage and half the fire rate.
@@ -612,7 +616,7 @@ const UPGRADES={
     {id:'cable1',name:'Spooled Cable',desc:'Max tether cable length +150.',apply:()=>{S.mods.cableLenAdd+=150}},
     {id:'recruit1',name:'Fresh Recruits',desc:'+3 free Squads, right now.',apply:()=>{spawnFreeTroops(3,'troop')}},
     {id:'biggun',name:'Big Guns',desc:"Mounts an artillery piece on the Bastion — slower fire rate than a Grenadier, but longer range and a bigger blast. Only ever fires on enemies you've actually revealed.",apply:()=>{S.mods.bigGuns=true}},
-    {id:'energySurge1',name:'Energy Surge I',desc:'Every 10s, Relays tethered during mining burst with energy, stunning nearby enemies for 3s.',apply:()=>{S.mods.energySurgeLevel=Math.max(S.mods.energySurgeLevel,1)}},
+    {id:'energySurge1',name:'Energy Surge I',desc:'Every 10s while mining, all tethered Relays fire an energy pulse together — enemies it reaches are knocked back and stunned for 1s.',apply:()=>{S.mods.energySurgeLevel=Math.max(S.mods.energySurgeLevel,1)}},
     {id:'armedRelays',name:'Armed Relays',desc:'Tethered Relays fire on enemies like a Turret — half the damage, half the fire rate.',apply:()=>{S.mods.armedRelays=true}},
     {id:'martyrs',name:'Martyrs',desc:'A unit that would corrupt detonates instead, damaging enemies and friendlies alike nearby.',apply:()=>{S.mods.martyrs=true}},
   ],
@@ -622,14 +626,14 @@ const UPGRADES={
     {id:'dmg3',name:'Battle Drills III',desc:'Squad damage +30%.',apply:()=>{S.mods.troopDmgMult*=1.3}},
     {id:'tactical',name:'Tactical Reinforcements',desc:'+5 free Squads, +3 free Grenadiers, right now.',apply:()=>{spawnFreeTroops(5,'troop');spawnFreeTroops(3,'grenadier')}},
     {id:'targeting',name:'Targeting Computer',desc:'The Bastion gun keeps firing while drilling instead of going quiet.',apply:()=>{S.mods.bastionShootWhileDrilling=true}},
-    {id:'energySurge2',name:'Energy Surge II',desc:'Energy Surge now bursts every 5s instead of 10s.',apply:()=>{S.mods.energySurgeLevel=Math.max(S.mods.energySurgeLevel,2)}},
+    {id:'energySurge2',name:'Energy Surge II',desc:'Energy Surge now pulses every 5s instead of 10s.',apply:()=>{S.mods.energySurgeLevel=Math.max(S.mods.energySurgeLevel,2)}},
   ],
   Legendary:[
     {id:'carry4',name:'Reinforced Haulers IV',desc:'Harvester carry capacity +100%.',apply:()=>{S.mods.carryMult*=2.0}},
     {id:'overdrive',name:'Overdrive Capacitor',desc:'Fast throttle is dramatically faster (burns and pays out more to match).',apply:()=>{S.mods.fastBonus+=1.0}},
     {id:'cablehp2',name:'Hardened Network',desc:'All tether cable HP +150%.',apply:()=>{S.mods.cableHpMult*=2.5}},
     {id:'living1',name:'Rich Vein Memory',desc:'Living Crystal yield ×2 for the rest of the run.',apply:()=>{S.mods.livingMult*=2}},
-    {id:'energySurge3',name:'Energy Surge III',desc:'Energy Surge still bursts every 5s, and now damages enemies caught in it too.',apply:()=>{S.mods.energySurgeLevel=Math.max(S.mods.energySurgeLevel,3)}},
+    {id:'energySurge3',name:'Energy Surge III',desc:'Energy Surge still pulses every 5s, and now damages enemies it reaches too.',apply:()=>{S.mods.energySurgeLevel=Math.max(S.mods.energySurgeLevel,3)}},
   ],
 };
 
@@ -712,7 +716,7 @@ function reset(landing){
     troops:[],harvesters:[],builders:[],relays:[],depots:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],shards:[],nades:[],
     veins:[],activeVein:null,throttleMul:1,ambientT:30,
     minedWindowAmt:0,minedWindowT:0,offZonePatrolCd:OFFZONE_MINE_WINDOW,
-    particles:[],floaters:[],shake:{t:0,dur:0,mag:0},
+    particles:[],floaters:[],shake:{t:0,dur:0,mag:0},surgeWaves:[],surgeT:10,
     // run-only upgrade modifiers — every stat multiplier/bonus a reward card can grant, all
     // reset back to baseline (1 / 0 / false) by a fresh reset(), never persisted between runs.
     mods:{carryMult:1,troopDmgMult:1,moveSpeedMult:1,visionMult:1,relayTolMult:1,drillBurnMult:1,
@@ -2198,7 +2202,7 @@ function tryBuild(w){
     const k=key(Math.floor(w.x/CELL),Math.floor(w.y/CELL));if(S.walls.has(k))return;
     S.relays.push({x:w.x,y:w.y,hp:RELAY_HP,maxHp:RELAY_HP,kind:'relay',built:false,buildT:0,buildTotal:RELAY_BUILD_T,builder:null,repairer:null,
       state:null,tetherOk:false,trail:null,cableHp:0,cableLen:0,cableMaxed:false,reconnectT:0,wasFree:freeRelay,
-      surgeT:energySurgeInterval(S.mods.energySurgeLevel),gunCd:0,ang:0});S.dat-=cost;
+      gunCd:0,ang:0});S.dat-=cost;
     if(freeRelay){S.mods.freeRelayCharges--;msg('Relay queued for free — a builder needs to finish it.')}
     else msg('Relay queued — a builder needs to finish it.');
   }else{
@@ -2722,26 +2726,43 @@ function update(dt){
     if(best){tu.ang=Math.atan2(best.y-tu.y,best.x-tu.x);if(tu.cd<=0){damageEnemy(best,TURRET_DMG);tracer(tu,best,C.accent);tu.cd=TURRET_CD}}
   });
 
-  // Energy Surge (reward card): every powered, tethered Relay pulses on a timer while a vein is
-  // actively being drilled — only counts down/fires during that window, so parking Relays doesn't
-  // farm free stuns between veins.
+  // Energy Surge (reward card): one shared timer, so every powered, tethered Relay pulses at the
+  // same moment. It only counts down while a vein is actively being drilled, so parking Relays
+  // doesn't farm free stuns between veins; with no live Relay it holds at a full interval.
   if(S.mods.energySurgeLevel>0){
     const drilling=B.locked&&S.activeVein&&!S.activeVein.paused&&!S.activeVein.stalled;
-    S.relays.forEach(r=>{
-      if(!r.built||!r.tetherOk){r.surgeT=energySurgeInterval(S.mods.energySurgeLevel);return}
-      if(!drilling)return;
-      r.surgeT-=dt;
-      if(r.surgeT>0)return;
-      r.surgeT=energySurgeInterval(S.mods.energySurgeLevel);
-      S.enemies.forEach(e=>{
-        if(dist(e,r)>ENERGY_SURGE_R)return;
-        e.stunT=Math.max(e.stunT||0,ENERGY_SURGE_STUN_T);
-        hitFlash(e);
-        if(S.mods.energySurgeLevel>=3)damageEnemy(e,ENERGY_SURGE_DMG);
-      });
-      burst(r.x,r.y,'#8fe3ff',22,200,0.55);sfx.surge();
-    });
+    const live=S.relays.filter(r=>r.built&&r.tetherOk);
+    const interval=energySurgeInterval(S.mods.energySurgeLevel);
+    if(!live.length)S.surgeT=interval;
+    else if(drilling){
+      S.surgeT=Math.min(S.surgeT,interval)-dt;
+      if(S.surgeT<=0){
+        S.surgeT=interval;
+        live.forEach(r=>{
+          S.surgeWaves.push({x:r.x,y:r.y,r:0,hit:new Set()});
+          burst(r.x,r.y,'#8fe3ff',10,120,0.35);
+        });
+        sfx.surge();
+      }
+    }
   }
+  // Surge rings expand outward; an enemy is struck the moment the ring front reaches its edge,
+  // once per ring — knocked back away from that ring's Relay and stunned.
+  S.surgeWaves=S.surgeWaves.filter(w=>{
+    w.r=Math.min(ENERGY_SURGE_R,w.r+ENERGY_SURGE_WAVE_SPEED*dt);
+    S.enemies.forEach(e=>{
+      if(w.hit.has(e))return;
+      const d=dist(e,w);
+      if(d-e.r>w.r)return;
+      w.hit.add(e);
+      e.stunT=Math.max(e.stunT||0,ENERGY_SURGE_STUN_T);
+      const ux=d>0.5?(e.x-w.x)/d:Math.cos(e.ang||0), uy=d>0.5?(e.y-w.y)/d:Math.sin(e.ang||0);
+      e.kbx=ux*ENERGY_SURGE_KB; e.kby=uy*ENERGY_SURGE_KB;
+      hitFlash(e); spark(e.x,e.y,'#8fe3ff',3);
+      if(S.mods.energySurgeLevel>=3)damageEnemy(e,ENERGY_SURGE_DMG);
+    });
+    return w.r<ENERGY_SURGE_R;
+  });
   // Armed Relays (reward card): a tethered Relay fires like a Turret, half the damage and half
   // the fire rate.
   if(S.mods.armedRelays){
@@ -2759,7 +2780,18 @@ function update(dt){
     e.cd-=dt;
     // Energy Surge stun: frozen in place, can't attack, but still gets shoved by crowd separation
     // below (that's physics, not action) and its own attack cooldown keeps ticking down.
-    if(e.stunT>0){e.stunT-=dt;return}
+    // A Surge knockback slides the stunned enemy outward, easing off fast; walls, solid rock and
+    // the map edge stop the slide rather than letting it shove anything through them.
+    if(e.stunT>0){
+      e.stunT-=dt;
+      if(e.kbx||e.kby){
+        const nx=e.x+e.kbx*dt, ny=e.y+e.kby*dt;
+        if(nx>0&&ny>0&&nx<W&&ny<H&&!wallAt(nx,ny)&&terrainAt(nx,ny)!==2){e.x=nx;e.y=ny}else{e.kbx=0;e.kby=0}
+        const k=Math.exp(-ENERGY_SURGE_KB_DECAY*dt); e.kbx*=k; e.kby*=k;
+        if(e.stunT<=0||Math.hypot(e.kbx,e.kby)<5){e.kbx=0;e.kby=0}
+      }
+      return;
+    }
     let tgt=null,bd=e.aggro;
     if(e.kind==='saboteur'){
       // single-minded: ignore allies entirely, always make for whichever built Relay is nearest
@@ -3242,6 +3274,13 @@ function draw(){
     if(e.hp<e.maxHp)hpbar(e.x,e.y-e.r-8,e.r*2+4,e.hp/e.maxHp)});
   // tracers
   S.tracers.forEach(t=>{ctx.strokeStyle=t.col;ctx.globalAlpha=t.t/0.12;ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(t.x1,t.y1);ctx.lineTo(t.x2,t.y2);ctx.stroke()});ctx.globalAlpha=1;
+  // Energy Surge rings: a bright front with a soft glow behind it, fading as it reaches full size
+  S.surgeWaves.forEach(w=>{
+    const f=w.r/ENERGY_SURGE_R, a=Math.max(0,1-f);
+    ctx.globalAlpha=a*0.18;ctx.fillStyle='#8fe3ff';ctx.beginPath();ctx.arc(w.x,w.y,w.r,0,Math.PI*2);ctx.fill();
+    ctx.globalAlpha=a*0.35;ctx.strokeStyle='#8fe3ff';ctx.lineWidth=10;ctx.beginPath();ctx.arc(w.x,w.y,Math.max(0,w.r-4),0,Math.PI*2);ctx.stroke();
+    ctx.globalAlpha=Math.min(1,a*1.4);ctx.strokeStyle='#dff7ff';ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(w.x,w.y,w.r,0,Math.PI*2);ctx.stroke();
+  });ctx.globalAlpha=1;
   // particles (impact sparks, kill/vein/destruction bursts)
   S.particles.forEach(p=>{ctx.globalAlpha=Math.max(0,1-p.t/p.life);ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);ctx.fill()});ctx.globalAlpha=1;
   // fog
