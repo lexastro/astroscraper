@@ -377,7 +377,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 
 <div class="help" id="help">
   <button id="helpClose" aria-label="Close">×</button>
-  <b>Goal:</b> harvesters gather Dat Crystal automatically. Scout a vein (the glowing cracks), park the Bastion on its marker, press <kbd>L</kbd> to drill. A found vein <b>ripens</b> a tier at a time while you wait, then goes unstable and collapses back down. The drill warms up for 60s, then you <b>strike</b>: press <kbd>Space</kbd> to stop the sweeping needle — the closer to the centre, the better the tier (the thin centre sliver is a tier above the vein). While it drills, the needle drifts; Stabilizers hold it steady, and the tier you're paid is where it settles. If it drifts into the red, the vein ruptures and damages the Bastion. Drain veins for rewards — drain 3 and the hidden Living Crystal vein reveals itself; drain that one to win.<br>
+  <b>Goal:</b> harvesters gather Dat Crystal automatically. The ground is cracked all over: <b>follow the pulses of energy</b> running through the cracks back to their source to find a vein, then park the Bastion on its marker and press <kbd>L</kbd> to drill. Veins <b>emerge, ripen</b> a tier at a time, then go unstable and <b>collapse</b> — and new ones emerge elsewhere. Glowing <b>stray pockets</b> give a bearing toward the nearest vein when a unit reaches one; two bearings from different angles triangulate it. The drill warms up for 60s, then you <b>strike</b>: press <kbd>Space</kbd> to stop the sweeping needle — the closer to the centre, the better the tier (the thin centre sliver is a tier above the vein). While it drills, the needle drifts; Stabilizers hold it steady, and the tier you're paid is where it settles. If it drifts into the red, the vein ruptures and damages the Bastion. Drain veins for rewards — after 3, the contract vein stirs: it gives off no pulses, so triangulate it with bearings from stray pockets, then drain it to win.<br>
   <b>Controls:</b> drag to select · right-click to move/attack/harvest · right-click a friendly unit or building with combat units selected to <b>guard</b> it (escort it, fight off anything that comes near, then fall back) ·<kbd>WASD</kbd> or middle-drag to pan, scroll to zoom<br>
   <b>Touch:</b> tap to select · tap empty ground/an enemy/a resource to move/attack/harvest · drag to pan · hold still then drag to box-select · pinch to zoom · double-tap to select all of a kind<br>
   <b>Build:</b> <kbd>1</kbd> wall · <kbd>2</kbd> turret · <kbd>3</kbd> relay · <kbd>4</kbd> depot (drop-off closer than the Bastion) · <kbd>5</kbd> Stabilizer (only on a vein's drifting hotspots — pins it in place; widens the drill meter and steadies the needle) — walls/turrets need the Bastion locked down drilling, relays/depots/Stabilizers can go up any time · right-click a still-queued structure to cancel it for a full refund<br>
@@ -718,10 +718,10 @@ const SABOTEUR_INTERVAL={rim:40,dense:26,core:16}, SABOTEUR_SPAWN_DIST=500, SABO
 // Dat or the drill literally stalls). CONDENSED_RATE converts how much faster than baseline
 // (throttle 1) a vein was drilled into bonus Condensed Crystal, so speed is its own reward too.
 const DRILL_DAT_COST=3, CONDENSED_RATE=0.12;
-// Veins scattered by band: the deeper ones pay more. The last one (contract) is the win condition.
-// Its exact position is unknown and un-scoutable (no zone marker, no vision reveal) until this
-// many of the OTHER veins have been drained — draining the 3rd one "triangulates" it: the marker
-// snaps into view right then, wherever the vein actually sits, instead of needing to be scouted.
+// Veins scattered by band: the deeper ones pay more. The contract vein is the win condition. It
+// gives off no energy pulses and can't be scouted by sight: once this many other veins have been
+// drained it stirs, and from then on every stray-energy bearing points at it — two bearings from
+// different angles triangulate it (see the exploration block).
 const TRIANGULATE_AT=3;
 // The two Rim entries pay out noticeably less than every Dense/Core vein (richness well below
 // even the smallest of those, 40) — on top of the Rim's own tier ladder already capping out at
@@ -750,6 +750,7 @@ const VEIN_SAME_BAND_GAP=1500, VEIN_GAP=900, VEIN_X_MARGIN=ZONE_R+250;
 // stumbling onto it. The first zone's cluster sits closer in (~500, just 1-2 Relays) since it's
 // the player's opening vein; the rest sit ~1000 out (a couple of Relays).
 const CLUSTER_D_FIRST=500, CLUSTER_D=1000, CLUSTER_MARGIN=150;
+const EXTRA_SITES_PER_BAND=3;
 // Rolls a position for every vein slot and its cluster. Rejection sampling with a relaxing
 // fallback: if a slot can't find a spot that clears every rule in its tries, the spacing rules
 // loosen, so generation always finishes.
@@ -770,6 +771,27 @@ function placeVeins(){
     // band is read from where the vein actually landed, in case a fallback spot strayed
     veins.push({...slot,x:best.x,y:best.y,band:bandAt(best.x,best.y)});
   });
+  // Extra vein SITES: veins don't stay put — they emerge, ripen and collapse over a run — so each
+  // band gets a few more places a vein can emerge besides its two starting slots. Same placement
+  // rules, a little looser on spacing.
+  const extra=[];
+  ['rim','dense','core'].forEach(band=>{
+    const slots=VEIN_SLOTS.filter(sl=>sl.band===band&&!sl.contract);
+    for(let k=0;k<EXTRA_SITES_PER_BAND;k++){
+      const slot=slots[k%slots.length];let best=null;
+      for(let pass=0;pass<4&&!best;pass++){
+        const loosen=0.75-pass*0.18;
+        for(let t=0;t<60;t++){
+          const [d0,d1]=slot.ring(), {x,y}=pointInRing(d0,d1,VEIN_X_MARGIN);
+          if(veins.concat(extra).some(v=>Math.hypot(v.x-x,v.y-y)<VEIN_SAME_BAND_GAP*loosen))continue;
+          if(riftPockets.some(p=>Math.hypot(p.x-x,p.y-y)<(RIFT_CORE_R*mapType.pocketScale+ZONE_R)*loosen))continue;
+          best={x,y};break;
+        }
+      }
+      if(!best){const [d0,d1]=slot.ring();best=pointInRing(d0,d1,VEIN_X_MARGIN)}
+      extra.push({...slot,x:best.x,y:best.y,band:bandAt(best.x,best.y)});
+    }
+  });
   const clusters=[];
   veins.forEach((v,i)=>{
     const d=i===0?CLUSTER_D_FIRST:CLUSTER_D;
@@ -785,18 +807,19 @@ function placeVeins(){
     if(!best){const a=Math.atan2(H/2-v.y,W/2-v.x);best=[v.x+Math.cos(a)*d,v.y+Math.sin(a)*d]}
     clusters.push(best);
   });
-  return {veins,clusters};
+  return {veins,extra,clusters};
 }
-// Veins RIPEN rather than decay: a found vein starts at its band's lowest tier and climbs one step
-// every RIPEN_STEP_T seconds it's left undrilled, up to its peak (TIER_LADDER lists each band's
-// tiers lowest first). Reaching the peak makes it unstable — UNSTABLE_T seconds later it collapses
-// back to the floor and starts over. So waiting pays, but only up to a point; when to commit is
-// the decision. Once the Bastion locks onto a vein its ripeness is frozen, and the actual payout
-// tier is settled by the drill meter instead (see the drill-meter block below).
+// Veins live and die. A vein EMERGES at one of its band's sites at the band's lowest tier and
+// RIPENS one step every RIPEN_STEP_T seconds, up to its peak (TIER_LADDER lists each band's tiers
+// lowest first). Reaching the peak makes it unstable, and UNSTABLE_T seconds later it COLLAPSES for
+// good — a new vein emerges at another site in the band a little later (see the exploration
+// block). So waiting pays, but only up to a point, and a vein you haven't found yet is already
+// counting down. Once the Bastion locks onto a vein its ripeness is frozen, and the payout tier is
+// settled by the drill meter instead. The contract vein ripens to its peak and holds there.
 const TIER_MULT={Common:0.6,Rare:1,Epic:1.5,Legendary:2};
 const TIER_LADDER={rim:['Common','Rare','Epic'],dense:['Rare','Epic','Legendary'],core:['Rare','Epic','Legendary']};
 const TIER_ORDER_ALL=['Common','Rare','Epic','Legendary'];
-const RIPEN_STEP_T=45, UNSTABLE_T=30, CRACKED_T=20;
+const RIPEN_STEP_T=60, UNSTABLE_T=40, CRACKED_T=20;
 // Draining a vein (other than the contract one, which ends the run) offers a choice of 3
 // upgrades at that vein's tier, plus a 4th option to cash it in for Dat instead — every upgrade
 // is a flat multiplier/bonus on an existing stat, applied immediately and only for this run
@@ -871,8 +894,10 @@ function ripeIdx(v){const L=TIER_LADDER[v.band].length;return Math.min(L-1,Math.
 function ripePeakT(v){return (TIER_LADDER[v.band].length-1)*RIPEN_STEP_T}
 function ripeTier(v){return TIER_LADDER[v.band][ripeIdx(v)]}
 // 0 while still ripening; climbs 0→1 across the unstable phase at the peak.
-function unstableFrac(v){const over=(v.ripeT||0)-ripePeakT(v);return over<0?0:Math.min(1,over/UNSTABLE_T)}
-function isUnstable(v){return (v.ripeT||0)>=ripePeakT(v)}
+// (never unstable: the contract vein, and every vein in the tutorial — those just hold at their peak)
+function holdsAtPeak(v){return v.contract||tutorialMap}
+function unstableFrac(v){if(holdsAtPeak(v))return 0;const over=(v.ripeT||0)-ripePeakT(v);return over<0?0:Math.min(1,over/UNSTABLE_T)}
+function isUnstable(v){return !holdsAtPeak(v)&&(v.ripeT||0)>=ripePeakT(v)}
 // The tier a vein would pay right now: the drill meter's settled yield while it's being drilled,
 // otherwise how ripe it is.
 function currentTier(v){return v.meter&&v.meter.phase==='drill'?v.meter.yieldTier:ripeTier(v)}
@@ -995,8 +1020,8 @@ function updateMeter(v,dt){
 }
 // A failed strike or a needle that drifts into the red: the vein blows. The Bastion takes a hit
 // that grows with how ambitious the meter was, everything nearby is caught in the blast, the
-// vein's Stabilizers are destroyed, and the vein is knocked back to its floor tier and left
-// cracked (undrillable) for CRACKED_T seconds.
+// vein's Stabilizers are destroyed, and the vein collapses — another will emerge elsewhere.
+// (The contract vein can rupture too, but it holds together — it just has to be struck again.)
 const RUPTURE_R=260, RUPTURE_UNIT_DMG=40, RUPTURE_ENEMY_DMG=60;
 function ruptureVein(v,why){
   const B=S.base, mb=v.meter&&v.meter.bands||meterBands(v);
@@ -1006,10 +1031,11 @@ function ruptureVein(v,why){
   S.enemies.forEach(e=>{if(dist(e,v)<=RUPTURE_R)damageEnemy(e,RUPTURE_ENEMY_DMG)});
   S.stabs.forEach(st=>{if(st.vein===v)st.hp=0});
   B.locked=false; S.activeVein=null; setBuild(null);
-  v.meter=null; v.drillProg=0; v.prepT=0; v.ripeT=0; v.lockIdx=null; v.lockUnstable=0; v.crackedT=CRACKED_T;
+  v.meter=null; v.prepT=0;
+  if(v.contract){v.drillProg=0;v.crackedT=CRACKED_T}else collapseVein(v,true);
   burst(v.x,v.y,C.enemy,46,260,1.0); burst(v.x,v.y,'#ffb36b',24,200,0.7);
   sfx.explode(); shakeScreen(12,0.7);
-  msg(`${why} The Bastion took ${dmg} damage, and the vein needs ${CRACKED_T}s to settle.`);
+  msg(`${why} The Bastion took ${dmg} damage, and ${v.contract?`the contract vein needs ${CRACKED_T}s to settle before it can be struck again`:'the vein has collapsed'}.`);
   updateMeterUI(true); updateBuildBar();
 }
 // Draws the drill meter panel (called every frame from hud()).
@@ -1064,6 +1090,216 @@ function updateMeterUI(){
   }
 }
 document.getElementById('dmStrike').onclick=()=>doStrike();
+
+// ---------- exploration: the crack network, energy pulses, living veins, strays ----------
+// The whole map is laced with cracks, generated with the terrain and baked into the ground as
+// dark, dead lines. Every live vein sends PULSES of energy out through them: an expanding ring
+// that lights up whichever cracks it's passing through, in the vein's ripe-tier colour, bright and
+// close-spaced near the vein and fading with distance. The light shows through the fog, so the way
+// to find a vein is to watch where the energy comes from and walk upstream. A vein itself only
+// appears once a unit actually sees it (or a Ping or triangulation reveals it).
+const NET_CRACKS_PER_MPX=6, PULSE_PERIOD=3.2, PULSE_SPEED=420, PULSE_REACH=2600, PULSE_W=55;
+function genCrackNet(){
+  const segs=[];
+  const grow=(x,y,a,len,depth)=>{
+    let d=0;
+    while(d<len){
+      const st=rnd(16,30);a+=rnd(-0.35,0.35);
+      const nx=x+Math.cos(a)*st, ny=y+Math.sin(a)*st;
+      if(nx<40||ny<40||nx>W-40||ny>H-40)return;
+      segs.push(x,y,nx,ny);x=nx;y=ny;d+=st;
+      if(depth<2&&rnd(0,1)<0.05)grow(x,y,a+(rnd(0,1)<0.5?1:-1)*rnd(0.5,1.1),len*rnd(0.3,0.5),depth+1);
+    }
+  };
+  const n=Math.round(W*H/1e6*NET_CRACKS_PER_MPX);
+  for(let i=0;i<n;i++)grow(rnd(80,W-80),rnd(80,H-80),rnd(0,Math.PI*2),rnd(500,1300),0);
+  return new Float32Array(segs);
+}
+// Per-source index of nearby network segments, sorted by distance from the source — a pulse ring
+// at radius R just lights the slice of this list between R-2·PULSE_W and R.
+function indexPulse(src,reach){
+  const net=S.crackNet, idx=[];
+  for(let i=0;i<net.length;i+=4){
+    const mx=(net[i]+net[i+2])/2, my=(net[i+1]+net[i+3])/2, d=Math.hypot(mx-src.x,my-src.y);
+    if(d<=reach)idx.push([d,i]);
+  }
+  idx.sort((a,b)=>a[0]-b[0]);
+  src.pd=new Float32Array(idx.map(e=>e[0])); src.pi=new Uint32Array(idx.map(e=>e[1]));
+}
+function lowerBound(arr,v){let lo=0,hi=arr.length;while(lo<hi){const m=(lo+hi)>>1;if(arr[m]<v)lo=m+1;else hi=m}return lo}
+function veinAlive(v){return !v.done&&!v.collapsed}
+
+// ---- living veins ----
+// Each band keeps VEINS_PER_BAND veins alive at its sites. When one collapses, is drained, or
+// ruptures, it lingers as dark cracks for GONE_T seconds, then its site frees up and a new vein
+// emerges at another free site in the band EMERGE_DELAY seconds later.
+const VEINS_PER_BAND=2, GONE_T=20, EMERGE_DELAY=[12,28];
+function emergeVein(site,o){
+  o=o||{};
+  const ang=rnd(0,Math.PI*2), rad=rnd(0,ZONE_R*0.55);
+  const v={x:site.x,y:site.y,r:ZONE_R,richness:site.richness,drillProg:0,done:false,contract:!!o.contract,band:site.band,waveT:0,
+    reward:o.contract?{dat:50,living:3}:{dat:Math.round(site.richness*1.2)},
+    mine:{x:site.x+Math.cos(ang)*rad,y:site.y+Math.sin(ang)*rad,found:false},
+    site,ripeT:o.ripeT||0,crackedT:0,seen:false,collapsed:false,goneT:0,pulsePh:rnd(0,PULSE_PERIOD),
+    haze:{x:rnd(-260,260),y:rnd(-260,260)}};
+  v.hot=mkHotspots(v); v.cracks=crackLines(rand,v.x,v.y,v.r*0.95,7,12,24,0.28);
+  site.vein=v; S.veins.push(v);
+  if(!o.contract)indexPulse(v,PULSE_REACH);
+  // a guard cluster camps every vein, sized by how deep it sits
+  if(o.guards!==false){
+    const n=v.band==='core'?rnd(20,28):v.band==='dense'?rnd(8,13):rnd(3,6);
+    for(let i=0;i<n;i++){const a=rnd(0,Math.PI*2),rr=rnd(0,v.r*0.85);
+      const p=nearestPlain(v.x+Math.cos(a)*rr,v.y+Math.sin(a)*rr);spawnEnemy(p.x,p.y,'roam')}
+  }
+  return v;
+}
+// A free site in the band for a new vein: not right on top of the Bastion, and clear of other live
+// veins where possible.
+function pickSite(band){
+  const free=S.sites.filter(st=>st.band===band&&!st.vein);
+  if(!free.length)return null;
+  const good=free.filter(st=>dist(st,S.base)>700&&!S.veins.some(v=>veinAlive(v)&&dist(v,st)<700));
+  const pool=good.length?good:free;
+  return pool[Math.floor(rnd(0,pool.length))];
+}
+function collapseVein(v,quiet){
+  v.collapsed=true; v.goneT=0;
+  S.stabs.forEach(st=>{if(st.vein===v){st.hp=0;st.silent=true}});
+  if(v.seen&&!quiet){msg(`A ${ripeTier(v)} vein has collapsed.`);burst(v.x,v.y,C.enemy,18,130,0.6)}
+}
+function updateVeinLife(dt){
+  S.veins.forEach(v=>{
+    updateHotspots(v);
+    if(v.crackedT>0)v.crackedT=Math.max(0,v.crackedT-dt);
+    if(!veinAlive(v)||S.activeVein===v)return;
+    if(holdsAtPeak(v)){v.ripeT=Math.min((v.ripeT||0)+dt,ripePeakT(v));return}
+    const prevIdx=ripeIdx(v), wasUnstable=isUnstable(v);
+    v.ripeT=(v.ripeT||0)+dt;
+    if(v.ripeT>=ripePeakT(v)+UNSTABLE_T){collapseVein(v);return}
+    if(!v.seen)return;
+    if(ripeIdx(v)>prevIdx&&isUnstable(v))msg(`A vein has peaked at ${ripeTier(v)} — it's unstable and will collapse in ${UNSTABLE_T}s.`);
+    else if(!wasUnstable&&isUnstable(v))msg(`A ${ripeTier(v)} vein is unstable — it will collapse in ${UNSTABLE_T}s.`);
+  });
+  // spent veins linger as dark cracks, then free their site and queue a replacement
+  // (the replacement's countdown starts the moment a vein dies, not once it's finished fading)
+  S.veins=S.veins.filter(v=>{
+    if(veinAlive(v)||v.contract)return true;
+    if(!v.respawnQueued){v.respawnQueued=true;S.respawnQ.push({band:v.band,t:rnd(EMERGE_DELAY[0],EMERGE_DELAY[1])})}
+    v.goneT+=dt; if(v.goneT<GONE_T)return true;
+    v.site.vein=null;
+    return false;
+  });
+  S.respawnQ=S.respawnQ.filter(q=>{q.t-=dt;if(q.t>0)return true;const st=pickSite(q.band);if(st)emergeVein(st);return false});
+}
+
+// ---- strays & bearings ----
+// Stray energy pockets sit out in the open, glowing under the surface and giving off faint pulses
+// of their own. When any of your units (or the Bastion) reaches one — or a Ping lands on it — it
+// gives a BEARING: a beam pointing, a little imprecisely, toward the nearest live vein. Two bearings
+// on the same vein from far enough apart (their beams crossing at a real angle) TRIANGULATE it:
+// it's revealed on the map, mining point and all. For ordinary veins that's just a shortcut — you
+// can always follow the pulses instead. But once the contract vein stirs (after TRIANGULATE_AT
+// drains) every bearing points to it, and triangulation is the only way to find it.
+const STRAY_COUNT=6, STRAY_TOUCH_R=80, STRAY_RESPAWN_T=40, STRAY_REACH=900, BEARING_ERR=0.1, BEARING_MIN_ANGLE=0.35, BEARING_LIFE=240;
+const STRAY_COL='#bfefff';
+function placeStray(st){
+  for(let t=0;t<60;t++){
+    const x=rnd(200,W-200), y=rnd(200,H-200);
+    if(terrainAt(x,y)===2)continue;
+    if(dist({x,y},S.base)<700)continue;
+    if(S.sites.some(s=>dist(s,{x,y})<ZONE_R+250)||dist(S.contractSite,{x,y})<ZONE_R+250)continue;
+    if(S.strays.some(o=>o!==st&&o.live&&dist(o,{x,y})<900))continue;
+    st.x=x;st.y=y;break;
+  }
+  st.live=true;st.t=0;st.pulsePh=rnd(0,PULSE_PERIOD);
+  indexPulse(st,STRAY_REACH);
+}
+function bearingTarget(){
+  const cv=S.veins.find(v=>v.contract);
+  if(S.contractAwake&&cv&&!cv.mine.found)return cv;
+  return null;
+}
+function takeBearing(st){
+  if(!st.live)return;
+  let tgt=bearingTarget();
+  if(!tgt){let bd=Infinity;S.veins.forEach(v=>{if(v.contract||!veinAlive(v))return;const d=dist(v,st);if(d<bd){bd=d;tgt=v}})}
+  st.live=false; st.t=STRAY_RESPAWN_T;
+  burst(st.x,st.y,STRAY_COL,16,120,0.6); sfx.ping();
+  if(!tgt){msg('The stray energy fades — there was no vein signal in it.');return}
+  const ang=Math.atan2(tgt.y-st.y,tgt.x-st.x)+rnd(-BEARING_ERR,BEARING_ERR);
+  S.bearings.push({x:st.x,y:st.y,ang,target:tgt,born:S.t});
+  const others=S.bearings.filter(b=>b.target===tgt);
+  if(others.length<2){
+    msg(tgt.contract?'Bearing taken on the contract vein — take another from a stray off to the side to triangulate it.':`Bearing taken toward a ${ripeTier(tgt)} vein — a second bearing from another angle will pinpoint it.`);
+    return;
+  }
+  const crossing=others.some(b=>b!==S.bearings[S.bearings.length-1]&&(()=>{let d=Math.abs(b.ang-ang)%Math.PI;d=Math.min(d,Math.PI-d);return d>=BEARING_MIN_ANGLE})());
+  if(!crossing){msg('Those bearings run almost parallel — take one from a stray off to the side.');return}
+  // triangulated
+  tgt.seen=true; tgt.mine.found=true;
+  S.triMark={x:tgt.x,y:tgt.y,t:0};
+  S.bearings=S.bearings.filter(b=>b.target!==tgt);
+  burst(tgt.x,tgt.y,tgt.contract?C.living:CARD_TIER_COLOR[ripeTier(tgt)],30,200,0.9); sfx.veinDone(); shakeScreen(4,0.3);
+  msg(tgt.contract?'Triangulated — the bearings cross right on the contract vein. Its marker is revealed.':`Triangulated — a ${ripeTier(tgt)} vein located, mining point and all.`);
+}
+function updateStrays(dt){
+  const allies=S.troops.concat(S.harvesters).concat(S.builders);
+  S.strays.forEach(st=>{
+    if(!st.live){st.t-=dt;if(st.t<=0)placeStray(st);return}
+    if(dist(st,S.base)<S.base.r+STRAY_TOUCH_R||allies.some(u=>dist(u,st)<STRAY_TOUCH_R))takeBearing(st);
+  });
+  S.bearings=S.bearings.filter(b=>veinAlive(b.target)&&!b.target.mine.found&&S.t-b.born<BEARING_LIFE);
+  if(S.triMark){S.triMark.t+=dt;if(S.triMark.t>3)S.triMark=null}
+}
+
+// ---- drawing ----
+function drawPulseRing(src,R,col,I,vx0,vy0,vx1,vy1){
+  const pd=src.pd,pi=src.pi,net=S.crackNet;
+  const a=lowerBound(pd,R-2*PULSE_W), m=lowerBound(pd,R-PULSE_W), b=lowerBound(pd,R);
+  if(a>=b)return;
+  const seg=(lo,hi)=>{ctx.beginPath();for(let k=lo;k<hi;k++){const i=pi[k],x1=net[i],y1=net[i+1],x2=net[i+2],y2=net[i+3];
+    if((x1<vx0&&x2<vx0)||(x1>vx1&&x2>vx1)||(y1<vy0&&y2<vy0)||(y1>vy1&&y2>vy1))continue;ctx.moveTo(x1,y1);ctx.lineTo(x2,y2)}ctx.stroke()};
+  ctx.strokeStyle=col;
+  ctx.globalAlpha=0.3*I;ctx.lineWidth=5;seg(a,b);
+  ctx.globalAlpha=0.9*I;ctx.lineWidth=2;seg(m,b);
+}
+// Pulses, stray pockets and bearing beams are light — drawn above the fog.
+function drawExplorationLight(vx0,vy0,vx1,vy1){
+  ctx.save();ctx.globalCompositeOperation='lighter';ctx.lineCap='round';
+  S.veins.forEach(v=>{
+    if(v.contract||!veinAlive(v)||!v.pd)return;
+    const drilling=S.activeVein===v&&v.meter&&v.meter.phase==='drill';
+    const col=CARD_TIER_COLOR[drilling?v.meter.yieldTier:ripeTier(v)], uns=isUnstable(v);
+    for(let k=0;k<3;k++){
+      const R=(((S.t+v.pulsePh)%PULSE_PERIOD)+k*PULSE_PERIOD)*PULSE_SPEED;
+      if(R>PULSE_REACH)break;
+      const I=Math.pow(1-R/PULSE_REACH,1.3)*(uns?0.5+0.5*Math.random():1);
+      drawPulseRing(v,R,col,I,vx0,vy0,vx1,vy1);
+    }
+  });
+  S.strays.forEach((st,k)=>{
+    if(!st.live||!st.pd)return;
+    const R=((S.t+st.pulsePh)%PULSE_PERIOD)*PULSE_SPEED*0.6;
+    if(R<STRAY_REACH)drawPulseRing(st,R,STRAY_COL,0.55*Math.pow(1-R/STRAY_REACH,1.2),vx0,vy0,vx1,vy1);
+    // the pocket itself, welling up under the ground
+    const p=0.5+0.5*Math.sin(S.t*2.6+k), Rg=52+10*p;
+    const g=ctx.createRadialGradient(st.x,st.y,0,st.x,st.y,Rg);g.addColorStop(0,STRAY_COL);g.addColorStop(0.35,'rgba(191,239,255,0.45)');g.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.globalAlpha=0.7+0.3*p;ctx.fillStyle=g;ctx.beginPath();ctx.arc(st.x,st.y,Rg,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle=STRAY_COL;ctx.lineWidth=2;ctx.globalAlpha=0.8;
+    for(let j=0;j<3;j++){const a=S.t*1.4+j*Math.PI*2/3;ctx.beginPath();ctx.arc(st.x,st.y,16+6*p,a,a+1.2);ctx.stroke()}
+  });
+  ctx.globalCompositeOperation='source-over';
+  // bearing beams: dashed lines out from the stray they were taken at, in the target's colour
+  S.bearings.forEach(b=>{
+    const col=b.target.contract?C.living:CARD_TIER_COLOR[ripeTier(b.target)], L=4200;
+    ctx.globalAlpha=0.7;ctx.strokeStyle=col;ctx.lineWidth=2.2/Math.max(0.6,cam.z);ctx.setLineDash([14,10]);ctx.lineDashOffset=-S.t*30;
+    ctx.beginPath();ctx.moveTo(b.x,b.y);ctx.lineTo(b.x+Math.cos(b.ang)*L,b.y+Math.sin(b.ang)*L);ctx.stroke();ctx.setLineDash([]);
+    ctx.globalAlpha=0.9;ctx.beginPath();ctx.arc(b.x,b.y,9,0,Math.PI*2);ctx.stroke();
+  });
+  if(S.triMark){const m=S.triMark,f=m.t/3;ctx.globalAlpha=1-f;ctx.strokeStyle='#fff';ctx.lineWidth=3;
+    ctx.beginPath();ctx.arc(m.x,m.y,ZONE_R*(0.4+1.2*f),0,Math.PI*2);ctx.stroke()}
+  ctx.restore();
+}
 
 // ---------- state ----------
 let S, cam, mouse={x:0,y:0,wx:0,wy:0,down:false,drag:null,panning:false,touchStart:null,wallDragging:false,wallPlacedTouch:false}, keys={}, buildMode=null, lastT=0, msgT=0, terrain, terrainCv, prodMenuOpen=false;
@@ -1193,15 +1429,11 @@ function reset(landing){
   genTerrain();
   const layout=placeVeins();
   S.clusters=layout.clusters;
-  layout.veins.forEach(vd=>{
-    const ang=rnd(0,Math.PI*2), rad=rnd(0,ZONE_R*0.55);
-    S.veins.push({x:vd.x,y:vd.y,r:ZONE_R,richness:vd.richness,drillProg:0,done:false,contract:!!vd.contract,band:vd.band,waveT:0,
-      reward: vd.contract?{dat:50,living:3}:{dat:Math.round(vd.richness*1.2)},
-      mine:{x:vd.x+Math.cos(ang)*rad,y:vd.y+Math.sin(ang)*rad,found:false}});
-    const v=S.veins[S.veins.length-1];
-    v.ripeT=0; v.crackedT=0; v.hot=mkHotspots(v);
-    v.cracks=crackLines(rand,v.x,v.y,v.r*0.95,7,12,24,0.28);
-  });
+  // Every place a vein can ever emerge, cleared and connected up front (below). Which sites
+  // actually hold a vein is decided after landing, and keeps changing as veins come and go.
+  S.sites=[...layout.veins.filter(v=>!v.contract),...layout.extra].map(st=>({x:st.x,y:st.y,band:st.band,richness:st.richness,vein:null}));
+  {const cs=layout.veins.find(v=>v.contract);S.contractSite={x:cs.x,y:cs.y,band:cs.band,richness:cs.richness,vein:null}}
+  S.crackNet=genCrackNet();
   // Dat Crystal deposits: the Rim is thick with small, low-yield nodes — common and unremarkable,
   // just enough to keep the economy moving without needing to push deeper right away. A spread
   // through the Dense Field and outer Core, then more scattered anywhere out past the Dense Field.
@@ -1221,10 +1453,11 @@ function reset(landing){
   // otherwise a different landing would shift every roll after it.
   rand=seededRng(mapSeed*7919+Math.round(S.base.x)*31+Math.round(S.base.y));
   clearDisk(S.base.x,S.base.y,240);
-  S.veins.forEach(v=>clearDisk(v.x,v.y,ZONE_R+40));
-  ensureConnectivity([{x:S.base.x,y:S.base.y},...S.veins.map(v=>({x:v.x,y:v.y})),...S.clusters.map(([x,y])=>({x,y})),...riftPockets]);
+  const allSites=[...S.sites,S.contractSite];
+  allSites.forEach(v=>clearDisk(v.x,v.y,ZONE_R+40));
+  ensureConnectivity([{x:S.base.x,y:S.base.y},...allSites.map(v=>({x:v.x,y:v.y})),...S.clusters.map(([x,y])=>({x,y})),...riftPockets]);
   closeHoles(S.base.x,S.base.y);
-  ensureBastionAccess(S.veins.map(v=>({x:v.x,y:v.y})));
+  ensureBastionAccess(allSites.map(v=>({x:v.x,y:v.y})));
   terrainCv=buildTerrainCanvas();
 
   nodeSpots.forEach(n=>{const p=nearestPlain(n.x,n.y);S.nodes.push({x:p.x,y:p.y,amt:n.amt,max:n.max,found:false})});
@@ -1259,12 +1492,21 @@ function reset(landing){
     }
     const packSize = band==='core'?rnd(10,16):band==='dense'?rnd(4,8):rnd(2,4);
     for(let j=0;j<packSize;j++){const p=nearestPlain(px+rnd(-60,60),py+rnd(-60,60));spawnEnemy(p.x,p.y,'roam');if(patrol)S.enemies[S.enemies.length-1].patrol=patrol}}
-  // a guard cluster camps each vein, sized by how deep it sits
-  S.veins.forEach(v=>{
-    const n = v.band==='core'?rnd(20,28):v.band==='dense'?rnd(8,13):rnd(3,6);
-    for(let i=0;i<n;i++){const ang=rnd(0,Math.PI*2),rad=rnd(0,v.r*0.85);
-      const p=nearestPlain(v.x+Math.cos(ang)*rad,v.y+Math.sin(ang)*rad);spawnEnemy(p.x,p.y,'roam')}
+  // The starting veins (each brings its own guard cluster — see emergeVein). The contract vein
+  // waits at its fixed site. The Rim site nearest the landing always opens with a fresh vein, so
+  // the first one is close and easy to follow; the rest start part-way through their lives so
+  // they don't all collapse together.
+  S.veins=[];S.respawnQ=[];S.drained=0;S.contractAwake=false;S.strays=[];S.bearings=[];S.triMark=null;
+  emergeVein(S.contractSite,{contract:true});
+  {const rim=S.sites.filter(st=>st.band==='rim');
+   const open=rim.reduce((a,b)=>dist(b,S.base)<dist(a,S.base)?b:a);emergeVein(open,{ripeT:0})}
+  ['rim','dense','core'].forEach(band=>{
+    let guard=0;
+    while(S.veins.filter(v=>!v.contract&&v.band===band).length<VEINS_PER_BAND&&guard++<6){
+      const st=pickSite(band);if(!st)break;emergeVein(st,{ripeT:rnd(0,RIPEN_STEP_T*1.6)});
+    }
   });
+  for(let i=0;i<STRAY_COUNT;i++){const st={x:0,y:0,live:true,t:0};S.strays.push(st);placeStray(st)}
   // The Core is deliberately saturated on top of the scatter above — a guaranteed, heavy
   // population across the whole band rather than relying on where the random packs happened to land.
   // (The Core is a disk around the epicenter now rather than a full-width strip, so it gets fewer
@@ -1282,7 +1524,7 @@ function reset(landing){
   S.sel.base=true; buildMode=null; pingMode=false; updateBuildBar();
   document.getElementById('overlay').hidden=true;
   document.getElementById('pauseOverlay').hidden=true;
-  msg('Scout a marked vein to find its mining point, then press L to begin drilling.');
+  msg('Watch the cracks for pulses of energy — follow them upstream to find a vein.');
   S.paused=menuOpen; // held at the main menu until the player picks a landing zone and launches
 }
 // ---------- main menu / landing zone ----------
@@ -1307,7 +1549,13 @@ function drawMenuMap(){
   menuCx.strokeStyle=C.accent;menuCx.setLineDash([5,4]);menuCx.lineWidth=1.5;
   menuCx.beginPath();menuCx.arc(ex,ey,(DENSE_R+LANDING_MARGIN)*s,0,Math.PI*2);menuCx.stroke();
   menuCx.setLineDash([]);
-  S.veins.forEach(v=>{if(v.contract)return;menuCx.strokeStyle=C.zone;menuCx.lineWidth=1;menuCx.beginPath();menuCx.arc(v.x*s,v.y*s,v.r*s,0,Math.PI*2);menuCx.stroke()});
+  // No vein markers before landing — just a haze of energy roughly where veins are stirring (each
+  // haze sits a few hundred units off its vein), so landing is still an informed choice.
+  menuCx.save();menuCx.globalCompositeOperation='lighter';
+  S.veins.forEach(v=>{if(v.contract||!veinAlive(v))return;const hx=(v.x+v.haze.x)*s,hy=(v.y+v.haze.y)*s,hr=520*s;
+    const g=menuCx.createRadialGradient(hx,hy,0,hx,hy,hr);g.addColorStop(0,CARD_TIER_COLOR[ripeTier(v)]);g.addColorStop(1,'rgba(0,0,0,0)');
+    menuCx.globalAlpha=0.32;menuCx.fillStyle=g;menuCx.beginPath();menuCx.arc(hx,hy,hr,0,Math.PI*2);menuCx.fill()});
+  menuCx.restore();
   S.clusters.forEach(([x,y])=>{menuCx.fillStyle=C.dat;menuCx.fillRect(x*s-2,y*s-2,4,4)});
   if(landingSel){
     menuCx.fillStyle=C.accent;menuCx.beginPath();menuCx.arc(landingSel.x*s,landingSel.y*s,6,0,Math.PI*2);menuCx.fill();
@@ -1535,7 +1783,7 @@ function compass(dx,dy){
   const a=Math.atan2(dy,dx)*180/Math.PI, dirs=['east','south-east','south','south-west','west','north-west','north','north-east'];
   return dirs[((Math.round(a/45)%8)+8)%8];
 }
-function tutVein(){return tutorial?S.veins[tutorial.vein]:null}
+function tutVein(){return tutorial?tutorial.vein:null}
 const TUTORIAL_STEPS=[
   {title:'Welcome to Datascraper',
    text:()=>`You command the <b>Bastion</b> — a mobile drilling rig — and its crew. The goal of every run: drill crystal veins across the zone, growing stronger with each one, until you can crack the hidden contract vein near the Black Flame at the map's heart. This tutorial walks you through your first vein.`},
@@ -1546,7 +1794,7 @@ const TUTORIAL_STEPS=[
    text:()=>`The blue triangles are your <b>Squads</b> — your fighters and scouts. Drag a box around them to select them, or press <kbd>T</kbd> to select every Squad at once.`,
    done:()=>S.sel.troops.size>0},
   {title:'Scout the vein',
-   text:()=>{const v=tutVein();return `Veins are the glowing cracks in the ground. There's one to the <b>${compass(v.x-S.base.x,v.y-S.base.y)}</b> (highlighted). <b>Right-click inside it</b> to send your Squads in — they'll fight off the creatures guarding it and find the exact spot to drill.`},
+   text:()=>{const v=tutVein();return `The ground is cracked all over, and veins send pulses of energy out through the cracks — follow the light back to its source to find one. There's one to the <b>${compass(v.x-S.base.x,v.y-S.base.y)}</b> (highlighted). <b>Right-click inside it</b> to send your Squads in — they'll fight off the creatures guarding it and find the exact spot to drill.`},
    target:()=>{const v=tutVein();return{x:v.x,y:v.y,r:v.r+20}},
    done:()=>tutVein().mine.found},
   {title:'Dat Crystal',
@@ -1578,13 +1826,12 @@ const TUTORIAL_STEPS=[
 ];
 function startTutorial(){
   tutorialMap=true; mapSeed=TUTORIAL_SEED;
-  reset(); // first pass just to learn where this seed puts its Rim veins
-  // Land a short walk from the Rim vein nearest the default spot: on open ground, on the outer
-  // side of the vein (away from the epicenter) so the Bastion starts in the safest part of the map.
-  const rimIdx=S.veins.map((v,i)=>i).filter(i=>S.veins[i].band==='rim'&&!S.veins[i].contract);
+  reset(); // first pass just to learn where this seed puts its Rim vein sites
+  // Land a short walk from the Rim site nearest the default spot: on open ground, on the outer
+  // side of it (away from the epicenter) so the Bastion starts in the safest part of the map. A
+  // fresh vein always emerges at the Rim site nearest the landing, so that's the tutorial's vein.
   const d0=defaultLanding();
-  const vi=rimIdx.reduce((a,b)=>dist(S.veins[b],d0)<dist(S.veins[a],d0)?b:a);
-  const v=S.veins[vi], out=Math.atan2(v.y-EPI.y,v.x-EPI.x);
+  const v=S.sites.filter(st=>st.band==='rim').reduce((a,b)=>dist(b,d0)<dist(a,d0)?b:a), out=Math.atan2(v.y-EPI.y,v.x-EPI.x);
   let land=null;
   for(let k=0;k<24&&!land;k++){
     const a=out+(k%2?1:-1)*Math.ceil(k/2)*0.26, x=v.x+Math.cos(a)*620, y=v.y+Math.sin(a)*620;
@@ -1593,7 +1840,9 @@ function startTutorial(){
   menuOpen=false;
   ['mainMenuOverlay','menuOverlay','unlocksOverlay','settingsOverlay'].forEach(id=>document.getElementById(id).hidden=true);
   reset(land||d0);
-  tutorial={step:0,vein:vi,cam0:{x:cam.x,y:cam.y,z:cam.z}};
+  const tv=S.veins.find(x=>!x.contract&&x.band==='rim'&&Math.abs(x.x-v.x)<1&&Math.abs(x.y-v.y)<1)
+    ||S.veins.filter(x=>!x.contract&&x.band==='rim').reduce((a,b)=>dist(b,S.base)<dist(a,S.base)?b:a);
+  tutorial={step:0,vein:tv,cam0:{x:cam.x,y:cam.y,z:cam.z}};
   renderTutorialStep();
 }
 function endTutorialState(){
@@ -1984,6 +2233,10 @@ function buildTerrainCanvas(){
       x2.beginPath();x2.moveTo(px,py);x2.lineTo(px+Math.cos(a)*len,py+Math.sin(a)*len);x2.stroke();
     }
   }
+  // the map-wide crack network, baked in as dark dead lines (energy pulses light them up live)
+  if(S.crackNet){const net=S.crackNet;x2.lineCap='round';
+    x2.strokeStyle='rgba(4,5,8,0.85)';x2.lineWidth=3;x2.beginPath();for(let i=0;i<net.length;i+=4){x2.moveTo(net[i],net[i+1]);x2.lineTo(net[i+2],net[i+3])}x2.stroke();
+    x2.strokeStyle='rgba(255,255,255,0.05)';x2.lineWidth=1;x2.beginPath();for(let i=0;i<net.length;i+=4){x2.moveTo(net[i]+1,net[i+1]+1);x2.lineTo(net[i+2]+1,net[i+3]+1)}x2.stroke()}
   // depth-band tint radiating out from the Black Flame epicenter in rings — the whole reason this
   // is "a zone"
   const maxD=EPI_REACH+100;
@@ -2708,7 +2961,7 @@ function clampCam(){cam.x=Math.max(0,Math.min(W,cam.x));cam.y=Math.max(0,Math.mi
 
 function canLockdown(){
   if(S.base.locked)return null;
-  return S.veins.find(v=>!v.done&&!(v.crackedT>0)&&(!v.contract||v.mine.found)&&dist(S.base,v.mine)<BASE_R+18)||null;
+  return S.veins.find(v=>veinAlive(v)&&!(v.crackedT>0)&&(!v.contract||v.mine.found)&&dist(S.base,v.mine)<BASE_R+18)||null;
 }
 // the Overdrive Capacitor upgrade makes Fast (index 2) faster still — every other throttle is
 // unaffected.
@@ -2828,7 +3081,8 @@ function firePing(w){
   const r=PING_REVEAL_R;
   let deposits=0,veins=0;
   S.nodes.forEach(n=>{if(!n.found&&n.amt>0&&dist(n,w)<=r){n.found=true;deposits++}});
-  S.veins.forEach(v=>{if(!v.contract&&!v.done&&!v.mine.found&&dist(v.mine,w)<=r){v.mine.found=true;v.ripeT=0;veins++}});
+  S.veins.forEach(v=>{if(v.contract||!veinAlive(v))return;if(dist(v,w)<=r+v.r*0.6)v.seen=true;if(!v.mine.found&&dist(v.mine,w)<=r){v.mine.found=true;v.seen=true;veins++}});
+  S.strays.forEach(st=>{if(st.live&&dist(st,w)<=r)takeBearing(st)});
   const enemies=S.enemies.filter(e=>dist(e,w)<=r).length;
   S.pings.push({x:w.x,y:w.y,r,t:PING_ENEMY_T});
   S.base.pingCd=PING_CD;
@@ -3328,13 +3582,12 @@ function update(dt){
       floatText(v.x,v.y+(datEarned||livingEarned?2:-16),'+'+condensedEarned+' Condensed',C.condensed);
       if(v.contract){S.over='win';sfx.win();shakeScreen(6,0.5);showOverlay('Living Crystal Extracted',`The contract vein is drained at ${tier} tier. Datascraper crew, mission complete. +${condensedEarned} Condensed Crystal.`)}
       else{
-        const minedCount=S.veins.filter(x=>x.done&&!x.contract).length;
-        const cv=S.veins.find(x=>x.contract);
-        let tail=' Move the Bastion to another vein when ready.';
-        if(cv&&!cv.mine.found&&minedCount>=TRIANGULATE_AT){
-          cv.mine.found=true; cv.ripeT=0;
-          revealCircle(cv.mine.x,cv.mine.y,500);
-          tail=' Triangulated — three drained veins cross right where the Living Crystal vein sits, and its marker is revealed.';
+        S.drained++;
+        let tail=' Follow the energy to the next vein when ready.';
+        if(!S.contractAwake&&S.drained>=TRIANGULATE_AT){
+          S.contractAwake=true;
+          S.bearings=[];
+          tail=' The contract vein has stirred deep in the zone — it gives off no pulses, so take bearings from stray energy pockets to triangulate it.';
         }
         msg(`Vein drained at ${tier} tier — +${condensedEarned} Condensed Crystal.${tail}`);
         shakeScreen(4,0.3);showRewardChoice(tier);
@@ -3578,27 +3831,16 @@ function update(dt){
 
   {const vm=S.mods.visionMult;
   S.nodes.forEach(n=>{if(!n.found&&dist(n,B)<BASE_VISION*vm)n.found=true});
-  S.veins.forEach(v=>{if(v.contract&&S.veins.filter(x=>x.done&&!x.contract).length<TRIANGULATE_AT)return;
-    if(!v.done&&!v.mine.found&&(dist(v.mine,B)<BASE_VISION*vm||S.troops.some(t=>dist(v.mine,t)<TROOP_VISION*vm*S.mods.squadRangeMult)||S.harvesters.some(h=>dist(v.mine,h)<HARV_VISION*vm)||S.builders.some(bu=>dist(v.mine,bu)<BUILDER_VISION*vm))){v.mine.found=true;v.ripeT=0}});}
-  // ripening: every found vein the Bastion isn't locked onto climbs toward its peak, goes
-  // unstable, then collapses back to its floor and starts over. Hotspots drift; a ruptured vein's
-  // cracked timer runs down.
-  S.veins.forEach((v,i)=>{
-    updateHotspots(v);
-    if(v.crackedT>0)v.crackedT=Math.max(0,v.crackedT-dt);
-    if(!v.mine.found||v.done||S.activeVein===v)return;
-    const prevIdx=ripeIdx(v), wasUnstable=isUnstable(v);
-    v.ripeT=(v.ripeT||0)+dt;
-    if(v.ripeT>=ripePeakT(v)+UNSTABLE_T){
-      v.ripeT=0;
-      msg(`Vein ${i+1} collapsed back to ${ripeTier(v)} tier.`);
-      burst(v.x,v.y,C.enemy,16,120,0.5);
-    }else if(ripeIdx(v)>prevIdx){
-      if(isUnstable(v))msg(`Vein ${i+1} has peaked at ${ripeTier(v)} — it's unstable and will collapse in ${UNSTABLE_T}s.`);
-    }else if(!wasUnstable&&isUnstable(v)){
-      msg(`Vein ${i+1} is unstable — it will collapse in ${UNSTABLE_T}s.`);
-    }
-  });
+  // A vein is SEEN once any of your units' sight reaches into its zone; its mining point is FOUND
+  // once sight reaches the point itself. The contract vein is never found by sight — only by
+  // triangulating it (see takeBearing).
+  {const sees=(p,extra)=>dist(p,B)<BASE_VISION*vm+extra||S.troops.some(t=>dist(p,t)<TROOP_VISION*vm*S.mods.squadRangeMult+extra)||S.harvesters.some(h=>dist(p,h)<HARV_VISION*vm+extra)||S.builders.some(bu=>dist(p,bu)<BUILDER_VISION*vm+extra);
+  S.veins.forEach(v=>{if(v.contract||!veinAlive(v))return;
+    if(!v.seen&&sees(v,v.r*0.6))v.seen=true;
+    if(!v.mine.found&&sees(v.mine,0)){v.mine.found=true;v.seen=true}});}}
+  // veins ripen, peak, collapse and re-emerge elsewhere; stray pockets give bearings
+  updateVeinLife(dt);
+  updateStrays(dt);
   // unit separation (troops + harvesters + builders) — don't let crowding shove anyone through a wall
   {const all=S.troops.concat(S.harvesters).concat(S.builders);
   for(let i=0;i<all.length;i++)for(let j=i+1;j<all.length;j++){const a=all[i],b=all[j],d=dist(a,b);
@@ -3959,9 +4201,8 @@ function drawFollowGlyph(x,y){
 // cold and dark once drained.
 function veinEnergy(v){
   const t=S.t;
-  if(v.done)return {col:'#3a3f47',glow:0,core:0.35};
+  if(v.done||v.collapsed){const f=Math.min(1,(v.goneT||0)/3);return {col:v.collapsed&&f<1?C.enemy:'#3a3f47',glow:v.collapsed?0.4*(1-f):0,core:0.35}}
   if(v.contract)return {col:C.living,glow:0.6+0.25*Math.sin(t*2),core:0.9};
-  if(!v.mine.found)return {col:'#7d6aa6',glow:0.2,core:0.4};
   if(v.crackedT>0)return {col:C.enemy,glow:0.25+0.35*Math.random(),core:0.6,jitter:1};
   const cur=S.activeVein===v;
   if(cur&&v.meter&&v.meter.phase==='drill'){const th=S.throttleMul;return {col:CARD_TIER_COLOR[v.meter.yieldTier],glow:0.75+0.25*Math.sin(t*6*th),core:1,flow:th}}
@@ -4066,7 +4307,7 @@ function draw(){
   ctx.stroke();
   // veins
   S.veins.forEach((v,i)=>{
-    if(v.contract&&!v.mine.found&&!debugNoFog){return}
+    if(!debugNoFog&&(v.contract?!v.mine.found:!v.seen))return; // unsighted veins only show as energy pulses
     if(v.x+v.r+60<x0||v.x-v.r-60>x1||v.y+v.r+80<y0||v.y-v.r-60>y1)return; // off-screen
     const cur=S.activeVein===v;ctx.save();
     drawVeinCracks(v);
@@ -4091,7 +4332,7 @@ function draw(){
         ctx.restore();ctx.globalAlpha=0.9;
       }
     }
-    ctx.fillStyle=v.contract?C.living:C.zone;ctx.font='500 22px '+css('--mono');ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(v.done?'✓':String(i+1),v.x,v.y);
+    if(v.done||v.contract){ctx.fillStyle=v.contract?C.living:C.zone;ctx.font='500 22px '+css('--mono');ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(v.done?'✓':'◆',v.x,v.y)}
     if((v.mine.found||debugNoFog)&&!v.done){
       ctx.globalAlpha=1;ctx.save();ctx.translate(v.mine.x,v.mine.y);
       ctx.strokeStyle=C.dat;ctx.lineWidth=2;
@@ -4102,7 +4343,7 @@ function draw(){
     // ripeness readout above a scouted vein (hidden while it's locked on — the drill meter takes
     // over then): its current tier, and either the countdown to the next tier, or — once it has
     // peaked — the countdown to collapse, or a ruptured vein's cracked timer.
-    if(v.mine.found&&!v.done&&!cur){
+    if(v.seen&&veinAlive(v)&&!cur&&!v.contract){
       ctx.globalAlpha=1;
       const tier=ripeTier(v), col=CARD_TIER_COLOR[tier], ix=v.x, iy=v.y-v.r-28;
       let label, lc=col;
@@ -4310,6 +4551,8 @@ function draw(){
   S.particles.forEach(p=>{ctx.globalAlpha=Math.max(0,1-p.t/p.life);ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);ctx.fill()});ctx.globalAlpha=1;
   // fog
   if(!debugNoFog){ctx.imageSmoothingEnabled=true;ctx.drawImage(dimC,0,0,W,H)}
+  // energy pulses through the crack network, stray pockets and bearing beams — light, so above the fog
+  drawExplorationLight(x0-40,y0-40,x1+40,y1+40);
   // floating reward text (drawn above fog so it's always legible)
   S.floaters.forEach(f=>{ctx.globalAlpha=Math.max(0,1-f.t/f.life);ctx.fillStyle=f.col;ctx.font='700 13px '+css('--mono');ctx.textAlign='center';ctx.fillText(f.text,f.x,f.y)});ctx.globalAlpha=1;
   drawTutorialTarget();
@@ -4342,7 +4585,10 @@ function sanityBar(x,y,w,f){ctx.fillStyle='rgba(0,0,0,0.6)';ctx.fillRect(x-w/2,y
 function drawMini(){const s=mini.width/W;mctx.fillStyle='#10151b';mctx.fillRect(0,0,mini.width,mini.height);
   mctx.drawImage(terrainCv,0,0,W,H,0,0,mini.width,mini.height);
   if(!debugNoFog){mctx.save();mctx.scale(s,s);mctx.drawImage(dimC,0,0,W,H);mctx.restore()}
-  S.veins.forEach((v,i)=>{if(v.contract&&!v.mine.found&&!debugNoFog)return;mctx.strokeStyle=v.contract?C.living:C.zone;mctx.globalAlpha=v.done?0.3:1;mctx.beginPath();mctx.arc(v.x*s,v.y*s,v.r*s,0,Math.PI*2);mctx.stroke();mctx.globalAlpha=1});
+  // sighted veins in their tier colour (drained/collapsed ones faint), live strays, and bearing beams
+  S.veins.forEach(v=>{if(!debugNoFog&&(v.contract?!v.mine.found:!v.seen))return;mctx.strokeStyle=v.contract?C.living:CARD_TIER_COLOR[ripeTier(v)];mctx.globalAlpha=veinAlive(v)?1:0.3;mctx.lineWidth=1.5;mctx.beginPath();mctx.arc(v.x*s,v.y*s,Math.max(3,v.r*s),0,Math.PI*2);mctx.stroke();mctx.globalAlpha=1});
+  S.strays.forEach(st=>{if(!st.live)return;mctx.fillStyle=STRAY_COL;mctx.globalAlpha=0.6+0.4*Math.sin(S.t*3);mctx.beginPath();mctx.arc(st.x*s,st.y*s,2.5,0,Math.PI*2);mctx.fill();mctx.globalAlpha=1});
+  S.bearings.forEach(b=>{mctx.strokeStyle=b.target.contract?C.living:CARD_TIER_COLOR[ripeTier(b.target)];mctx.globalAlpha=0.7;mctx.lineWidth=1;mctx.setLineDash([3,3]);mctx.beginPath();mctx.moveTo(b.x*s,b.y*s);mctx.lineTo((b.x+Math.cos(b.ang)*4200)*s,(b.y+Math.sin(b.ang)*4200)*s);mctx.stroke();mctx.setLineDash([]);mctx.globalAlpha=1});
   S.nodes.forEach(n=>{if((n.found||debugNoFog)&&n.amt>0){mctx.fillStyle=C.dat;mctx.fillRect(n.x*s-1.5,n.y*s-1.5,3,3)}});
   S.relays.forEach(r=>{if(r.built){mctx.fillStyle=C.cable;mctx.fillRect(r.x*s-2,r.y*s-2,4,4)}});
   S.depots.forEach(de=>{if(de.built){mctx.fillStyle=de.hp>0?C.dat:C.enemy;mctx.fillRect(de.x*s-2,de.y*s-2,4,4)}});
@@ -4358,9 +4604,9 @@ function hud(){
   $('hDat').textContent=Math.floor(S.dat);$('hLiving').textContent=S.living;$('hCondensed').textContent=S.condensed;
   $('hBase').textContent=Math.ceil(B.hp)+' / '+B.maxHp;$('hBaseBar').style.width=(100*B.hp/B.maxHp)+'%';
   $('hBaseBar').classList.toggle('low',B.hp/B.maxHp<0.25);
-  const doneCount=S.veins.filter(v=>v.done).length;
   if(B.locked&&S.activeVein){
     const v=S.activeVein;
+    $('hObjK').textContent=v.contract?'Contract vein':'Vein';
     if(v.prepT>0){
       $('hObj').textContent=`warming up — ${Math.ceil(v.prepT)}s until drilling begins`;
       $('hObjBar').style.width='0%';
@@ -4386,8 +4632,11 @@ function hud(){
     }
   }else{
     const ready=canLockdown();
-    $('hObj').textContent=ready?`ready to drill (${currentTier(ready)} tier) — press L`:`${doneCount}/${S.veins.length} secured`;
-    $('hObjBar').style.width=(100*doneCount/S.veins.length)+'%';
+    const cv=S.veins.find(v=>v.contract);
+    $('hObjK').textContent=S.contractAwake?'Contract vein':'Veins';
+    $('hObj').textContent=ready?`ready to drill (${currentTier(ready)} tier) — press L`:
+      S.contractAwake?(cv&&cv.mine.found?'located — drill it to win':'triangulate it from stray energy'):`${S.drained}/${TRIANGULATE_AT} drained`;
+    $('hObjBar').style.width=(100*Math.min(1,S.drained/TRIANGULATE_AT))+'%';
   }
   updateMeterUI();
   $('cntTroops2').textContent=S.troops.length;
