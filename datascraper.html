@@ -426,6 +426,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <div class="menuMeta">
     <button id="recordingToggleBtn" class="metaUnlock secondary"></button>
     <button id="debugUnlockAllBtn" class="metaUnlock secondary">[Debug] Unlock everything free</button>
+    <button id="debugWipeUpgradesBtn" class="metaUnlock secondary">[Debug] Wipe upgrades</button>
   </div>
   <button id="settingsBackBtn" class="secondary">Back</button>
 </div>
@@ -610,7 +611,9 @@ function loadMeta(){
       // — the consent screen shows until this becomes one of the other two).
       return {condensedBank:m.condensedBank|0,livingBank:m.livingBank|0,unlockArtillery:!!m.unlockArtillery,unlockGrenadier:!!m.unlockGrenadier,
         unlockMech:!!m.unlockMech,
-        upgrades:{bastionHp:mu.bastionHp|0,unitHp:mu.unitHp|0,pingRange:mu.pingRange|0},
+        // every stored tier, whatever the key — listing them by hand here silently dropped any
+        // upgrade added later (Rapid Loaders / Magnetic Collectors) on every page reload
+        upgrades:Object.fromEntries(Object.entries(mu).map(([k,v])=>[k,v|0])),
         recordingConsent:m.recordingConsent===true?true:m.recordingConsent===false?false:undefined};
     }
   }catch(e){}
@@ -1121,6 +1124,11 @@ function refreshMenuMeta(){
   rb.textContent=meta.recordingConsent?'Gameplay Recording: On (click to disable)':'Gameplay Recording: Off (click to enable)';
   const allUnlocked=UNLOCKS.every(u=>meta[u.flag]);
   document.getElementById('debugUnlockAllBtn').textContent=allUnlocked?'[Debug] Lock everything again':'[Debug] Unlock everything free';
+  const owned=Object.values(meta.upgrades).reduce((a,b)=>a+b,0);
+  const wb=document.getElementById('debugWipeUpgradesBtn');
+  wb.dataset.armed='';
+  wb.textContent=`[Debug] Wipe upgrades (${owned} tier${owned===1?'':'s'} owned)`;
+  wb.disabled=owned===0;
 }
 function renderUnlockCards(){
   document.getElementById('unlocksLiving').textContent=meta.livingBank;
@@ -1211,6 +1219,16 @@ document.getElementById('debugUnlockAllBtn').onclick=()=>{
   saveMeta();
   refreshMenuMeta();
   renderUnlockCards();
+};
+// Dev convenience: resets every permanent shop upgrade back to tier 0 (no Condensed Crystal
+// refund, and unit unlocks are left alone). Takes two clicks — the first arms it, the second wipes.
+document.getElementById('debugWipeUpgradesBtn').onclick=()=>{
+  const wb=document.getElementById('debugWipeUpgradesBtn');
+  if(!wb.dataset.armed){wb.dataset.armed='1';wb.textContent='[Debug] Click again to wipe all upgrades';return}
+  Object.keys(meta.upgrades).forEach(k=>{meta.upgrades[k]=0});
+  saveMeta();
+  refreshMenuMeta();
+  wb.textContent='[Debug] Upgrades wiped';
 };
 // Applies the player's stored choice to the actual PostHog client — opt_out_capturing_by_default
 // in the init config above means nothing records until this (or the consent screen) runs.
