@@ -1095,8 +1095,9 @@ document.getElementById('dmStrike').onclick=()=>doStrike();
 // The whole map is laced with cracks, generated with the terrain and baked into the ground as
 // dark, dead lines. Every live vein sends PULSES of energy out through them: an expanding ring
 // that lights up whichever cracks it's passing through, in the vein's ripe-tier colour, bright and
-// close-spaced near the vein and fading with distance. The light shows through the fog, so the way
-// to find a vein is to watch where the energy comes from and walk upstream. A vein itself only
+// close-spaced near the vein and fading with distance. Cracks and pulses only show inside your
+// units' current sight (the fog hides both), so the way to find a vein is to push scouts out, catch
+// energy moving through the cracks, and follow it upstream. A vein itself only
 // appears once a unit actually sees it (or a Ping or triangulation reveals it).
 // The network looks like cracked glass: fine lines that run straight, then kink sharply, and
 // split off at steep angles. Every segment has a DEPTH (0..1) — how deep and open that crack is —
@@ -1283,18 +1284,19 @@ function updateStrays(dt){
 }
 
 // ---- drawing ----
-function drawPulseRing(src,R,col,I,vx0,vy0,vx1,vy1){
+function drawPulseRing(src,R,col,I,vx0,vy0,vx1,vy1,c){
+  c=c||ctx;
   const pd=src.pd,pi=src.pi,net=S.crackNet,dep=S.crackDepth;
   const a=lowerBound(pd,R-2*PULSE_W), m=lowerBound(pd,R-PULSE_W), b=lowerBound(pd,R);
   if(a>=b)return;
   // drawn in three depth groups, each as bright as the light its cracks let through
-  const seg=(lo,hi,dlo,dhi)=>{ctx.beginPath();for(let k=lo;k<hi;k++){const i=pi[k],d=dep[i>>2];if(d<dlo||d>=dhi)continue;const x1=net[i],y1=net[i+1],x2=net[i+2],y2=net[i+3];
-    if((x1<vx0&&x2<vx0)||(x1>vx1&&x2>vx1)||(y1<vy0&&y2<vy0)||(y1>vy1&&y2>vy1))continue;ctx.moveTo(x1,y1);ctx.lineTo(x2,y2)}ctx.stroke()};
-  ctx.strokeStyle=col;
+  const seg=(lo,hi,dlo,dhi)=>{c.beginPath();for(let k=lo;k<hi;k++){const i=pi[k],d=dep[i>>2];if(d<dlo||d>=dhi)continue;const x1=net[i],y1=net[i+1],x2=net[i+2],y2=net[i+3];
+    if((x1<vx0&&x2<vx0)||(x1>vx1&&x2>vx1)||(y1<vy0&&y2<vy0)||(y1>vy1&&y2>vy1))continue;c.moveTo(x1,y1);c.lineTo(x2,y2)}c.stroke()};
+  c.strokeStyle=col;
   [[0,0.35],[0.35,0.65],[0.65,1.01]].forEach(([dlo,dhi])=>{
     const g=depthGlow((dlo+dhi)/2);
-    ctx.globalAlpha=0.25*I*g;ctx.lineWidth=2.4;seg(a,b,dlo,dhi);
-    ctx.globalAlpha=Math.min(1,I*g*1.1);ctx.lineWidth=1.1;seg(m,b,dlo,dhi);
+    c.globalAlpha=0.25*I*g;c.lineWidth=2.4;seg(a,b,dlo,dhi);
+    c.globalAlpha=Math.min(1,I*g*1.1);c.lineWidth=1.1;seg(m,b,dlo,dhi);
   });
 }
 // The crack network, drawn live each frame so the fog can hide it: the cracks in view go into a
@@ -1340,9 +1342,17 @@ function drawStrayPockets(vx0,vy0,vx1,vy1){
   });
   ctx.restore();
 }
-// Pulses and bearing beams are light — drawn above the fog.
-function drawExplorationLight(vx0,vy0,vx1,vy1){
-  ctx.save();ctx.globalCompositeOperation='lighter';ctx.lineCap='round';
+// Pulses (masked to current sight) and bearing beams — drawn after the fog.
+// Pulses go into their own screen-sized layer, which the vision mask then clears wherever nothing
+// can currently see — so, like the cracks themselves, they only show inside your units' sight —
+// and the layer is added onto the frame as light.
+let pulseLayer=document.createElement('canvas'), pulseLX=pulseLayer.getContext('2d');
+function drawExplorationLight(vx0,vy0,vx1,vy1,vw,vh,shkx,shky){
+  const dpr=devicePixelRatio, P=pulseLX;
+  if(pulseLayer.width!==cv.width||pulseLayer.height!==cv.height){pulseLayer.width=cv.width;pulseLayer.height=cv.height}
+  P.setTransform(1,0,0,1,0,0);P.globalCompositeOperation='source-over';P.clearRect(0,0,pulseLayer.width,pulseLayer.height);
+  P.setTransform(dpr,0,0,dpr,0,0);P.translate(vw/2+shkx,vh/2+shky);P.scale(cam.z,cam.z);P.translate(-cam.x,-cam.y);
+  P.globalCompositeOperation='lighter';P.lineCap='round';
   S.veins.forEach(v=>{
     if(v.contract||!veinAlive(v)||!v.pd)return;
     const drilling=S.activeVein===v&&v.meter&&v.meter.phase==='drill';
@@ -1354,15 +1364,17 @@ function drawExplorationLight(vx0,vy0,vx1,vy1){
       const fadeIn=Math.max(0,Math.min(1,(R-VEIN_GLOW_R*0.6)/(VEIN_GLOW_R*0.9)));
       if(fadeIn<=0)continue;
       const I=fadeIn*Math.pow(1-R/PULSE_REACH,2.2)*(uns?0.5+0.5*Math.random():1);
-      drawPulseRing(v,R,col,I,vx0,vy0,vx1,vy1);
+      drawPulseRing(v,R,col,I,vx0,vy0,vx1,vy1,P);
     }
   });
   S.strays.forEach((st,k)=>{
     if(!st.live||!st.pd)return;
     const R=((S.t+st.pulsePh)%PULSE_PERIOD)*PULSE_SPEED*0.7;
-    if(R<STRAY_REACH)drawPulseRing(st,R,STRAY_COL,0.55*Math.pow(1-R/STRAY_REACH,1.2),vx0,vy0,vx1,vy1);
+    if(R<STRAY_REACH)drawPulseRing(st,R,STRAY_COL,0.55*Math.pow(1-R/STRAY_REACH,1.2),vx0,vy0,vx1,vy1,P);
   });
-  ctx.globalCompositeOperation='source-over';
+  if(!debugNoFog){P.globalAlpha=1;P.globalCompositeOperation='destination-out';P.imageSmoothingEnabled=true;P.drawImage(fogMaskC,0,0,W,H)}
+  ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.globalCompositeOperation='lighter';ctx.globalAlpha=1;ctx.drawImage(pulseLayer,0,0);ctx.restore();
+  ctx.save();
   // bearing beams: dashed lines out from the stray they were taken at, in the target's colour
   S.bearings.forEach(b=>{
     const col=b.target.contract?C.living:CARD_TIER_COLOR[ripeTier(b.target)], L=4200;
@@ -4654,8 +4666,8 @@ function draw(){
   S.particles.forEach(p=>{ctx.globalAlpha=Math.max(0,1-p.t/p.life);ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);ctx.fill()});ctx.globalAlpha=1;
   // fog
   if(!debugNoFog){ctx.imageSmoothingEnabled=true;ctx.drawImage(dimC,0,0,W,H)}
-  // energy pulses through the crack network, stray pockets and bearing beams — light, so above the fog
-  drawExplorationLight(x0-40,y0-40,x1+40,y1+40);
+  // energy pulses through the crack network (only where something can see) and bearing beams
+  drawExplorationLight(x0-40,y0-40,x1+40,y1+40,vw,vh,shkx,shky);
   // floating reward text (drawn above fog so it's always legible)
   S.floaters.forEach(f=>{ctx.globalAlpha=Math.max(0,1-f.t/f.life);ctx.fillStyle=f.col;ctx.font='700 13px '+css('--mono');ctx.textAlign='center';ctx.fillText(f.text,f.x,f.y)});ctx.globalAlpha=1;
   drawTutorialTarget();
