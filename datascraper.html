@@ -399,6 +399,9 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 const W=5020,H=5020, CELL=24;
 const EPI={x:W/2,y:700};
 const CORE_R=1080, DENSE_R=2700;
+// Core enemies are a visibly tougher tier — black body, red outline — rather than just a palette
+// swap of the same stats.
+const CORE_ENEMY_HP_MULT=1.8;
 const BASE_R=30, BASE_SPEED=42, BUILD_R=270, BASE_VISION=450;
 // Squad firing cooldown, range +50% (165 -> 247.5).
 const TROOP_R=7, TROOP_SPEED=125, TROOP_VISION=340, TROOP_RANGE=247.5, TROOP_DMG=7, TROOP_CD=1.3;
@@ -492,26 +495,26 @@ const DRILL_RATE=0.5, THROTTLES=[0.5,1,1.8];
 // no progress, no Dat burn, and no wave/saboteur clocks running, same as being paused. Throttle
 // is still locked in up front; it just doesn't start spending/spawning until prep finishes.
 const PREP_TIME=60;
-const BASE_SPAWN_INTERVAL={rim:24,dense:15,core:9};
-const AMBIENT_INTERVAL={rim:45,dense:22,core:11};
+const BASE_SPAWN_INTERVAL={rim:24,dense:15,core:7};
+const AMBIENT_INTERVAL={rim:45,dense:22,core:7};
 // Off-zone mining pressure: parking harvesters on an open Dat Crystal cluster instead of locking
 // the Bastion down on a vein skips drilling's wave/saboteur spawns entirely — nothing stops the
 // player from just idling there farming forever. If harvesters bring in a lot of Dat Crystal in
 // a short window while the Bastion isn't drilling, send a patrol at wherever that mining is
 // actually happening, not just a single ambient wanderer.
 const OFFZONE_MINE_WINDOW=18, OFFZONE_MINE_THRESHOLD=60, OFFZONE_PATROL_COOLDOWN=40;
-const OFFZONE_PATROL_DIST=550, OFFZONE_PATROL_N={rim:3,dense:5,core:7};
+const OFFZONE_PATROL_DIST=550, OFFZONE_PATROL_N={rim:3,dense:5,core:10};
 // Waves for the vein being drilled always come from one fixed direction (rolled at lockdown),
 // not a random spot each time — far enough out that you can see them coming and react, not just
 // react to them already being on top of you.
-const WAVE_SPAWN_DIST=820, WAVE_BASE_N={rim:5,dense:10,core:16};
+const WAVE_SPAWN_DIST=820, WAVE_BASE_N={rim:5,dense:10,core:22};
 // Saboteurs are a separate threat while drilling: tiny, individually-fragile swarms that beeline
 // for whichever built Relay is nearest the vein (and opportunistically chew its cable on the way
 // there, same as any enemy near a cable), rather than joining the main wave's raid. A single one
 // dies to a stray hit; a whole pack left unchecked still shreds a cable fast. They spawn out past
 // the Relay itself, on the far side from the vein, so the swarm is visible closing in before it
 // arrives.
-const SABOTEUR_INTERVAL={rim:40,dense:26,core:16}, SABOTEUR_SPAWN_DIST=500, SABOTEUR_BASE_N={rim:4,dense:7,core:10};
+const SABOTEUR_INTERVAL={rim:40,dense:26,core:16}, SABOTEUR_SPAWN_DIST=500, SABOTEUR_BASE_N={rim:4,dense:7,core:14};
 // The drill burns Dat Crystal per second to run — the rate scales with throttle (so the TOTAL
 // cost to finish a vein is throttle-invariant, but a faster throttle demands a faster supply of
 // Dat or the drill literally stalls). CONDENSED_RATE converts how much faster than baseline
@@ -744,14 +747,22 @@ function reset(landing){
       const bx=Math.max(150,Math.min(W-150,px+Math.cos(ang)*len)),by=Math.max(150,Math.min(H-150,py+Math.sin(ang)*len));
       patrol={a:{x:px,y:py},b:{x:bx,y:by},dir:1};
     }
-    const packSize = band==='core'?rnd(6,10):band==='dense'?rnd(4,8):rnd(2,4);
+    const packSize = band==='core'?rnd(10,16):band==='dense'?rnd(4,8):rnd(2,4);
     for(let j=0;j<packSize;j++){const p=nearestPlain(px+rnd(-60,60),py+rnd(-60,60));spawnEnemy(p.x,p.y,'roam');if(patrol)S.enemies[S.enemies.length-1].patrol=patrol}}
   // a guard cluster camps each vein, sized by how deep it sits
   S.veins.forEach(v=>{
-    const n = v.band==='core'?rnd(14,20):v.band==='dense'?rnd(8,13):rnd(3,6);
+    const n = v.band==='core'?rnd(20,28):v.band==='dense'?rnd(8,13):rnd(3,6);
     for(let i=0;i<n;i++){const ang=rnd(0,Math.PI*2),rad=rnd(0,v.r*0.85);
       const p=nearestPlain(v.x+Math.cos(ang)*rad,v.y+Math.sin(ang)*rad);spawnEnemy(p.x,p.y,'roam')}
   });
+  // The Core is deliberately saturated on top of the scatter above — a guaranteed, heavy
+  // population across the whole band rather than relying on where the random packs happened to land.
+  for(let i=0;i<16;i++){
+    const px=rnd(150,W-150), py=rnd(Math.max(0,EPI.y-CORE_R),Math.min(H,EPI.y+CORE_R));
+    if(Math.hypot(px-S.base.x,py-S.base.y)<700)continue;
+    const packSize=rnd(6,10);
+    for(let j=0;j<packSize;j++){const p=nearestPlain(px+rnd(-60,60),py+rnd(-60,60));spawnEnemy(p.x,p.y,'roam')}
+  }
 
   cam={x:S.base.x,y:S.base.y,z:1};
   fogX.globalCompositeOperation='source-over'; fogX.fillStyle='#000'; fogX.fillRect(0,0,fogC.width,fogC.height);
@@ -960,7 +971,9 @@ function openMainMenu(){
 function spawnEnemy(x,y,kind){
   const big=kind==='wave'&&Math.random()<0.2;
   const sab=kind==='saboteur';
-  S.enemies.push({x,y,r:big?13:sab?4:8,hp:big?120:sab?4:34,maxHp:big?120:sab?4:34,speed:big?48:sab?105:78,dmg:big?12:sab?1.5:5,cd:0,kind,target:null,aggro:kind==='roam'?260:1e9,home:{x,y},ang:rnd(0,Math.PI*2),faceT:rnd(1,3)});
+  const core=bandAt(x,y)==='core';
+  const hp=Math.round((big?120:sab?4:34)*(core?CORE_ENEMY_HP_MULT:1));
+  S.enemies.push({x,y,r:big?13:sab?4:8,hp,maxHp:hp,speed:big?48:sab?105:78,dmg:big?12:sab?1.5:5,cd:0,kind,core,target:null,aggro:kind==='roam'?260:1e9,home:{x,y},ang:rnd(0,Math.PI*2),faceT:rnd(1,3)});
 }
 // Where the player's actual mining is happening right now — the average position of harvesters
 // currently working a node (falling back to all harvesters, then the Bastion) — rather than just
@@ -3050,8 +3063,9 @@ function draw(){
     if(!bu.tetherOk)drawCutGlyph(bu.x,bu.y); if(bu.following)drawFollowGlyph(bu.x,bu.y);
     if(sel&&bu.dest){ctx.strokeStyle='rgba(79,209,197,0.35)';ctx.beginPath();ctx.moveTo(bu.x,bu.y);ctx.lineTo(bu.dest.x,bu.dest.y);ctx.stroke()}});
   // enemies (only visible)
-  S.enemies.forEach(e=>{if(!debugNoFog&&!visible(e))return;const a=e.ang;ctx.fillStyle=e.flashT>0?'#fff':(e.kind==='roam'?'#d9775f':e.kind==='saboteur'?C.cable:e.kind==='corrupted'?C.zone:C.enemy);ctx.beginPath();
+  S.enemies.forEach(e=>{if(!debugNoFog&&!visible(e))return;const a=e.ang;ctx.fillStyle=e.flashT>0?'#fff':(e.core?'#0a0a0a':(e.kind==='roam'?'#d9775f':e.kind==='saboteur'?C.cable:e.kind==='corrupted'?C.zone:C.enemy));ctx.beginPath();
     ctx.moveTo(e.x+Math.cos(a)*e.r*1.3,e.y+Math.sin(a)*e.r*1.3);ctx.lineTo(e.x+Math.cos(a+2.5)*e.r,e.y+Math.sin(a+2.5)*e.r);ctx.lineTo(e.x+Math.cos(a-2.5)*e.r,e.y+Math.sin(a-2.5)*e.r);ctx.closePath();ctx.fill();
+    if(e.core){ctx.strokeStyle=e.flashT>0?'#fff':'#ff2a2a';ctx.lineWidth=1.5;ctx.stroke()}
     if(e.hp<e.maxHp)hpbar(e.x,e.y-e.r-8,e.r*2+4,e.hp/e.maxHp)});
   // tracers
   S.tracers.forEach(t=>{ctx.strokeStyle=t.col;ctx.globalAlpha=t.t/0.12;ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(t.x1,t.y1);ctx.lineTo(t.x2,t.y2);ctx.stroke()});ctx.globalAlpha=1;
