@@ -1109,6 +1109,17 @@ const NET_CRACKS_PER_MPX=11, PULSE_PERIOD=2.2, PULSE_SPEED=230, PULSE_REACH=600,
 const SITE_KNOT_MAINS=9, SITE_DEEPEN_R=800;
 // A vein's glow comes from its mining point and stays tight around it.
 const VEIN_GLOW_R=115;
+// Pulse timing by tier: richer veins draw energy in more often and faster; an unstable vein pulls
+// frantically. period = seconds between waves, travel = seconds for a wave to run in from
+// PULSE_REACH to the mining point.
+const PULSE_TIMING={Common:{period:2.4,travel:2.6},Rare:{period:1.8,travel:2.2},Epic:{period:1.3,travel:1.8},Legendary:{period:0.9,travel:1.4}};
+const PULSE_TIMING_UNSTABLE={period:0.22,travel:0.6};
+function pulseTier(v){
+  if(S.activeVein===v&&v.meter&&v.meter.phase==='drill')return v.meter.yieldTier;
+  if(S.activeVein===v&&v.lockIdx!=null)return TIER_LADDER[v.band][v.lockIdx];
+  return ripeTier(v);
+}
+function pulseTiming(v){return isUnstable(v)?PULSE_TIMING_UNSTABLE:PULSE_TIMING[pulseTier(v)]}
 // How much light a crack lets through: shallow hairlines barely glow, deep fissures blaze.
 function depthGlow(d){return 0.15+0.85*d*d}
 function genCrackNet(sites){
@@ -1202,6 +1213,8 @@ function updateVeinLife(dt){
   S.veins.forEach(v=>{
     updateHotspots(v);
     if(v.crackedT>0)v.crackedT=Math.max(0,v.crackedT-dt);
+    // the pulse clock counts waves, so changing the rate (tier up, going unstable) never jumps
+    if(!v.contract&&veinAlive(v))v.pulseClock=(v.pulseClock||0)+dt/pulseTiming(v).period;
     if(!veinAlive(v)||S.activeVein===v)return;
     if(holdsAtPeak(v)){v.ripeT=Math.min((v.ripeT||0)+dt,ripePeakT(v));return}
     const prevIdx=ripeIdx(v), wasUnstable=isUnstable(v);
@@ -1284,10 +1297,12 @@ function updateStrays(dt){
 }
 
 // ---- drawing ----
+// Pulses travel INWARD: the bright front is the inner edge of the band at radius R, with a fainter
+// trail just outside it — energy being drawn in toward the source.
 function drawPulseRing(src,R,col,I,vx0,vy0,vx1,vy1,c){
   c=c||ctx;
   const pd=src.pd,pi=src.pi,net=S.crackNet,dep=S.crackDepth;
-  const a=lowerBound(pd,R-2*PULSE_W), m=lowerBound(pd,R-PULSE_W), b=lowerBound(pd,R);
+  const a=lowerBound(pd,R), m=lowerBound(pd,R+PULSE_W), b=lowerBound(pd,R+2*PULSE_W);
   if(a>=b)return;
   // drawn in three depth groups, each as bright as the light its cracks let through
   const seg=(lo,hi,dlo,dhi)=>{c.beginPath();for(let k=lo;k<hi;k++){const i=pi[k],d=dep[i>>2];if(d<dlo||d>=dhi)continue;const x1=net[i],y1=net[i+1],x2=net[i+2],y2=net[i+3];
@@ -1296,7 +1311,7 @@ function drawPulseRing(src,R,col,I,vx0,vy0,vx1,vy1,c){
   [[0,0.35],[0.35,0.65],[0.65,1.01]].forEach(([dlo,dhi])=>{
     const g=depthGlow((dlo+dhi)/2);
     c.globalAlpha=0.25*I*g;c.lineWidth=2.4;seg(a,b,dlo,dhi);
-    c.globalAlpha=Math.min(1,I*g*1.1);c.lineWidth=1.1;seg(m,b,dlo,dhi);
+    c.globalAlpha=Math.min(1,I*g*1.1);c.lineWidth=1.1;seg(a,m,dlo,dhi);
   });
 }
 // The crack network, drawn live each frame so the fog can hide it: the cracks in view go into a
@@ -1329,16 +1344,32 @@ function drawCrackNet(vw,vh,shkx,shky,x0,y0,x1,y1){
 // Stray pockets sit UNDER the ground: drawn into the world pass right after the terrain (so units,
 // fog and everything else sit on top), with overlay and a light screen blend that brighten and tint
 // the ground's own texture rather than painting over it, plus only a faint bit of light at the core.
+// How clearly (0..1) something at p is in sight right now — the same soft falloff as the fog veil
+// (full sight inside 60% of a source's vision radius, fading to nothing at its edge).
+function sightAt(p){
+  if(debugNoFog)return 1;
+  const vm=S.mods.visionMult;let best=0;
+  const src=(x,y,r)=>{const d=Math.hypot(p.x-x,p.y-y);const f=d<=0.6*r?1:d>=r?0:1-(d-0.6*r)/(0.4*r);if(f>best)best=f};
+  src(S.base.x,S.base.y,BASE_VISION*vm);
+  S.pings.forEach(pg=>src(pg.x,pg.y,pg.r));
+  S.troops.forEach(t=>src(t.x,t.y,TROOP_VISION*vm*S.mods.squadRangeMult));
+  S.harvesters.forEach(h=>src(h.x,h.y,HARV_VISION*vm));
+  S.builders.forEach(bu=>src(bu.x,bu.y,BUILDER_VISION*vm));
+  return best;
+}
 function drawStrayPockets(vx0,vy0,vx1,vy1){
   ctx.save();
   S.strays.forEach((st,k)=>{
     if(!st.live||st.x<vx0-80||st.x>vx1+80||st.y<vy0-80||st.y>vy1+80)return;
+    const sight=sightAt(st); if(sight<=0)return; // hidden in the fog, like the cracks
+    ctx.save();ctx.globalAlpha=1;
     const p=0.5+0.5*Math.sin(S.t*2.2+k), Rg=58+8*p;
     const g=ctx.createRadialGradient(st.x,st.y,0,st.x,st.y,Rg);g.addColorStop(0,STRAY_COL);g.addColorStop(1,'rgba(191,239,255,0)');
-    ctx.globalCompositeOperation='overlay';ctx.globalAlpha=0.5+0.15*p;ctx.fillStyle=g;ctx.beginPath();ctx.arc(st.x,st.y,Rg,0,Math.PI*2);ctx.fill();
-    ctx.globalCompositeOperation='screen';ctx.globalAlpha=0.16+0.06*p;ctx.fillStyle=g;ctx.beginPath();ctx.arc(st.x,st.y,Rg,0,Math.PI*2);ctx.fill();
+    ctx.globalCompositeOperation='overlay';ctx.globalAlpha=(0.5+0.15*p)*sight;ctx.fillStyle=g;ctx.beginPath();ctx.arc(st.x,st.y,Rg,0,Math.PI*2);ctx.fill();
+    ctx.globalCompositeOperation='screen';ctx.globalAlpha=(0.16+0.06*p)*sight;ctx.fillStyle=g;ctx.beginPath();ctx.arc(st.x,st.y,Rg,0,Math.PI*2);ctx.fill();
     const c=ctx.createRadialGradient(st.x,st.y,0,st.x,st.y,Rg*0.45);c.addColorStop(0,STRAY_COL);c.addColorStop(1,'rgba(0,0,0,0)');
-    ctx.globalCompositeOperation='lighter';ctx.globalAlpha=0.1+0.06*p;ctx.fillStyle=c;ctx.beginPath();ctx.arc(st.x,st.y,Rg*0.45,0,Math.PI*2);ctx.fill();
+    ctx.globalCompositeOperation='lighter';ctx.globalAlpha=(0.1+0.06*p)*sight;ctx.fillStyle=c;ctx.beginPath();ctx.arc(st.x,st.y,Rg*0.45,0,Math.PI*2);ctx.fill();
+    ctx.restore();
   });
   ctx.restore();
 }
@@ -1356,21 +1387,23 @@ function drawExplorationLight(vx0,vy0,vx1,vy1,vw,vh,shkx,shky){
   S.veins.forEach(v=>{
     if(v.contract||!veinAlive(v)||!v.pd)return;
     const drilling=S.activeVein===v&&v.meter&&v.meter.phase==='drill';
-    const col=CARD_TIER_COLOR[drilling?v.meter.yieldTier:ripeTier(v)], uns=isUnstable(v);
-    for(let k=0;k<3;k++){
-      const R=(((S.t+v.pulsePh)%PULSE_PERIOD)+k*PULSE_PERIOD)*PULSE_SPEED;
-      if(R>PULSE_REACH)break;
-      // pulses fade in as they leave the zone, so there's no bright ring marking its edge
-      const fadeIn=Math.max(0,Math.min(1,(R-VEIN_GLOW_R*0.6)/(VEIN_GLOW_R*0.9)));
-      if(fadeIn<=0)continue;
-      const I=fadeIn*Math.pow(1-R/PULSE_REACH,2.2)*(uns?0.5+0.5*Math.random():1);
+    // waves run IN from PULSE_REACH to the mining point, always in the reward tier's colour —
+    // faint where they start, brightening as they converge, then sinking into the glow
+    const col=CARD_TIER_COLOR[pulseTier(v)], tm=pulseTiming(v), ph=(v.pulseClock||0)%1;
+    for(let j=0;j<12;j++){
+      const age=(ph+j)*tm.period; if(age>tm.travel)break;
+      const R=PULSE_REACH*(1-age/tm.travel);
+      const startIn=Math.min(1,age/(tm.travel*0.2));
+      const sink=Math.max(0,Math.min(1,(R-VEIN_GLOW_R*0.35)/(VEIN_GLOW_R*0.7)));
+      if(sink<=0)continue;
+      const I=startIn*sink*(0.2+0.8*Math.pow(1-R/PULSE_REACH,1.2));
       drawPulseRing(v,R,col,I,vx0,vy0,vx1,vy1,P);
     }
   });
   S.strays.forEach((st,k)=>{
     if(!st.live||!st.pd)return;
-    const R=((S.t+st.pulsePh)%PULSE_PERIOD)*PULSE_SPEED*0.7;
-    if(R<STRAY_REACH)drawPulseRing(st,R,STRAY_COL,0.55*Math.pow(1-R/STRAY_REACH,1.2),vx0,vy0,vx1,vy1,P);
+    const f=((S.t+st.pulsePh)%PULSE_PERIOD)/PULSE_PERIOD, R=STRAY_REACH*(1-f); // inward, like a vein's
+    if(R>12)drawPulseRing(st,R,STRAY_COL,0.55*Math.min(1,f*4)*(0.3+0.7*f),vx0,vy0,vx1,vy1,P);
   });
   if(!debugNoFog){P.globalAlpha=1;P.globalCompositeOperation='destination-out';P.imageSmoothingEnabled=true;P.drawImage(fogMaskC,0,0,W,H)}
   ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.globalCompositeOperation='lighter';ctx.globalAlpha=1;ctx.drawImage(pulseLayer,0,0);ctx.restore();
@@ -4312,7 +4345,7 @@ function veinEnergy(v){
   if(cur&&v.meter&&v.meter.phase==='drill'){const th=S.throttleMul;return {col:CARD_TIER_COLOR[v.meter.yieldTier],glow:0.75+0.25*Math.sin(t*6*th),core:1,flow:th}}
   if(cur)return {col:CARD_TIER_COLOR[TIER_LADDER[v.band][v.lockIdx]],glow:0.6+0.3*Math.sin(t*4),core:0.95};
   const tier=ripeTier(v), frac=Math.min(1,v.ripeT/Math.max(1,ripePeakT(v)));
-  if(isUnstable(v)){const u=unstableFrac(v);return {col:Math.sin(t*(8+14*u))>0.2?C.enemy:CARD_TIER_COLOR[tier],glow:0.55+0.4*Math.random(),core:0.95,jitter:1.5+2.5*u}}
+  if(isUnstable(v))return {col:C.enemy,glow:0.85+0.15*Math.sin(t*14),core:1}; // the centre runs red; incoming pulses keep the tier colour
   return {col:CARD_TIER_COLOR[tier],glow:0.45+0.2*Math.sin(t*(1.5+3*frac)),core:0.8};
 }
 function crackPath(pts,n,jit){
@@ -4702,7 +4735,7 @@ function drawMini(){const s=mini.width/W;mctx.fillStyle='#10151b';mctx.fillRect(
   if(!debugNoFog){mctx.save();mctx.scale(s,s);mctx.drawImage(dimC,0,0,W,H);mctx.restore()}
   // sighted veins in their tier colour (drained/collapsed ones faint), live strays, and bearing beams
   S.veins.forEach(v=>{if(!debugNoFog&&(v.contract?!v.mine.found:!v.seen))return;mctx.strokeStyle=v.contract?C.living:CARD_TIER_COLOR[ripeTier(v)];mctx.fillStyle=mctx.strokeStyle;mctx.globalAlpha=veinAlive(v)?1:0.3;mctx.beginPath();mctx.arc(v.x*s,v.y*s,2.5,0,Math.PI*2);mctx.fill();mctx.globalAlpha=1});
-  S.strays.forEach(st=>{if(!st.live)return;mctx.fillStyle=STRAY_COL;mctx.globalAlpha=0.6+0.4*Math.sin(S.t*3);mctx.beginPath();mctx.arc(st.x*s,st.y*s,2.5,0,Math.PI*2);mctx.fill();mctx.globalAlpha=1});
+  S.strays.forEach(st=>{if(!st.live||sightAt(st)<=0)return;mctx.fillStyle=STRAY_COL;mctx.globalAlpha=0.6+0.4*Math.sin(S.t*3);mctx.beginPath();mctx.arc(st.x*s,st.y*s,2.5,0,Math.PI*2);mctx.fill();mctx.globalAlpha=1});
   S.bearings.forEach(b=>{mctx.strokeStyle=b.target.contract?C.living:CARD_TIER_COLOR[ripeTier(b.target)];mctx.globalAlpha=0.7;mctx.lineWidth=1;mctx.setLineDash([3,3]);mctx.beginPath();mctx.moveTo(b.x*s,b.y*s);mctx.lineTo((b.x+Math.cos(b.ang)*4200)*s,(b.y+Math.sin(b.ang)*4200)*s);mctx.stroke();mctx.setLineDash([]);mctx.globalAlpha=1});
   S.nodes.forEach(n=>{if((n.found||debugNoFog)&&n.amt>0){mctx.fillStyle=C.dat;mctx.fillRect(n.x*s-1.5,n.y*s-1.5,3,3)}});
   S.relays.forEach(r=>{if(r.built){mctx.fillStyle=C.cable;mctx.fillRect(r.x*s-2,r.y*s-2,4,4)}});
