@@ -5056,7 +5056,7 @@ fetch(`https://api.github.com/repos/lexastro/astroscraper/commits?sha=master&per
     renderChangelog(list);
   })
   .catch(()=>renderChangelog(cachedChangelog()));
-window.DEBUG_T=()=>({S,cam,draw,update});document.getElementById('changesBtn').onclick=()=>{const p=document.getElementById('changesPanel');p.hidden=!p.hidden};
+document.getElementById('changesBtn').onclick=()=>{const p=document.getElementById('changesPanel');p.hidden=!p.hidden};
 document.getElementById('changesClose').onclick=()=>{document.getElementById('changesPanel').hidden=true};
 // Gameplay recording consent: ask once, up front, before the main menu is usable; a past choice
 // (allowed or disabled) is applied straight away instead of asking again.
