@@ -2054,7 +2054,7 @@ const TUTORIAL_STEPS=[
    done:()=>S.base.locked},
   {title:'Build a Turret',
    text:()=>`The first wave takes about 20 seconds to arrive after you lock on — dig in. Press <kbd>Q</kbd> and click inside the Bastion's ring to launch a <b>Turret</b>. Nothing costs Dat — the Bastion's fabricators hold a few charges of each thing it can make, and refill them over time.`,
-   target:()=>({x:S.base.x,y:S.base.y,r:BUILD_R}),
+   target:()=>({x:S.base.x,y:S.base.y,r:bastionReach()}),
    done:()=>S.turrets.some(t=>t.built)},
   {title:'Hold the line',
    text:()=>`Waves attack from the direction of the red arrow. Keep your Squads near the Bastion — press <kbd>3</kbd> to deploy another from the fabricator. Press <kbd>E</kbd> and click a vein's glowing hotspot to fire a Stabilizer at it: it steadies the drill needle. Hold out until the vein is drained.`,
@@ -2064,7 +2064,7 @@ const TUTORIAL_STEPS=[
    done:()=>!S.rewardChoice},
   {title:'Extend your reach with Relays',
    text:()=>`Out on the Rim, your units' wireless link works anywhere. Deeper in, they need a cable back to the Bastion or a <b>Relay</b>, or they lose signal and slowly go mad. Press <kbd>2</kbd> and launch a Relay near the edge of the Bastion's ring.`,
-   target:()=>({x:S.base.x,y:S.base.y,r:BUILD_R}),
+   target:()=>({x:S.base.x,y:S.base.y,r:bastionReach()}),
    done:()=>S.relays.some(r=>r.built)},
   {title:"That's the loop",
    text:()=>`Scout a vein, drill it, defend it, take an upgrade, push deeper. Veins nearer the Black Flame pay far more but are guarded far harder. Drain three and the hidden <b>contract vein</b> reveals itself — drain that to win the run. Crystal you bring home buys permanent upgrades between runs.`,
@@ -3766,14 +3766,17 @@ function rightClick(w){
     });
   }
 }
+// v2: the Bastion launches turrets, relays and Stabilizers (and powers turrets) out to the edge of
+// its own sight — the same reach as its gun. Relays keep their own BUILD_R ring.
+function bastionReach(){return BASE_VISION*S.mods.visionMult}
 function inBuildRange(w){
-  if(dist(w,S.base)<=BUILD_R)return true;
+  if(dist(w,S.base)<=bastionReach())return true;
   return S.relays.some(r=>r.built&&dist(w,r)<=BUILD_R);
 }
 // A Turret needs power from the Bastion or a live Relay within the same range you were allowed
 // to build it in — sever or destroy the Relay it was leaning on and it goes dark along with it.
 function turretPowered(tu){
-  if(dist(tu,S.base)<=BUILD_R)return true;
+  if(dist(tu,S.base)<=bastionReach())return true;
   return S.relays.some(r=>r.built&&r.tetherOk&&dist(tu,r)<=BUILD_R);
 }
 // Same boundary as turretPowered: a harvester's auto-gather only chases deposits within the
@@ -3789,7 +3792,7 @@ function inHarvestRange(p){
 function fireStabilizer(w){
   if(S.stabCharges<=0){msg(`No Stabilizer charges — one recharges every ${STAB_RECHARGE_T}s.`);return}
   const d=dist(w,S.base);
-  if(d>STAB_RANGE){msg('Out of Stabilizer range — get the Bastion closer.');return}
+  if(d>bastionReach()){msg('Out of Stabilizer range — get the Bastion closer.');return}
   S.stabShots.push({x0:S.base.x,y0:S.base.y,tx:w.x,ty:w.y,t:0,dur:Math.max(0.45,d/STAB_FLIGHT_SPEED),spin:rnd(2,4)*(rnd(0,1)<0.5?-1:1)});
   if(S.stabCharges===STAB_CHARGES)S.stabRechargeT=STAB_RECHARGE_T;
   S.stabCharges--;
@@ -5260,7 +5263,7 @@ function draw(){
     ctx.globalAlpha=1;ctx.restore();
   });
   // build ring
-  ctx.setLineDash([6,10]);ctx.strokeStyle='rgba(242,182,60,0.35)';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(B.x,B.y,BUILD_R,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
+  ctx.setLineDash([6,10]);ctx.strokeStyle='rgba(242,182,60,0.35)';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(B.x,B.y,bastionReach(),0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
   if(buildMode)S.relays.forEach(r=>{if(!r.built)return;ctx.setLineDash([6,10]);ctx.strokeStyle='rgba(242,182,60,0.35)';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(r.x,r.y,BUILD_R,0,Math.PI*2);ctx.stroke();ctx.setLineDash([])});
   // walls
   S.walls.forEach(w=>{
@@ -5466,9 +5469,9 @@ function draw(){
     ctx.beginPath();ctx.arc(mouse.wx,mouse.wy,6/cam.z,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1}
   // Stabilizer aiming: the Bastion's firing range, a line out to the cursor, and the landing spot
   // with the flight time — hotspots keep drifting while it's in the air, so lead them
-  if(buildMode==='stabilizer'){const d=dist({x:mouse.wx,y:mouse.wy},B),ok=d<=STAB_RANGE&&S.stabCharges>0,col=ok?'#8fe3ff':C.enemy;
+  if(buildMode==='stabilizer'){const d=dist({x:mouse.wx,y:mouse.wy},B),ok=d<=bastionReach()&&S.stabCharges>0,col=ok?'#8fe3ff':C.enemy;
     ctx.save();ctx.strokeStyle='#8fe3ff';ctx.globalAlpha=0.35;ctx.lineWidth=1.5/cam.z;ctx.setLineDash([10/cam.z,8/cam.z]);
-    ctx.beginPath();ctx.arc(B.x,B.y,STAB_RANGE,0,Math.PI*2);ctx.stroke();
+    ctx.beginPath();ctx.arc(B.x,B.y,bastionReach(),0,Math.PI*2);ctx.stroke();
     ctx.globalAlpha=0.5;ctx.strokeStyle=col;ctx.beginPath();ctx.moveTo(B.x,B.y);ctx.lineTo(mouse.wx,mouse.wy);ctx.stroke();ctx.setLineDash([]);
     ctx.globalAlpha=0.9;ctx.lineWidth=2/cam.z;ctx.beginPath();ctx.arc(mouse.wx,mouse.wy,STAB_SNAP,0,Math.PI*2);ctx.stroke();
     ctx.fillStyle=col;ctx.font='600 12px '+css('--mono');ctx.textAlign='center';ctx.fillText(`${Math.max(0.45,d/STAB_FLIGHT_SPEED).toFixed(1)}s`,mouse.wx,mouse.wy-STAB_SNAP-8);
