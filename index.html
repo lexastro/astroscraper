@@ -131,7 +131,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 #dmYield{font-weight:700;font-size:12px}
 #dmCanvas{display:block;flex:1;min-width:0;height:44px;border-radius:3px}
 .dmBody{display:flex;gap:8px;align-items:center}
-#dmPad{display:block;flex:none;width:72px;height:72px;background:#0b0f14;border:1px solid var(--line);border-radius:4px;cursor:grab;touch-action:none}
+#dmPad{display:block;flex:none;width:132px;height:132px;background:#0b0f14;border:1px solid var(--line);border-radius:4px;cursor:grab;touch-action:none}
 #dmPad:active{cursor:grabbing}
 #dmPad[hidden]{display:none}
 .dmFoot{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:6px;color:var(--muted);min-height:26px}
@@ -330,7 +330,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   .tutPanel{top:calc(env(safe-area-inset-top,0px) + 52px);max-height:calc(100vh - 140px);overflow-y:auto}
   .toasts{top:calc(env(safe-area-inset-top,0px) + 56px)}
   .drillMeter{bottom:calc(68px + env(safe-area-inset-bottom,0px));padding:5px 8px 6px;width:min(420px,calc(100vw - 32px))}
-  #dmPad{width:54px;height:54px} #dmHint{display:none} .dmFoot{min-height:0;margin-top:3px} .dmHead{margin-bottom:3px}
+  #dmPad{width:96px;height:96px} #dmHint{display:none} .dmFoot{min-height:0;margin-top:3px} .dmHead{margin-bottom:3px}
   .help.open{inset:6% 6%;max-height:88vh}
 }
 /* While the menus are up, the world behind them stays hidden — nothing about the next map shows. */
@@ -381,7 +381,7 @@ body.inMenu :is(#game,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMeter,.mini,.
      warm-up, sweeps for the strike, then tracks the drifting needle and settled yield. -->
 <div class="drillMeter" id="drillMeter" hidden>
   <div class="dmHead"><span id="dmTitle">Drill meter</span><span id="dmYield"></span></div>
-  <div class="dmBody"><canvas id="dmCanvas" width="440" height="44"></canvas><canvas id="dmPad" width="72" height="72" hidden title="Drag the weight to steer the drill needle"></canvas></div>
+  <div class="dmBody"><canvas id="dmCanvas" width="440" height="44"></canvas><canvas id="dmPad" width="132" height="132" hidden title="Drag the weight to steer the drill needle"></canvas></div>
   <div class="dmFoot"><span id="dmHint"></span><button id="dmStrike" hidden>Strike <span class="key">Space</span></button></div>
 </div>
 
@@ -733,7 +733,7 @@ const DRILL_RATE=0.5, THROTTLES=[0.5,1,1.8];
 // no progress, no Dat burn, and no wave/saboteur clocks running, same as being paused. Throttle
 // is still locked in up front; it just doesn't start spending/spawning until prep finishes.
 const PREP_TIME=60;
-const BASE_SPAWN_INTERVAL={rim:24,dense:15,core:7};
+const BASE_SPAWN_INTERVAL={rim:15,dense:12,core:7}; // v4: Rim/Dense waves come much sooner
 const AMBIENT_INTERVAL={rim:45,dense:22,core:7};
 // Off-zone mining pressure: parking harvesters on an open Dat Crystal cluster instead of locking
 // the Bastion down on a vein skips drilling's wave/saboteur spawns entirely — nothing stops the
@@ -750,13 +750,13 @@ const WAVE_FRONT_HALF=260; // half-width of the line a wave spawns along, across
 // WAVE_SPAWN_DIST, so it arrives as drilling starts.
 const FIRST_WAVE_LEAD=9;
 const STAB_HUNTER_FRAC=0.35; // share of each drilling wave sent after the Stabilizers
-const WAVE_SPAWN_DIST=820,WAVE_BASE_N={rim:5,dense:10,core:22};
+const WAVE_SPAWN_DIST=820,WAVE_BASE_N={rim:9,dense:12,core:22};
 // v2: the vein's tier sets the threat on top of the zone. It follows the drill meter's live yield
 // (the tier the needle has mostly sat in over the last few seconds), so holding a rich band draws
 // a bigger, faster swarm, and easing down a tier eases off. n = wave size, rate = how much sooner
 // waves come, big = share of heavies, hunt = share sent after the Stabilizers. Deeper zones scale
 // by less (TIER_THREAT_BAND) since their base pressure is already high.
-const TIER_THREAT={Common:{n:0.7,rate:0.85,big:0.1,hunt:0.25},Rare:{n:1,rate:1,big:0.2,hunt:0.35},
+const TIER_THREAT={Common:{n:0.85,rate:0.95,big:0.1,hunt:0.25},Rare:{n:1,rate:1,big:0.2,hunt:0.35},
   Epic:{n:1.6,rate:1.3,big:0.3,hunt:0.45},Legendary:{n:2.4,rate:1.6,big:0.4,hunt:0.55},Hive:{n:3,rate:1.8,big:0.5,hunt:0.6}};
 const TIER_THREAT_BAND={rim:1,dense:0.75,core:0.5};
 // Saboteurs are a separate threat while drilling: tiny, individually-fragile swarms that beeline
@@ -765,7 +765,7 @@ const TIER_THREAT_BAND={rim:1,dense:0.75,core:0.5};
 // dies to a stray hit; a whole pack left unchecked still shreds a cable fast. They spawn out past
 // the Relay itself, on the far side from the vein, so the swarm is visible closing in before it
 // arrives.
-const SABOTEUR_INTERVAL={rim:40,dense:26,core:16}, SABOTEUR_SPAWN_DIST=500, SABOTEUR_BASE_N={rim:4,dense:7,core:14};
+const SABOTEUR_INTERVAL={rim:28,dense:22,core:16}, SABOTEUR_SPAWN_DIST=500, SABOTEUR_BASE_N={rim:5,dense:8,core:14};
 // The drill burns Dat Crystal per second to run — the rate scales with throttle (so the TOTAL
 // cost to finish a vein is throttle-invariant, but a faster throttle demands a faster supply of
 // Dat or the drill literally stalls). CONDENSED_RATE converts how much faster than baseline
@@ -1086,8 +1086,8 @@ function hotspotAt(w){
 // neighbour the one you hit. The tier paid is the one the needle has spent the most of its recent
 // time in (~METER_AVG_T seconds), so a moment's wobble is forgiven. Touching red ruptures the vein.
 const STRIP_W={Rare:0.10,Epic:0.07,Legendary:0.045,Hive:0.045}, STRIP_JACKPOT_W=0.018, STRIP_RED_W=0.05;
-const STAB_WIDEN=0.3, STRIKE_SHRINK_T=12, STRIKE_SHRINK_MIN=0.2, STRIKE_SWEEP_T=1.6, ZOOM_HALF=0.18, ZOOM_T=0.55, METER_AVG_T=6;
-const METER_TURB={Common:0.14,Rare:0.18,Epic:0.24,Legendary:0.3,Hive:0.32}, METER_K_BASE=1.0, METER_K_STAB=3.5;
+const STAB_WIDEN=0.2, STRIKE_SHRINK_T=12, STRIKE_SHRINK_MIN=0.2, STRIKE_SWEEP_T=1.6, ZOOM_HALF=0.18, ZOOM_T=0.55, METER_AVG_T=6;
+const METER_TURB={Common:0.17,Rare:0.22,Epic:0.29,Legendary:0.36,Hive:0.38}, METER_K_BASE=1.0, METER_K_STAB=3.5;
 function buildStrip(v){
   const ladder=veinLadder(v), idx=v.lockIdx!=null?v.lockIdx:ripeIdx(v);
   const floor=ladder[0], ripe=ladder[idx], ri=TIER_ORDER_ALL.indexOf(ripe), above=ri>=0?TIER_ORDER_ALL[ri+1]:null; // nothing above Hive
@@ -1215,7 +1215,7 @@ let padScale=1;
 function drawSteerPad(v){
   const pad=document.getElementById('dmPad'), m=v.meter, show=m.phase!=='strike';
   pad.hidden=!show; if(!show)return;
-  const dpr=devicePixelRatio||1, cssS=pad.clientWidth||72, S2=Math.round(cssS*dpr); if(pad.width!==S2){pad.width=pad.height=S2}
+  const dpr=devicePixelRatio||1, cssS=pad.clientWidth||132, S2=Math.round(cssS*dpr); if(pad.width!==S2){pad.width=pad.height=S2}
   const g=pad.getContext('2d'), sv=steerState(v), sh=sv.sh, c0=S2/2;
   padScale=(cssS/2-7)/(0.8*v.r); const P=(x,y)=>[c0+x*padScale*dpr,c0+y*padScale*dpr];
   g.clearRect(0,0,S2,S2);
@@ -1370,7 +1370,7 @@ function emergeVein(site,o){
   {const src={x:v.mine.x,y:v.mine.y};indexPulse(src,o.contract?VEIN_GLOW_R:Math.max(v.reach,VEIN_GLOW_R));v.pd=src.pd;v.pi=src.pi}
   // a guard cluster camps every vein, sized by how deep it sits
   if(o.guards!==false){
-    const n=v.band==='core'?rnd(20,28):v.band==='dense'?rnd(8,13):rnd(3,6);
+    const n=v.band==='core'?rnd(20,28):v.band==='dense'?rnd(10,15):rnd(6,10);
     for(let i=0;i<n;i++){const a=rnd(0,Math.PI*2),rr=rnd(0,v.r*0.85);
       const p=nearestPlain(v.x+Math.cos(a)*rr,v.y+Math.sin(a)*rr);spawnEnemy(p.x,p.y,'roam')}
   }
@@ -2330,7 +2330,7 @@ const NEST={
 };
 const NEST_BAND_MULT={rim:1,dense:1.5,core:2}; // brood/patrol/guard counts scale with depth
 const NEST_START={rim:{n:6,mix:[0.7,0.3]},dense:{n:6,mix:[0.3,0.5]},core:{n:4,mix:[0,0.4]}}; // mix: small, medium share (rest large)
-const NEST_FEED_R=1200, NEST_STRAGGLERS=0.4, NEST_GAP=550, NEST_BASE_CLEAR=900;
+const NEST_FEED_R=1600, NEST_STRAGGLERS=0.75, NEST_GAP=550, NEST_BASE_CLEAR=900;
 const NEST_SPROUT_T=140, NEST_CAP=22, NEST_DEFEND_CD=7, NEST_GROW_QUIET=15, NEST_PATROL_REACH=[450,900];
 const nestScaled=(n,k)=>Math.max(1,Math.round(k*NEST_BAND_MULT[n.band]));
 const liveNests=()=>S.enemies.filter(e=>e.kind==='nest'&&e.hp>0);
@@ -4187,13 +4187,27 @@ function veinThreat(v){
 }
 function veinWaveInterval(v){return BASE_SPAWN_INTERVAL[v.band]/veinThreat(v).rate}
 function compassName(a){const c=Math.cos(a),s=Math.sin(a);return (s>0.38?'south':s<-0.38?'north':'')+(c>0.38?'east':c<-0.38?'west':'')}
+// v4: the Stabilizer carrying the most of the steering weight draws a share of every wave
+// (WAVE_STRAIN_SHARE, more the harder it's loaded) straight at it from out past it, the rest still
+// coming from the nests (or the vein's wave line). Returns the extra message, or ''.
+const WAVE_STRAIN_SHARE=0.3, WAVE_STRAIN_MIN=0.2;
+function strainedStab(v){let best=null;veinStabs(v).forEach(st=>{if((st.strain||0)>WAVE_STRAIN_MIN&&(!best||st.strain>best.strain))best=st});return best}
+function spawnAtStab(v,st,k,th){
+  const dx=st.x-v.x,dy=st.y-v.y,L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L,R=WAVE_SPAWN_DIST*0.75;
+  for(let i=0;i<k;i++){const lat=rnd(-180,180);
+    const p=nearestPlain(Math.max(20,Math.min(W-20,st.x+ux*R-uy*lat)),Math.max(20,Math.min(H-20,st.y+uy*R+ux*lat)));
+    spawnEnemy(p.x,p.y,'wave',{bigP:th.big});const e=S.enemies[S.enemies.length-1];e.stabHunter=true;e.focusStab=st}
+}
 function spawnVeinWave(v){
   const th=veinThreat(v);
   // the nests within reach of the vein are what answers the drill: each one swells the wave and
   // sends its share from where it sits. No nest nearby: just stragglers from the vein's wave line.
   const feeders=liveNests().filter(nn=>dist(nn,v)<NEST_FEED_R);
   const feed=feeders.reduce((t,nn)=>t+NEST[nn.size].feed,0);
-  const n=Math.max(1,Math.round(WAVE_BASE_N[v.band]*th.n*(feeders.length?Math.min(3,0.4+0.6*feed):NEST_STRAGGLERS)));
+  let n=Math.max(1,Math.round(WAVE_BASE_N[v.band]*th.n*(feeders.length?Math.min(3,0.4+0.6*feed):NEST_STRAGGLERS)));
+  const ss=strainedStab(v);let strainMsg='';
+  if(ss){const k=Math.max(1,Math.round(n*(WAVE_STRAIN_SHARE+0.3*ss.strain)));spawnAtStab(v,ss,k,th);n=Math.max(1,n-k);
+    strainMsg=` A pack is circling in on the Stabilizer you're leaning on.`}
   const heavy=th.tier==='Legendary'?'A huge wave':th.tier==='Epic'?'A heavy wave':'Wave';
   const why=th.tier==='Epic'||th.tier==='Legendary'?` — the ${th.tier} yield is drawing them in`:'';
   if(feeders.length){
@@ -4203,7 +4217,7 @@ function spawnVeinWave(v){
       if(k>0)nestSpawn(nn,k,'wave',{bigP:th.big}).forEach(e=>{if(rnd(0,1)<th.hunt)e.stabHunter=true});
     });
     const top=feeders[0];
-    msg(`${heavy} pouring out of ${feeders.length>1?feeders.length+' nests':'the nest'} to the ${compassName(Math.atan2(top.y-v.y,top.x-v.x))||'near side'}${why}.`);
+    msg(`${heavy} pouring out of ${feeders.length>1?feeders.length+' nests':'the nest'} to the ${compassName(Math.atan2(top.y-v.y,top.x-v.x))||'near side'}${why}.${strainMsg}`);
     sfx.wave();return;
   }
   const a=v.waveDir, sx=v.x+Math.cos(a)*WAVE_SPAWN_DIST, sy=v.y+Math.sin(a)*WAVE_SPAWN_DIST;
@@ -4214,7 +4228,7 @@ function spawnVeinWave(v){
     spawnEnemy(p.x,p.y,'wave',{bigP:th.big});
     if(rnd(0,1)<th.hunt)S.enemies[S.enemies.length-1].stabHunter=true;
   }
-  msg(`A few stragglers incoming from the ${a<Math.PI?'south':'north'}${Math.cos(a)>0?'east':'west'} — no nest is close enough to send a real wave.`);
+  msg(`${heavy} incoming from the ${a<Math.PI?'south':'north'}${Math.cos(a)>0?'east':'west'}${why}.${strainMsg}`);
   sfx.wave();
 }
 // ---------- update ----------
@@ -4262,18 +4276,19 @@ function update(dt){
     v.saboteurT-=dt;
     if(v.saboteurT<=0){
       v.saboteurT=SABOTEUR_INTERVAL[v.band]/S.throttleMul;
-      const liveRelays=S.relays.filter(r=>r.built&&r.hp>0);
-      if(liveRelays.length){
-        let target=liveRelays[0],rbd=dist(v,target);
-        liveRelays.forEach(r=>{const d=dist(v,r);if(d<rbd){rbd=d;target=r}});
+      const liveRelays=S.relays.filter(r=>r.built&&r.hp>0), stabs=veinStabs(v);
+      if(stabs.length||liveRelays.length){
+        let target;
+        if(stabs.length)target=strainedStab(v)||stabs[Math.floor(Math.random()*stabs.length)];
+        else{target=liveRelays[0];let rbd=dist(v,target);liveRelays.forEach(r=>{const d=dist(v,r);if(d<rbd){rbd=d;target=r}})}
         const dx=target.x-v.x,dy=target.y-v.y,L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L;
         const sx=target.x+ux*SABOTEUR_SPAWN_DIST, sy=target.y+uy*SABOTEUR_SPAWN_DIST;
         const n=Math.max(1,Math.round(SABOTEUR_BASE_N[v.band]*Math.sqrt(veinThreat(v).n)));
         for(let i=0;i<n;i++){
           const p=nearestPlain(Math.max(20,Math.min(W-20,sx+rnd(-100,100))),Math.max(20,Math.min(H-20,sy+rnd(-100,100))));
-          spawnEnemy(p.x,p.y,'saboteur');
+          spawnEnemy(p.x,p.y,'saboteur');S.enemies[S.enemies.length-1].sabTarget=target;
         }
-        msg('A saboteur swarm is massing on a Relay\'s cable.');
+        msg(target.kind==='stabilizer'||S.stabs.includes(target)?'A saboteur swarm is creeping in on one of your Stabilizers.':'A saboteur swarm is massing on a Relay\'s cable.');
         sfx.saboteurs();
       }
     }
@@ -4660,8 +4675,13 @@ function update(dt){
     if(e.kind==='saboteur'){
       // single-minded: ignore allies entirely, always make for whichever built Relay is nearest
       // right now (opportunistically chewing its cable along the way via cableSeverPass).
+      // v4: its own target first (a Stabilizer or a Relay), then the nearest Stabilizer still standing,
+      // then the nearest Relay
       let bestR=null,brd=Infinity;
-      S.relays.forEach(r=>{if(!r.built||r.hp<=0)return;const d=dist(e,r);if(d<brd){brd=d;bestR=r}});
+      const tg=e.sabTarget;
+      if(tg&&tg.built!==false&&tg.hp>0&&(S.stabs.includes(tg)||S.relays.includes(tg)))bestR=tg;
+      else{S.stabs.forEach(st=>{if(!st.built||st.hp<=0)return;const d=dist(e,st);if(d<brd){brd=d;bestR=st}});
+        if(!bestR)S.relays.forEach(r=>{if(!r.built||r.hp<=0)return;const d=dist(e,r);if(d<brd){brd=d;bestR=r}})}
       tgt=bestR||B;
     } else {
       allies.forEach(t=>{const d=dist(t,e);if(d<bd){bd=d;tgt=t}});
@@ -4678,6 +4698,7 @@ function update(dt){
       // some of every drilling wave is sent specifically to knock out the Stabilizers — they only
       // break off for an ally that's right in their face
       if(e.stabHunter){let bs=null,bsd=Infinity;S.stabs.forEach(st=>{if(!st.built||st.hp<=0)return;const d=dist(e,st);if(d<bsd){bsd=d;bs=st}});
+        if(e.focusStab&&e.focusStab.built&&e.focusStab.hp>0)bs=e.focusStab;
         if(bs&&!(tgt&&tgt!==B&&dist(e,tgt)<70))tgt=bs}
       // the Stabilizer you're leaning on draws them in — further the harder it's strained
       {let ls=null,lsc=0;S.stabs.forEach(st=>{const sn=st.strain||0;if(sn<0.2||!st.built||st.hp<=0)return;const d=dist(e,st);if(d<STRAIN_AGGRO_R*sn&&sn/(d+60)>lsc){lsc=sn/(d+60);ls=st}});
