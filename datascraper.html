@@ -4244,13 +4244,15 @@ function update(dt){
   if(!B.locked||S.mods.bastionShootWhileDrilling){
     let best=null,bd=BASE_GUN_RANGE;
     if(DIRECT_CONTROL&&mouse.aimed&&B.turret!=null){
-      // held left click: fire along the turret's aim, at the nearest thing in its sights
+      // held left click: fire along the turret's aim, at the nearest thing in its sights — out to
+      // the edge of the Bastion's own sight (the fog line around it)
+      bd=BASE_VISION*S.mods.visionMult;
       if(mouse.fire&&B.gunCd<=0){
         S.enemies.forEach(e=>{const d=dist(e,B);if(d>=bd)return;let da=Math.atan2(e.y-B.y,e.x-B.x)-B.turret;while(da>Math.PI)da-=Math.PI*2;while(da<-Math.PI)da+=Math.PI*2;
           if(Math.abs(da)<BASE_GUN_CONE+Math.atan2(e.r||8,Math.max(1,d))){bd=d;best=e}});
         const mz={x:B.x+Math.cos(B.turret)*34,y:B.y+Math.sin(B.turret)*34};
         if(best){damageEnemy(best,BASE_GUN_DMG_MANUAL);tracer(mz,best,C.accent)}
-        else tracer(mz,{x:B.x+Math.cos(B.turret)*BASE_GUN_RANGE,y:B.y+Math.sin(B.turret)*BASE_GUN_RANGE},C.accent);
+        else{const R=BASE_VISION*S.mods.visionMult;tracer(mz,{x:B.x+Math.cos(B.turret)*R,y:B.y+Math.sin(B.turret)*R},C.accent)}
         B.gunCd=BASE_GUN_CD_MANUAL;
       }
       best=null;
