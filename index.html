@@ -394,7 +394,7 @@ body.inMenu :is(#game,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMeter,.mini,.
 <div class="help" id="help" hidden>
   <button id="helpClose" aria-label="Close">×</button>
   <b>Goal:</b> the ground is cracked all over: <b>follow the pulses of energy</b> running through the cracks back to their source to find a vein, then park the Bastion on its glowing centre and press <kbd>L</kbd> to lock on. Veins <b>emerge, ripen</b> a tier at a time, then go unstable and <b>collapse</b> — and new ones emerge elsewhere. Glowing <b>stray pockets</b> give a bearing toward the nearest vein when a unit reaches one; two bearings from different angles triangulate it. Locking on starts the <b>strike</b> at once: press <kbd>Space</kbd> to stop the needle on a good band of the strip (the thin sliver is a tier above the vein; red ruptures it) — the meter zooms in on where you hit and the drill starts; the first wave arrives about 20s later. While it drills, the needle drifts; Stabilizers hold it steady, and the tier you're paid is where it spends most of its time. If it drifts into the red, the vein ruptures and damages the Bastion. Drain veins for rewards — after 3, the contract vein stirs: it gives off no pulses, so triangulate it with bearings from stray pockets, then drain it to win.<br>
-  <b>Controls:</b> drag to select · right-click to move/attack · right-click a friendly unit or building with combat units selected to <b>guard</b> it (escort it, fight off anything that comes near, then fall back) ·<kbd>WASD</kbd> or middle-drag to pan, scroll to zoom<br>
+  <b>Controls:</b> drag to select · right-click to move/attack · right-click a friendly unit or building with combat units selected to <b>guard</b> it (escort it, fight off anything that comes near, then fall back) · <kbd>WASD</kbd> walks the <b>Bastion</b> and the mouse aims its turret (it fires on enemies in its sights) — the camera follows it; middle-drag to look around, scroll to zoom<br>
   <b>Touch:</b> tap to select · tap empty ground/an enemy/a resource to move/attack/harvest · drag to pan · hold still then drag to box-select · pinch to zoom · double-tap to select all of a kind<br>
   <b>Fabricators:</b> nothing costs Dat — every button holds charges that the Bastion's fabricators refill on their own timer. <kbd>1</kbd> launch a turret · <kbd>2</kbd> launch a relay · <kbd>3</kbd> deploy a squad · <kbd>4</kbd> grenadier · <kbd>6</kbd> artillery · <kbd>7</kbd> mech (once unlocked) · <b>Nests</b>: every enemy patrol comes from one, and the nests near a vein send its drilling waves — destroy them (they fight back) for <b>Dat Crystal</b>. <b>Mega nests</b> glow crimson through the fog: hive veins ringed by brood mounds that pour out its waves — break the mounds, then drain the hive for Hive-tier rewards and salvage. When the contract vein stirs, great mounds rise around it too. <b>Dat Crystal</b>: drive the Bastion or a unit over the Dat a nest drops (or an enemy's shard) to scoop it up — your <b>repair drones</b> fly out on their own and spend it patching up Stabilizers, turrets, relays and the Bastion · <kbd>5</kbd> fire a Stabilizer from the Bastion (3 charges, one back every 15s; aim at a vein's drifting hotspot and lead it — a hit pins it, buys the vein 15s before it collapses, widens the strike bands and steadies the needle; with all 3 pinned, drag the weight on the steering pad to push the needle — the wider their triangle, the further it goes, but the one you lean on draws the enemy) — turrets and relays land anywhere inside the Bastion's ring (or a relay's)<br>
   <b>Tether:</b> wireless works freely on the Rim; past it, units need a live cable back to the Bastion or a Relay, or they go dark — chain Relays to push your reach further out. A dark unit still takes orders, but its Sanity drains; reconnect in time to recover it, or it defects into a hostile Corrupted enemy<br>
@@ -631,6 +631,12 @@ const MARTYR_R=90, MARTYR_DMG=40;
 // back to the Bastion. Like a Relay it can be queued any time, locked down or not.
 const DEPOT_HP=150;
 const BASE_GUN_RANGE=260, BASE_GUN_DMG=18, BASE_GUN_CD=0.5;
+// v2 direct control (keyboard + mouse): WASD / arrows walk the Bastion — it builds up to speed and
+// coasts to a stop like the heavy machine it is — the camera rides along, leaning toward the mouse,
+// and the mouse aims the turret, whose gun fires on whatever enemy is inside BASE_GUN_CONE of where
+// it's pointing. Touch keeps the old tap-to-move / auto-aim Bastion.
+const DIRECT_CONTROL=matchMedia('(pointer:fine)').matches;
+const BASE_ACCEL=2.2, BASE_BRAKE=3.5, BASE_GUN_CONE=0.3, CAM_LEAD=0.3, CAM_LEAD_MAX=220, CAM_FOLLOW=4;
 // Bastion ability, two steps: press Ping (N), then click a spot within PING_REACH of the Bastion
 // (scaled by the Deep Scan Antenna upgrade). A sensor pulse lands there and:
 //  - permanently discovers everything in PING_REVEAL_R: Dat Crystal deposits and vein mining
@@ -2036,7 +2042,7 @@ const TUTORIAL_STEPS=[
   {title:'Dat Crystal',
    text:()=>`Found it! <b>Dat Crystal</b> (◆, top left) drops from enemies and from destroyed nests — the Bastion or any unit scoops it up just by passing over it. Your little teal <b>repair drones</b> spend Dat to patch up whatever gets damaged near the Bastion.`},
   {title:'Move the Bastion',
-   text:()=>`Now bring the rig over. Click the Bastion (or press <kbd>B</kbd>) to select it, then <b>right-click the glowing mining point</b> inside the vein. It's slow, so give it a moment to roll over.`,
+   text:()=>`Now bring the rig over. ${DIRECT_CONTROL?'Walk the Bastion with <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> onto the <b>glowing mining point</b> inside the vein':'Click the Bastion (or press <kbd>B</kbd>) to select it, then <b>right-click the glowing mining point</b> inside the vein'}. It's slow, so give it a moment to get there.`,
    target:()=>{const v=tutVein();return{x:v.mine.x,y:v.mine.y,r:40}},
    done:()=>!!canLockdown()||S.base.locked},
   {title:'Start drilling',
@@ -3090,7 +3096,7 @@ cv.addEventListener('pointerdown',e=>{
   }
 });
 cv.addEventListener('pointermove',e=>{
-  const w=toWorld(e.clientX,e.clientY);mouse.wx=w.x;mouse.wy=w.y;
+  const w=toWorld(e.clientX,e.clientY);mouse.wx=w.x;mouse.wy=w.y;mouse.sx=e.clientX;mouse.sy=e.clientY;if(e.pointerType==='mouse')mouse.aimed=true;
   // click-and-drag wall building: each new grid cell the pointer crosses while held down gets its
   // own wall queued — tryBuild already no-ops quietly on a cell that's taken, out of range, etc.
   if(mouse.wallDragging){if(buildMode==='wall'){if(tryBuild(w))mouse.wallPlacedTouch=true}return}
@@ -4049,12 +4055,40 @@ function spawnVeinWave(v){
   msg(`A few stragglers incoming from the ${a<Math.PI?'south':'north'}${Math.cos(a)>0?'east':'west'} — no nest is close enough to send a real wave.`);
   sfx.wave();
 }
+// WASD walks the Bastion (world-relative: W is up the screen); the camera follows, leaning toward
+// the mouse; the mouse aims the turret.
+function directControl(B,dt){
+  const ix=(keys['d']||keys['arrowright']?1:0)-(keys['a']||keys['arrowleft']?1:0), iy=(keys['s']||keys['arrowdown']?1:0)-(keys['w']||keys['arrowup']?1:0);
+  const L=Math.hypot(ix,iy), drive=L>0&&!B.locked;
+  if(L>0)B.dest=null; // keys take over from any move order
+  const sp=BASE_SPEED*(terrainAt(B.x,B.y)===1?MUD_MULT:1);
+  const tvx=drive?ix/L*sp:0, tvy=drive?iy/L*sp:0, k=Math.min(1,dt*(drive?BASE_ACCEL:BASE_BRAKE));
+  B.vx=(B.vx||0)+(tvx-(B.vx||0))*k; B.vy=(B.vy||0)+(tvy-(B.vy||0))*k;
+  if(B.locked){B.vx=0;B.vy=0}
+  if(Math.abs(B.vx)+Math.abs(B.vy)>0.3){
+    const ok=(x,y)=>x>40&&y>40&&x<W-40&&y<H-40&&tcost(Math.floor(x/TCELL),Math.floor(y/TCELL),true)!==Infinity;
+    const nx=B.x+B.vx*dt, ny=B.y+B.vy*dt;
+    if(ok(nx,B.y))B.x=nx;else B.vx=0;
+    if(ok(B.x,ny))B.y=ny;else B.vy=0;
+  }
+  // camera: follow, leaning toward the mouse (middle-drag still looks around while held)
+  if(mouse.aimed&&mouse.sx!=null){const w=toWorld(mouse.sx,mouse.sy);mouse.wx=w.x;mouse.wy=w.y}
+  if(!mouse.panning){
+    let lx=0,ly=0;
+    if(mouse.aimed){lx=(mouse.wx-B.x)*CAM_LEAD;ly=(mouse.wy-B.y)*CAM_LEAD;const m=Math.hypot(lx,ly);if(m>CAM_LEAD_MAX){lx*=CAM_LEAD_MAX/m;ly*=CAM_LEAD_MAX/m}}
+    const kc=Math.min(1,dt*CAM_FOLLOW);cam.x+=(B.x+lx-cam.x)*kc;cam.y+=(B.y+ly-cam.y)*kc;clampCam();
+    if(mouse.aimed&&mouse.sx!=null){const w=toWorld(mouse.sx,mouse.sy);mouse.wx=w.x;mouse.wy=w.y}
+  }
+  // the turret tracks the mouse
+  if(mouse.aimed){B.aim=Math.atan2(mouse.wy-B.y,mouse.wx-B.x);B.aimT=S.t}
+}
 // ---------- update ----------
 function update(dt){
   if(S.over||S.rewardChoice||S.paused)return; S.t+=dt;
   const B=S.base;
   // camera keys
-  const ps=520/cam.z*dt; if(keys['w']||keys['arrowup'])cam.y-=ps; if(keys['s']||keys['arrowdown'])cam.y+=ps; if(keys['a']||keys['arrowleft'])cam.x-=ps; if(keys['d']||keys['arrowright'])cam.x+=ps; clampCam();
+  if(DIRECT_CONTROL)directControl(B,dt);
+  else{const ps=520/cam.z*dt; if(keys['w']||keys['arrowup'])cam.y-=ps; if(keys['s']||keys['arrowdown'])cam.y+=ps; if(keys['a']||keys['arrowleft'])cam.x-=ps; if(keys['d']||keys['arrowright'])cam.x+=ps; clampCam();}
 
   // drill meter: the strike sweep, then the needle drifting while it drills (may rupture the vein,
   // which unlocks the Bastion — so it runs before the drilling block below, which then skips)
@@ -4183,8 +4217,15 @@ function update(dt){
   updateFabShots(dt);
   updateDrones(dt);
   if(!B.locked||S.mods.bastionShootWhileDrilling){
-    let best=null,bd=BASE_GUN_RANGE;S.enemies.forEach(e=>{const d=dist(e,B);if(d<bd){bd=d;best=e}});
-    if(best){B.aim=Math.atan2(best.y-B.y,best.x-B.x);B.aimT=S.t}
+    let best=null,bd=BASE_GUN_RANGE;
+    if(DIRECT_CONTROL&&mouse.aimed&&B.turret!=null){
+      // only what's in the turret's sights
+      S.enemies.forEach(e=>{const d=dist(e,B);if(d>=bd)return;let da=Math.atan2(e.y-B.y,e.x-B.x)-B.turret;while(da>Math.PI)da-=Math.PI*2;while(da<-Math.PI)da+=Math.PI*2;
+        if(Math.abs(da)<BASE_GUN_CONE+Math.atan2(e.r||8,Math.max(1,d))){bd=d;best=e}});
+    }else{
+      S.enemies.forEach(e=>{const d=dist(e,B);if(d<bd){bd=d;best=e}});
+      if(best){B.aim=Math.atan2(best.y-B.y,best.x-B.x);B.aimT=S.t}
+    }
     if(best&&B.gunCd<=0){damageEnemy(best,BASE_GUN_DMG);tracer(B,best,C.accent);B.gunCd=BASE_GUN_CD}
   }
   // Big Guns (reward card): a slow, long-range, big-blast artillery piece bolted onto the
