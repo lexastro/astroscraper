@@ -1364,7 +1364,7 @@ function drawCrackNet(vw,vh,shkx,shky,x0,y0,x1,y1){
     if(f>0.5){L.strokeStyle=`rgba(255,255,255,${(0.05*f).toFixed(3)})`;L.lineWidth=0.6;L.beginPath();
       pick.forEach(k=>{const i=k*4;L.moveTo(net[i]+1,net[i+1]+1);L.lineTo(net[i+2]+1,net[i+3]+1)});L.stroke()}
   }
-  if(!debugNoFog){L.globalCompositeOperation='destination-out';L.imageSmoothingEnabled=true;L.drawImage(fogMaskC,0,0,W,H);L.globalCompositeOperation='source-over'}
+  if(!debugNoFog){L.globalCompositeOperation='destination-out';L.imageSmoothingEnabled=true;L.drawImage(fogMaskSoftC,0,0,W,H);L.globalCompositeOperation='source-over'}
   ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.drawImage(crackLayer,0,0);ctx.restore();
 }
 // Stray pockets sit UNDER the ground: drawn into the world pass right after the terrain (so units,
@@ -1431,7 +1431,7 @@ function drawExplorationLight(vx0,vy0,vx1,vy1,vw,vh,shkx,shky){
     const f=((S.t+st.pulsePh)%PULSE_PERIOD)/PULSE_PERIOD, R=STRAY_REACH*(1-f); // inward, like a vein's
     if(R>12)drawPulseRing(st,R,STRAY_COL,0.55*Math.min(1,f*4)*(0.3+0.7*f),vx0,vy0,vx1,vy1,P);
   });
-  if(!debugNoFog){P.globalAlpha=1;P.globalCompositeOperation='destination-out';P.imageSmoothingEnabled=true;P.drawImage(fogMaskC,0,0,W,H)}
+  if(!debugNoFog){P.globalAlpha=1;P.globalCompositeOperation='destination-out';P.imageSmoothingEnabled=true;P.drawImage(fogMaskSoftC,0,0,W,H)}
   ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.globalCompositeOperation='lighter';ctx.globalAlpha=1;ctx.drawImage(pulseLayer,0,0);ctx.restore();
   ctx.save();
   // bearing beams: dashed lines out from the stray they were taken at, in the target's colour
@@ -1479,7 +1479,9 @@ let fogC=document.createElement('canvas'), fogX; const FOG_S=6; fogC.width=W/FOG
 // dimC is the only fog layer drawn now: rebuilt from scratch every frame, dark everywhere except
 // punched fully clear around whatever currently has vision — terrain stays legible there, but
 // units/enemies don't render outside visible() anyway, so nothing out of sight shows through it.
-const FOG_DARK=0.93, FOG_EDGE_LIFT=0.35, FOG_EDGE_REACH=1.6;
+// FOG_EDGE_BLUR: gaussian blur (in fog-canvas pixels, FOG_S world units each) applied to the
+// finished fog veil and vision mask, so the edge of sight is one smooth falloff with no steps.
+const FOG_DARK=0.93, FOG_EDGE_BLUR=7;
 let dimC=document.createElement('canvas'), dimX; dimC.width=W/FOG_S; dimC.height=H/FOG_S; dimX=dimC.getContext('2d');
 // Vision mask: opaque everywhere nothing can currently see, punched clear (with the same soft edges
 // as the dim veil) around every vision source — used to erase the crack network under the fog.
@@ -4334,24 +4336,31 @@ function update(dt){
   // current vision sources. No permanent "explored" memory anymore — the map goes back to dim
   // the moment nothing is nearby to see it, instead of staying lit once scouted.
   dimX.clearRect(0,0,dimC.width,dimC.height);
-  // The fog is properly dark now (FOG_DARK), but not a flat black: just beyond each source's sight a
-  // wide, faint lift lets a little through (FOG_EDGE_LIFT at most, fading out by FOG_EDGE_REACH × its
-  // radius), so the ground near the edge reads as vague shapes and further out as almost nothing.
-  // That lift is only on the dim veil — the cracks, pulses and veins stay hidden past real sight.
+  // The fog is properly dark (FOG_DARK). Each vision source cuts one soft-edged hole in it, then
+  // the whole veil (and the matching vision mask the cracks, pulses and veins use) is gaussian-
+  // blurred, so the edge of sight fades out smoothly — no rings or steps — into the blurred,
+  // darkened ground beyond (see blurFogged).
   dimX.globalCompositeOperation='source-over'; dimX.fillStyle=`rgba(0,0,0,${FOG_DARK})`; dimX.fillRect(0,0,dimC.width,dimC.height);
   dimX.globalCompositeOperation='destination-out';
   fogMaskX.globalCompositeOperation='source-over'; fogMaskX.clearRect(0,0,fogMaskC.width,fogMaskC.height); fogMaskX.fillStyle='#000'; fogMaskX.fillRect(0,0,fogMaskC.width,fogMaskC.height);
   fogMaskX.globalCompositeOperation='destination-out';
-  // (noLift: a probe's strip stays narrow — no soft edge lift around it)
-  const unveil=(x,y,r,noLift)=>{
-    if(!noLift){const soft=dimX.createRadialGradient(x/FOG_S,y/FOG_S,r*0.6/FOG_S,x/FOG_S,y/FOG_S,r*FOG_EDGE_REACH/FOG_S);
-    soft.addColorStop(0,`rgba(0,0,0,${FOG_EDGE_LIFT})`);soft.addColorStop(1,'rgba(0,0,0,0)');
-    dimX.fillStyle=soft;dimX.beginPath();dimX.arc(x/FOG_S,y/FOG_S,r*FOG_EDGE_REACH/FOG_S,0,Math.PI*2);dimX.fill()}
-    const g=dimX.createRadialGradient(x/FOG_S,y/FOG_S,r*0.6/FOG_S,x/FOG_S,y/FOG_S,r/FOG_S);g.addColorStop(0,'rgba(0,0,0,1)');g.addColorStop(1,'rgba(0,0,0,0)');
-    dimX.fillStyle=g;dimX.beginPath();dimX.arc(x/FOG_S,y/FOG_S,r/FOG_S,0,Math.PI*2);dimX.fill();
-    fogMaskX.fillStyle=g;fogMaskX.beginPath();fogMaskX.arc(x/FOG_S,y/FOG_S,r/FOG_S,0,Math.PI*2);fogMaskX.fill()};
+  const unveil=(x,y,r)=>{
+    const g=dimX.createRadialGradient(x/FOG_S,y/FOG_S,r*0.55/FOG_S,x/FOG_S,y/FOG_S,r*1.1/FOG_S);g.addColorStop(0,'rgba(0,0,0,1)');g.addColorStop(1,'rgba(0,0,0,0)');
+    dimX.fillStyle=g;dimX.beginPath();dimX.arc(x/FOG_S,y/FOG_S,r*1.1/FOG_S,0,Math.PI*2);dimX.fill();
+    fogMaskX.fillStyle=g;fogMaskX.beginPath();fogMaskX.arc(x/FOG_S,y/FOG_S,r*1.1/FOG_S,0,Math.PI*2);fogMaskX.fill()};
   {const vm=S.mods.visionMult;
-  unveil(B.x,B.y,BASE_VISION*vm);S.pings.forEach(pg=>unveil(pg.x,pg.y,pg.probe?pg.r*Math.min(1,pg.t/2):pg.r,pg.probe));S.troops.forEach(t=>unveil(t.x,t.y,TROOP_VISION*vm*S.mods.squadRangeMult));S.harvesters.forEach(h=>unveil(h.x,h.y,HARV_VISION*vm));S.builders.forEach(bu=>unveil(bu.x,bu.y,BUILDER_VISION*vm));}
+  unveil(B.x,B.y,BASE_VISION*vm);S.pings.forEach(pg=>unveil(pg.x,pg.y,pg.probe?pg.r*Math.min(1,pg.t/2):pg.r));S.troops.forEach(t=>unveil(t.x,t.y,TROOP_VISION*vm*S.mods.squadRangeMult));S.harvesters.forEach(h=>unveil(h.x,h.y,HARV_VISION*vm));S.builders.forEach(bu=>unveil(bu.x,bu.y,BUILDER_VISION*vm));}
+  softenFogLayers();
+}
+// Blurred copies of the fog veil and vision mask — what actually gets drawn/used each frame.
+let dimSoftC=document.createElement('canvas'), dimSoftX=dimSoftC.getContext('2d');
+let fogMaskSoftC=document.createElement('canvas'), fogMaskSoftX=fogMaskSoftC.getContext('2d');
+function softenFogLayers(){
+  [[dimSoftC,dimSoftX,dimC],[fogMaskSoftC,fogMaskSoftX,fogMaskC]].forEach(([c,x,src])=>{
+    if(c.width!==src.width||c.height!==src.height){c.width=src.width;c.height=src.height}
+    x.setTransform(1,0,0,1,0,0);x.globalCompositeOperation='source-over';x.clearRect(0,0,c.width,c.height);
+    x.filter=`blur(${FOG_EDGE_BLUR}px)`;x.drawImage(src,0,0);x.filter='none';
+  });
 }
 // Called exactly once per run, right as it ends (win or lose) — banks whatever Condensed and
 // Living Crystal were collected into the persistent save, same as a roguelite "you keep what you
@@ -4532,7 +4541,7 @@ function blurFogged(vw,vh,shkx,shky){
   X.filter=`blur(${FOG_BLUR_PX}px)`;X.imageSmoothingEnabled=true;X.drawImage(cv,0,0,w,h);X.filter='none';
   X.globalCompositeOperation='destination-in';
   X.setTransform(dpr/FOG_BLUR_DOWN,0,0,dpr/FOG_BLUR_DOWN,0,0);X.translate(vw/2+shkx,vh/2+shky);X.scale(cam.z,cam.z);X.translate(-cam.x,-cam.y);
-  X.drawImage(fogMaskC,0,0,W,H);
+  X.drawImage(fogMaskSoftC,0,0,W,H);
   X.setTransform(1,0,0,1,0,0);X.globalCompositeOperation='source-over';
   ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.imageSmoothingEnabled=true;ctx.drawImage(fogBlurC,0,0,cv.width,cv.height);ctx.restore();
 }
@@ -4549,7 +4558,7 @@ function beginVeinLight(vw,vh,shkx,shky){
 }
 function endVeinLight(){
   const L=veinLX;
-  if(!debugNoFog){L.save();L.globalAlpha=1;L.globalCompositeOperation='destination-out';L.imageSmoothingEnabled=true;L.drawImage(fogMaskC,0,0,W,H);L.restore()}
+  if(!debugNoFog){L.save();L.globalAlpha=1;L.globalCompositeOperation='destination-out';L.imageSmoothingEnabled=true;L.drawImage(fogMaskSoftC,0,0,W,H);L.restore()}
   ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.globalCompositeOperation='lighter';ctx.globalAlpha=1;ctx.drawImage(veinLayer,0,0);ctx.restore();
 }
 // Free hotspots read as energy welling up from below the surface: a soft glow that breathes.
@@ -4880,7 +4889,7 @@ function draw(){
   // particles (impact sparks, kill/vein/destruction bursts)
   S.particles.forEach(p=>{ctx.globalAlpha=Math.max(0,1-p.t/p.life);ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);ctx.fill()});ctx.globalAlpha=1;
   // fog
-  if(!debugNoFog){blurFogged(vw,vh,shkx,shky);ctx.imageSmoothingEnabled=true;ctx.drawImage(dimC,0,0,W,H)}
+  if(!debugNoFog){blurFogged(vw,vh,shkx,shky);ctx.imageSmoothingEnabled=true;ctx.drawImage(dimSoftC,0,0,W,H)}
   // energy pulses through the crack network (only where something can see) and bearing beams
   drawExplorationLight(x0-40,y0-40,x1+40,y1+40,vw,vh,shkx,shky);
   drawStabShots();
@@ -4927,7 +4936,7 @@ function hpbar(x,y,w,f){ctx.fillStyle='rgba(0,0,0,0.6)';ctx.fillRect(x-w/2,y,w,3
 function sanityBar(x,y,w,f){ctx.fillStyle='rgba(0,0,0,0.6)';ctx.fillRect(x-w/2,y,w,3);ctx.fillStyle=f>0.3?C.zone:C.enemy;ctx.fillRect(x-w/2,y,w*Math.max(0,f),3)}
 function drawMini(){const s=mini.width/W;mctx.fillStyle='#10151b';mctx.fillRect(0,0,mini.width,mini.height);
   mctx.drawImage(terrainCv,0,0,W,H,0,0,mini.width,mini.height);
-  if(!debugNoFog){mctx.save();mctx.scale(s,s);mctx.drawImage(dimC,0,0,W,H);mctx.restore()}
+  if(!debugNoFog){mctx.save();mctx.scale(s,s);mctx.drawImage(dimSoftC,0,0,W,H);mctx.restore()}
   // sighted veins in their tier colour (drained/collapsed ones faint), live strays, and bearing beams
   S.veins.forEach(v=>{if(!debugNoFog&&(v.contract?!v.mine.found:!v.seen))return;mctx.strokeStyle=v.contract?C.living:tierBlendCol(v);mctx.fillStyle=mctx.strokeStyle;mctx.globalAlpha=veinAlive(v)?1:0.3;mctx.beginPath();mctx.arc(v.x*s,v.y*s,2.5,0,Math.PI*2);mctx.fill();mctx.globalAlpha=1});
   S.strays.forEach(st=>{if(!st.live||sightAt(st)<=0)return;mctx.fillStyle=STRAY_COL;mctx.globalAlpha=0.6+0.4*Math.sin(S.t*3);mctx.beginPath();mctx.arc(st.x*s,st.y*s,2.5,0,Math.PI*2);mctx.fill();mctx.globalAlpha=1});
