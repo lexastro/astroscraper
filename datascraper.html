@@ -153,6 +153,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 .tutLink{background:none;border:none;color:var(--muted);font:inherit;font-size:11px;cursor:pointer;text-decoration:underline;padding:0}
 .tutBtns .tutLink{margin-right:auto}
 @media (max-width:720px),(max-height:500px){.tutPanel{top:calc(env(safe-area-inset-top,0px) + 60px);font-size:12px}}
+.branchTag{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)!important;margin-top:-8px!important}
 .menuMeta{display:flex;flex-direction:column;align-items:center;gap:8px;margin:2px 0}
 .metaRow{display:flex;gap:8px;align-items:baseline;font-family:var(--mono)}
 .metaRow .k{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
@@ -652,7 +653,12 @@ const COST={wall:5,turret:75,relay:15,depot:150,stabilizer:20,harvester:75,troop
 // Persistent meta-progression: saved to localStorage, carried across runs and page reloads —
 // not cookies, since this never needs to leave the browser or ride along with a server request,
 // and localStorage holds far more than a cookie's ~4KB.
-const META_KEY='datascraper_meta_v1';
+// GAME_BRANCH: the git branch this copy of the game lives on. 'master' is the main game (served at
+// the site root); any other branch is an experimental version served at /<branch>/ (see
+// .github/workflows/pages.yml). A branch build keeps its own save and changelog, so experiments
+// never touch the main game's unlocks.
+const GAME_BRANCH='master', SAVE_SUFFIX=GAME_BRANCH==='master'?'':'_'+GAME_BRANCH;
+const META_KEY='datascraper_meta_v1'+SAVE_SUFFIX;
 // Unlocks are now priced in Living Crystal, not Condensed — it's the rarer of the two (only a
 // handful of veins ever yield any), so even these small costs mean something.
 const ARTY_UNLOCK_COST=2, GREN_UNLOCK_COST=1, MECH_UNLOCK_COST=1;
@@ -5091,7 +5097,7 @@ reset();refreshMenuMeta();requestAnimationFrame(frame);
 // one-sentence changelog: the newest shows beside the version, and "What's new" lists the rest.
 // GitHub allows each visitor's IP only 60 of these an hour, which a few busy reloads can use up —
 // hence keeping the last good copy in localStorage.
-const CHANGELOG_N=8, CHANGELOG_KEY='datascraper_changelog_v1';
+const CHANGELOG_N=8, CHANGELOG_KEY='datascraper_changelog_v1'+SAVE_SUFFIX;
 function renderChangelog(list){
   if(!Array.isArray(list)||!list.length)return;
   document.getElementById('versionText').textContent=`v${list[0].sha} — ${list[0].subject}`;
@@ -5107,7 +5113,7 @@ function renderChangelog(list){
   document.getElementById('changesBtn').hidden=false;
 }
 function cachedChangelog(){try{return JSON.parse(localStorage.getItem(CHANGELOG_KEY)||'null')}catch(e){return null}}
-fetch(`https://api.github.com/repos/lexastro/astroscraper/commits?sha=master&per_page=${CHANGELOG_N}`)
+fetch(`https://api.github.com/repos/lexastro/astroscraper/commits?sha=${GAME_BRANCH}&per_page=${CHANGELOG_N}`)
   .then(r=>r.ok?r.json():Promise.reject())
   .then(raw=>{
     if(!Array.isArray(raw)||!raw.length||!raw[0].sha)return Promise.reject();
@@ -5117,6 +5123,11 @@ fetch(`https://api.github.com/repos/lexastro/astroscraper/commits?sha=master&per
     renderChangelog(list);
   })
   .catch(()=>renderChangelog(cachedChangelog()));
+// A branch build says so on the title screen and in the tab title, so the versions can't be mixed up.
+if(GAME_BRANCH!=='master'){
+  document.title+=' · '+GAME_BRANCH;
+  document.querySelector('#mainMenuOverlay h1').insertAdjacentHTML('afterend',`<p class="branchTag">${GAME_BRANCH} · experimental build</p>`);
+}
 document.getElementById('changesBtn').onclick=()=>{const p=document.getElementById('changesPanel');p.hidden=!p.hidden};
 document.getElementById('changesClose').onclick=()=>{document.getElementById('changesPanel').hidden=true};
 // Gameplay recording consent: ask once, up front, before the main menu is usable; a past choice

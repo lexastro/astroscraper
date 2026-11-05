@@ -1,0 +1,41 @@
+# Publishes every version of the game to one GitHub Pages site:
+#   master -> https://lexastro.github.io/astroscraper/       (the main game)
+#   v2     -> https://lexastro.github.io/astroscraper/v2/    (experimental branch)
+# A push to either branch rebuilds the whole site from the latest of both, so neither
+# version ever knocks the other offline. To add another version: add a checkout + copy step
+# like v2's, add the branch to the push list, and allow it under
+# Settings > Environments > github-pages > Deployment branches.
+name: Deploy Pages
+on:
+  push:
+    branches: [master, v2]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: master, path: main}
+      - uses: actions/checkout@v4
+        with: {ref: v2, path: branch_v2}
+      - name: Assemble site
+        run: |
+          mkdir -p _site/v2
+          rsync -a --exclude '.git' --exclude '.github' main/ _site/
+          rsync -a --exclude '.git' --exclude '.github' branch_v2/ _site/v2/
+          touch _site/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with: {path: _site}
+      - id: deployment
+        uses: actions/deploy-pages@v4
