@@ -4466,7 +4466,6 @@ const STAB_TRIS=[
   {p:new Path2D('M65.4 100.17 V64.83 H100.74 Z'),dx:-13.12,dy:-12.55},
   {p:new Path2D('M4.18 64.83 H39.53 V100.17 Z'),dx:12.75,dy:-12.55},
 ];
-const STAB_FOLDED=new Path2D('M52.28 16.94 L87.62 52.28 L52.28 87.62 L16.93 52.28 Z');
 const STAB_BRACKETS=new Path2D('M39.53 3.61 V38.95 H4.18 Z M65.4 100.17 V64.83 H100.74 Z M4.18 64.83 H39.53 V100.17 Z M100.74 38.95 H65.4 V3.61 Z');
 // A Stabilizer spike in flight: it travels in a straight line over the ground from the Bastion to
 // its target, but scales up toward the middle of the flight (rising toward the camera) and back
@@ -4485,9 +4484,8 @@ function drawStabShots(){
     // core), then they pull apart around the top of the arc — the spike deploying as it comes down
     const open=f<0.3?0:f>0.62?1:(()=>{const q=(f-0.3)/0.32;return q*q*(3-2*q)})(), shut=1-open;
     ctx.fillStyle='#dfe6ee';ctx.lineJoin='miter';
-    STAB_TRIS.forEach(t=>{ctx.save();ctx.translate(t.dx*shut,t.dy*shut);ctx.fill(t.p);ctx.globalAlpha=open;ctx.stroke(t.p);ctx.restore()});
-    // while folded, outline the closed square as one shape (no seams between the triangles)
-    if(shut>0){ctx.save();ctx.globalAlpha=shut;ctx.stroke(STAB_FOLDED);ctx.restore()}
+    // each triangle keeps its dark outline, so folded it reads as one square of separate panels
+    STAB_TRIS.forEach(t=>{ctx.save();ctx.translate(t.dx*shut,t.dy*shut);ctx.fill(t.p);ctx.stroke(t.p);ctx.restore()});
     ctx.restore();
   });
 }
