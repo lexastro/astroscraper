@@ -131,7 +131,11 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 .drillMeter[hidden]{display:none}
 .dmHead{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
 #dmYield{font-weight:700;font-size:12px}
-#dmCanvas{display:block;width:100%;height:44px;border-radius:3px}
+#dmCanvas{display:block;flex:1;min-width:0;height:44px;border-radius:3px}
+.dmBody{display:flex;gap:8px;align-items:center}
+#dmPad{display:block;flex:none;width:72px;height:72px;background:#0b0f14;border:1px solid var(--line);border-radius:4px;cursor:grab;touch-action:none}
+#dmPad:active{cursor:grabbing}
+#dmPad[hidden]{display:none}
 .dmFoot{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:6px;color:var(--muted);min-height:26px}
 #dmStrike{background:var(--accent);color:#1a1200;border:0;font:inherit;font-weight:700;padding:5px 14px;border-radius:4px;cursor:pointer;animation:strikePulse .6s ease-in-out infinite alternate}
 #dmStrike .key{font-family:var(--mono);font-size:10px;opacity:.7;margin-left:4px}
@@ -363,7 +367,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
      warm-up, sweeps for the strike, then tracks the drifting needle and settled yield. -->
 <div class="drillMeter" id="drillMeter" hidden>
   <div class="dmHead"><span id="dmTitle">Drill meter</span><span id="dmYield"></span></div>
-  <canvas id="dmCanvas" width="440" height="44"></canvas>
+  <div class="dmBody"><canvas id="dmCanvas" width="440" height="44"></canvas><canvas id="dmPad" width="72" height="72" hidden title="Drag the weight to steer the drill needle"></canvas></div>
   <div class="dmFoot"><span id="dmHint"></span><button id="dmStrike" hidden>Strike <span class="key">Space</span></button></div>
 </div>
 
@@ -380,7 +384,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   <b>Goal:</b> harvesters gather Dat Crystal automatically. The ground is cracked all over: <b>follow the pulses of energy</b> running through the cracks back to their source to find a vein, then park the Bastion on its glowing centre and press <kbd>L</kbd> to lock on. Veins <b>emerge, ripen</b> a tier at a time, then go unstable and <b>collapse</b> — and new ones emerge elsewhere. Glowing <b>stray pockets</b> give a bearing toward the nearest vein when a unit reaches one; two bearings from different angles triangulate it. Locking on starts the <b>strike</b> at once: press <kbd>Space</kbd> to stop the needle on a good band of the strip (the thin sliver is a tier above the vein; red ruptures it) — the meter zooms in on where you hit and the drill starts; the first wave arrives about 20s later. While it drills, the needle drifts; Stabilizers hold it steady, and the tier you're paid is where it spends most of its time. If it drifts into the red, the vein ruptures and damages the Bastion. Drain veins for rewards — after 3, the contract vein stirs: it gives off no pulses, so triangulate it with bearings from stray pockets, then drain it to win.<br>
   <b>Controls:</b> drag to select · right-click to move/attack/harvest · right-click a friendly unit or building with combat units selected to <b>guard</b> it (escort it, fight off anything that comes near, then fall back) ·<kbd>WASD</kbd> or middle-drag to pan, scroll to zoom<br>
   <b>Touch:</b> tap to select · tap empty ground/an enemy/a resource to move/attack/harvest · drag to pan · hold still then drag to box-select · pinch to zoom · double-tap to select all of a kind<br>
-  <b>Build:</b> <kbd>1</kbd> wall · <kbd>2</kbd> turret · <kbd>3</kbd> relay · <kbd>4</kbd> depot (drop-off closer than the Bastion) · <kbd>5</kbd> fire a Stabilizer from the Bastion (3 charges, one back every 15s; aim at a vein's drifting hotspot and lead it — a hit pins it, buys the vein 15s before it collapses, widens the strike bands and steadies the needle) — everything can be built any time within range · right-click a still-queued structure to cancel it for a full refund<br>
+  <b>Build:</b> <kbd>1</kbd> wall · <kbd>2</kbd> turret · <kbd>3</kbd> relay · <kbd>4</kbd> depot (drop-off closer than the Bastion) · <kbd>5</kbd> fire a Stabilizer from the Bastion (3 charges, one back every 15s; aim at a vein's drifting hotspot and lead it — a hit pins it, buys the vein 15s before it collapses, widens the strike bands and steadies the needle; with all 3 pinned, drag the weight on the steering pad to push the needle — the wider their triangle, the further it goes, but the one you lean on draws the enemy) — everything can be built any time within range · right-click a still-queued structure to cancel it for a full refund<br>
   <b>Tether:</b> wireless works freely on the Rim; past it, units need a live cable back to the Bastion or a Relay, or they go dark — chain Relays to push your reach further out. A dark unit still takes orders, but its Sanity drains; reconnect in time to recover it, or it defects into a hostile Corrupted enemy<br>
   <kbd>N</kbd> recon probe: click a direction and it flies straight out on its fiber line, lifting the fog along a narrow strip for 20s and permanently finding deposits and veins it passes (3 charges, one back every 20s) · <kbd>V</kbd> follow Bastion (escorts it as it moves, until given another order) · <kbd>G</kbd> repair mode · <kbd>R</kbd> resume harvester auto-gather · <kbd>Esc</kbd> cancel, or pause the whole game if nothing's open · <kbd>`</kbd> reveal map (debug)
 </div>
@@ -955,6 +959,53 @@ function updateHotspots(v){
 }
 function veinStabs(v){return S.stabs.filter(st=>st.vein===v&&st.built&&st.hp>0)}
 function stabHold(v){return veinStabs(v).reduce((a,st)=>a+st.hp/st.maxHp,0)}
+// ---------- drill steering ----------
+// A vein's three Stabilizers make a triangle, and its AREA is how much say you have over the drill
+// needle: spread them wide (land them out on the hotspots' outer swing, far apart) and you can push
+// the needle a long way; bunch them up and you barely nudge it. On the steering pad (beside the
+// meter, north-up like the minimap) you drag a WEIGHT inside the triangle: how far east or west of
+// the triangle's centre it sits moves the needle's resting point right or left along the strip, up
+// to STEER_MAX of the zoomed view at full area. Two Stabilizers make a line — no area, no steering.
+// The cost: the weight loads the Stabilizers it's leaning toward (STRAIN). A strained Stabilizer
+// glows hot, cracks the ground, and draws enemies to it from STRAIN_AGGRO_R; a damaged one's corner
+// pulls in toward the vein, shrinking the triangle and shoving the weight; and losing a strained
+// one jerks the needle hard the other way (STRAIN_KICK). Leaning also loosens the needle's hold.
+const STEER_MAX=0.85, STEER_REF_R=0.55, STEER_WOBBLE=0.4, STRAIN_AGGRO_R=520, STRAIN_KICK=0.6;
+function steerShape(v){
+  const cs=veinStabs(v).map(st=>{const k=0.3+0.7*st.hp/st.maxHp;return {st,x:(st.x-v.x)*k,y:(st.y-v.y)*k}});
+  if(cs.length<3)return {cs,area:0,auth:0,cx:0,cy:0};
+  let cx=0,cy=0;cs.forEach(c=>{cx+=c.x;cy+=c.y});cx/=cs.length;cy/=cs.length;
+  cs.sort((a,b)=>Math.atan2(a.y-cy,a.x-cx)-Math.atan2(b.y-cy,b.x-cx));
+  let A=0;for(let i=0;i<cs.length;i++){const p=cs[i],q=cs[(i+1)%cs.length];A+=p.x*q.y-q.x*p.y}A=Math.abs(A)/2;
+  const R=STEER_REF_R*v.r, ref=3*Math.sqrt(3)/4*R*R;
+  return {cs,area:A,auth:Math.min(1,A/ref),cx,cy};
+}
+// keeps (x,y) inside the triangle — the nearest point on its edge if it's outside
+function clampToShape(cs,x,y){
+  let inside=true;
+  for(let i=0;i<cs.length;i++){const p=cs[i],q=cs[(i+1)%cs.length];if((q.x-p.x)*(y-p.y)-(q.y-p.y)*(x-p.x)<0){inside=false;break}}
+  if(inside)return {x,y};
+  let best={x,y},bd=Infinity;
+  for(let i=0;i<cs.length;i++){const p=cs[i],q=cs[(i+1)%cs.length],dx=q.x-p.x,dy=q.y-p.y,l=dx*dx+dy*dy||1;
+    const t=Math.max(0,Math.min(1,((x-p.x)*dx+(y-p.y)*dy)/l)),px=p.x+dx*t,py=p.y+dy*t,d=(px-x)**2+(py-y)**2;
+    if(d<bd){bd=d;best={x:px,y:py}}}
+  return best;
+}
+// Where the weight is pulling the needle, and how hard each Stabilizer is strained by it.
+function steerState(v){
+  const m=v.meter, sh=steerShape(v);
+  veinStabs(v).forEach(st=>st.strain=st.lastStrain=0);
+  if(sh.cs.length<3){m.w=null;return {sh,s:0,target:0,L:0}}
+  if(!m.w)m.w={x:sh.cx,y:sh.cy};
+  m.w=clampToShape(sh.cs,m.w.x,m.w.y); // a shrinking triangle shoves the weight with it
+  let xmin=Infinity,xmax=-Infinity;sh.cs.forEach(c=>{xmin=Math.min(xmin,c.x);xmax=Math.max(xmax,c.x)});
+  const ex=m.w.x-sh.cx, s=Math.max(-1,Math.min(1,ex>0?ex/Math.max(1,xmax-sh.cx):ex/Math.max(1,sh.cx-xmin)));
+  const meanR=sh.cs.reduce((a,c)=>a+Math.hypot(c.x-sh.cx,c.y-sh.cy),0)/sh.cs.length;
+  const L=sh.auth*Math.min(1,Math.hypot(m.w.x-sh.cx,m.w.y-sh.cy)/Math.max(1,meanR*0.75));
+  const ls=sh.cs.map(c=>1/(Math.hypot(m.w.x-c.x,m.w.y-c.y)+0.08*v.r)**2), lmax=Math.max(...ls);
+  sh.cs.forEach((c,i)=>{c.st.strain=c.st.lastStrain=L*ls[i]/lmax;c.st.steerDir=Math.sign(c.x-sh.cx)});
+  return {sh,s,target:s*sh.auth*STEER_MAX,L};
+}
 // The free hotspot nearest w, if within snapping distance, on a found, unfinished vein.
 function hotspotAt(w){
   let best=null,bd=STAB_SNAP;
@@ -1017,8 +1068,8 @@ function updateMeter(v,dt){
   }
   if(m.phase==='zoom'){m.t+=dt;if(m.t>=ZOOM_T){m.phase='drill';v.startT=S.t}return}
   if(m.phase!=='drill'||v.paused)return;
-  const K=METER_K_BASE+METER_K_STAB*stabHold(v), sig=METER_TURB[m.anchorTier];
-  m.x+=-K*m.x*dt+sig*Math.sqrt(dt)*gauss();
+  const sv=steerState(v), K=(METER_K_BASE+METER_K_STAB*stabHold(v))*(1+0.5*sv.sh.auth)*(1-STEER_WOBBLE*sv.L), sig=METER_TURB[m.anchorTier];
+  m.x+=-K*(m.x-sv.target)*dt+sig*Math.sqrt(dt)*gauss();
   const here=stripAt(m.strip,m.anchor+m.x*ZOOM_HALF);
   if(here.red){ruptureVein(v,'The drill needle slipped into the red — the vein ruptured!');return}
   // time-share of each tier over the last few seconds; the biggest share is the yield
@@ -1070,7 +1121,8 @@ function updateMeterUI(){
     title.textContent=m.phase==='zoom'?'Struck — locking in…':v.stalled?'Drilling — STALLED':v.paused?'Drilling — PAUSED':'Drilling';
     yieldEl.textContent=`Yield: ${m.yieldTier}`;yieldEl.style.color=CARD_TIER_COLOR[m.yieldTier];
     const hold=nStab?Math.round(100*stabHold(v)/nStab):0;
-    hint.textContent=nStab?`${nStab} Stabilizer${nStab===1?'':'s'} holding at ${hold}% — protect them to keep the needle steady.`:'No Stabilizers — the needle is drifting freely.';
+    hint.textContent=nStab>=3?`Drag the weight to steer — east pushes the needle right. The Stabilizer you lean on draws the enemy. (${hold}%)`
+      :nStab?`${nStab} Stabilizer${nStab===1?'':'s'} holding at ${hold}% — pin all 3 to steer the needle.`:'No Stabilizers — the needle is drifting freely.';
   }
   const cvm=document.getElementById('dmCanvas'), dpr=devicePixelRatio||1, Wc=Math.max(1,Math.round(cvm.clientWidth*dpr)), Hc=Math.round(44*dpr);
   if(cvm.width!==Wc||cvm.height!==Hc){cvm.width=Wc;cvm.height=Hc}
@@ -1090,7 +1142,46 @@ function updateMeterUI(){
   const np=m.phase==='strike'?m.p:m.anchor+m.x*ZOOM_HALF, nx=X(np);
   g.strokeStyle='#fff';g.lineWidth=2*dpr;g.beginPath();g.moveTo(nx,barY-3*dpr);g.lineTo(nx,barY+barH+2*dpr);g.stroke();
   g.fillStyle='#fff';g.beginPath();g.moveTo(nx,barY-1);g.lineTo(nx-5*dpr,2*dpr);g.lineTo(nx+5*dpr,2*dpr);g.closePath();g.fill();
+  // where the weight is steering the needle to: a hollow tick on the strip
+  if(m.phase==='drill'&&m.w){const sv=steerState(v),tx=X(m.anchor+sv.target*ZOOM_HALF);
+    g.strokeStyle=C.accent;g.globalAlpha=0.8;g.lineWidth=1.5*dpr;g.setLineDash([3*dpr,3*dpr]);g.beginPath();g.moveTo(tx,barY);g.lineTo(tx,barY+barH);g.stroke();g.setLineDash([]);g.globalAlpha=1}
+  drawSteerPad(v);
 }
+// The steering pad: the vein seen from above, north-up — the Stabilizers' triangle (brighter the
+// more area it covers), each corner hot with its strain, and the weight you drag.
+let padScale=1;
+function drawSteerPad(v){
+  const pad=document.getElementById('dmPad'), m=v.meter, show=m.phase!=='strike';
+  pad.hidden=!show; if(!show)return;
+  const dpr=devicePixelRatio||1, S2=Math.round(72*dpr); if(pad.width!==S2){pad.width=pad.height=S2}
+  const g=pad.getContext('2d'), sv=steerState(v), sh=sv.sh, c0=S2/2;
+  padScale=(36-7)/(0.8*v.r); const P=(x,y)=>[c0+x*padScale*dpr,c0+y*padScale*dpr];
+  g.clearRect(0,0,S2,S2);
+  // the hotspots' reach, for scale
+  g.strokeStyle='#1f2731';g.lineWidth=dpr;g.beginPath();g.arc(c0,c0,0.72*v.r*padScale*dpr,0,Math.PI*2);g.stroke();
+  g.strokeStyle='#1a2129';g.beginPath();g.moveTo(c0,4*dpr);g.lineTo(c0,S2-4*dpr);g.stroke();
+  if(sh.cs.length>=3){
+    g.beginPath();sh.cs.forEach((c,i)=>{const [x,y]=P(c.x,c.y);i?g.lineTo(x,y):g.moveTo(x,y)});g.closePath();
+    g.fillStyle=C.accent;g.globalAlpha=0.08+0.22*sh.auth;g.fill();g.globalAlpha=0.7;g.strokeStyle=C.accent;g.lineWidth=1.2*dpr;g.stroke();g.globalAlpha=1;
+  }else if(sh.cs.length===2){
+    const [a,b]=sh.cs.map(c=>P(c.x,c.y));g.strokeStyle=C.accent;g.globalAlpha=0.4;g.lineWidth=1.2*dpr;g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);g.stroke();g.globalAlpha=1;
+  }
+  sh.cs.forEach(c=>{const [x,y]=P(c.x,c.y),sn=c.st.strain||0;
+    if(sn>0.05){g.fillStyle='#ffb36b';g.globalAlpha=0.6*sn;g.beginPath();g.arc(x,y,(4+6*sn)*dpr,0,Math.PI*2);g.fill();g.globalAlpha=1}
+    g.fillStyle=c.st.hp/c.st.maxHp<0.4?C.enemy:'#dfe6ee';g.beginPath();g.arc(x,y,2.6*dpr,0,Math.PI*2);g.fill()});
+  if(m.w){const [wx,wy]=P(m.w.x,m.w.y);
+    g.fillStyle=C.accent;g.strokeStyle='#0b0e12';g.lineWidth=1.5*dpr;g.beginPath();g.arc(wx,wy,4.5*dpr,0,Math.PI*2);g.fill();g.stroke()}
+  else{g.fillStyle='#5d6874';g.font=`600 ${9*dpr}px ${css('--mono')}`;g.textAlign='center';g.textBaseline='middle';g.fillText('PIN 3',c0,c0)}
+}
+{const pad=document.getElementById('dmPad');let drag=false;
+  const setW=e=>{const v=S.activeVein;if(!v||!v.meter||!v.meter.w)return;const sh=steerShape(v);if(sh.cs.length<3)return;
+    const r=pad.getBoundingClientRect(),x=(e.clientX-r.left-r.width/2)/padScale,y=(e.clientY-r.top-r.height/2)/padScale;
+    v.meter.w=clampToShape(sh.cs,x,y)};
+  pad.addEventListener('pointerdown',e=>{drag=true;pad.setPointerCapture(e.pointerId);setW(e);e.preventDefault()});
+  pad.addEventListener('pointermove',e=>{if(drag)setW(e)});
+  pad.addEventListener('pointerup',()=>drag=false);pad.addEventListener('pointercancel',()=>drag=false);
+  pad.addEventListener('dblclick',()=>{const v=S.activeVein;if(v&&v.meter)v.meter.w=null}); // back to the centre
+  pad.addEventListener('contextmenu',e=>e.preventDefault());}
 document.getElementById('dmStrike').onclick=()=>doStrike();
 
 // ---------- exploration: the crack network, energy pulses, living veins, strays ----------
@@ -3761,6 +3852,7 @@ function update(dt){
 
   // drill meter: the strike sweep, then the needle drifting while it drills (may rupture the vein,
   // which unlocks the Bastion — so it runs before the drilling block below, which then skips)
+  S.stabs.forEach(st=>st.strain=0); // only the vein being drilled (below) strains its Stabilizers
   if(B.locked&&S.activeVein&&!S.activeVein.done&&S.activeVein.prepT<=0)updateMeter(S.activeVein,dt);
   // drilling
   if(B.locked&&S.activeVein&&!S.activeVein.done&&!S.activeVein.paused){
@@ -4212,6 +4304,9 @@ function update(dt){
       // break off for an ally that's right in their face
       if(e.stabHunter){let bs=null,bsd=Infinity;S.stabs.forEach(st=>{if(!st.built||st.hp<=0)return;const d=dist(e,st);if(d<bsd){bsd=d;bs=st}});
         if(bs&&!(tgt&&tgt!==B&&dist(e,tgt)<70))tgt=bs}
+      // the Stabilizer you're leaning on draws them in — further the harder it's strained
+      {let ls=null,lsc=0;S.stabs.forEach(st=>{const sn=st.strain||0;if(sn<0.2||!st.built||st.hp<=0)return;const d=dist(e,st);if(d<STRAIN_AGGRO_R*sn&&sn/(d+60)>lsc){lsc=sn/(d+60);ls=st}});
+        if(ls&&!(tgt&&tgt!==B&&tgt.kind!=='stabilizer'&&dist(e,tgt)<70))tgt=ls}
     }
     e.target=tgt;
     // face whoever they're engaging; otherwise idle fidget with a random heading
@@ -4295,6 +4390,7 @@ function update(dt){
   });
   // a destroyed Stabilizer is gone for good — its hotspot comes loose and starts drifting again
   S.stabs.forEach(st=>{if(st.hp<=0){if(st.hot)st.hot.stab=null;
+    {const m=st.vein&&st.vein.meter;if(m&&m.phase==='drill'&&(st.lastStrain||0)>0.1){m.x-=(st.steerDir||0)*STRAIN_KICK*st.lastStrain;shakeScreen(5,0.3)}}
     if(!st.silent){burst(st.x,st.y,C.zone,14,130,0.5);sfx.relayDown();shakeScreen(3,0.2);msg('A Stabilizer was destroyed — the drill needle is slipping!')}}});
   S.stabs=S.stabs.filter(st=>st.hp>0);
   // units killed by an enemy go down and, a moment later, get back up corrupted
@@ -4635,19 +4731,22 @@ function drawStabilizer(st){
   const en=veinEnergy(st.vein), dmg=st.built?1-st.hp/st.maxHp:0;
   ctx.save();ctx.translate(st.x,st.y);
   // cracks open up in the ground beneath it as it's damaged, flickering once it's close to failing
-  if(dmg>0.03){
-    const flick=dmg>0.6?0.45+0.55*Math.random():1, reach=Math.min(1,dmg*1.3);
+  const sn=st.built?st.strain||0:0;
+  if(dmg>0.03||sn>0.1){
+    const flick=dmg>0.6||sn>0.6?0.45+0.55*Math.random():1, reach=Math.min(1,Math.max(dmg*1.3,sn*0.9));
     ctx.lineCap='round';ctx.lineJoin='round';
     st.cracks.forEach(l=>{
       const n=Math.max(2,Math.ceil(l.pts.length*reach));
       ctx.globalAlpha=0.85;ctx.strokeStyle='#06070a';ctx.lineWidth=4*l.w;crackPath(l.pts,n,0);ctx.stroke();
-      ctx.globalAlpha=(0.35+0.65*dmg)*flick;ctx.strokeStyle=en.col;ctx.lineWidth=1.5*l.w;crackPath(l.pts,n,0);ctx.stroke();
+      ctx.globalAlpha=(0.35+0.65*Math.max(dmg,sn))*flick;ctx.strokeStyle=sn>dmg?mixCol(en.col,'#ffb36b',Math.min(1,sn*1.4)):en.col;ctx.lineWidth=1.5*l.w;crackPath(l.pts,n,0);ctx.stroke();
     });
   }
   // the pinned energy glowing up around its base
   ctx.globalCompositeOperation='lighter';
   const g=ctx.createRadialGradient(0,0,0,0,0,26);g.addColorStop(0,en.col);g.addColorStop(1,'rgba(0,0,0,0)');
   ctx.globalAlpha=st.built?0.35+0.1*Math.sin(S.t*3):0.2;ctx.fillStyle=g;ctx.beginPath();ctx.arc(0,0,26,0,Math.PI*2);ctx.fill();
+  if(sn>0.05){const R=26+22*sn,h=ctx.createRadialGradient(0,0,0,0,0,R);h.addColorStop(0,'#ffb36b');h.addColorStop(1,'rgba(0,0,0,0)'); // strained: running hot
+    ctx.globalAlpha=sn*(0.45+0.2*Math.sin(S.t*(6+6*sn)));ctx.fillStyle=h;ctx.beginPath();ctx.arc(0,0,R,0,Math.PI*2);ctx.fill()}
   ctx.globalCompositeOperation='source-over';
   if(dmg>0.6)ctx.translate((Math.random()-0.5)*1.5,(Math.random()-0.5)*1.5); // rattling apart
   const k=STAB_SIZE/STAB_VB;ctx.scale(k,k);ctx.translate(-STAB_VB/2,-STAB_VB/2);
