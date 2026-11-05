@@ -1458,7 +1458,13 @@ let menuOpen=true, landingSel=null;
 const LANDING_MARGIN=260;
 // A legal landing spot: inside the map margin and at least LANDING_MARGIN out past the Dense
 // Field's edge (the dashed ring on the landing preview).
-function canLandAt(x,y){return inMap(x,y,LANDING_MARGIN)&&epiDist(x,y)>=DENSE_R+LANDING_MARGIN}
+// ...and never within LANDING_SITE_CLEAR of anywhere a vein can emerge (live or not), so the
+// Bastion can't touch down right on top of one — reaching your first vein always takes a trip.
+// The preview doesn't mark these spots (that would give away where veins can be); a click there is
+// just refused.
+const LANDING_SITE_CLEAR=700;
+function nearVeinSite(x,y){return !!(S&&S.sites)&&[...S.sites,S.contractSite].some(st=>st&&Math.hypot(st.x-x,st.y-y)<LANDING_SITE_CLEAR)}
+function canLandAt(x,y){return inMap(x,y,LANDING_MARGIN)&&epiDist(x,y)>=DENSE_R+LANDING_MARGIN&&!nearVeinSite(x,y)}
 // Where the Bastion sits on the preview before a spot is picked: the deepest-Rim corner, pulled in.
 function defaultLanding(){
   const cs=[[500,500],[W-500,500],[500,H-500],[W-500,H-500]];
@@ -1728,7 +1734,9 @@ menuCv.addEventListener('pointerdown',e=>{
   const r=menuCv.getBoundingClientRect();
   const x=(e.clientX-r.left)/r.width*W, y=(e.clientY-r.top)/r.height*H;
   if(!canLandAt(x,y)){
-    document.getElementById('menuHint').textContent='Pick a spot out in the Rim, beyond the dashed ring.';
+    document.getElementById('menuHint').textContent=nearVeinSite(x,y)&&inMap(x,y,LANDING_MARGIN)&&epiDist(x,y)>=DENSE_R+LANDING_MARGIN
+      ?'The ground there is too unstable to land on — too close to a vein. Pick another spot.'
+      :'Pick a spot out in the Rim, beyond the dashed ring.';
     return;
   }
   const tt=terrainAt(x,y);
@@ -1996,7 +2004,7 @@ function startTutorial(){
   const v=S.sites.filter(st=>st.band==='rim').reduce((a,b)=>dist(b,d0)<dist(a,d0)?b:a), out=Math.atan2(v.y-EPI.y,v.x-EPI.x);
   let land=null;
   for(let k=0;k<24&&!land;k++){
-    const a=out+(k%2?1:-1)*Math.ceil(k/2)*0.26, x=v.x+Math.cos(a)*620, y=v.y+Math.sin(a)*620;
+    const a=out+(k%2?1:-1)*Math.ceil(k/2)*0.26, x=v.x+Math.cos(a)*(LANDING_SITE_CLEAR+80), y=v.y+Math.sin(a)*(LANDING_SITE_CLEAR+80);
     if(canLandAt(x,y)&&terrainAt(x,y)===0)land={x,y};
   }
   menuOpen=false;
