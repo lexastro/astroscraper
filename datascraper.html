@@ -4762,7 +4762,7 @@ function pickReward(i){
 // face where the walker is going; the top layer is the turret, which turns on its own to aim. Up
 // (-y) is the front in the art. Each part is the SVG's outline path: its outer ring is filled in
 // the part's colour, then the whole path (outline ring) in black.
-const WK_P={x:83.25,y:89.41}, WK_SCALE=0.95, WK_HIP={x:75.87,y:82.78}, WK_TURN=2.6;
+const WK_P={x:83.25,y:89.41}, WK_SCALE=0.95, WK_HIP={x:75.87,y:82.78}, WK_TURN=1.6;
 const wkPart=(col,d)=>({col,ring:new Path2D(d),fill:new Path2D(d.slice(d.indexOf('ZM')+1))});
 const WK_LEG_OUTER=[ // slides along the leg (telescopes) as the foot lifts
   wkPart('#999','M52.98,57.59l10.86,10.86-2.3,2.3-10.86-10.86,2.3-2.3h0ZM52.98,56.17l-3.72,3.72,12.27,12.27,3.72-3.72-12.27-12.27h0Z'),
@@ -4782,14 +4782,22 @@ const WK_HULL=[ // filled, then stroked black
   {col:'#999',p:new Path2D('M73.93,92.49h18.93v18.93h-18.93Z')},
   {col:'#999',p:new Path2D('M92.86,72.09v13.84h-18.94v-13.84l3.52-1.64c3.83-1.79,8.06-1.79,11.9,0l3.52,1.64Z')},
 ];
-// Gait: each foot is pinned to a spot on the ground; its leg turns at the hip and stretches or
-// shortens to keep reaching it while the body glides on. Legs step ONE AT A TIME, in turn
-// (front-left, back-right, front-right, back-left): when it's a leg's turn and its foot has
-// fallen WK_STEP_TRIG behind its resting spot, it folds in toward the hull, swings over and plants
-// WK_STEP_LEAD ahead of the resting spot (a foot left far behind steps out of turn). Standing still,
-// the feet settle back to rest one by one; locked down, the stance widens and they brace outward.
-const WK_STANCE=1.35, WK_STANCE_LOCK=1.5, WK_STEP_TRIG=10, WK_STEP_LEAD=22, WK_STEP_TMAX=0.26, WK_FOLD=0.4, WK_ORDER=[0,2,1,3];
-const WK_V0={x:WK_FOOT.x-WK_HIP.x,y:WK_FOOT.y-WK_HIP.y}, WK_A0=Math.atan2(WK_FOOT.y-WK_HIP.y,WK_FOOT.x-WK_HIP.x), WK_L0=Math.hypot(WK_FOOT.x-WK_HIP.x,WK_FOOT.y-WK_HIP.y);
+// Gait: each foot is a big armor plate hinged at its centre on the leg's tip, its bottom edge
+// planted on the ground. The leg turns at the hip to point at its planted foot and keeps its
+// length; the plate tips on its hinge to make up the difference — edge-on (a thin bar) when the
+// foot sits right under the hinge, lying over the leg when the foot is planted further out, tucked
+// under it when the foot is closer in. Only reach beyond the plate's swing stretches the leg.
+// Legs step one at a time in turn (front-left, back-right, front-right, back-left), slow and
+// heavy: when it's a leg's turn and its foot has fallen WK_STEP_TRIG behind its resting spot, it
+// folds in toward the hull, swings and plants WK_STEP_LEAD ahead (a foot left far behind steps out
+// of turn). The next leg may start once the one in the air is WK_OVERLAP of the way through, so
+// long, slow steps still keep pace. Standing still, feet settle back to rest; locked down, the
+// stance widens and they brace outward.
+const WK_STANCE=1.35, WK_STANCE_LOCK=1.5, WK_STEP_TRIG=16, WK_STEP_LEAD=30, WK_STEP_T=0.62, WK_OVERLAP=0.5, WK_FOLD=0.3, WK_ORDER=[0,2,1,3];
+const WK_PLATE_HALF=18, WK_PLATE_W=30; // the foot plate: half its length (hinge to edge) and its width, in art units
+const WK_A0=Math.atan2(WK_FOOT.y-WK_HIP.y,WK_FOOT.x-WK_HIP.x), WK_L0=Math.hypot(WK_FOOT.x-WK_HIP.x,WK_FOOT.y-WK_HIP.y);
+// the leg's resting length: hip to the resting foot spot
+const WK_LREST=Math.hypot(WK_P.x+(WK_FOOT.x-WK_P.x)*WK_STANCE-WK_HIP.x,WK_P.y+(WK_FOOT.y-WK_P.y)*WK_STANCE-WK_HIP.y);
 function angLerp(a,b,k){let d=b-a;while(d>Math.PI)d-=Math.PI*2;while(d<-Math.PI)d+=Math.PI*2;return a+d*k}
 function angStep(a,b,max){let d=b-a;while(d>Math.PI)d-=Math.PI*2;while(d<-Math.PI)d+=Math.PI*2;return a+Math.max(-max,Math.min(max,d))}
 // world spot where foot k rests (k: 0 NW, 1 NE, 2 SE, 3 SW of the art, turned to the heading)
@@ -4804,61 +4812,75 @@ function updateWalker(B){
   if(B.heading==null){B.heading=-Math.PI/2;B.turret=-Math.PI/2;B._px=B.x;B._py=B.y;B.feet=null}
   const dx=B.x-B._px, dy=B.y-B._py, d=Math.hypot(dx,dy);B._px=B.x;B._py=B.y;
   const jumped=d>=60, moving=d>0.01&&!jumped;
-  if(moving)B.heading=angLerp(B.heading,Math.atan2(dy,dx),Math.min(1,dt*5));
-  B.plant=(B.plant||0)+((B.locked?1:0)-(B.plant||0))*Math.min(1,dt*3);
+  if(moving)B.heading=angLerp(B.heading,Math.atan2(dy,dx),Math.min(1,dt*2));
+  B.plant=(B.plant||0)+((B.locked?1:0)-(B.plant||0))*Math.min(1,dt*1.5);
   const aim=S.t-(B.aimT??-99)<1.5?B.aim:B.heading;
   B.turret=angStep(B.turret,aim,WK_TURN*dt);
   if(!B.feet||jumped){B.feet=[0,1,2,3].map(k=>{const r=wkRest(B,k);return {x:r.x,y:r.y,step:null,lift:0}});B.nextLeg=0;return}
   if(dt<=0)return;
   const sp=d/dt, lead=sp>5?{x:dx/d*WK_STEP_LEAD,y:dy/d*WK_STEP_LEAD}:{x:0,y:0};
-  // a quick enough step that four in turn keep pace with the body
-  const stepT=Math.max(0.1,Math.min(WK_STEP_TMAX,0.8*(WK_STEP_TRIG+WK_STEP_LEAD)/(4*Math.max(sp,1))));
-  let stepping=false;
+  let busy=0, early=false;
   B.feet.forEach((f,k)=>{
-    if(!f.step)return;stepping=true;
+    if(!f.step)return;busy++;
     const r=wkRest(B,k);f.step.to={x:r.x+lead.x,y:r.y+lead.y}; // keeps tracking where it should land
     f.step.t=Math.min(1,f.step.t+dt/f.step.dur);
-    const s=f.step.t, e=s*s*(3-2*s), fold=WK_FOLD*Math.sin(Math.PI*s);
+    const s=f.step.t;if(s<WK_OVERLAP)early=true;
+    // slow to lift, slow to set down: the weight hangs at the ends of the swing
+    const e=s<0.5?4*s*s*s:1-Math.pow(-2*s+2,3)/2, fold=WK_FOLD*Math.sin(Math.PI*s);
     let x=f.step.from.x+(f.step.to.x-f.step.from.x)*e, y=f.step.from.y+(f.step.to.y-f.step.from.y)*e;
     x+=(B.x-x)*fold;y+=(B.y-y)*fold; // folds in toward the hull mid-swing
     f.x=x;f.y=y;f.lift=Math.sin(Math.PI*s);
-    if(s>=1){f.step=null;f.lift=0;if(visible(f))burst(f.x,f.y,'#8a8f96',4,35,0.3)}
+    if(s>=1){f.step=null;f.lift=0;if(visible(f))burst(f.x,f.y,'#8a8f96',7,45,0.5)}
   });
-  if(stepping)return;
-  const err=B.feet.map((f,k)=>dist(f,wkRest(B,k)));
+  if(busy>=2||early)return;
+  const err=B.feet.map((f,k)=>f.step?0:dist(f,wkRest(B,k)));
   const nk=WK_ORDER[B.nextLeg], trig=moving?WK_STEP_TRIG:3;
   let k=-1;
-  if(err[nk]>trig){k=nk;B.nextLeg=(B.nextLeg+1)%4}
-  else{const m=Math.max(...err);if(m>WK_STEP_TRIG*2.2)k=err.indexOf(m)} // left far behind: out of turn
+  if(!B.feet[nk].step&&err[nk]>trig){k=nk;B.nextLeg=(B.nextLeg+1)%4}
+  else if(!busy){const m=Math.max(...err);if(m>WK_STEP_TRIG*2.2)k=err.indexOf(m)} // left far behind: out of turn
   if(k<0)return;
-  const f=B.feet[k];f.step={from:{x:f.x,y:f.y},to:null,t:0,dur:moving?stepT:WK_STEP_TMAX};
+  const f=B.feet[k];f.step={from:{x:f.x,y:f.y},to:null,t:0,dur:WK_STEP_T};
 }
 function wkFill(parts,flash){parts.forEach(q=>{ctx.fillStyle=flash?'#fff':q.col;ctx.fill(q.fill);ctx.fillStyle='#000';ctx.fill(q.ring,'evenodd')})}
+// The foot plate, drawn in the leg's frame with the hinge at the origin and the leg along -x
+// (the hull side). o: where the planted edge sits along the leg's line, relative to the hinge
+// (+ further out). The raised edge is opposite it, drawn wider (nearer the camera).
+function drawPlate(o,lift,flash){
+  const H=WK_PLATE_HALF, a=Math.max(2.2,Math.abs(o)), s=o>=0?1:-1, tilt=Math.min(1,Math.abs(o)/H);
+  const wide=WK_PLATE_W/2*(1+0.12*lift), narrow=wide*(1-0.42*tilt);
+  const gx=s*a, rx=-s*a, c=Math.min(2.5,a*0.5);
+  const pts=[[rx,-wide*0.82],[rx+s*c,-wide],[gx-s*c,-narrow],[gx,-narrow*0.45],[gx+s*Math.min(2,a*0.3),0],[gx,narrow*0.45],[gx-s*c,narrow],[rx+s*c,wide],[rx,wide*0.82]];
+  ctx.beginPath();pts.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.closePath();
+  ctx.fillStyle=flash?'#fff':'#ccc';ctx.fill();ctx.lineWidth=1.2;ctx.strokeStyle='#000';ctx.stroke();
+}
 function drawWalker(B){
   updateWalker(B);
   const flash=B.flashT>0;
   ctx.save();ctx.translate(B.x,B.y);
   ctx.fillStyle='rgba(0,0,0,0.35)';ctx.beginPath();ctx.ellipse(4,6,B.r*1.25,B.r*1.15,0,0,Math.PI*2);ctx.fill();
   ctx.scale(WK_SCALE,WK_SCALE);
-  // lower layer: legs, each reaching for its planted foot
+  // lower layer: legs, each pointing at its planted foot
   ctx.save();ctx.rotate(B.heading+Math.PI/2);
   B.feet.forEach((f,k)=>{
-    // the foot, in this leg's own (NW) frame of the art
+    // the planted foot, in this leg's own (NW) frame of the art
     const a=B.heading+Math.PI/2+k*Math.PI/2, c=Math.cos(a), s=Math.sin(a);
     const wx=(f.x-B.x)/WK_SCALE, wy=(f.y-B.y)/WK_SCALE, lx=wx*c+wy*s, ly=-wx*s+wy*c;
-    const vx=WK_P.x+lx-WK_HIP.x, vy=WK_P.y+ly-WK_HIP.y;
-    const rot=Math.atan2(vy,vx)-WK_A0, str=Math.max(0.6,Math.min(1.8,Math.hypot(vx,vy)/WK_L0)), lift=f.lift||0;
+    const vx=WK_P.x+lx-WK_HIP.x, vy=WK_P.y+ly-WK_HIP.y, D=Math.hypot(vx,vy), ang=Math.atan2(vy,vx);
+    const lift=f.lift||0;
+    // leg length: its resting length, unless the foot is past what the plate's tilt can cover
+    const H=WK_PLATE_HALF*0.92, L=Math.max(D-H,Math.min(D+H,WK_LREST*(1-0.12*lift))), o=D-L;
+    const legT=()=>{ctx.translate(WK_HIP.x,WK_HIP.y);ctx.rotate(ang);ctx.scale(L/WK_L0,1);ctx.rotate(-WK_A0);ctx.translate(-WK_HIP.x,-WK_HIP.y)};
+    const drawLeg=()=>{ctx.save();legT();wkFill([WK_LEG_INNER,WK_LEG_OUTER[0],WK_LEG_OUTER[1]],flash);ctx.restore()};
+    const plate=()=>{ctx.save();ctx.translate(WK_HIP.x,WK_HIP.y);ctx.rotate(ang);ctx.translate(L,0);
+      if(lift>0.01)ctx.scale(1+0.15*lift,1+0.15*lift);drawPlate(o*(1-lift),lift,flash);ctx.restore()};
     ctx.save();ctx.rotate(k*Math.PI/2);ctx.translate(-WK_P.x,-WK_P.y);
-    ctx.translate(WK_HIP.x,WK_HIP.y);ctx.rotate(rot+WK_A0);ctx.scale(str,1);ctx.rotate(-WK_A0);ctx.translate(-WK_HIP.x,-WK_HIP.y);
-    wkFill([WK_LEG_INNER],flash);
-    if(lift>0.01){ctx.translate(WK_FOOT.x,WK_FOOT.y);ctx.scale(1+0.18*lift,1+0.18*lift);ctx.translate(-WK_FOOT.x,-WK_FOOT.y)}
-    wkFill(WK_LEG_OUTER,flash);
+    if(o>0){drawLeg();plate()}else{plate();drawLeg()} // planted further out: the plate leans over the leg
     ctx.restore();
   });
   ctx.restore();
   // anchor rings under the planted feet while locked down
   if(B.plant>0.05){ctx.save();ctx.scale(1/WK_SCALE,1/WK_SCALE);ctx.globalAlpha=B.plant;ctx.strokeStyle=C.accent;ctx.lineWidth=1.5;
-    B.feet.forEach(f=>{ctx.beginPath();ctx.arc(f.x-B.x,f.y-B.y,7,0,Math.PI*2);ctx.stroke()});ctx.globalAlpha=1;ctx.restore()}
+    B.feet.forEach(f=>{ctx.beginPath();ctx.arc(f.x-B.x,f.y-B.y,9,0,Math.PI*2);ctx.stroke()});ctx.globalAlpha=1;ctx.restore()}
   // top layer: the turret
   ctx.rotate(B.turret+Math.PI/2);ctx.translate(-WK_P.x,-WK_P.y);
   wkFill(WK_TOP,flash);
