@@ -353,7 +353,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
     <button id="bTurret" data-mode="turret"><span class="icon">⌖</span><span>Turret</span><span class="cost" id="cTurret">75 dat</span><span class="key">2</span></button>
     <button id="bRelay" data-mode="relay"><span class="icon">⟐</span><span>Relay</span><span class="cost" id="cRelay">15 dat</span><span class="key">3</span></button>
     <button id="bDepot" data-mode="depot"><span class="icon">⊟</span><span>Depot</span><span class="cost" id="cDepot">150 dat</span><span class="key">4</span></button>
-    <button id="bStab" data-mode="stabilizer"><span class="icon">◈</span><span>Stabilizer</span><span class="cost">20 dat</span><span class="key">5</span></button>
+    <button id="bStab" data-mode="stabilizer"><span class="icon">◈</span><span>Stabilizer</span><span class="cost" id="cStab">●●●</span><span class="key">5</span></button>
     <button id="bLock"><span class="icon">⛏</span><span id="bLockLabel">Begin Drilling</span><span class="key">L</span></button>
     <button id="bPing"><span class="icon">◉</span><span id="bPingLabel">Ping</span><span class="key">N</span></button>
   </div>
@@ -377,10 +377,10 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 
 <div class="help" id="help">
   <button id="helpClose" aria-label="Close">×</button>
-  <b>Goal:</b> harvesters gather Dat Crystal automatically. The ground is cracked all over: <b>follow the pulses of energy</b> running through the cracks back to their source to find a vein, then park the Bastion on its marker and press <kbd>L</kbd> to drill. Veins <b>emerge, ripen</b> a tier at a time, then go unstable and <b>collapse</b> — and new ones emerge elsewhere. Glowing <b>stray pockets</b> give a bearing toward the nearest vein when a unit reaches one; two bearings from different angles triangulate it. The drill warms up for 60s, then you <b>strike</b>: press <kbd>Space</kbd> to stop the sweeping needle — the closer to the centre, the better the tier (the thin centre sliver is a tier above the vein). While it drills, the needle drifts; Stabilizers hold it steady, and the tier you're paid is where it settles. If it drifts into the red, the vein ruptures and damages the Bastion. Drain veins for rewards — after 3, the contract vein stirs: it gives off no pulses, so triangulate it with bearings from stray pockets, then drain it to win.<br>
+  <b>Goal:</b> harvesters gather Dat Crystal automatically. The ground is cracked all over: <b>follow the pulses of energy</b> running through the cracks back to their source to find a vein, then park the Bastion on its glowing centre and press <kbd>L</kbd> to lock on. Veins <b>emerge, ripen</b> a tier at a time, then go unstable and <b>collapse</b> — and new ones emerge elsewhere. Glowing <b>stray pockets</b> give a bearing toward the nearest vein when a unit reaches one; two bearings from different angles triangulate it. Locking on starts the <b>strike</b> at once: press <kbd>Space</kbd> to stop the needle on a good band of the strip (the thin sliver is a tier above the vein; red ruptures it) — the meter zooms in on where you hit and the drill starts; the first wave arrives about 20s later. While it drills, the needle drifts; Stabilizers hold it steady, and the tier you're paid is where it spends most of its time. If it drifts into the red, the vein ruptures and damages the Bastion. Drain veins for rewards — after 3, the contract vein stirs: it gives off no pulses, so triangulate it with bearings from stray pockets, then drain it to win.<br>
   <b>Controls:</b> drag to select · right-click to move/attack/harvest · right-click a friendly unit or building with combat units selected to <b>guard</b> it (escort it, fight off anything that comes near, then fall back) ·<kbd>WASD</kbd> or middle-drag to pan, scroll to zoom<br>
   <b>Touch:</b> tap to select · tap empty ground/an enemy/a resource to move/attack/harvest · drag to pan · hold still then drag to box-select · pinch to zoom · double-tap to select all of a kind<br>
-  <b>Build:</b> <kbd>1</kbd> wall · <kbd>2</kbd> turret · <kbd>3</kbd> relay · <kbd>4</kbd> depot (drop-off closer than the Bastion) · <kbd>5</kbd> Stabilizer (only on a vein's drifting hotspots — pins it in place; widens the drill meter and steadies the needle) — walls/turrets need the Bastion locked down drilling, relays/depots/Stabilizers can go up any time · right-click a still-queued structure to cancel it for a full refund<br>
+  <b>Build:</b> <kbd>1</kbd> wall · <kbd>2</kbd> turret · <kbd>3</kbd> relay · <kbd>4</kbd> depot (drop-off closer than the Bastion) · <kbd>5</kbd> fire a Stabilizer from the Bastion (3 charges, one back every 15s; aim at a vein's drifting hotspot and lead it — a hit pins it, buys the vein 15s before it collapses, widens the strike bands and steadies the needle) — everything can be built any time within range · right-click a still-queued structure to cancel it for a full refund<br>
   <b>Tether:</b> wireless works freely on the Rim; past it, units need a live cable back to the Bastion or a Relay, or they go dark — chain Relays to push your reach further out. A dark unit still takes orders, but its Sanity drains; reconnect in time to recover it, or it defects into a hostile Corrupted enemy<br>
   <kbd>N</kbd> ping, then click a spot within the dashed ring to scan it (permanently finds deposits and vein mining points there, shows enemies there for 20s; 60s cooldown) · <kbd>V</kbd> follow Bastion (escorts it as it moves, until given another order) · <kbd>G</kbd> repair mode · <kbd>R</kbd> resume harvester auto-gather · <kbd>Esc</kbd> cancel, or pause the whole game if nothing's open · <kbd>`</kbd> reveal map (debug)
 </div>
@@ -870,7 +870,7 @@ const UPGRADES={
   ],
   Legendary:[
     {id:'carry4',name:'Reinforced Haulers IV',desc:'Harvester carry capacity +100%.',apply:()=>{S.mods.carryMult*=2.0}},
-    {id:'overdrive',name:'Overdrive Capacitor',desc:'Fast throttle is dramatically faster (burns and pays out more to match).',apply:()=>{S.mods.fastBonus+=1.0}},
+    {id:'overdrive',name:'Overdrive Capacitor',desc:'Drill rate +40% (burns Dat faster to match).',apply:()=>{S.mods.drillRateMult*=1.4}},
     {id:'cablehp2',name:'Hardened Network',desc:'All tether cable HP +150%.',apply:()=>{S.mods.cableHpMult*=2.5}},
     {id:'living1',name:'Rich Vein Memory',desc:'Living Crystal yield ×2 for the rest of the run.',apply:()=>{S.mods.livingMult*=2}},
     {id:'energySurge3',name:'Energy Surge III',desc:'Energy Surge still pulses every 5s, and now damages enemies it reaches too.',apply:()=>{S.mods.energySurgeLevel=Math.max(S.mods.energySurgeLevel,3)}},
@@ -896,7 +896,9 @@ function ripeTier(v){return TIER_LADDER[v.band][ripeIdx(v)]}
 // 0 while still ripening; climbs 0→1 across the unstable phase at the peak.
 // (never unstable: the contract vein, and every vein in the tutorial — those just hold at their peak)
 function holdsAtPeak(v){return v.contract||tutorialMap}
-function unstableFrac(v){if(holdsAtPeak(v))return 0;const over=(v.ripeT||0)-ripePeakT(v);return over<0?0:Math.min(1,over/UNSTABLE_T)}
+// Stabilizers pinned on a vein stretch its unstable phase (and so its whole life) by STAB_LIFE_BONUS each.
+function unstableDur(v){return UNSTABLE_T+(v.lifeBonus||0)}
+function unstableFrac(v){if(holdsAtPeak(v))return 0;const over=(v.ripeT||0)-ripePeakT(v);return over<0?0:Math.min(1,over/unstableDur(v))}
 function isUnstable(v){return !holdsAtPeak(v)&&(v.ripeT||0)>=ripePeakT(v)}
 // The tier a vein would pay right now: the drill meter's settled yield while it's being drilled,
 // otherwise how ripe it is.
@@ -929,11 +931,18 @@ function mkCracks(n,stepMin,R,branchP){return crackLines(Math.random,0,0,R,n,ste
 // Built Stabilizers on the vein being drilled widen every band of the drill meter (decided at the
 // strike) and hold the needle steady while it drills; damage loosens their grip, and a destroyed
 // one frees its hotspot to drift again.
-const HOTSPOTS_PER_VEIN=3, STAB_HP=140, STAB_BUILD_T=3, STAB_SNAP=44;
+const HOTSPOTS_PER_VEIN=3, STAB_HP=140, STAB_BUILD_T=3, STAB_SNAP=32;
+// Stabilizers aren't built — the Bastion FIRES them. It holds STAB_CHARGES; a spent charge comes
+// back every STAB_RECHARGE_T seconds. You aim at a spot within STAB_RANGE; the spike arcs out of
+// the Bastion (growing as it rises toward the camera, largest at the top of the arc) and takes a
+// moment to land — the hotspots keep drifting, so you have to lead them. Land on a free hotspot
+// and it's pinned, and the vein holds together STAB_LIFE_BONUS seconds longer before collapsing
+// (up to one per hotspot). Miss and the charge is spent.
+const STAB_CHARGES=3, STAB_RECHARGE_T=15, STAB_RANGE=650, STAB_FLIGHT_SPEED=420, STAB_LIFE_BONUS=15;
 function mkHotspots(v){
   const hs=[];
-  for(let i=0;i<HOTSPOTS_PER_VEIN;i++)hs.push({a0:i/HOTSPOTS_PER_VEIN*Math.PI*2+rnd(-0.5,0.5),spin:rnd(0.05,0.11)*(rnd(0,1)<0.5?-1:1),
-    rp:rnd(0,Math.PI*2),rs:rnd(0.18,0.32),x:v.x,y:v.y,stab:null});
+  for(let i=0;i<HOTSPOTS_PER_VEIN;i++)hs.push({a0:i/HOTSPOTS_PER_VEIN*Math.PI*2+rnd(-0.5,0.5),spin:rnd(0.25,0.45)*(rnd(0,1)<0.5?-1:1),
+    rp:rnd(0,Math.PI*2),rs:rnd(0.5,0.9),x:v.x,y:v.y,stab:null});
   return hs;
 }
 function updateHotspots(v){
@@ -955,68 +964,68 @@ function hotspotAt(w){
 }
 
 // ---------- drill meter ----------
-// When the drill's warm-up ends, a needle sweeps the meter and the player STRIKES (Space / L / the
-// Strike button) to set it; it auto-strikes after STRIKE_AUTO_T if they don't. The meter's bands
-// nest toward the centre: the vein's ripe tier in the middle, each lower tier wider around it, red
-// RUPTURE edges outside. A hair-thin jackpot sliver one tier ABOVE what the vein has ripened to
-// sits dead centre — land it and the vein is overcharged.
-// Once struck, the needle drifts: turbulence (stronger at higher tiers and faster drill speeds)
-// pushes it around, and the vein's Stabilizers pull it back toward where it was struck, harder the
-// healthier they are. The tier paid out is where the needle has SETTLED — a running average of its
-// distance from the centre over the last ~METER_AVG_T seconds — so a moment's wobble is forgiven
-// but a long stretch with Stabilizers down costs a tier. Touching a red edge ruptures the vein.
-const BAND_HALF={Common:0.24,Rare:0.17,Epic:0.11,Legendary:0.065}, JACKPOT_HALF=0.04;
-const RED_BASE=0.14, STAB_WIDEN=0.3, STRIKE_AUTO_T=4, STRIKE_SWEEP_T=1.2, METER_AVG_T=8;
+// Locking onto a vein starts the STRIKE straight away. The meter is a STRIP rolled fresh for each
+// strike: most of it is the vein's lowest tier, with bands of each higher tier it has ripened to
+// scattered at random along it, a hair-thin jackpot sliver one tier ABOVE what it has ripened to
+// somewhere random too, and red RUPTURE patches — more of them the more unstable the vein was when
+// you locked on. Stabilizers on the vein widen every good band. A needle sweeps the strip; strike
+// (Space / L / the Strike button) to stop it — it auto-strikes after STRIKE_AUTO_T.
+// Wherever it stops becomes the centre: the meter animates to re-centre on that spot and zoom in
+// (ZOOM_HALF of the strip either side), so the bands you drill on are much wider than the ones you
+// struck at. From there the needle DRIFTS — turbulence (stronger at higher tiers) pushes it, the
+// vein's Stabilizers pull it back, harder the healthier they are — sliding into whatever bands
+// neighbour the one you hit. The tier paid is the one the needle has spent the most of its recent
+// time in (~METER_AVG_T seconds), so a moment's wobble is forgiven. Touching red ruptures the vein.
+const STRIP_W={Rare:0.10,Epic:0.07,Legendary:0.045}, STRIP_JACKPOT_W=0.018, STRIP_RED_W=0.05;
+const STAB_WIDEN=0.3, STRIKE_AUTO_T=4, STRIKE_SWEEP_T=1.6, ZOOM_HALF=0.18, ZOOM_T=0.55, METER_AVG_T=6;
 const METER_TURB={Common:0.14,Rare:0.18,Epic:0.24,Legendary:0.3}, METER_K_BASE=1.0, METER_K_STAB=3.5;
-// Bands for vein v as they'd stand right now: {bands:[{tier,edge,jackpot}], redEdge}. Edges are
-// distances from the centre (0..1) — each band runs from the previous edge out to its own.
-function meterBands(v){
+function buildStrip(v){
   const ladder=TIER_LADDER[v.band], idx=v.lockIdx!=null?v.lockIdx:ripeIdx(v);
-  const avail=ladder.slice(0,idx+1).reverse(); // ripe tier first (centre), floor last (outermost)
-  const above=TIER_ORDER_ALL[TIER_ORDER_ALL.indexOf(avail[0])+1];
-  const n=veinStabs(v).length, u=v.lockUnstable||0;
-  const widen=(1+STAB_WIDEN*n)*(1-0.35*u);
-  const red=Math.max(0.06,RED_BASE+0.25*u-0.02*n), outer=1-red;
-  const inner=[];
-  if(above)inner.push({tier:above,half:JACKPOT_HALF,jackpot:true});
-  avail.slice(0,-1).forEach(t=>inner.push({tier:t,half:BAND_HALF[t]}));
-  let total=inner.reduce((a,b)=>a+b.half*widen,0);
-  const fit=total>outer-0.12?(outer-0.12)/total:1; // always leave the floor band some room
-  const bands=[];let e=0;
-  inner.forEach(b=>{e+=b.half*widen*fit;bands.push({tier:b.tier,edge:e,jackpot:!!b.jackpot})});
-  bands.push({tier:avail[avail.length-1],edge:outer});
-  return {bands,redEdge:outer};
+  const floor=ladder[0], ripe=ladder[idx], above=TIER_ORDER_ALL[TIER_ORDER_ALL.indexOf(ripe)+1];
+  const widen=1+STAB_WIDEN*veinStabs(v).length, u=v.lockUnstable||0;
+  const segs=[];
+  const place=(w,o)=>{for(let t=0;t<60;t++){const a=rnd(0.02,0.98-w);if(segs.some(q=>a<q.b+0.012&&a+w>q.a-0.012))continue;segs.push({a,b:a+w,...o});return}};
+  if(above)place(STRIP_JACKPOT_W*widen,{tier:above,jackpot:true});
+  for(let i=idx;i>=1;i--){const t=ladder[i];for(let c=0;c<(i===idx?2:1);c++)place(STRIP_W[t]*widen,{tier:t})}
+  // rupture patches: a small chance of one on a calm vein, up to three on a vein about to collapse
+  const nRed=Math.floor(rnd(0,1)+0.3+2.7*u);
+  for(let i=0;i<nRed;i++)place(STRIP_RED_W*(1+0.5*u),{red:true});
+  segs.sort((x,y)=>x.a-y.a);
+  return {segs,floor};
 }
-function tierAtMeter(mb,d){for(const b of mb.bands)if(d<=b.edge)return b.tier;return null}
+// What's at strip position p: a band, a red patch, or (anywhere else) the floor tier. Off either
+// end of the strip counts as red.
+function stripAt(st,p){if(p<0||p>1)return {red:true};for(const q of st.segs)if(p>=q.a&&p<=q.b)return q;return {tier:st.floor}}
 function gauss(){let u=0,w=0;while(u===0)u=Math.random();while(w===0)w=Math.random();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*w)}
-// Warm-up's over: start the strike sweep.
-function beginStrike(v){v.meter={phase:'strike',needle:-1,dir:1,autoT:STRIKE_AUTO_T};updateMeterUI(true)}
+function beginStrike(v){v.meter={phase:'strike',strip:buildStrip(v),p:rnd(0,1),dir:rnd(0,1)<0.5?1:-1,autoT:STRIKE_AUTO_T};updateMeterUI()}
 function strikeReady(){const v=S.activeVein;return !!(v&&v.meter&&v.meter.phase==='strike'&&!S.paused&&!S.rewardChoice&&!S.over)}
 function doStrike(){
   const v=S.activeVein; if(!strikeReady())return;
-  const m=v.meter, mb=meterBands(v), d=Math.abs(m.needle);
-  if(d>=mb.redEdge){ruptureVein(v,'The strike landed in the red — the vein ruptured!');return}
-  const tier=tierAtMeter(mb,d), band=mb.bands.find(b=>b.tier===tier&&d<=b.edge);
-  v.meter={phase:'drill',bands:mb,anchor:m.needle,x:m.needle,avg:d,anchorTier:tier,yieldTier:tier};
-  v.startT=S.t;
-  if(band&&band.jackpot){msg(`JACKPOT — struck the ${tier} sliver! The vein is overcharged. Hold the Stabilizers to keep it.`);sfx.win();shakeScreen(5,0.3);burst(v.x,v.y,TIER_COLOR[tier],30,180,0.8)}
-  else{msg(`Struck at ${tier} tier — drilling has begun. Keep the Stabilizers standing to hold it there.`);sfx.resume()}
-  updateMeterUI(true);
+  const m=v.meter, hit=stripAt(m.strip,m.p);
+  if(hit.red){ruptureVein(v,'The strike landed in the red — the vein ruptured!');return}
+  const tier=hit.tier;
+  v.meter={phase:'zoom',t:0,strip:m.strip,anchor:m.p,x:0,anchorTier:tier,yieldTier:tier,share:{[tier]:1}};
+  if(hit.jackpot){msg(`JACKPOT — struck the ${tier} sliver! The vein is overcharged. Hold the Stabilizers to keep it.`);sfx.win();shakeScreen(5,0.3);burst(v.mine.x,v.mine.y,TIER_COLOR[tier],30,180,0.8)}
+  else{msg(`Struck at ${tier} tier — drilling. Keep the Stabilizers standing to hold it there.`);sfx.resume()}
 }
 function updateMeter(v,dt){
   const m=v.meter; if(!m)return;
   if(m.phase==='strike'){
-    const sp=2/STRIKE_SWEEP_T*Math.sqrt(S.throttleMul);
-    m.needle+=m.dir*sp*dt; if(m.needle>1){m.needle=2-m.needle;m.dir=-1} if(m.needle<-1){m.needle=-2-m.needle;m.dir=1}
+    m.p+=m.dir*dt/STRIKE_SWEEP_T; if(m.p>1){m.p=2-m.p;m.dir=-1} if(m.p<0){m.p=-m.p;m.dir=1}
     m.autoT-=dt; if(m.autoT<=0)doStrike();
     return;
   }
+  if(m.phase==='zoom'){m.t+=dt;if(m.t>=ZOOM_T){m.phase='drill';v.startT=S.t}return}
   if(m.phase!=='drill'||v.paused)return;
-  const K=METER_K_BASE+METER_K_STAB*stabHold(v), sig=METER_TURB[m.anchorTier]*Math.sqrt(S.throttleMul);
-  m.x+=-K*(m.x-m.anchor)*dt+sig*Math.sqrt(dt)*gauss();
-  m.avg+=(Math.abs(m.x)-m.avg)*Math.min(1,dt/METER_AVG_T);
-  m.yieldTier=tierAtMeter(m.bands,m.avg)||m.bands.bands[m.bands.bands.length-1].tier;
-  if(Math.abs(m.x)>=m.bands.redEdge)ruptureVein(v,'The drill needle slipped into the red — the vein ruptured!');
+  const K=METER_K_BASE+METER_K_STAB*stabHold(v), sig=METER_TURB[m.anchorTier];
+  m.x+=-K*m.x*dt+sig*Math.sqrt(dt)*gauss();
+  const here=stripAt(m.strip,m.anchor+m.x*ZOOM_HALF);
+  if(here.red){ruptureVein(v,'The drill needle slipped into the red — the vein ruptured!');return}
+  // time-share of each tier over the last few seconds; the biggest share is the yield
+  const k=Math.min(1,dt/METER_AVG_T);let best=null,bs=-1;
+  m.share[here.tier]=m.share[here.tier]||0;
+  for(const t in m.share){m.share[t]+=((t===here.tier?1:0)-m.share[t])*k;if(m.share[t]>bs){bs=m.share[t];best=t}}
+  m.yieldTier=best;
 }
 // A failed strike or a needle that drifts into the red: the vein blows. The Bastion takes a hit
 // that grows with how ambitious the meter was, everything nearby is caught in the blast, the
@@ -1024,8 +1033,8 @@ function updateMeter(v,dt){
 // (The contract vein can rupture too, but it holds together — it just has to be struck again.)
 const RUPTURE_R=260, RUPTURE_UNIT_DMG=40, RUPTURE_ENEMY_DMG=60;
 function ruptureVein(v,why){
-  const B=S.base, mb=v.meter&&v.meter.bands||meterBands(v);
-  const dmg=Math.round(B.maxHp*(0.10+0.05*mb.bands.length));
+  // the blast grows with how ripe (and so how ambitious) the vein was when you locked on
+  const B=S.base, dmg=Math.round(B.maxHp*(0.15+0.05*((v.lockIdx!=null?v.lockIdx:ripeIdx(v))+1)));
   B.hp-=dmg; hitFlash(B);
   S.troops.concat(S.harvesters).concat(S.builders).forEach(u=>{if(dist(u,v)<=RUPTURE_R){u.hp-=RUPTURE_UNIT_DMG;u.lastHitBy='rupture';hitFlash(u)}});
   S.enemies.forEach(e=>{if(dist(e,v)<=RUPTURE_R)damageEnemy(e,RUPTURE_ENEMY_DMG)});
@@ -1038,56 +1047,49 @@ function ruptureVein(v,why){
   msg(`${why} The Bastion took ${dmg} damage, and ${v.contract?`the contract vein needs ${CRACKED_T}s to settle before it can be struck again`:'the vein has collapsed'}.`);
   updateMeterUI(true); updateBuildBar();
 }
-// Draws the drill meter panel (called every frame from hud()).
+// Draws the drill meter panel (called every frame from hud()). The view is a window onto the
+// strip: the whole strip while striking, then animating to centre on the struck spot and zoom in
+// to ZOOM_HALF either side, where it stays for the drill.
+function meterView(m){
+  if(m.phase==='strike')return {c:0.5,h:0.5};
+  const e=m.phase==='zoom'?1-Math.pow(1-Math.min(1,m.t/ZOOM_T),3):1;
+  return {c:0.5+(m.anchor-0.5)*e,h:0.5+(ZOOM_HALF-0.5)*e};
+}
 function updateMeterUI(){
   const el=document.getElementById('drillMeter'), v=S.activeVein;
-  const show=!!(S.base.locked&&v&&!v.done&&!menuOpen);
+  const show=!!(S.base.locked&&v&&!v.done&&v.meter&&!menuOpen);
   el.hidden=!show; if(!show)return;
-  const m=v.meter, phase=m?m.phase:'warmup';
-  const mb=phase==='drill'?m.bands:meterBands(v);
-  // header + footer text
-  const title=document.getElementById('dmTitle'), yieldEl=document.getElementById('dmYield'), hint=document.getElementById('dmHint');
-  const strikeBtn=document.getElementById('dmStrike');
-  strikeBtn.hidden=phase!=='strike';
+  const m=v.meter, title=document.getElementById('dmTitle'), yieldEl=document.getElementById('dmYield'), hint=document.getElementById('dmHint');
+  document.getElementById('dmStrike').hidden=m.phase!=='strike';
   const nStab=veinStabs(v).length;
-  if(phase==='warmup'){
-    title.textContent=`Drill warming up — strike in ${Math.ceil(v.prepT)}s`;
-    yieldEl.textContent=`Ripe: ${TIER_LADDER[v.band][v.lockIdx]}`;yieldEl.style.color=CARD_TIER_COLOR[TIER_LADDER[v.band][v.lockIdx]];
-    hint.textContent=nStab?`${nStab} Stabilizer${nStab===1?'':'s'} widening the bands — more on the hotspots widen them further.`:'Place Stabilizers (5) on the vein\'s hotspots to widen the bands before you strike.';
-  }else if(phase==='strike'){
+  if(m.phase==='strike'){
     title.textContent=`STRIKE! — auto in ${Math.max(0,m.autoT).toFixed(1)}s`;
-    const t=tierAtMeter(mb,Math.abs(m.needle));yieldEl.textContent=t||'RUPTURE';yieldEl.style.color=t?CARD_TIER_COLOR[t]:C.enemy;
-    hint.textContent='Stop the needle near the centre — the thin sliver is a tier above the vein.';
+    const h=stripAt(m.strip,m.p);yieldEl.textContent=h.red?'RUPTURE':h.tier;yieldEl.style.color=h.red?C.enemy:CARD_TIER_COLOR[h.tier];
+    hint.textContent='Stop the needle on a good band — the thin sliver is a tier above the vein, red ruptures it.';
   }else{
-    title.textContent=v.stalled?'Drilling — STALLED':v.paused?'Drilling — PAUSED':'Drilling';
+    title.textContent=m.phase==='zoom'?'Struck — locking in…':v.stalled?'Drilling — STALLED':v.paused?'Drilling — PAUSED':'Drilling';
     yieldEl.textContent=`Yield: ${m.yieldTier}`;yieldEl.style.color=CARD_TIER_COLOR[m.yieldTier];
     const hold=nStab?Math.round(100*stabHold(v)/nStab):0;
     hint.textContent=nStab?`${nStab} Stabilizer${nStab===1?'':'s'} holding at ${hold}% — protect them to keep the needle steady.`:'No Stabilizers — the needle is drifting freely.';
   }
-  // the meter itself
   const cvm=document.getElementById('dmCanvas'), dpr=devicePixelRatio||1, Wc=Math.max(1,Math.round(cvm.clientWidth*dpr)), Hc=Math.round(44*dpr);
   if(cvm.width!==Wc||cvm.height!==Hc){cvm.width=Wc;cvm.height=Hc}
-  const g=cvm.getContext('2d'), X=u=>(u+1)/2*Wc, barY=Hc*0.3, barH=Hc*0.5;
+  const g=cvm.getContext('2d'), vw=meterView(m), X=p=>(p-(vw.c-vw.h))/(2*vw.h)*Wc, barY=Hc*0.3, barH=Hc*0.5;
   g.clearRect(0,0,Wc,Hc);
-  g.fillStyle='#3a1414';g.fillRect(0,barY,Wc,barH);
-  g.fillStyle=C.enemy;g.globalAlpha=0.55;g.fillRect(0,barY,X(-mb.redEdge),barH);g.fillRect(X(mb.redEdge),barY,Wc-X(mb.redEdge),barH);g.globalAlpha=1;
-  for(let i=mb.bands.length-1;i>=0;i--){
-    const b=mb.bands[i],col=CARD_TIER_COLOR[b.tier];
-    g.fillStyle='#14181d';g.fillRect(X(-b.edge),barY,X(b.edge)-X(-b.edge),barH);
-    g.fillStyle=col;g.globalAlpha=b.jackpot?0.95:0.32+0.12*(mb.bands.length-1-i);
-    if(b.jackpot)g.globalAlpha=0.7+0.3*Math.sin(performance.now()/90);
-    g.fillRect(X(-b.edge)+1,barY+1,X(b.edge)-X(-b.edge)-2,barH-2);g.globalAlpha=1;
-  }
-  // needle (strike sweep / drifting position) and, while drilling, where it has settled
-  if(phase!=='warmup'){
-    const nx=X(phase==='strike'?m.needle:Math.max(-1,Math.min(1,m.x)));
-    if(phase==='drill'){
-      g.fillStyle=CARD_TIER_COLOR[m.yieldTier];
-      [-m.avg,m.avg].forEach(a=>{const ax=X(a);g.beginPath();g.moveTo(ax,barY+barH+1);g.lineTo(ax-4*dpr,Hc-1);g.lineTo(ax+4*dpr,Hc-1);g.closePath();g.fill()});
-    }
-    g.strokeStyle='#fff';g.lineWidth=2*dpr;g.beginPath();g.moveTo(nx,barY-3*dpr);g.lineTo(nx,barY+barH+2*dpr);g.stroke();
-    g.fillStyle='#fff';g.beginPath();g.moveTo(nx,barY-1);g.lineTo(nx-5*dpr,2*dpr);g.lineTo(nx+5*dpr,2*dpr);g.closePath();g.fill();
-  }
+  // off the ends of the strip: red
+  g.fillStyle=C.enemy;g.globalAlpha=0.55;g.fillRect(0,barY,Wc,barH);g.globalAlpha=1;
+  // the floor tier fills the strip; bands, sliver and red patches on top
+  g.fillStyle='#14181d';g.fillRect(X(0),barY,X(1)-X(0),barH);
+  g.fillStyle=CARD_TIER_COLOR[m.strip.floor];g.globalAlpha=0.3;g.fillRect(X(0),barY,X(1)-X(0),barH);g.globalAlpha=1;
+  m.strip.segs.forEach(q=>{
+    const x0=X(q.a),x1=X(q.b);if(x1<0||x0>Wc)return;
+    if(q.red){g.fillStyle=C.enemy;g.globalAlpha=0.85}
+    else{g.fillStyle=CARD_TIER_COLOR[q.tier];g.globalAlpha=q.jackpot?0.7+0.3*Math.sin(performance.now()/90):0.75}
+    g.fillRect(x0,barY,Math.max(1,x1-x0),barH);g.globalAlpha=1;
+  });
+  const np=m.phase==='strike'?m.p:m.anchor+m.x*ZOOM_HALF, nx=X(np);
+  g.strokeStyle='#fff';g.lineWidth=2*dpr;g.beginPath();g.moveTo(nx,barY-3*dpr);g.lineTo(nx,barY+barH+2*dpr);g.stroke();
+  g.fillStyle='#fff';g.beginPath();g.moveTo(nx,barY-1);g.lineTo(nx-5*dpr,2*dpr);g.lineTo(nx+5*dpr,2*dpr);g.closePath();g.fill();
 }
 document.getElementById('dmStrike').onclick=()=>doStrike();
 
@@ -1108,7 +1110,7 @@ document.getElementById('dmStrike').onclick=()=>doStrike();
 const NET_CRACKS_PER_MPX=11, PULSE_PERIOD=2.2, PULSE_SPEED=230, PULSE_REACH=600, PULSE_W=16;
 const SITE_KNOT_MAINS=9, SITE_DEEPEN_R=800;
 // A vein's glow comes from its mining point and stays tight around it.
-const VEIN_GLOW_R=170;
+const VEIN_GLOW_R=700;
 // Pulse timing by tier: richer veins draw energy in more often and faster; an unstable vein pulls
 // frantically. period = seconds between waves, travel = seconds for a wave to run in from
 // PULSE_REACH to the mining point.
@@ -1244,7 +1246,7 @@ function updateVeinLife(dt){
     if(holdsAtPeak(v)){v.ripeT=Math.min((v.ripeT||0)+dt,ripePeakT(v));return}
     const wasUnstable=isUnstable(v);
     v.ripeT=(v.ripeT||0)+dt;
-    if(v.ripeT>=ripePeakT(v)+UNSTABLE_T){collapseVein(v);return}
+    if(v.ripeT>=ripePeakT(v)+unstableDur(v)){collapseVein(v);return}
     if(!v.seen)return;
     if(!wasUnstable&&isUnstable(v))msg('A vein has gone unstable — it will collapse soon.');
   });
@@ -1563,10 +1565,10 @@ function reset(landing){
     // run-only upgrade modifiers — every stat multiplier/bonus a reward card can grant, all
     // reset back to baseline (1 / 0 / false) by a fresh reset(), never persisted between runs.
     mods:{carryMult:1,troopDmgMult:1,moveSpeedMult:1,visionMult:1,relayTolMult:1,drillBurnMult:1,
-      cableLenAdd:0,cableHpMult:1,condensedMult:1,livingMult:1,fastBonus:0,freeRelayCharges:0,
+      cableLenAdd:0,cableHpMult:1,condensedMult:1,livingMult:1,fastBonus:0,drillRateMult:1,freeRelayCharges:0,
       grenFireRateMult:1,grenSplashMult:1,squadRangeMult:1,bigGuns:false,bastionShootWhileDrilling:false,
       energySurgeLevel:0,armedRelays:false,martyrs:false},
-    rewardChoice:null,pingRing:null,pings:[],reanim:[],stabs:[],paused:false,
+    rewardChoice:null,pingRing:null,pings:[],reanim:[],stabs:[],stabShots:[],stabCharges:3,stabRechargeT:0,paused:false,
     sel:{base:false,troops:new Set(),harv:new Set(),bu:new Set()}};
   for(let i=0;i<4;i++) S.troops.push(mkTroop(i));
   for(let i=0;i<2;i++) S.harvesters.push(mkHarv(i));
@@ -1964,14 +1966,14 @@ const TUTORIAL_STEPS=[
    target:()=>{const v=tutVein();return{x:v.mine.x,y:v.mine.y,r:40}},
    done:()=>!!canLockdown()||S.base.locked},
   {title:'Start drilling',
-   text:()=>`The Bastion is in position. Press <kbd>L</kbd> (or <b>Begin Drilling</b> in the bottom bar) and pick a drill speed — <b>Normal</b> is a good start. Faster pays more but burns more Dat and draws more enemies.`,
+   text:()=>`The Bastion is in position. Press <kbd>L</kbd> (or <b>Begin Drilling</b> in the bottom bar) to lock on. A needle sweeps the drill meter — press <kbd>Space</kbd> to stop it on a good band. The meter zooms in on where you hit, and the drill starts.`,
    done:()=>S.base.locked},
   {title:'Build a Turret',
-   text:()=>`The drill warms up before it starts — no enemies yet, so dig in. Press <kbd>2</kbd> and click inside the Bastion's ring to place a <b>Turret</b>. Your Builders will put it up. (Walls <kbd>1</kbd> and Turrets <kbd>2</kbd> can only be built while drilling.)`,
+   text:()=>`The first wave takes about 20 seconds to arrive after you lock on — dig in. Press <kbd>2</kbd> and click inside the Bastion's ring to place a <b>Turret</b>. Your Builders will put it up.`,
    target:()=>({x:S.base.x,y:S.base.y,r:BUILD_R}),
    done:()=>S.turrets.some(t=>t.built)},
   {title:'Hold the line',
-   text:()=>`When the warm-up ends, a needle sweeps the drill meter — press <kbd>Space</kbd> to strike near the centre for a better tier. Then waves attack from the red arrow's direction. Keep your Squads near the Bastion and watch your Dat — the drill burns it as it runs. Hold out until the vein is drained.`,
+   text:()=>`Waves attack from the direction of the red arrow. Keep your Squads near the Bastion and watch your Dat — the drill burns it as it runs. Press <kbd>5</kbd> and click a vein's glowing hotspot to fire a Stabilizer at it: it steadies the drill needle. Hold out until the vein is drained.`,
    done:()=>tutVein().done},
   {title:'Pick a reward',
    text:()=>`Vein drained! Every drained vein lets you pick one upgrade card for the rest of the run — or sell it for Dat. Choose one now.`,
@@ -2895,7 +2897,7 @@ addEventListener('keydown',e=>{
   else if(e.key.toLowerCase()==='h'){selectAllUnitsOfKind('harv')}
   else if(e.key.toLowerCase()==='u'){selectAllUnitsOfKind('bu')}
   else if(e.key.toLowerCase()==='f'){cam.x=S.base.x;cam.y=S.base.y}
-  else if(e.key.toLowerCase()==='l'){if(strikeReady())doStrike();else openDrillSelect()}
+  else if(e.key.toLowerCase()==='l'){tryLockdown()}
   else if(e.key.toLowerCase()==='r'){resumeAutoLoop()}
   else if(e.key.toLowerCase()==='g'){toggleRepairMode()}
   else if(e.key.toLowerCase()==='p'){toggleDrillPause()}
@@ -2906,7 +2908,7 @@ addEventListener('keydown',e=>{
 });
 addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;keys[e.key]=false});
 document.querySelectorAll('#buildBar button[data-mode]').forEach(b=>b.addEventListener('click',()=>{setBuild(buildMode===b.dataset.mode?null:b.dataset.mode);sfx.click()}));
-document.getElementById('bLock').onclick=()=>openDrillSelect();
+document.getElementById('bLock').onclick=()=>tryLockdown();
 document.getElementById('bPing').onclick=()=>tryPing();
 document.getElementById('bResumeAuto').onclick=resumeAutoLoop;
 document.getElementById('bToggleRepair').onclick=toggleRepairMode;
@@ -3052,8 +3054,14 @@ function setBuild(m){buildMode=m;if(m)pingMode=false;closeProdMenu();updateBuild
 function updateBuildBar(){
   document.querySelectorAll('#buildBar button[data-mode]').forEach(b=>{
     b.classList.toggle('on',b.dataset.mode===buildMode);
+    if(b.dataset.mode==='stabilizer'){
+      b.disabled=S.stabCharges<=0&&buildMode!=='stabilizer';
+      const c=document.getElementById('cStab');
+      if(c)c.textContent='●'.repeat(S.stabCharges)+'○'.repeat(STAB_CHARGES-S.stabCharges)+(S.stabCharges<STAB_CHARGES?` ${Math.ceil(S.stabRechargeT)}s`:'');
+      return;
+    }
     const cost=b.dataset.mode==='relay'&&S.mods.freeRelayCharges>0?0:COST[b.dataset.mode];
-    b.disabled=(!S.base.locked&&b.dataset.mode!=='relay'&&b.dataset.mode!=='depot'&&b.dataset.mode!=='stabilizer')||(S.dat<cost&&buildMode!==b.dataset.mode);
+    b.disabled=S.dat<cost&&buildMode!==b.dataset.mode;
   });
   const crEl=document.getElementById('cRelay');
   if(crEl)crEl.textContent=S.mods.freeRelayCharges>0?`FREE ×${S.mods.freeRelayCharges}`:`${COST.relay} dat`;
@@ -3102,8 +3110,7 @@ function updateBuildBar(){
   const tp=document.getElementById('throttlePanel');
   tp.hidden=!S.base.locked;
   if(S.base.locked){
-    document.getElementById('thSpeed').textContent=
-      S.throttleMul===throttleValue(0)?THROTTLE_LABELS[0]:S.throttleMul===throttleValue(1)?THROTTLE_LABELS[1]:THROTTLE_LABELS[2];
+    document.getElementById('thSpeed').textContent='Drilling';
   }
   const pb=document.getElementById('bPause');
   if(pb){
@@ -3126,18 +3133,7 @@ function throttleValue(idx){return THROTTLES[idx]+(idx===2?S.mods.fastBonus:0)}
 const THROTTLE_LABELS=['Slow','Normal','Fast'];
 // Begin Drilling now opens a popup (pausing the game) to pick a speed, instead of locking in
 // immediately — see renderDrillCards for the cost/reward/enemy-response estimate shown per option.
-function openDrillSelect(){
-  if(S.over||S.rewardChoice||S.paused)return;
-  const v=canLockdown();
-  if(!v){
-    const cracked=S.veins.find(x=>x.crackedT>0&&dist(S.base,x.mine)<BASE_R+18);
-    msg(cracked?`This vein is still cracked from the rupture — ${Math.ceil(cracked.crackedT)}s until it can be drilled.`:'Move the Bastion onto a found vein\'s marker first.');
-    return;
-  }
-  S.paused=true;
-  renderDrillCards(v);
-  document.getElementById('drillSelectOverlay').hidden=false;
-}
+function openDrillSelect(){tryLockdown()}
 function closeDrillSelect(){
   document.getElementById('drillSelectOverlay').hidden=true;
   S.paused=false;
@@ -3179,25 +3175,27 @@ function renderDrillCards(v){
 // Drill speed is picked once, right here, and locked for the whole drill — no more nudging the
 // throttle mid-run. throttle is a THROTTLES value (0.5/1/1.8); omitted (e.g. the L shortcut)
 // defaults to Normal.
-function tryLockdown(throttle){
-  if(S.base.locked){msg('Already drilling.');return}
+// No warm-up and no speed to pick: locking on starts the strike at once and the drill bites in
+// the moment it's set. The breathing room moves to the first wave instead — it's sent at lock-on
+// and takes about FIRST_WAVE_DELAY plus its walk in (~20s in all) to arrive. Ripeness freezes the
+// moment the Bastion locks on; the strike strip is built from it.
+const FIRST_WAVE_DELAY=11;
+function tryLockdown(){
+  if(S.over||S.rewardChoice||S.paused)return;
+  if(S.base.locked){if(strikeReady())doStrike();return}
   const v=canLockdown();
-  if(!v){msg('Move the Bastion onto a found vein\'s marker first.');return}
-  S.throttleMul=throttle==null?1:throttle;
-  S.base.locked=true; S.base.dest=null;
-  // waveT/saboteurT/startT aren't set until prep finishes (see the update loop). The one exception
-  // is the first wave, launched FIRST_WAVE_LEAD before prep ends so it arrives as drilling starts
-  // rather than partway through (or after) a short, fast drill. waveDir is
-  // rolled right away, though, so its directional arrow is up for the whole warm-up and the
-  // player has the full 60s to actually see it and dig in before the first wave arrives.
-  const prep=tutorialMap?TUTORIAL_PREP_TIME:PREP_TIME;
-  S.activeVein=v; v.drillProg=0; v.prepT=prep; v.stalled=false; v.paused=false; v.waveDir=rnd(0,Math.PI*2); v.firstWaveSent=false;
-  // ripeness freezes the moment the Bastion locks on — the meter's bands are built from it
-  v.lockIdx=ripeIdx(v); v.lockUnstable=unstableFrac(v); v.meter=null;
-  const tier=currentTier(v);
-  msg(`Drill warming up over the ${v.band} vein — ${prep}s until drilling begins at ${tier} tier, ${S.throttleMul===0.5?'Slow':S.throttleMul===1?'Normal':'Fast'} throttle.`);
-  sfx.build();
-  updateBuildBar();
+  if(!v){
+    const cracked=S.veins.find(x=>x.crackedT>0&&dist(S.base,x.mine)<BASE_R+18);
+    msg(cracked?`This vein is still cracked from the rupture — ${Math.ceil(cracked.crackedT)}s until it can be drilled.`:'Move the Bastion onto the glowing centre of a vein first.');
+    return;
+  }
+  S.throttleMul=1; S.base.locked=true; S.base.dest=null;
+  S.activeVein=v; v.drillProg=0; v.prepT=0; v.stalled=false; v.paused=false; v.waveDir=rnd(0,Math.PI*2); v.firstWaveSent=true;
+  v.waveT=FIRST_WAVE_DELAY; v.saboteurT=SABOTEUR_INTERVAL[v.band]; v.startT=S.t;
+  v.lockIdx=ripeIdx(v); v.lockUnstable=unstableFrac(v);
+  beginStrike(v);
+  msg('Locked on — STRIKE! Press Space (or the Strike button) to stop the needle on a good band.');
+  sfx.wave(); updateBuildBar();
 }
 // Pausing freezes the drill entirely — no progress, no Dat burn, no wave/saboteur clocks
 // ticking — so a stockpile can build up (or a player can step away) without the drill eating
@@ -3427,25 +3425,36 @@ function inHarvestRange(p){
   if(dist(p,S.base)<=BUILD_R)return true;
   return S.relays.some(r=>r.built&&r.tetherOk&&dist(p,r)<=BUILD_R);
 }
-// Stabilizers go on a vein hotspot (and pin it in place) — any time, drilling or not, as long as
-// it's inside the build network so a Builder can reach it.
-function tryPlaceStabilizer(w){
-  const hit=hotspotAt(w);
-  if(!hit){msg('Place a Stabilizer on one of a vein\'s glowing hotspots.');return}
-  const {v,h}=hit;
-  if(!inBuildRange(h)){msg('That hotspot is outside the build network — bring the Bastion or a Relay closer.');return}
-  if(S.dat<COST.stabilizer){msg('Not enough Dat Crystal. Send harvesters to a deposit.');return}
-  const st={x:h.x,y:h.y,hp:STAB_HP,maxHp:STAB_HP,kind:'stabilizer',r:12,built:false,buildT:0,buildTotal:STAB_BUILD_T,builder:null,repairer:null,vein:v,hot:h,
-    cracks:mkCracks(6,4,30,0.45)};
-  h.stab=st; S.stabs.push(st); S.dat-=COST.stabilizer;
-  msg('Stabilizer queued — a builder needs to finish it.');
-  sfx.click(); updateBuildBar();
+function fireStabilizer(w){
+  if(S.stabCharges<=0){msg(`No Stabilizer charges — one recharges every ${STAB_RECHARGE_T}s.`);return}
+  const d=dist(w,S.base);
+  if(d>STAB_RANGE){msg('Out of Stabilizer range — get the Bastion closer.');return}
+  S.stabShots.push({x0:S.base.x,y0:S.base.y,tx:w.x,ty:w.y,t:0,dur:Math.max(0.45,d/STAB_FLIGHT_SPEED),spin:rnd(2,4)*(rnd(0,1)<0.5?-1:1)});
+  if(S.stabCharges===STAB_CHARGES)S.stabRechargeT=STAB_RECHARGE_T;
+  S.stabCharges--;
+  tone(240,0.12,'square',0.06,0,520);
+  updateBuildBar();
   return true;
 }
+// A spike lands: pin the free hotspot it hit (if any) and buy the vein time, or fizzle.
+function landStabilizer(sh){
+  const hit=hotspotAt({x:sh.tx,y:sh.ty});
+  if(!hit){burst(sh.tx,sh.ty,'#8d96a1',10,90,0.4);msg('The Stabilizer missed the hotspot — lead it, they drift.');return}
+  const {v,h}=hit;
+  const st={x:h.x,y:h.y,hp:STAB_HP,maxHp:STAB_HP,kind:'stabilizer',r:12,built:true,buildT:STAB_BUILD_T,buildTotal:STAB_BUILD_T,builder:null,repairer:null,vein:v,hot:h,
+    cracks:mkCracks(6,4,30,0.45)};
+  h.stab=st; S.stabs.push(st);
+  const before=v.lifeBonus||0; v.lifeBonus=Math.min(STAB_LIFE_BONUS*HOTSPOTS_PER_VEIN,before+STAB_LIFE_BONUS);
+  burst(h.x,h.y,veinEnergy(v).col,16,140,0.5); shakeScreen(2,0.15); sfx.build();
+  msg(v.lifeBonus>before?`Stabilizer pinned — the vein holds ${STAB_LIFE_BONUS}s longer.`:'Stabilizer pinned.');
+}
+function updateStabilizerShots(dt){
+  if(S.stabCharges<STAB_CHARGES){S.stabRechargeT-=dt;if(S.stabRechargeT<=0){S.stabCharges++;S.stabRechargeT=S.stabCharges<STAB_CHARGES?STAB_RECHARGE_T:0}}
+  S.stabShots=S.stabShots.filter(sh=>{sh.t+=dt;if(sh.t<sh.dur)return true;landStabilizer(sh);return false});
+}
 function tryBuild(w){
-  if(buildMode==='stabilizer')return tryPlaceStabilizer(w);
+  if(buildMode==='stabilizer')return fireStabilizer(w);
   const freeToLockdown=buildMode==='relay'||buildMode==='depot';
-  if(!S.base.locked&&!freeToLockdown){msg('Lock down the Bastion (begin drilling) before building.');return}
   if(!inBuildRange(w)){msg('Build inside the Bastion\'s dashed ring.');return}
   if(terrainAt(w.x,w.y)===2){msg('Cannot build on solid rock.');return}
   const freeRelay=buildMode==='relay'&&S.mods.freeRelayCharges>0;
@@ -3682,11 +3691,11 @@ function update(dt){
     // at every speed; squaring it means Fast actually costs more overall, not just faster per tick.
     // nothing burns or progresses until the strike has set the drill
     if(v.meter&&v.meter.phase==='drill'){
-    const need=DRILL_DAT_COST*S.mods.drillBurnMult*S.throttleMul*S.throttleMul*dt;
+    const need=DRILL_DAT_COST*S.mods.drillBurnMult*S.mods.drillRateMult*dt;
     if(S.dat>=need){
       if(v.stalled){v.stalled=false;msg('Dat Crystal flowing again — drilling resumed.');sfx.resume()}
       S.dat-=need;
-      v.drillProg+=DRILL_RATE*S.throttleMul*dt;
+      v.drillProg+=DRILL_RATE*S.mods.drillRateMult*dt;
     } else if(!v.stalled){
       v.stalled=true;
       msg('Out of Dat Crystal — drilling has stalled. Bring more in to keep going.');
@@ -3791,6 +3800,7 @@ function update(dt){
   if(S.pingRing){S.pingRing.t+=dt;if(S.pingRing.t>=S.pingRing.dur)S.pingRing=null}
   if(S.pings.length)S.pings=S.pings.filter(pg=>(pg.t-=dt)>0);
   if(S.reanim.length)updateReanimation(dt);
+  updateStabilizerShots(dt);
   if(!B.locked||S.mods.bastionShootWhileDrilling){
     let best=null,bd=BASE_GUN_RANGE;S.enemies.forEach(e=>{const d=dist(e,B);if(d<bd){bd=d;best=e}});
     if(best&&B.gunCd<=0){damageEnemy(best,BASE_GUN_DMG);tracer(B,best,C.accent);B.gunCd=BASE_GUN_CD}
@@ -4448,6 +4458,22 @@ function drawHotspots(v,target){
 const STAB_VB=104.56, STAB_SIZE=30;
 const STAB_DIAMOND=new Path2D('M52.28 27.28 L77.28 52.28 L52.28 77.28 L27.28 52.28 Z');
 const STAB_BRACKETS=new Path2D('M39.53 3.61 V38.95 H4.18 Z M65.4 100.17 V64.83 H100.74 Z M4.18 64.83 H39.53 V100.17 Z M100.74 38.95 H65.4 V3.61 Z');
+// A Stabilizer spike in flight: it travels in a straight line over the ground from the Bastion to
+// its target, but scales up toward the middle of the flight (rising toward the camera) and back
+// down as it lands, spinning, with its shadow on the ground beneath it.
+function drawStabShots(){
+  S.stabShots.forEach(sh=>{
+    const f=Math.min(1,sh.t/sh.dur), arc=Math.sin(Math.PI*f);
+    const x=sh.x0+(sh.tx-sh.x0)*f, y=sh.y0+(sh.ty-sh.y0)*f;
+    ctx.save();
+    ctx.globalAlpha=0.35*(1-0.5*arc);ctx.fillStyle='#000';ctx.beginPath();ctx.ellipse(x,y,12*(1-0.35*arc),6*(1-0.35*arc),0,0,Math.PI*2);ctx.fill();
+    const k=STAB_SIZE*(1+1.3*arc)/STAB_VB;
+    ctx.globalAlpha=1;ctx.translate(x,y-26*arc);ctx.rotate(sh.t*sh.spin);ctx.scale(k,k);ctx.translate(-STAB_VB/2,-STAB_VB/2);
+    ctx.fillStyle='#8fe3ff';ctx.fill(STAB_DIAMOND);ctx.strokeStyle='#0b0e12';ctx.lineWidth=5;ctx.stroke(STAB_DIAMOND);
+    ctx.fillStyle='#dfe6ee';ctx.fill(STAB_BRACKETS);ctx.stroke(STAB_BRACKETS);
+    ctx.restore();
+  });
+}
 function drawStabilizer(st){
   const en=veinEnergy(st.vein), dmg=st.built?1-st.hp/st.maxHp:0;
   ctx.save();ctx.translate(st.x,st.y);
@@ -4726,6 +4752,7 @@ function draw(){
   if(!debugNoFog){ctx.imageSmoothingEnabled=true;ctx.drawImage(dimC,0,0,W,H)}
   // energy pulses through the crack network (only where something can see) and bearing beams
   drawExplorationLight(x0-40,y0-40,x1+40,y1+40,vw,vh,shkx,shky);
+  drawStabShots();
   // floating reward text (drawn above fog so it's always legible)
   S.floaters.forEach(f=>{ctx.globalAlpha=Math.max(0,1-f.t/f.life);ctx.fillStyle=f.col;ctx.font='700 13px '+css('--mono');ctx.textAlign='center';ctx.fillText(f.text,f.x,f.y)});ctx.globalAlpha=1;
   drawTutorialTarget();
@@ -4738,11 +4765,16 @@ function draw(){
     ctx.globalAlpha=0.12;ctx.fillStyle=col;ctx.beginPath();ctx.arc(mouse.wx,mouse.wy,PING_REVEAL_R,0,Math.PI*2);ctx.fill();
     ctx.globalAlpha=0.8;ctx.strokeStyle=col;ctx.lineWidth=2/cam.z;ctx.beginPath();ctx.arc(mouse.wx,mouse.wy,PING_REVEAL_R,0,Math.PI*2);ctx.stroke();
     ctx.beginPath();ctx.arc(mouse.wx,mouse.wy,6/cam.z,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1}
-  // build preview — a Stabilizer snaps to the nearest free hotspot, ringed green if it can go there
-  if(buildMode==='stabilizer'){const hit=hotspotAt({x:mouse.wx,y:mouse.wy}),ok=hit&&inBuildRange(hit.h)&&S.dat>=COST.stabilizer;
-    ctx.globalAlpha=0.85;ctx.strokeStyle=ok?C.dat:C.enemy;ctx.lineWidth=2/cam.z;ctx.setLineDash([5,5]);
-    ctx.beginPath();ctx.arc(hit?hit.h.x:mouse.wx,hit?hit.h.y:mouse.wy,hit?22:10,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1}
-  else if(buildMode){const ok=(B.locked||buildMode==='relay'||buildMode==='depot')&&inBuildRange({x:mouse.wx,y:mouse.wy})&&terrainAt(mouse.wx,mouse.wy)!==2&&S.dat>=COST[buildMode];ctx.globalAlpha=0.6;
+  // Stabilizer aiming: the Bastion's firing range, a line out to the cursor, and the landing spot
+  // with the flight time — hotspots keep drifting while it's in the air, so lead them
+  if(buildMode==='stabilizer'){const d=dist({x:mouse.wx,y:mouse.wy},B),ok=d<=STAB_RANGE&&S.stabCharges>0,col=ok?'#8fe3ff':C.enemy;
+    ctx.save();ctx.strokeStyle='#8fe3ff';ctx.globalAlpha=0.35;ctx.lineWidth=1.5/cam.z;ctx.setLineDash([10/cam.z,8/cam.z]);
+    ctx.beginPath();ctx.arc(B.x,B.y,STAB_RANGE,0,Math.PI*2);ctx.stroke();
+    ctx.globalAlpha=0.5;ctx.strokeStyle=col;ctx.beginPath();ctx.moveTo(B.x,B.y);ctx.lineTo(mouse.wx,mouse.wy);ctx.stroke();ctx.setLineDash([]);
+    ctx.globalAlpha=0.9;ctx.lineWidth=2/cam.z;ctx.beginPath();ctx.arc(mouse.wx,mouse.wy,STAB_SNAP,0,Math.PI*2);ctx.stroke();
+    ctx.fillStyle=col;ctx.font='600 12px '+css('--mono');ctx.textAlign='center';ctx.fillText(`${Math.max(0.45,d/STAB_FLIGHT_SPEED).toFixed(1)}s`,mouse.wx,mouse.wy-STAB_SNAP-8);
+    ctx.restore()}
+  else if(buildMode){const ok=inBuildRange({x:mouse.wx,y:mouse.wy})&&terrainAt(mouse.wx,mouse.wy)!==2&&S.dat>=COST[buildMode];ctx.globalAlpha=0.6;
     if(buildMode==='wall'){const gx=Math.floor(mouse.wx/CELL)*CELL,gy=Math.floor(mouse.wy/CELL)*CELL;ctx.fillStyle=ok?'#8d9aa8':C.enemy;ctx.fillRect(gx+1,gy+1,CELL-2,CELL-2)}
     else{const rng=buildMode==='turret'?TURRET_RANGE:wirelessTol('dense');ctx.fillStyle=ok?C.accent:C.enemy;ctx.beginPath();ctx.arc(mouse.wx,mouse.wy,11,0,Math.PI*2);ctx.fill();if(rng>0){ctx.strokeStyle=ok?C.accent:C.enemy;ctx.lineWidth=1;ctx.setLineDash([4,6]);ctx.beginPath();ctx.arc(mouse.wx,mouse.wy,rng,0,Math.PI*2);ctx.stroke();ctx.setLineDash([])}}
     ctx.globalAlpha=1}
@@ -4798,9 +4830,9 @@ function hud(){
       $('thBurn').textContent='paused';
       $('thRate').textContent='paused';
     }else{
-      const burnRate=DRILL_DAT_COST*S.mods.drillBurnMult*S.throttleMul*S.throttleMul;
+      const burnRate=DRILL_DAT_COST*S.mods.drillBurnMult*S.mods.drillRateMult;
       $('thBurn').textContent=`−${burnRate.toFixed(1)} dat/s`;
-      const condensedRatePerMin=60*CONDENSED_RATE*S.mods.condensedMult*DRILL_RATE*S.throttleMul*S.throttleMul;
+      const condensedRatePerMin=60*CONDENSED_RATE*S.mods.condensedMult*DRILL_RATE*S.mods.drillRateMult;
       $('thRate').textContent=`+${condensedRatePerMin.toFixed(1)} cond/min`;
     }
   }else{
