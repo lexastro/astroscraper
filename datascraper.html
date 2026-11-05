@@ -123,8 +123,6 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 .overlay p{margin:0;color:var(--muted);max-width:40ch}
 .overlay button{background:var(--accent);color:#1a1200;border:0;font:inherit;font-weight:600;padding:10px 18px;border-radius:4px;cursor:pointer}
 .overlay button:disabled{opacity:.4;cursor:default}
-#menuMap{width:min(78vw,60vh,440px);height:min(78vw,60vh,440px);background:#10151b;border:1px solid var(--line);border-radius:4px;cursor:crosshair;touch-action:none}
-#menuHint{font-size:12px}
 .drillMeter{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(96px + env(safe-area-inset-bottom,0px));z-index:6;
   width:min(460px,calc(100vw - 32px));background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px 10px 9px;
   box-shadow:0 4px 16px rgba(0,0,0,.5);font-size:12px}
@@ -155,10 +153,6 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 .tutLink{background:none;border:none;color:var(--muted);font:inherit;font-size:11px;cursor:pointer;text-decoration:underline;padding:0}
 .tutBtns .tutLink{margin-right:auto}
 @media (max-width:720px),(max-height:500px){.tutPanel{top:calc(env(safe-area-inset-top,0px) + 60px);font-size:12px}}
-#mapTypeLabel{font-size:12px;max-width:440px;text-align:center;margin:0}
-#mapTypeLabel b{color:var(--accent)}
-.mapRow{display:flex;align-items:center;gap:12px;font-size:12px}
-#mapSeedLabel{color:var(--muted);font-family:var(--mono)}
 .menuMeta{display:flex;flex-direction:column;align-items:center;gap:8px;margin:2px 0}
 .metaRow{display:flex;gap:8px;align-items:baseline;font-family:var(--mono)}
 .metaRow .k{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
@@ -337,8 +331,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   #dmPad{width:54px;height:54px} #dmHint{display:none} .dmFoot{min-height:0;margin-top:3px} .dmHead{margin-bottom:3px}
   .help.open{inset:6% 6%;max-height:88vh}
 }
-/* While the main menu / landing picker is up, the world behind it (already built around the
-   picked spot) stays hidden, so the preview's haze is the only hint of where veins are. */
+/* While the menus are up, the world behind them stays hidden — nothing about the next map shows. */
 body.inMenu :is(#game,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMeter,.mini,.unitSelCtrl,.help,.tutPanel){visibility:hidden}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}.overlay{animation:none}.bar i.hp.low{animation:none}.overlay button.rewardCard.legendary{animation:none}}
 </style>
@@ -450,6 +443,10 @@ body.inMenu :is(#game,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMeter,.mini,.
 <div class="overlay" id="mainMenuOverlay">
   <h1>Datascraper</h1>
   <button id="playBtn">Play</button>
+  <div class="menuMeta">
+    <div class="metaRow"><span class="crystalIcon living">❖</span><span class="v" id="metaLiving">0</span><span class="crystalIcon condensed">⬢</span><span class="v" id="metaCondensed">0</span></div>
+    <button id="openUnlocksBtn" class="secondary">Unlocks</button>
+  </div>
   <button id="tutorialBtn" class="secondary">Tutorial</button>
   <button id="settingsBtn" class="secondary">Settings</button>
   <!-- Filled in at load from the GitHub API with the actual latest commit on master — the same
@@ -460,22 +457,6 @@ body.inMenu :is(#game,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMeter,.mini,.
     <div class="chHead"><b>Recent changes</b><button id="changesClose" class="changesBtn" aria-label="Close">×</button></div>
     <ol id="changesList"></ol>
   </div>
-</div>
-
-<div class="overlay" id="menuOverlay" hidden>
-  <h1>Datascraper</h1>
-  <p>Pick a landing zone on the Rim for the Bastion to touch down, then launch the mission.</p>
-  <canvas id="menuMap" width="480" height="480"></canvas>
-  <p id="mapTypeLabel"></p>
-  <p id="menuHint">Click out in the Rim, beyond the dashed ring, to choose your landing zone.</p>
-  <div class="mapRow"><span id="mapSeedLabel"></span><button id="newMapBtn" class="metaUnlock secondary">New map</button></div>
-  <div class="menuMeta">
-    <div class="metaRow"><span class="crystalIcon living">❖</span><span class="v" id="metaLiving">0</span></div>
-    <div class="metaRow"><span class="crystalIcon condensed">⬢</span><span class="v" id="metaCondensed">0</span></div>
-    <button id="openUnlocksBtn" class="metaUnlock">Unlocks</button>
-  </div>
-  <button id="launchBtn" disabled>Launch Mission</button>
-  <button id="playBackBtn" class="secondary">Back</button>
 </div>
 
 <div class="overlay" id="unlocksOverlay" hidden>
@@ -1570,38 +1551,50 @@ function drawExplorationLight(vx0,vy0,vx1,vy1,vw,vh,shkx,shky){
 let S, cam, mouse={x:0,y:0,wx:0,wy:0,down:false,drag:null,panning:false,touchStart:null,wallDragging:false,wallPlacedTouch:false}, keys={}, buildMode=null, lastT=0, msgT=0, terrain, terrainCv, prodMenuOpen=false;
 // touch input state: multi-touch pinch-zoom, long-press-then-drag box select, tap-to-command, manual double-tap
 let touchPts=new Map(), pinch=null, longPressTimer=null, lastTap=null;
-// ---------- main menu / landing zone ----------
+// ---------- main menu / spawn ----------
 // Mission launch: the player picks where the Bastion sets down before the run starts. Confined to
 // the Rim (never Dense/Core) and inset from the map edge so the Bastion's own build/clear radius
 // never pokes off the world or into the Dense band.
-let menuOpen=true, landingSel=null;
+let menuOpen=true;
+// The Bastion's spawn: always on the Rim, at least LANDING_MARGIN out past the Dense Field's edge
+// and inside the map margin.
 const LANDING_MARGIN=260;
-// A legal landing spot: inside the map margin and at least LANDING_MARGIN out past the Dense
-// Field's edge (the dashed ring on the landing preview).
-// ...and never inside one of the preview's vein hazes: the dotted ring inside each glow is the
-// unstable ground, so what's refused is exactly what the player can see. Each haze is centred
-// anywhere up to VEIN_HAZE_OFF off its vein, its no-landing ring is LANDING_HAZE_R across (so the
-// vein always sits at least ~300 inside it), and its glow spreads further still (HAZE_GLOW_R) —
-// the Bastion can't touch down on a vein, and the glow says little about where in it the vein is.
-// Empty vein sites don't block landing (they aren't shown); the opening vein and later respawns
-// pick a site well clear of the Bastion instead.
-// SHOW_VEIN_HAZE: off for now — the landing map shows no hint of veins and the whole open Rim is
-// legal, so landing near one is down to luck. Flip it back on to restore the hazes and their
-// no-landing rings (the haze offsets are still rolled either way, so map seeds don't change).
-const SHOW_VEIN_HAZE=false;
-const LANDING_HAZE_R=620, VEIN_HAZE_OFF=320, HAZE_GLOW_R=1000, LANDING_SITE_CLEAR=450;
-// a haze offset: any direction, anywhere within VEIN_HAZE_OFF (two rolls, like the old x/y pair)
+// Haze offsets are no longer shown anywhere, but are still rolled so every map seed (the
+// tutorial's included) keeps exactly the same layout.
+const VEIN_HAZE_OFF=320, LANDING_SITE_CLEAR=450;
 const rollHaze=()=>{const a=rnd(0,Math.PI*2),d=VEIN_HAZE_OFF*Math.sqrt(rnd(0,1));return{x:Math.cos(a)*d,y:Math.sin(a)*d}};
-const hazedVeins=()=>SHOW_VEIN_HAZE&&S&&S.veins?S.veins.filter(v=>!v.contract&&!v.opening&&veinAlive(v)&&v.haze):[];
-function nearVeinSite(x,y){return hazedVeins().some(v=>Math.hypot(v.x+v.haze.x-x,v.y+v.haze.y-y)<LANDING_HAZE_R)}
-function canLandAt(x,y){return inMap(x,y,LANDING_MARGIN)&&epiDist(x,y)>=DENSE_R+LANDING_MARGIN&&!nearVeinSite(x,y)}
-// Where the Bastion sits on the preview before a spot is picked: the deepest-Rim corner, pulled in.
+function canLandAt(x,y){return inMap(x,y,LANDING_MARGIN)&&epiDist(x,y)>=DENSE_R+LANDING_MARGIN}
+// Semi-random spawn, tuned for time to first engagement: a random open Rim spot whose nearest
+// live Rim vein is SPAWN_VEIN_NEAR..SPAWN_VEIN_FAR away (about 18-26s of Bastion travel), and no
+// live vein of any kind is closer than SPAWN_VEIN_NEAR. Needs the map already built (reset()).
+// If no live vein allows that, the same distance from an empty Rim site works too: with no live
+// vein within 1100, the opening vein (see reset) emerges at the nearest Rim site. Last resort: any
+// open Rim spot.
+const SPAWN_VEIN_NEAR=750, SPAWN_VEIN_FAR=1100, SPAWN_TRIES=600;
+function pickSpawn(){
+  const live=S.veins.filter(v=>!v.contract&&veinAlive(v));
+  const tryPick=targets=>{
+    for(let i=0;i<SPAWN_TRIES;i++){
+      const x=Math.random()*W, y=Math.random()*H;
+      if(!canLandAt(x,y)||terrainAt(x,y)!==0)continue;
+      const near=targets.reduce((m,t)=>Math.min(m,Math.hypot(t.x-x,t.y-y)),1e9);
+      if(near<SPAWN_VEIN_NEAR||near>SPAWN_VEIN_FAR)continue;
+      if(live.some(v=>Math.hypot(v.x-x,v.y-y)<SPAWN_VEIN_NEAR))continue;
+      return{x,y};
+    }
+    return null;
+  };
+  const rimSites=S.sites.filter(st=>st.band==='rim');
+  return tryPick(live.filter(v=>v.band==='rim'))||tryPick(rimSites.filter(st=>!st.vein))||tryPick(rimSites)
+    ||(()=>{for(let i=0;i<SPAWN_TRIES;i++){const x=Math.random()*W,y=Math.random()*H;if(canLandAt(x,y)&&terrainAt(x,y)===0)return{x,y}}})()
+    ||defaultLanding();
+}
+// The fallback spawn: the deepest-Rim corner, pulled in.
 function defaultLanding(){
   const cs=[[500,500],[W-500,500],[500,H-500],[W-500,H-500]];
   let best=cs[0];cs.forEach(c=>{if(epiDist(c[0],c[1])>epiDist(best[0],best[1]))best=c});
   return{x:best[0],y:best[1]};
 }
-const menuCv=document.getElementById('menuMap'), menuCx=menuCv.getContext('2d');
 // fogC used to be a second, fully-opaque "never explored" layer underneath dimC — removed as the
 // darkest fog tier; fogX/fogC now exist only for the one-shot Zone Mapping upgrade's
 // revealCircle(), which has no visual effect of its own anymore since nothing draws fogC.
@@ -1626,8 +1619,8 @@ let debugNoFog=false; // dev toggle: reveal the whole map and all enemies, bypas
 
 // Every map is generated from a seed. rnd() normally draws from Math.random, but reset() points
 // `rand` at a seeded generator while it builds the map, so the same seed (and landing spot)
-// always produces the same map — which is what lets the landing picker's preview match the map
-// you actually launch into.
+// always produces the same map — which is what lets startRun build the map once to choose a spawn
+// and then rebuild the identical map around it.
 function seededRng(seed){let a=seed>>>0;return()=>{a=(a+0x6D2B79F5)>>>0;let t=a;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);return((t^(t>>>14))>>>0)/4294967296}}
 let rand=Math.random;
 function newMapSeed(){return 1+Math.floor(Math.random()*99999)}
@@ -1728,8 +1721,7 @@ function reset(landing){
   {const cs=layout.veins.find(v=>v.contract);S.contractSite={x:cs.x,y:cs.y,band:cs.band,richness:cs.richness,vein:null}}
   S.crackNet=genCrackNet([...S.sites,S.contractSite]);
   // Which sites start with a live vein (and how far along each is) is part of the map, decided
-  // here before the landing spot is known — so picking a landing spot in the preview never
-  // reshuffles them. The veins themselves are created once the terrain is final (below).
+  // here before the spawn is known — so choosing the spawn never reshuffles them. The veins themselves are created once the terrain is final (below).
   const startPicks=[];
   ['rim','dense','core'].forEach(band=>{
     const pool=S.sites.filter(st=>st.band===band);
@@ -1807,8 +1799,7 @@ function reset(landing){
   emergeVein(S.contractSite,{contract:true});
   startPicks.forEach(p=>emergeVein(p.site,{ripeT:p.ripeT,haze:p.haze}));
   // the opening vein: if no starting vein is close to the landing, a fresh one emerges at the
-  // nearest Rim site at least LANDING_SITE_CLEAR away (it isn't part of the preview's haze, so the
-  // preview doesn't shift)
+  // nearest Rim site at least LANDING_SITE_CLEAR away
   {const rim=S.sites.filter(st=>st.band==='rim'), clear=rim.filter(st=>dist(st,S.base)>=LANDING_SITE_CLEAR);
    const open=(clear.length?clear:rim).reduce((a,b)=>dist(b,S.base)<dist(a,S.base)?b:a);
    if(!open.vein&&(tutorialMap||!S.veins.some(v=>!v.contract&&dist(v,S.base)<1100)))emergeVein(open,{ripeT:0,opening:true})}
@@ -1831,86 +1822,20 @@ function reset(landing){
   document.getElementById('overlay').hidden=true;
   document.getElementById('pauseOverlay').hidden=true;
   msg('Watch the cracks for pulses of energy — follow them upstream to find a vein.');
-  S.paused=menuOpen; // held at the main menu until the player picks a landing zone and launches
+  S.paused=menuOpen; // held while the main menu is up
 }
-// ---------- main menu / landing zone ----------
-function drawMenuMap(){
-  const s=menuCv.width/W;
-  document.getElementById('mapSeedLabel').textContent='Map #'+mapSeed;
-  document.getElementById('mapTypeLabel').innerHTML=`<b>${mapType.name}</b> · ${mapLayout.name} epicenter — ${mapType.desc}`;
-  menuCx.fillStyle='#10151b';menuCx.fillRect(0,0,menuCv.width,menuCv.height);
-  menuCx.drawImage(terrainCv,0,0,W,H,0,0,menuCv.width,menuCv.height);
-  const ex=EPI.x*s, ey=EPI.y*s;
-  menuCx.fillStyle='rgba(180,139,255,0.07)';menuCx.beginPath();menuCx.arc(ex,ey,DENSE_R*s,0,Math.PI*2);menuCx.fill();
-  menuCx.fillStyle='rgba(180,139,255,0.10)';menuCx.beginPath();menuCx.arc(ex,ey,CORE_R*s,0,Math.PI*2);menuCx.fill();
-  // labels sit along the line from the epicenter toward the far side of the map, where every
-  // band is guaranteed to have room
-  let fx=0,fy=0,fd=-1;[[0,0],[W,0],[0,H],[W,H]].forEach(([x,y])=>{const d=epiDist(x,y);if(d>fd){fd=d;fx=x;fy=y}});
-  const ux=(fx-EPI.x)/fd, uy=(fy-EPI.y)/fd, lab=(d,dy)=>[Math.max(40,Math.min(menuCv.width-40,(EPI.x+ux*d)*s)),Math.max(14,Math.min(menuCv.height-8,(EPI.y+uy*d)*s+(dy||0)))];
-  menuCx.font='600 11px '+css('--mono');menuCx.fillStyle=C.muted;menuCx.textAlign='center';
-  menuCx.fillText('CORE',...lab(0,4));
-  menuCx.fillText('DENSE FIELD',...lab((CORE_R+DENSE_R)/2));
-  menuCx.fillStyle=C.accent;menuCx.fillText('RIM',...lab(DENSE_R+LANDING_MARGIN+260));
-  // the landing line: anywhere on open ground outside this ring (and off the map edge) is legal
-  menuCx.strokeStyle=C.accent;menuCx.setLineDash([5,4]);menuCx.lineWidth=1.5;
-  menuCx.beginPath();menuCx.arc(ex,ey,(DENSE_R+LANDING_MARGIN)*s,0,Math.PI*2);menuCx.stroke();
-  menuCx.setLineDash([]);
-  // No vein markers before landing. With SHOW_VEIN_HAZE on, a haze of energy marks roughly where
-  // veins are stirring (each haze sits a few hundred units off its vein); off, there's no hint.
-  menuCx.save();menuCx.globalCompositeOperation='lighter';
-  hazedVeins().forEach(v=>{const hx=(v.x+v.haze.x)*s,hy=(v.y+v.haze.y)*s,hr=HAZE_GLOW_R*s;
-    // flat across the middle, so the brightest point isn't a giveaway either
-    const g=menuCx.createRadialGradient(hx,hy,0,hx,hy,hr);g.addColorStop(0,tierBlendCol(v));g.addColorStop(0.45,tierBlendCol(v));g.addColorStop(1,'rgba(0,0,0,0)');
-    menuCx.globalAlpha=0.22;menuCx.fillStyle=g;menuCx.beginPath();menuCx.arc(hx,hy,hr,0,Math.PI*2);menuCx.fill();
-    // its faint dotted rim marks the unstable ground the Bastion can't land on
-    menuCx.globalAlpha=0.45;menuCx.strokeStyle=tierBlendCol(v);menuCx.lineWidth=1;menuCx.setLineDash([2,4]);
-    menuCx.beginPath();menuCx.arc(hx,hy,LANDING_HAZE_R*s,0,Math.PI*2);menuCx.stroke();menuCx.setLineDash([])});
-  menuCx.restore();
-  S.clusters.forEach(([x,y])=>{menuCx.fillStyle=C.dat;menuCx.fillRect(x*s-2,y*s-2,4,4)});
-  if(landingSel){
-    menuCx.fillStyle=C.accent;menuCx.beginPath();menuCx.arc(landingSel.x*s,landingSel.y*s,6,0,Math.PI*2);menuCx.fill();
-    menuCx.strokeStyle='#000';menuCx.lineWidth=1;menuCx.stroke();
-  }
-}
-menuCv.addEventListener('pointerdown',e=>{
-  const r=menuCv.getBoundingClientRect();
-  const x=(e.clientX-r.left)/r.width*W, y=(e.clientY-r.top)/r.height*H;
-  if(!canLandAt(x,y)){
-    document.getElementById('menuHint').textContent=nearVeinSite(x,y)&&inMap(x,y,LANDING_MARGIN)&&epiDist(x,y)>=DENSE_R+LANDING_MARGIN
-      ?"The ground inside a vein's glow is too unstable to land on. Pick another spot."
-      :'Pick a spot out in the Rim, beyond the dashed ring.';
-    return;
-  }
-  const tt=terrainAt(x,y);
-  if(tt===RIFT||tt===2){
-    document.getElementById('menuHint').textContent="The Bastion can't touch down on rift or rock — pick open ground.";
-    return;
-  }
-  landingSel={x,y};
-  // Rebuild the preview around the chosen spot (same seed), so what's shown is exactly the map
-  // Launch Mission drops you into.
-  reset(landingSel);
-  document.getElementById('launchBtn').disabled=false;
-  document.getElementById('menuHint').textContent='Landing zone selected — launch when ready.';
-  drawMenuMap();
-});
-// Rolls a brand-new map for the landing picker; the old landing spot is dropped since it may
-// now sit on rift or rock.
-function rollNewMap(){
+// ---------- starting a run ----------
+// Play rolls a fresh map and drops the Bastion at a semi-random Rim spot (pickSpawn) — no landing
+// picker, so every run opens at a similar distance from its first vein.
+function startRun(){
   mapSeed=newMapSeed();
-  landingSel=null;
-  reset();
-  document.getElementById('launchBtn').disabled=true;
-  document.getElementById('menuHint').textContent='Click out in the Rim, beyond the dashed ring, to choose your landing zone.';
-  drawMenuMap();
-}
-document.getElementById('newMapBtn').onclick=rollNewMap;
-document.getElementById('launchBtn').onclick=()=>{
-  if(!landingSel)return;
+  reset(); // build the map once to learn where its veins are
+  const spawn=pickSpawn();
   menuOpen=false;
-  document.getElementById('menuOverlay').hidden=true;
-  reset(landingSel);
-};
+  ['mainMenuOverlay','unlocksOverlay','settingsOverlay'].forEach(id=>document.getElementById(id).hidden=true);
+  reset(spawn);
+  msg(`${mapType.name} · ${mapLayout.name} epicenter — ${mapType.desc}`);
+}
 // Shared by every "spend Living Crystal to permanently unlock X" unit — Artillery, Grenadier,
 // and whatever else joins them later. Rendered as shop cards on the separate Unlocks panel
 // (see renderUnlockCards) rather than as individual buttons in the main menu itself.
@@ -2006,26 +1931,19 @@ function renderUpgradeCards(){
   });
 }
 document.getElementById('openUnlocksBtn').onclick=()=>{
-  document.getElementById('menuOverlay').hidden=true;
+  document.getElementById('mainMenuOverlay').hidden=true;
   document.getElementById('unlocksOverlay').hidden=false;
   renderUnlockCards();
   renderUpgradeCards();
 };
 document.getElementById('unlocksBackBtn').onclick=()=>{
   document.getElementById('unlocksOverlay').hidden=true;
-  document.getElementById('menuOverlay').hidden=false;
-};
-// Main menu is just Play/Settings — Play drops into the landing-zone picker (the old all-in-one
-// menu screen), Settings holds the recording and debug toggles that used to sit alongside it.
-document.getElementById('playBtn').onclick=()=>{
-  document.getElementById('mainMenuOverlay').hidden=true;
-  document.getElementById('menuOverlay').hidden=false;
-  drawMenuMap();
-};
-document.getElementById('playBackBtn').onclick=()=>{
-  document.getElementById('menuOverlay').hidden=true;
   document.getElementById('mainMenuOverlay').hidden=false;
+  refreshMenuMeta();
 };
+// Main menu: Play starts a run straight away, Unlocks is the meta shop, Settings holds the
+// recording and debug toggles.
+document.getElementById('playBtn').onclick=startRun;
 document.getElementById('settingsBtn').onclick=()=>{
   document.getElementById('mainMenuOverlay').hidden=true;
   document.getElementById('settingsOverlay').hidden=false;
@@ -2073,17 +1991,15 @@ document.getElementById('consentAllowBtn').onclick=()=>setRecordingConsent(true)
 document.getElementById('consentDisableBtn').onclick=()=>setRecordingConsent(false);
 // Lets the player flip their choice anytime from the main menu, not just at the first-run gate.
 document.getElementById('recordingToggleBtn').onclick=()=>setRecordingConsent(!meta.recordingConsent);
-// Opens the main menu again after a run ends — every new run gets a freshly rolled map, so the
-// landing spot is picked again on it.
+// Opens the main menu again after a run ends — Play then rolls a fresh map.
 function openMainMenu(){
   endTutorialState();
   menuOpen=true;
   document.getElementById('mainMenuOverlay').hidden=false;
-  document.getElementById('menuOverlay').hidden=true;
   document.getElementById('unlocksOverlay').hidden=true;
   document.getElementById('settingsOverlay').hidden=true;
   refreshMenuMeta();
-  rollNewMap();
+  reset(); // parks (paused) on a fresh map behind the menu
 }
 // ---------- guided tutorial ----------
 // A fixed, calm map (see tutorialMap) and a list of steps. Each step shows one instruction in
@@ -2150,7 +2066,7 @@ function startTutorial(){
     if(canLandAt(x,y)&&terrainAt(x,y)===0)land={x,y};
   }
   menuOpen=false;
-  ['mainMenuOverlay','menuOverlay','unlocksOverlay','settingsOverlay'].forEach(id=>document.getElementById(id).hidden=true);
+  ['mainMenuOverlay','unlocksOverlay','settingsOverlay'].forEach(id=>document.getElementById(id).hidden=true);
   reset(land||d0);
   const tv=S.veins.find(x=>!x.contract&&x.band==='rim'&&Math.abs(x.x-v.x)<1&&Math.abs(x.y-v.y)<1)
     ||S.veins.filter(x=>!x.contract&&x.band==='rim').reduce((a,b)=>dist(b,S.base)<dist(a,S.base)?b:a);
@@ -2386,8 +2302,8 @@ function paintDisk(x,y,r,type){
     if(Math.hypot(gx-cx,gy-cy)*TCELL<=r)terrain[gy*TGX+gx]=type;
   }
 }
-// Picks the map type's rift pocket centers spread across the map (from the map seed alone, so they show up in
-// the landing picker's preview and the player can land clear of them) and
+// Picks the map type's rift pocket centers spread across the map (from the map seed alone, so the spawn
+// can be chosen clear of them) and
 // stamps each with a sprawling cluster of overlapping disks — a guaranteed full-radius one at
 // the center (so deposit placement never has to dodge leftover rock) plus several further-flung,
 // larger jittered ones, so the impassable ground reaches well past the deposit cluster itself —
@@ -5165,7 +5081,7 @@ function hud(){
 
 // ---------- loop ----------
 function frame(ts){const dt=Math.min(0.05,(ts-lastT)/1000||0);lastT=ts;document.body.classList.toggle('inMenu',menuOpen);update(dt);tutTick();draw();requestAnimationFrame(frame)}
-reset();drawMenuMap();refreshMenuMeta();requestAnimationFrame(frame);
+reset();refreshMenuMeta();requestAnimationFrame(frame);
 // Title-screen build marker: the live latest commit on master, not a hand-maintained string — a
 // baked-in value can never equal its own commit's hash (the hash is computed FROM the file's
 // content), so this fetches it instead. Purely cosmetic; any failure (offline, rate-limited,
