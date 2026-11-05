@@ -1375,7 +1375,7 @@ function drawCrackNet(vw,vh,shkx,shky,x0,y0,x1,y1){
 function sightAt(p){
   if(debugNoFog)return 1;
   const vm=S.mods.visionMult;let best=0;
-  const src=(x,y,r)=>{const d=Math.hypot(p.x-x,p.y-y);const f=d<=0.6*r?1:d>=r?0:1-(d-0.6*r)/(0.4*r);if(f>best)best=f};
+  const src=(x,y,r)=>{const d=Math.hypot(p.x-x,p.y-y);const a=FOG_EDGE_IN*r,b=FOG_EDGE_OUT*r,f=d<=a?1:d>=b?0:1-(d-a)/(b-a);if(f>best)best=f};
   src(S.base.x,S.base.y,BASE_VISION*vm);
   S.pings.forEach(pg=>src(pg.x,pg.y,pg.r));
   S.troops.forEach(t=>src(t.x,t.y,TROOP_VISION*vm*S.mods.squadRangeMult));
@@ -1481,7 +1481,11 @@ let fogC=document.createElement('canvas'), fogX; const FOG_S=6; fogC.width=W/FOG
 // units/enemies don't render outside visible() anyway, so nothing out of sight shows through it.
 // FOG_EDGE_BLUR: gaussian blur (in fog-canvas pixels, FOG_S world units each) applied to the
 // finished fog veil and vision mask, so the edge of sight is one smooth falloff with no steps.
-const FOG_DARK=0.93, FOG_EDGE_BLUR=7;
+// FOG_EDGE_IN/OUT: where (× a source's sight radius) the fog starts and finishes closing in — a
+// short ramp right at the edge of sight, so everything inside stays fully clear. FOG_DITHER: a fine,
+// fixed grain laid over the frame after the fog, which breaks the dark gradient's 8-bit steps
+// (banding) into noise too fine to see.
+const FOG_DARK=0.93, FOG_EDGE_BLUR=2.5, FOG_EDGE_IN=0.9, FOG_EDGE_OUT=1.06, FOG_DITHER=0.07;
 let dimC=document.createElement('canvas'), dimX; dimC.width=W/FOG_S; dimC.height=H/FOG_S; dimX=dimC.getContext('2d');
 // Vision mask: opaque everywhere nothing can currently see, punched clear (with the same soft edges
 // as the dim veil) around every vision source — used to erase the crack network under the fog.
@@ -4345,9 +4349,9 @@ function update(dt){
   fogMaskX.globalCompositeOperation='source-over'; fogMaskX.clearRect(0,0,fogMaskC.width,fogMaskC.height); fogMaskX.fillStyle='#000'; fogMaskX.fillRect(0,0,fogMaskC.width,fogMaskC.height);
   fogMaskX.globalCompositeOperation='destination-out';
   const unveil=(x,y,r)=>{
-    const g=dimX.createRadialGradient(x/FOG_S,y/FOG_S,r*0.55/FOG_S,x/FOG_S,y/FOG_S,r*1.1/FOG_S);g.addColorStop(0,'rgba(0,0,0,1)');g.addColorStop(1,'rgba(0,0,0,0)');
-    dimX.fillStyle=g;dimX.beginPath();dimX.arc(x/FOG_S,y/FOG_S,r*1.1/FOG_S,0,Math.PI*2);dimX.fill();
-    fogMaskX.fillStyle=g;fogMaskX.beginPath();fogMaskX.arc(x/FOG_S,y/FOG_S,r*1.1/FOG_S,0,Math.PI*2);fogMaskX.fill()};
+    const g=dimX.createRadialGradient(x/FOG_S,y/FOG_S,r*FOG_EDGE_IN/FOG_S,x/FOG_S,y/FOG_S,r*FOG_EDGE_OUT/FOG_S);g.addColorStop(0,'rgba(0,0,0,1)');g.addColorStop(1,'rgba(0,0,0,0)');
+    dimX.fillStyle=g;dimX.beginPath();dimX.arc(x/FOG_S,y/FOG_S,r*FOG_EDGE_OUT/FOG_S,0,Math.PI*2);dimX.fill();
+    fogMaskX.fillStyle=g;fogMaskX.beginPath();fogMaskX.arc(x/FOG_S,y/FOG_S,r*FOG_EDGE_OUT/FOG_S,0,Math.PI*2);fogMaskX.fill()};
   {const vm=S.mods.visionMult;
   unveil(B.x,B.y,BASE_VISION*vm);S.pings.forEach(pg=>unveil(pg.x,pg.y,pg.probe?pg.r*Math.min(1,pg.t/2):pg.r));S.troops.forEach(t=>unveil(t.x,t.y,TROOP_VISION*vm*S.mods.squadRangeMult));S.harvesters.forEach(h=>unveil(h.x,h.y,HARV_VISION*vm));S.builders.forEach(bu=>unveil(bu.x,bu.y,BUILDER_VISION*vm));}
   softenFogLayers();
@@ -4526,6 +4530,19 @@ function drawVeinCracks(v,target){
     k0=k1;
   }
   ctx.restore();
+}
+// A small tile of random grey, made once, tiled across the screen pixel-for-pixel with an overlay
+// blend at low strength: it nudges every pixel up or down by a few percent of its own brightness —
+// invisible as grain on its own, but enough to break the dark fog gradient's banding apart.
+let ditherPat=null;
+function ditherFog(){
+  if(!ditherPat){
+    const c=document.createElement('canvas');c.width=c.height=128;const x=c.getContext('2d'),id=x.createImageData(128,128);
+    for(let i=0;i<id.data.length;i+=4){const v=Math.floor(Math.random()*256);id.data[i]=id.data[i+1]=id.data[i+2]=v;id.data[i+3]=255}
+    x.putImageData(id,0,0);ditherPat=ctx.createPattern(c,'repeat');
+  }
+  ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.globalCompositeOperation='overlay';ctx.globalAlpha=FOG_DITHER;
+  ctx.fillStyle=ditherPat;ctx.fillRect(0,0,cv.width,cv.height);ctx.restore();
 }
 // Fog blur: what's under the fog shouldn't read crisply. Before the dark veil goes on, the frame so
 // far is copied at 1/FOG_BLUR_DOWN size with a gaussian blur (the downscale itself softens it
@@ -4889,7 +4906,7 @@ function draw(){
   // particles (impact sparks, kill/vein/destruction bursts)
   S.particles.forEach(p=>{ctx.globalAlpha=Math.max(0,1-p.t/p.life);ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);ctx.fill()});ctx.globalAlpha=1;
   // fog
-  if(!debugNoFog){blurFogged(vw,vh,shkx,shky);ctx.imageSmoothingEnabled=true;ctx.drawImage(dimSoftC,0,0,W,H)}
+  if(!debugNoFog){blurFogged(vw,vh,shkx,shky);ctx.imageSmoothingEnabled=true;ctx.drawImage(dimSoftC,0,0,W,H);ditherFog()}
   // energy pulses through the crack network (only where something can see) and bearing beams
   drawExplorationLight(x0-40,y0-40,x1+40,y1+40,vw,vh,shkx,shky);
   drawStabShots();
@@ -5038,7 +5055,8 @@ fetch(`https://api.github.com/repos/lexastro/astroscraper/commits?sha=master&per
     try{localStorage.setItem(CHANGELOG_KEY,JSON.stringify(list))}catch(e){}
     renderChangelog(list);
   })
-  .catch(()=>renderChangelog(cachedChangelog()));document.getElementById('changesBtn').onclick=()=>{const p=document.getElementById('changesPanel');p.hidden=!p.hidden};
+  .catch(()=>renderChangelog(cachedChangelog()));
+window.DEBUG_T=()=>({S,cam,draw,update});document.getElementById('changesBtn').onclick=()=>{const p=document.getElementById('changesPanel');p.hidden=!p.hidden};
 document.getElementById('changesClose').onclick=()=>{document.getElementById('changesPanel').hidden=true};
 // Gameplay recording consent: ask once, up front, before the main menu is usable; a past choice
 // (allowed or disabled) is applied straight away instead of asking again.
