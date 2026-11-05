@@ -4457,10 +4457,21 @@ function drawHotspots(v,target){
 // energy; the triangles are the hardware.
 const STAB_VB=104.56, STAB_SIZE=30;
 const STAB_DIAMOND=new Path2D('M52.28 27.28 L77.28 52.28 L52.28 77.28 L27.28 52.28 Z');
+// The four triangles on their own, each with the offset that slides its right-angled corner onto
+// the icon's centre: all four pushed in like that close into one solid square (a diamond, like the
+// core) covering the core — the folded, in-flight state of a Stabilizer.
+const STAB_TRIS=[
+  {p:new Path2D('M39.53 3.61 V38.95 H4.18 Z'),dx:12.75,dy:13.33},
+  {p:new Path2D('M100.74 38.95 H65.4 V3.61 Z'),dx:-13.12,dy:13.33},
+  {p:new Path2D('M65.4 100.17 V64.83 H100.74 Z'),dx:-13.12,dy:-12.55},
+  {p:new Path2D('M4.18 64.83 H39.53 V100.17 Z'),dx:12.75,dy:-12.55},
+];
+const STAB_FOLDED=new Path2D('M52.28 16.94 L87.62 52.28 L52.28 87.62 L16.93 52.28 Z');
 const STAB_BRACKETS=new Path2D('M39.53 3.61 V38.95 H4.18 Z M65.4 100.17 V64.83 H100.74 Z M4.18 64.83 H39.53 V100.17 Z M100.74 38.95 H65.4 V3.61 Z');
 // A Stabilizer spike in flight: it travels in a straight line over the ground from the Bastion to
 // its target, but scales up toward the middle of the flight (rising toward the camera) and back
-// down as it lands, spinning, with its shadow on the ground beneath it.
+// down as it lands, spinning, with its shadow on the ground beneath it. It launches folded — its
+// triangles closed into a square over the core — and unfolds around the top of the arc.
 function drawStabShots(){
   S.stabShots.forEach(sh=>{
     const f=Math.min(1,sh.t/sh.dur), arc=Math.sin(Math.PI*f);
@@ -4470,7 +4481,13 @@ function drawStabShots(){
     const k=STAB_SIZE*(1+1.3*arc)/STAB_VB;
     ctx.globalAlpha=1;ctx.translate(x,y-26*arc);ctx.rotate(sh.t*sh.spin);ctx.scale(k,k);ctx.translate(-STAB_VB/2,-STAB_VB/2);
     ctx.fillStyle='#8fe3ff';ctx.fill(STAB_DIAMOND);ctx.strokeStyle='#0b0e12';ctx.lineWidth=5;ctx.stroke(STAB_DIAMOND);
-    ctx.fillStyle='#dfe6ee';ctx.fill(STAB_BRACKETS);ctx.stroke(STAB_BRACKETS);
+    // folded shut for the first part of the flight (the triangles closed into a square over the
+    // core), then they pull apart around the top of the arc — the spike deploying as it comes down
+    const open=f<0.3?0:f>0.62?1:(()=>{const q=(f-0.3)/0.32;return q*q*(3-2*q)})(), shut=1-open;
+    ctx.fillStyle='#dfe6ee';ctx.lineJoin='miter';
+    STAB_TRIS.forEach(t=>{ctx.save();ctx.translate(t.dx*shut,t.dy*shut);ctx.fill(t.p);ctx.globalAlpha=open;ctx.stroke(t.p);ctx.restore()});
+    // while folded, outline the closed square as one shape (no seams between the triangles)
+    if(shut>0){ctx.save();ctx.globalAlpha=shut;ctx.stroke(STAB_FOLDED);ctx.restore()}
     ctx.restore();
   });
 }
