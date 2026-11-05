@@ -3305,7 +3305,7 @@ function followSelected(){
   all.forEach((u,i)=>{
     u.following=true;u.dest=null;u.target=null;u.state='idle';u.guard=null;
     u.followAng=(i/all.length)*Math.PI*2+rnd(-0.15,0.15);
-    u.followDist=rnd(50,100);
+    u.followDist=BASE_FOOTPRINT+rnd(20,60);
   });
   rawH.forEach(h=>{h.autoLoop=false;h.node=null;h.state='idle'});
   rawBu.forEach(bu=>{releaseBuilderClaim(bu);bu.state='idle'});
@@ -3642,7 +3642,10 @@ function guardAlive(g){
   if(g===S.base)return true;
   return g.hp>0&&[S.troops,S.harvesters,S.builders,S.turrets,S.relays,S.depots].some(a=>a.includes(g));
 }
-function guardRadius(g){return g===S.base?S.base.r:(g.r||12)}
+// v2: the walker's legs and turret reach well past its collision radius, so units keep clear of
+// that whole footprint (BASE_FOOTPRINT) when guarding, following or resting at the Bastion
+const BASE_FOOTPRINT=80;
+function guardRadius(g){return g===S.base?BASE_FOOTPRINT:(g.r||12)}
 // Per-frame guard behaviour for one combat unit (state 'guard'). Firing itself is left to the
 // shared auto-fire below — this only decides where to stand.
 function guardMove(t,range,speed,dt){
@@ -4603,10 +4606,10 @@ function update(dt){
   S.troops.forEach(t=>{if(t.hp<=0){S.sel.troops.delete(t.id);if(t.lastHitBy==='enemy')queueReanimation(t,t.kind||'troop')}});
   S.harvesters.forEach(h=>{if(h.hp<=0){S.sel.harv.delete(h.id);if(h.lastHitBy==='enemy')queueReanimation(h,'harvester')}});
   S.builders.forEach(bu=>{if(bu.hp<=0){S.sel.bu.delete(bu.id);if(bu.lastHitBy==='enemy')queueReanimation(bu,'builder')}});
-  S.troops=S.troops.filter(t=>t.hp>0); S.troops.forEach(t=>{if(dist(t,B)<B.r+30&&!S.enemies.some(e=>dist(e,t)<200))t.hp=Math.min(t.maxHp,t.hp+6*dt)});
-  S.harvesters=S.harvesters.filter(h=>h.hp>0); S.harvesters.forEach(h=>{if(dist(h,B)<B.r+30&&!S.enemies.some(e=>dist(e,h)<200))h.hp=Math.min(h.maxHp,h.hp+6*dt)});
+  S.troops=S.troops.filter(t=>t.hp>0); S.troops.forEach(t=>{if(dist(t,B)<BASE_FOOTPRINT+60&&!S.enemies.some(e=>dist(e,t)<200))t.hp=Math.min(t.maxHp,t.hp+6*dt)});
+  S.harvesters=S.harvesters.filter(h=>h.hp>0); S.harvesters.forEach(h=>{if(dist(h,B)<BASE_FOOTPRINT+60&&!S.enemies.some(e=>dist(e,h)<200))h.hp=Math.min(h.maxHp,h.hp+6*dt)});
   S.builders.forEach(bu=>{if(bu.hp<=0)releaseBuilderClaim(bu)});
-  S.builders=S.builders.filter(bu=>bu.hp>0); S.builders.forEach(bu=>{if(dist(bu,B)<B.r+30&&!S.enemies.some(e=>dist(e,bu)<200))bu.hp=Math.min(bu.maxHp,bu.hp+6*dt)});
+  S.builders=S.builders.filter(bu=>bu.hp>0); S.builders.forEach(bu=>{if(dist(bu,B)<BASE_FOOTPRINT+60&&!S.enemies.some(e=>dist(e,bu)<200))bu.hp=Math.min(bu.maxHp,bu.hp+6*dt)});
   // Dat Crystal shards dropped by dead enemies — any unit walking over one scoops it up straight
   // into the stockpile, no trip back to the Bastion needed.
   if(S.shards.length){
