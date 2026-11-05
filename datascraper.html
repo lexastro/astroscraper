@@ -1060,7 +1060,9 @@ function hotspotAt(w){
 // scattered at random along it, a hair-thin jackpot sliver one tier ABOVE what it has ripened to
 // somewhere random too, and red RUPTURE patches — more of them the more unstable the vein was when
 // you locked on. Stabilizers on the vein widen every good band. A needle sweeps the strip; strike
-// (Space / L / the Strike button) to stop it — it auto-strikes after STRIKE_AUTO_T.
+// (Space / L / the Strike button) to stop it. It never strikes on its own: instead every good band
+// narrows the longer you wait (toward STRIKE_SHRINK_MIN of its width over STRIKE_SHRINK_T), and
+// stays that narrow through the drill, so hesitating costs you.
 // Wherever it stops becomes the centre: the meter animates to re-centre on that spot and zoom in
 // (ZOOM_HALF of the strip either side), so the bands you drill on are much wider than the ones you
 // struck at. From there the needle DRIFTS — turbulence (stronger at higher tiers) pushes it, the
@@ -1068,7 +1070,7 @@ function hotspotAt(w){
 // neighbour the one you hit. The tier paid is the one the needle has spent the most of its recent
 // time in (~METER_AVG_T seconds), so a moment's wobble is forgiven. Touching red ruptures the vein.
 const STRIP_W={Rare:0.10,Epic:0.07,Legendary:0.045,Hive:0.045}, STRIP_JACKPOT_W=0.018, STRIP_RED_W=0.05;
-const STAB_WIDEN=0.3, STRIKE_AUTO_T=4, STRIKE_SWEEP_T=1.6, ZOOM_HALF=0.18, ZOOM_T=0.55, METER_AVG_T=6;
+const STAB_WIDEN=0.3, STRIKE_SHRINK_T=12, STRIKE_SHRINK_MIN=0.2, STRIKE_SWEEP_T=1.6, ZOOM_HALF=0.18, ZOOM_T=0.55, METER_AVG_T=6;
 const METER_TURB={Common:0.14,Rare:0.18,Epic:0.24,Legendary:0.3,Hive:0.32}, METER_K_BASE=1.0, METER_K_STAB=3.5;
 function buildStrip(v){
   const ladder=veinLadder(v), idx=v.lockIdx!=null?v.lockIdx:ripeIdx(v);
@@ -1088,7 +1090,7 @@ function buildStrip(v){
 // end of the strip counts as red.
 function stripAt(st,p){if(p<0||p>1)return {red:true};for(const q of st.segs)if(p>=q.a&&p<=q.b)return q;return {tier:st.floor}}
 function gauss(){let u=0,w=0;while(u===0)u=Math.random();while(w===0)w=Math.random();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*w)}
-function beginStrike(v){v.meter={phase:'strike',strip:buildStrip(v),p:rnd(0,1),dir:rnd(0,1)<0.5?1:-1,autoT:STRIKE_AUTO_T};updateMeterUI()}
+function beginStrike(v){v.meter={phase:'strike',strip:buildStrip(v),p:rnd(0,1),dir:rnd(0,1)<0.5?1:-1,t:0};updateMeterUI()}
 function strikeReady(){const v=S.activeVein;return !!(v&&v.meter&&v.meter.phase==='strike'&&!S.paused&&!S.rewardChoice&&!S.over)}
 function doStrike(){
   const v=S.activeVein; if(!strikeReady())return;
@@ -1103,7 +1105,9 @@ function updateMeter(v,dt){
   const m=v.meter; if(!m)return;
   if(m.phase==='strike'){
     m.p+=m.dir*dt/STRIKE_SWEEP_T; if(m.p>1){m.p=2-m.p;m.dir=-1} if(m.p<0){m.p=-m.p;m.dir=1}
-    m.autoT-=dt; if(m.autoT<=0)doStrike();
+    m.t+=dt;
+    const k=Math.max(STRIKE_SHRINK_MIN,1-m.t/STRIKE_SHRINK_T);
+    m.strip.segs.forEach(q=>{if(q.red)return;if(q.c==null){q.c=(q.a+q.b)/2;q.h=(q.b-q.a)/2}q.a=q.c-q.h*k;q.b=q.c+q.h*k});
     return;
   }
   if(m.phase==='zoom'){m.t+=dt;if(m.t>=ZOOM_T){m.phase='drill';v.startT=S.t}return}
@@ -1154,7 +1158,7 @@ function updateMeterUI(){
   document.getElementById('dmStrike').hidden=m.phase!=='strike';
   const nStab=veinStabs(v).length;
   if(m.phase==='strike'){
-    title.textContent=`STRIKE! — auto in ${Math.max(0,m.autoT).toFixed(1)}s`;
+    title.textContent=m.t<1.5?'STRIKE!':`STRIKE! — bands shrinking: ${Math.round(100*Math.max(STRIKE_SHRINK_MIN,1-m.t/STRIKE_SHRINK_T))}% wide`;
     const h=stripAt(m.strip,m.p);yieldEl.textContent=h.red?'RUPTURE':h.tier;yieldEl.style.color=h.red?C.enemy:CARD_TIER_COLOR[h.tier];
     hint.textContent='Stop the needle on a good band — the thin sliver is a tier above the vein, red ruptures it.';
   }else{
