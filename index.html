@@ -249,7 +249,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 @keyframes pulseLow{0%,100%{opacity:1}50%{opacity:.5}}
 .overlay{animation:fadeIn .18s ease}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
-.helpToggleBtn{display:none;position:absolute;top:calc(env(safe-area-inset-top,0px) + 8px);right:max(10px,env(safe-area-inset-right,0px));
+.helpToggleBtn{display:inline-flex;align-items:center;justify-content:center;position:absolute;top:calc(env(safe-area-inset-top,0px) + 8px);right:max(10px,env(safe-area-inset-right,0px));
   width:34px;height:34px;border-radius:50%;background:var(--panel);border:1px solid var(--line);color:var(--fg);
   font:inherit;font-weight:600;cursor:pointer;pointer-events:auto;z-index:10;box-shadow:0 2px 8px rgba(0,0,0,.4)}
 /* quick select-all-of-kind, stacked vertically — replaces the old zoom +/- buttons (mouse wheel
@@ -391,7 +391,7 @@ body.inMenu :is(#game,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMeter,.mini,.
   <button id="selTroopsBtn2" aria-label="Select all Squads">▲<span class="cnt" id="cntTroops2">0</span></button>
 </div>
 
-<div class="help" id="help">
+<div class="help" id="help" hidden>
   <button id="helpClose" aria-label="Close">×</button>
   <b>Goal:</b> the ground is cracked all over: <b>follow the pulses of energy</b> running through the cracks back to their source to find a vein, then park the Bastion on its glowing centre and press <kbd>L</kbd> to lock on. Veins <b>emerge, ripen</b> a tier at a time, then go unstable and <b>collapse</b> — and new ones emerge elsewhere. Glowing <b>stray pockets</b> give a bearing toward the nearest vein when a unit reaches one; two bearings from different angles triangulate it. Locking on starts the <b>strike</b> at once: press <kbd>Space</kbd> to stop the needle on a good band of the strip (the thin sliver is a tier above the vein; red ruptures it) — the meter zooms in on where you hit and the drill starts; the first wave arrives about 20s later. While it drills, the needle drifts; Stabilizers hold it steady, and the tier you're paid is where it spends most of its time. If it drifts into the red, the vein ruptures and damages the Bastion. Drain veins for rewards — after 3, the contract vein stirs: it gives off no pulses, so triangulate it with bearings from stray pockets, then drain it to win.<br>
   <b>Controls:</b> drag to select · right-click to move/attack · right-click a friendly unit or building with combat units selected to <b>guard</b> it (escort it, fight off anything that comes near, then fall back) ·<kbd>WASD</kbd> or middle-drag to pan, scroll to zoom<br>
@@ -788,7 +788,7 @@ const VEIN_SAME_BAND_GAP=1500, VEIN_GAP=900, VEIN_X_MARGIN=ZONE_R+250;
 // band above Legendary, and draining one pays Hive-tier rewards plus salvage. The contract vein is
 // the Ultra Mega nest: when it stirs, CONTRACT_MOUNDS great mounds rise around it.
 const HIVE_COL='#e0284a', HIVE_BANDS=['dense','core'], HIVE_RICHNESS={dense:60,core:90}, HIVE_BASE_CLEAR=1400;
-const HIVE_MOUNDS=4, CONTRACT_MOUNDS=6, MOUND_R=[600,880], MOUND_REGROW_T=150;
+const HIVE_PULSE_REACH=1400, HIVE_MOUNDS=4, CONTRACT_MOUNDS=6, MOUND_R=[600,880], MOUND_REGROW_T=150;
 // Each mining zone has one large, rich Dat Crystal cluster of its own — paired 1:1 with its vein
 // and rolled per map along with it — sitting out past a single wireless leash or cable run
 // (MAX_CABLE_LEN=400), so reaching one means stringing Relays out from the vein first, not just
@@ -882,7 +882,9 @@ const REROLL_BASE_COST=10, REROLL_COST_STEP=8;
 function rerollCost(){return REROLL_BASE_COST+S.rerollCount*REROLL_COST_STEP}
 // Spawns n fresh Squads / Grenadiers with guaranteed-unique ids, for the recruit-style reward
 // cards below.
-function spawnFreeTroops(n,kind){for(let i=0;i<n;i++)S.troops.push(mkTroop(Date.now()+Math.floor(Math.random()*1000)+i,kind))}
+function spawnFreeTroops(n,kind){for(let i=0;i<n;i++){const u=mkTroop(Date.now()+Math.floor(Math.random()*1000)+i,kind);S.troops.push(u);guardBastion(u)}}
+// v2: fresh units fall in guarding the Bastion until you give them other orders
+function guardBastion(u){u.following=false;u.state='guard';u.guard=S.base;u.dest=null;u.target=null;u.guardAng=rnd(0,Math.PI*2);u.guardDist=rnd(22,48)}
 const UPGRADES={
   Common:[
     {id:'dmg1',name:'Battle Drills I',desc:'Squad damage +10%.',apply:()=>{S.mods.troopDmgMult*=1.1}},
@@ -1344,7 +1346,8 @@ function emergeVein(site,o){
   site.vein=v; S.veins.push(v);
   // index the network around it: its zone (what lights up as the vein) and, for ordinary veins,
   // out to how far its pulses carry
-  {const src={x:v.mine.x,y:v.mine.y};indexPulse(src,o.contract?VEIN_GLOW_R:Math.max(PULSE_REACH,VEIN_GLOW_R));v.pd=src.pd;v.pi=src.pi}
+  v.reach=o.hive?HIVE_PULSE_REACH:PULSE_REACH;
+  {const src={x:v.mine.x,y:v.mine.y};indexPulse(src,o.contract?VEIN_GLOW_R:Math.max(v.reach,VEIN_GLOW_R));v.pd=src.pd;v.pi=src.pi}
   // a guard cluster camps every vein, sized by how deep it sits
   if(o.guards!==false){
     const n=v.band==='core'?rnd(20,28):v.band==='dense'?rnd(8,13):rnd(3,6);
@@ -1549,11 +1552,11 @@ function drawExplorationLight(vx0,vy0,vx1,vy1,vw,vh,shkx,shky){
     const col=tierBlendCol(v), tm=pulseTiming(v), ph=(v.pulseClock||0)%1;
     for(let j=0;j<12;j++){
       const age=(ph+j)*tm.period; if(age>tm.travel)break;
-      const R=PULSE_REACH*(1-age/tm.travel);
+      const R=(v.reach||PULSE_REACH)*(1-age/tm.travel);
       const startIn=Math.min(1,age/(tm.travel*0.2));
       const sink=Math.max(0,Math.min(1,(R-VEIN_GLOW_R*0.35)/(VEIN_GLOW_R*0.7)));
       if(sink<=0)continue;
-      const I=startIn*sink*(0.2+0.8*Math.pow(1-R/PULSE_REACH,1.2));
+      const I=startIn*sink*(0.2+0.8*Math.pow(1-R/(v.reach||PULSE_REACH),1.2));
       drawPulseRing(v,R,col,I,vx0,vy0,vx1,vy1,P);
     }
   });
@@ -1743,7 +1746,7 @@ function reset(landing){
     fab:{},fabShots:[],drones:[],droneNoDatMsgT:-99,runUnlock:{},nestSproutT:NEST_SPROUT_T};
   Object.keys(FABS).forEach(k=>{S.fab[k]={n:FABS[k].charges,rt:0}});
   addDrones(DRONE_COUNT);
-  for(let i=0;i<2;i++) S.troops.push(mkTroop(i));
+  for(let i=0;i<2;i++){const u=mkTroop(i);S.troops.push(u);guardBastion(u)}
   prodMenuOpen=false;
 
   S.mapSeed=mapSeed; S.mapType=mapType.id; S.mapLayout=mapLayout.id;
@@ -1805,7 +1808,7 @@ function reset(landing){
   S.veins=[];S.respawnQ=[];S.drained=0;S.contractAwake=false;S.strays=[];S.bearings=[];S.triMark=null;
   emergeVein(S.contractSite,{contract:true});
   startPicks.forEach(p=>emergeVein(p.site,{ripeT:p.ripeT,haze:p.haze}));
-  S.hiveSites.forEach(st=>{const v=emergeVein(st,{hive:true,ripeT:2*RIPEN_STEP_T});v.seen=true;v.mine.found=true;raiseMounds(v,HIVE_MOUNDS,'mound')});
+  S.hiveSites.forEach(st=>{const v=emergeVein(st,{hive:true,ripeT:2*RIPEN_STEP_T});raiseMounds(v,HIVE_MOUNDS,'mound')});
   // the opening vein: if no starting vein is close to the landing, a fresh one emerges at the
   // nearest Rim site at least LANDING_SITE_CLEAR away
   {const rim=S.sites.filter(st=>st.band==='rim'), clear=rim.filter(st=>dist(st,S.base)>=LANDING_SITE_CLEAR);
@@ -2310,9 +2313,10 @@ function pickHiveSites(starts){
   });
   return out;
 }
-// Hive veins burn through the fog: a crimson glow and slow rings, drawn on top of it.
+// A hive vein you've found throbs with a crimson glow and slow rings (under the fog, like the rest
+// of the map — it's the long red pulses and the drifting motes that lead you to one).
 function drawHiveBeacons(){
-  S.veins.forEach(v=>{if(!v.hive||!veinAlive(v))return;
+  S.veins.forEach(v=>{if(!v.hive||!veinAlive(v)||!(v.seen||debugNoFog))return;
     const t=S.t, pul=0.5+0.5*Math.sin(t*1.6);
     const g=ctx.createRadialGradient(v.x,v.y,0,v.x,v.y,ZONE_R*1.1);
     g.addColorStop(0,`rgba(224,40,74,${0.35+0.2*pul})`);g.addColorStop(0.5,'rgba(224,40,74,0.12)');g.addColorStop(1,'rgba(224,40,74,0)');
@@ -2321,6 +2325,45 @@ function drawHiveBeacons(){
       ctx.beginPath();ctx.arc(v.x,v.y,ZONE_R*(0.3+0.9*f),0,Math.PI*2);ctx.stroke()}
     ctx.globalAlpha=1;
   });
+}
+// ---------- wind motes ----------
+// Faint specks carried on the wind across the whole view, each one drifting (swaying, gusting)
+// roughly toward the live vein whose pull is strongest where it rose — tinted that vein's colour
+// (hives crimson), so the air itself hints which way the energy lies, even out in the dark.
+// Purely visual; they ignore the hidden contract vein.
+const MOTE_N=80, MOTE_LIFE=[4,8], MOTE_SPEED=[22,44], MOTE_VEIN_R=3400, MOTE_ALPHA=0.45;
+let motes=[], moteLast=0;
+function moteTarget(x,y){
+  let best=null,bs=0;
+  S.veins.forEach(v=>{if(v.contract||!veinAlive(v))return;
+    const d=Math.hypot(v.x-x,v.y-y);if(d>MOTE_VEIN_R*(v.hive?1.3:1)||d<v.r*0.4)return;
+    const sc=(v.hive?1.5:1)/(d+400);if(sc>bs){bs=sc;best=v}});
+  return best;
+}
+function mkMote(x0,y0,x1,y1){
+  const x=rnd(x0,x1),y=rnd(y0,y1),v=moteTarget(x,y);
+  return {x,y,v,t:0,life:rnd(MOTE_LIFE[0],MOTE_LIFE[1]),sp:rnd(MOTE_SPEED[0],MOTE_SPEED[1]),ph:rnd(0,Math.PI*2),len:rnd(6,12),
+    col:v?(v.hive?HIVE_COL:tierBlendCol(v)):'#cfd8e3',a:v?MOTE_ALPHA:MOTE_ALPHA*0.45};
+}
+function drawMotes(x0,y0,x1,y1){
+  if(drawMotes.S!==S){motes=[];drawMotes.S=S} // a new run: drop motes still aimed at the old map's veins
+  const now=performance.now(), live=!(S.paused||S.rewardChoice||S.over), dt=live?Math.min(0.05,(now-(moteLast||now))/1000):0; moteLast=now;
+  const m=120, wind=Math.sin(S.t*0.05)*1.2+Math.sin(S.t*0.013)*0.8, gust=1+0.6*Math.max(0,Math.sin(S.t*0.31));
+  while(motes.length<MOTE_N)motes.push(mkMote(x0-m,y0-m,x1+m,y1+m));
+  ctx.lineCap='round';
+  motes.forEach((o,i)=>{
+    o.t+=dt;
+    if(o.t>o.life||o.x<x0-m*2||o.x>x1+m*2||o.y<y0-m*2||o.y>y1+m*2||(o.v&&!veinAlive(o.v))){motes[i]=mkMote(x0-m,y0-m,x1+m,y1+m);return}
+    const toV=o.v?Math.atan2(o.v.y-o.y,o.v.x-o.x):wind;
+    const a=toV+0.55*Math.sin(S.t*0.8+o.ph)+0.25*Math.sin(S.t*2.3+o.ph*1.7)+(o.v?0.3*Math.sin(wind):0);
+    const sp=o.sp*gust;
+    o.x+=Math.cos(a)*sp*dt;o.y+=Math.sin(a)*sp*dt;
+    const f=Math.min(1,o.t/1.2,(o.life-o.t)/1.5);
+    ctx.globalAlpha=Math.max(0,f)*o.a;ctx.strokeStyle=o.col;ctx.lineWidth=2/Math.max(0.5,cam.z);
+    const L=o.len/Math.max(0.5,cam.z);
+    ctx.beginPath();ctx.moveTo(o.x-Math.cos(a)*L,o.y-Math.sin(a)*L);ctx.lineTo(o.x,o.y);ctx.stroke();
+  });
+  ctx.globalAlpha=1;
 }
 function drawNest(n){
   const R=n.r, pul=0.5+0.5*Math.sin(S.t*2.2+n.ph), fl=n.flashT>0;
@@ -3172,7 +3215,7 @@ function selectAllUnitsOfKind(kind){
 document.getElementById('selBaseBtn2').onclick=()=>selectAllUnitsOfKind('base');
 document.getElementById('selTroopsBtn2').onclick=()=>selectAllUnitsOfKind('troops');
 document.getElementById('drillCancelBtn').onclick=()=>closeDrillSelect();
-document.getElementById('helpClose').onclick=()=>{document.getElementById('help').hidden=true};
+document.getElementById('helpClose').onclick=()=>{const h=document.getElementById('help');h.hidden=true;h.classList.remove('open')};
 document.getElementById('ovBtn').onclick=()=>{document.getElementById('overlay').hidden=true;openMainMenu()};
 document.getElementById('pauseResumeBtn').onclick=togglePause;
 const miniWrap=document.getElementById('miniWrap'), miniToggle=document.getElementById('miniToggle');
@@ -3189,7 +3232,7 @@ mini.addEventListener('pointerdown',e=>{
   if(getComputedStyle(miniToggle).display!=='none'&&!miniWrap.classList.contains('expanded')){setMiniExpanded(true);return}
   const r=mini.getBoundingClientRect();cam.x=(e.clientX-r.left)/r.width*W;cam.y=(e.clientY-r.top)/r.height*H;clampCam()
 });
-document.getElementById('helpToggleBtn').onclick=()=>{document.getElementById('help').classList.toggle('open')};
+document.getElementById('helpToggleBtn').onclick=()=>{const h=document.getElementById('help'),open=!h.hidden&&h.classList.contains('open');h.hidden=open;h.classList.toggle('open',!open)};
 function closeProdMenu(){prodMenuOpen=false}
 // ---------- fabricators (v2) ----------
 function fabUnlocked(k){const f=FABS[k];return !f.unlock||!!meta[f.unlock]||!!(S&&S.runUnlock&&S.runUnlock[k])}
@@ -3212,7 +3255,7 @@ function fabUnit(k){
   if(!useFab(k))return;
   const a=rnd(0,Math.PI*2), u=mkTroop(Date.now()+Math.floor(Math.random()*1000),k);
   u.x=S.base.x+Math.cos(a)*(S.base.r+12);u.y=S.base.y+Math.sin(a)*(S.base.r+12);
-  S.troops.push(u);
+  S.troops.push(u);guardBastion(u);
   burst(u.x,u.y,C.ally,8,90,0.35);sfx.build();
   msg(`${FABS[k].name} deployed.`);
 }
@@ -5161,11 +5204,12 @@ function draw(){
     ctx.globalAlpha=a*0.35;ctx.strokeStyle='#8fe3ff';ctx.lineWidth=10;ctx.beginPath();ctx.arc(w.x,w.y,Math.max(0,w.r-4),0,Math.PI*2);ctx.stroke();
     ctx.globalAlpha=Math.min(1,a*1.4);ctx.strokeStyle='#dff7ff';ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(w.x,w.y,w.r,0,Math.PI*2);ctx.stroke();
   });ctx.globalAlpha=1;
+  drawHiveBeacons();
   // particles (impact sparks, kill/vein/destruction bursts)
   S.particles.forEach(p=>{ctx.globalAlpha=Math.max(0,1-p.t/p.life);ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);ctx.fill()});ctx.globalAlpha=1;
   // fog
   if(!debugNoFog){blurFogged(vw,vh,shkx,shky);ctx.imageSmoothingEnabled=true;ctx.drawImage(dimSoftC,0,0,W,H);ditherFog()}
-  drawHiveBeacons();
+  drawMotes(x0,y0,x1,y1);
   // energy pulses through the crack network (only where something can see) and bearing beams
   drawExplorationLight(x0-40,y0-40,x1+40,y1+40,vw,vh,shkx,shky);
   drawDrones();
