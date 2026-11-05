@@ -1107,10 +1107,10 @@ document.getElementById('dmStrike').onclick=()=>doStrike();
 // passes. Each crack has its own base depth, branches are shallower, and everything deepens close
 // to a vein site: each site is a knot of the deepest cracks in the network, fanning out from the
 // point where a vein's mining spot would sit. So the ground itself hints where veins can be.
-const NET_CRACKS_PER_MPX=11, PULSE_PERIOD=2.2, PULSE_SPEED=230, PULSE_REACH=600, PULSE_W=16;
-const SITE_KNOT_MAINS=9, SITE_DEEPEN_R=800;
+const NET_CRACKS_PER_MPX=11, PULSE_PERIOD=2.2, PULSE_SPEED=230, PULSE_REACH=800, PULSE_W=16;
+const SITE_KNOT_MAINS=9, SITE_DEEPEN_R=200;
 // A vein's glow comes from its mining point and stays tight around it.
-const VEIN_GLOW_R=700;
+const VEIN_GLOW_R=200;
 // Pulse timing by tier: richer veins draw energy in more often and faster; an unstable vein pulls
 // frantically. period = seconds between waves, travel = seconds for a wave to run in from
 // PULSE_REACH to the mining point.
@@ -4683,11 +4683,13 @@ function draw(){
   // your units can currently see shows); the drill ring, warm-up text and wave arrow stay on top
   const VL=beginVeinLight(vw,vh,shkx,shky);
   S.veins.forEach((v,i)=>{
-    if(!debugNoFog&&(v.contract?!v.mine.found:!v.seen))return; // unsighted veins only show as energy pulses
     if(v.x+v.r+60<x0||v.x-v.r-60>x1||v.y+v.r+80<y0||v.y-v.r-60>y1)return; // off-screen
+    // The glow goes into the vision-masked light layer even before the vein is "seen", so the soft
+    // fog edge uncovers it gradually as sight creeps over it instead of it popping in. Only the
+    // contract vein stays dark until triangulated — sight alone mustn't give it away.
+    if(debugNoFog||!v.contract||v.mine.found){drawVeinCracks(v,VL);drawHotspots(v,VL)}
+    if(!debugNoFog&&(v.contract?!v.mine.found:!v.seen))return; // markers only once sighted
     const cur=S.activeVein===v;ctx.save();
-    drawVeinCracks(v,VL);
-    drawHotspots(v,VL);
     ctx.globalAlpha=v.done?0.25:cur?0.9:0.45;
     if(cur&&!v.done){
       ctx.lineWidth=4;ctx.strokeStyle=C.accent;ctx.beginPath();ctx.arc(v.mine.x,v.mine.y,38,-Math.PI/2,-Math.PI/2+Math.PI*2*v.drillProg/v.richness);ctx.stroke();
