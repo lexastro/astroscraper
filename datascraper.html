@@ -396,9 +396,9 @@ body.inMenu :is(#game,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMeter,.mini,.
   <b>Goal:</b> the ground is cracked all over: <b>follow the pulses of energy</b> running through the cracks back to their source to find a vein, then park the Bastion on its glowing centre and press <kbd>L</kbd> to lock on. Veins <b>emerge, ripen</b> a tier at a time, then go unstable and <b>collapse</b> — and new ones emerge elsewhere. Glowing <b>stray pockets</b> give a bearing toward the nearest vein when a unit reaches one; two bearings from different angles triangulate it. Locking on starts the <b>strike</b> at once: press <kbd>Space</kbd> to stop the needle on a good band of the strip (the thin sliver is a tier above the vein; red ruptures it) — the meter zooms in on where you hit and the drill starts; the first wave arrives about 20s later. While it drills, the needle drifts; Stabilizers hold it steady, and the tier you're paid is where it spends most of its time. If it drifts into the red, the vein ruptures and damages the Bastion. Drain veins for rewards — after 3, the contract vein stirs: it gives off no pulses, so triangulate it with bearings from stray pockets, then drain it to win.<br>
   <b>Controls:</b> drag to select · right-click to move/attack · right-click a friendly unit or building with combat units selected to <b>guard</b> it (escort it, fight off anything that comes near, then fall back) ·<kbd>WASD</kbd> or middle-drag to pan, scroll to zoom<br>
   <b>Touch:</b> tap to select · tap empty ground/an enemy/a resource to move/attack/harvest · drag to pan · hold still then drag to box-select · pinch to zoom · double-tap to select all of a kind<br>
-  <b>Fabricators:</b> nothing costs Dat — every button holds charges that the Bastion's fabricators refill on their own timer. <kbd>1</kbd> launch a turret · <kbd>2</kbd> launch a relay · <kbd>3</kbd> deploy a squad · <kbd>4</kbd> grenadier · <kbd>6</kbd> artillery · <kbd>7</kbd> mech (once unlocked) · <b>Dat Crystal</b>: drive the Bastion or a unit over a deposit to scoop it up — your <b>repair drones</b> fly out on their own and spend it patching up Stabilizers, turrets, relays and the Bastion · <kbd>5</kbd> fire a Stabilizer from the Bastion (3 charges, one back every 15s; aim at a vein's drifting hotspot and lead it — a hit pins it, buys the vein 15s before it collapses, widens the strike bands and steadies the needle; with all 3 pinned, drag the weight on the steering pad to push the needle — the wider their triangle, the further it goes, but the one you lean on draws the enemy) — turrets and relays land anywhere inside the Bastion's ring (or a relay's)<br>
+  <b>Fabricators:</b> nothing costs Dat — every button holds charges that the Bastion's fabricators refill on their own timer. <kbd>1</kbd> launch a turret · <kbd>2</kbd> launch a relay · <kbd>3</kbd> deploy a squad · <kbd>4</kbd> grenadier · <kbd>6</kbd> artillery · <kbd>7</kbd> mech (once unlocked) · <b>Nests</b>: every enemy patrol comes from one, and the nests near a vein send its drilling waves — destroy them (they fight back) for <b>Dat Crystal</b>: drive the Bastion or a unit over the Dat a nest drops (or an enemy's shard) to scoop it up — your <b>repair drones</b> fly out on their own and spend it patching up Stabilizers, turrets, relays and the Bastion · <kbd>5</kbd> fire a Stabilizer from the Bastion (3 charges, one back every 15s; aim at a vein's drifting hotspot and lead it — a hit pins it, buys the vein 15s before it collapses, widens the strike bands and steadies the needle; with all 3 pinned, drag the weight on the steering pad to push the needle — the wider their triangle, the further it goes, but the one you lean on draws the enemy) — turrets and relays land anywhere inside the Bastion's ring (or a relay's)<br>
   <b>Tether:</b> wireless works freely on the Rim; past it, units need a live cable back to the Bastion or a Relay, or they go dark — chain Relays to push your reach further out. A dark unit still takes orders, but its Sanity drains; reconnect in time to recover it, or it defects into a hostile Corrupted enemy<br>
-  <kbd>N</kbd> recon probe: click a direction and it flies straight out on its fiber line, lifting the fog along a narrow strip for 20s and permanently finding deposits and veins it passes (3 charges, one back every 20s) · <kbd>V</kbd> follow Bastion (escorts it as it moves, until given another order) · <kbd>Esc</kbd> cancel, or pause the whole game if nothing's open · <kbd>`</kbd> reveal map (debug)
+  <kbd>N</kbd> recon probe: click a direction and it flies straight out on its fiber line, lifting the fog along a narrow strip for 20s and permanently finding veins it passes (3 charges, one back every 20s) · <kbd>V</kbd> follow Bastion (escorts it as it moves, until given another order) · <kbd>Esc</kbd> cancel, or pause the whole game if nothing's open · <kbd>`</kbd> reveal map (debug)
 </div>
 
 <!-- Guided tutorial: one instruction at a time, advancing on its own as the player does each thing. -->
@@ -528,9 +528,9 @@ const MAP_TYPES=[
    mud:[8,3,6],rock:[10,2,5],ridges:12,pockets:3,pocketScale:0.9,pocketGap:1600,deposits:5,packs:20},
   {id:'swamp',name:'Swamp',desc:'Mud everywhere — slow going for every unit you field.',
    mud:[42,4,9],rock:[7,2,5],ridges:0,pockets:3,pocketScale:0.9,pocketGap:1600,deposits:5,packs:18},
-  {id:'shattered',name:'Shattered',desc:'Many small rift pockets, each hiding a rich deposit.',
+  {id:'shattered',name:'Shattered',desc:'Many small rift pockets to pick your way around.',
    mud:[12,3,6],rock:[12,3,6],ridges:0,pockets:9,pocketScale:0.55,pocketGap:900,deposits:3,packs:20},
-  {id:'plain',name:'Open Plain',desc:'Little cover and bigger roaming packs.',
+  {id:'plain',name:'Open Plain',desc:'Little cover — wide open sight lines, both ways.',
    mud:[6,2,4],rock:[5,2,4],ridges:0,pockets:2,pocketScale:1,pocketGap:1600,deposits:6,packs:30},
 ];
 let mapType=MAP_TYPES[0], mapLayout=LAYOUTS[0];
@@ -1712,7 +1712,7 @@ function reset(landing){
   rand=seededRng(mapSeed);
   rollLayout();
   const land=landing||defaultLanding();
-  S={t:0,dat:tutorialMap?TUTORIAL_START_DAT:40,living:0,condensed:0,over:null,rerollCount:0,
+  S={t:0,dat:tutorialMap?TUTORIAL_START_DAT:60,living:0,condensed:0,over:null,rerollCount:0,
     base:{x:land.x,y:land.y,hp:450+bastionHpBonus(),maxHp:450+bastionHpBonus(),r:BASE_R,dest:null,locked:false,gunCd:0,bigGunCd:0,pingCd:0},
     troops:[],harvesters:[],builders:[],relays:[],depots:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],shards:[],nades:[],
     veins:[],activeVein:null,throttleMul:1,ambientT:30,
@@ -1728,7 +1728,7 @@ function reset(landing){
     sel:{base:false,troops:new Set(),harv:new Set(),bu:new Set()},
     // v2: harvesters, builders, depots and walls are gone — their arrays stay (always empty) so
     // the shared unit/structure code paths keep working untouched.
-    fab:{},fabShots:[],drones:[],droneNoDatMsgT:-99};
+    fab:{},fabShots:[],drones:[],droneNoDatMsgT:-99,runUnlock:{},nestSproutT:NEST_SPROUT_T};
   Object.keys(FABS).forEach(k=>{S.fab[k]={n:FABS[k].charges,rt:0}});
   addDrones(DRONE_COUNT);
   for(let i=0;i<2;i++) S.troops.push(mkTroop(i));
@@ -1782,38 +1782,8 @@ function reset(landing){
   // the ground texture rolls from its own fixed stream so it doesn't change with the landing spot
   {const landingRand=rand;rand=seededRng(mapSeed*131+17);terrainCv=buildTerrainCanvas();rand=landingRand}
 
-  nodeSpots.forEach(n=>{const p=nearestPlain(n.x,n.y);S.nodes.push({x:p.x,y:p.y,amt:n.amt,max:n.max,found:false})});
-  // a few are always planted right by the Bastion's starting spot — inside the radius enemies
-  // won't spawn in — so the first harvesters have a safe, close deposit instead of immediately
-  // setting off toward danger.
-  for(let i=0;i<4;i++){
-    const ang=rnd(0,Math.PI*2), rad=rnd(120,300);
-    const x=Math.max(60,Math.min(W-60,S.base.x+Math.cos(ang)*rad)), y=Math.max(60,Math.min(H-60,S.base.y+Math.sin(ang)*rad));
-    const p=nearestPlain(x,y);
-    S.nodes.push({x:p.x,y:p.y,amt:Math.round(rnd(20,38)),max:38,found:false});
-  }
-  // Rift deposits: the richest nodes on the map, planted at the heart of each rift pocket where
-  // the Bastion can't follow — a harvester (or a squad clearing the way for one) has to go in on
-  // foot to bring any of it back.
-  riftPockets.forEach(p=>{
-    for(let i=0;i<mapType.deposits;i++){
-      const ang=rnd(0,Math.PI*2), rad=rnd(0,130*mapType.pocketScale);
-      const x=Math.max(60,Math.min(W-60,p.x+Math.cos(ang)*rad)), y=Math.max(60,Math.min(H-60,p.y+Math.sin(ang)*rad));
-      S.nodes.push({x,y,amt:Math.round(rnd(160,240)),max:240,found:false});
-    }
-  });
+  // v2: no loose Dat deposits on the map - Dat comes from nests, vein payouts and enemy drops.
 
-  // roaming packs patrol/idle across the map; denser and more aggressive the deeper their patch is
-  for(let i=0;i<(tutorialMap?0:mapType.packs);i++){const px=rnd(300,W-300),py=rnd(300,H-300);if(Math.hypot(px-S.base.x,py-S.base.y)<700)continue;
-    const band=bandAt(px,py);
-    let patrol=null;
-    if(rand()<0.3){
-      const ang=rnd(0,Math.PI*2),len=rnd(400,900);
-      const bx=Math.max(150,Math.min(W-150,px+Math.cos(ang)*len)),by=Math.max(150,Math.min(H-150,py+Math.sin(ang)*len));
-      patrol={a:{x:px,y:py},b:{x:bx,y:by},dir:1};
-    }
-    const packSize = band==='core'?rnd(10,16):band==='dense'?rnd(4,8):rnd(2,4);
-    for(let j=0;j<packSize;j++){const p=nearestPlain(px+rnd(-60,60),py+rnd(-60,60));spawnEnemy(p.x,p.y,'roam');if(patrol)S.enemies[S.enemies.length-1].patrol=patrol}}
   // The starting veins (each brings its own guard cluster — see emergeVein). The contract vein
   // waits at its fixed site. The Rim site nearest the landing always opens with a fresh vein, so
   // the first one is close and easy to follow; the rest start part-way through their lives so
@@ -1827,16 +1797,9 @@ function reset(landing){
    const open=(clear.length?clear:rim).reduce((a,b)=>dist(b,S.base)<dist(a,S.base)?b:a);
    if(!open.vein&&(tutorialMap||!S.veins.some(v=>!v.contract&&dist(v,S.base)<1100)))emergeVein(open,{ripeT:0,opening:true})}
   for(let i=0;i<STRAY_COUNT;i++){const st={x:0,y:0,live:true,t:0};S.strays.push(st);placeStray(st)}
-  // The Core is deliberately saturated on top of the scatter above — a guaranteed, heavy
-  // population across the whole band rather than relying on where the random packs happened to land.
-  // (The Core is a disk around the epicenter now rather than a full-width strip, so it gets fewer
-  // packs than the old 16 to keep a similar density.)
-  for(let i=0;i<9;i++){
-    const {x:px,y:py}=pointInRing(0,CORE_R,150);
-    if(Math.hypot(px-S.base.x,py-S.base.y)<700)continue;
-    const packSize=rnd(6,10);
-    for(let j=0;j<packSize;j++){const p=nearestPlain(px+rnd(-60,60),py+rnd(-60,60));spawnEnemy(p.x,p.y,'roam')}
-  }
+  // v2: every roaming enemy comes from a nest (see NEST)
+  if(!tutorialMap)Object.keys(NEST_START).forEach(band=>{const st=NEST_START[band];
+    for(let i=0;i<st.n;i++){const r=rand();const size=r<st.mix[0]?'small':r<st.mix[0]+st.mix[1]?'medium':'large';placeNest(size,band)}});
 
   rand=Math.random; // map built — live gameplay goes back to unseeded randomness
   cam={x:S.base.x,y:S.base.y,z:1};
@@ -2049,7 +2012,7 @@ const TUTORIAL_STEPS=[
    target:()=>{const v=tutVein();return{x:v.x,y:v.y,r:v.r+20}},
    done:()=>tutVein().mine.found},
   {title:'Dat Crystal',
-   text:()=>`Found it! On the way you may have rolled over some <b>Dat Crystal</b> (◆, top left) — the Bastion or any unit scoops up a deposit just by passing over it. Your little teal <b>repair drones</b> spend Dat to patch up whatever gets damaged near the Bastion.`},
+   text:()=>`Found it! <b>Dat Crystal</b> (◆, top left) drops from enemies and from destroyed nests — the Bastion or any unit scoops it up just by passing over it. Your little teal <b>repair drones</b> spend Dat to patch up whatever gets damaged near the Bastion.`},
   {title:'Move the Bastion',
    text:()=>`Now bring the rig over. Click the Bastion (or press <kbd>B</kbd>) to select it, then <b>right-click the glowing mining point</b> inside the vein. It's slow, so give it a moment to roll over.`,
    target:()=>{const v=tutVein();return{x:v.mine.x,y:v.mine.y,r:40}},
@@ -2177,6 +2140,129 @@ function spawnEnemy(x,y,kind,opts){
   const hp=(opts&&opts.hp)||(brute?BRUTE_HP:swarm?SWARM_HP:Math.round((big?120:sab?4:34)*(core?CORE_ENEMY_HP_MULT:1)));
   S.enemies.push({x,y,r:brute?BRUTE_R:big?13:sab?4:swarm?SWARM_R:8,hp,maxHp:hp,
     speed:brute?BRUTE_SPEED:big?48:sab?105:swarm?SWARM_SPEED:78,dmg:brute?BRUTE_DMG:big?12:sab?1.5:swarm?SWARM_DMG:5,cd:0,kind,core,target:null,aggro:kind==='roam'||brute?260:1e9,home:{x,y},ang:rnd(0,Math.PI*2),faceT:rnd(1,3),stunT:0});
+}
+// ---------- nests ----------
+// v2: every roaming enemy comes from a nest. Nests sit hidden in the fog, send patrols out on a
+// timer (capped by how much of their brood is still alive), feed the drilling waves of any vein
+// within NEST_FEED_R, grow Small -> Medium -> Large if left alone, and new Small ones sprout in
+// the fog over time. Hitting one makes it spit out defenders. They live in S.enemies (kind
+// 'nest') so every gun in the game can already shoot them; the enemy AI skips them.
+const NEST_SIZES=['small','medium','large'];
+const NEST={
+  small: {name:'Small nest', hp:320, r:20,patrolT:55,patrolN:[2,3],brood:4, guards:2,defend:2,feed:0.6,dat:20,growT:360},
+  medium:{name:'Medium nest',hp:700, r:28,patrolT:45,patrolN:[3,4],brood:7, guards:4,defend:3,feed:1,  dat:40,growT:480},
+  large: {name:'Large nest', hp:1300,r:38,patrolT:38,patrolN:[4,6],brood:11,guards:6,defend:5,feed:1.6,dat:70},
+};
+const NEST_BAND_MULT={rim:1,dense:1.5,core:2}; // brood/patrol/guard counts scale with depth
+const NEST_START={rim:{n:6,mix:[0.7,0.3]},dense:{n:6,mix:[0.3,0.5]},core:{n:4,mix:[0,0.4]}}; // mix: small, medium share (rest large)
+const NEST_FEED_R=1200, NEST_STRAGGLERS=0.4, NEST_GAP=550, NEST_BASE_CLEAR=900;
+const NEST_SPROUT_T=140, NEST_CAP=22, NEST_DEFEND_CD=7, NEST_GROW_QUIET=15, NEST_PATROL_REACH=[450,900];
+const nestScaled=(n,k)=>Math.max(1,Math.round(k*NEST_BAND_MULT[n.band]));
+const liveNests=()=>S.enemies.filter(e=>e.kind==='nest'&&e.hp>0);
+function nestBrood(n){let c=0;for(const e of S.enemies)if(e.nest===n&&e.hp>0)c++;return c}
+function nestSpawn(n,count,kind,o){
+  const out=[];
+  for(let i=0;i<count;i++){
+    const a=rnd(0,Math.PI*2),rr=n.r+rnd(8,50);
+    const p=nearestPlain(Math.max(20,Math.min(W-20,n.x+Math.cos(a)*rr)),Math.max(20,Math.min(H-20,n.y+Math.sin(a)*rr)));
+    spawnEnemy(p.x,p.y,kind,o);
+    out.push(S.enemies[S.enemies.length-1]);
+  }
+  return out;
+}
+function makeNest(x,y,size){
+  const N=NEST[size],band=bandAt(x,y);
+  const n={x,y,r:N.r,hp:N.hp,maxHp:N.hp,kind:'nest',size,band,core:false,speed:0,dmg:0,cd:0,aggro:0,ang:0,faceT:9,stunT:0,
+    target:null,home:{x,y},patrolT:rnd(N.patrolT*0.3,N.patrolT),growT:N.growT||0,defendCd:0,lastHp:N.hp,hitT:-99,seen:false,ph:rnd(0,Math.PI*2)};
+  S.enemies.push(n);
+  nestSpawn(n,nestScaled(n,N.guards),'roam').forEach(e=>e.nest=n);
+  return n;
+}
+// A spot in the band clear of the Bastion, vein sites and other nests (and, for one sprouting
+// mid-run, out of everyone's sight). null if nothing fits.
+function placeNest(size,band,hidden){
+  const sites=[...S.sites,S.contractSite].filter(Boolean), nests=liveNests();
+  for(let t=0;t<60;t++){
+    const q=band==='core'?pointInRing(0,CORE_R-60,150):band==='dense'?pointInRing(CORE_R+80,DENSE_R-60,150):pointInRing(DENSE_R+80,EPI_REACH,150);
+    if(!q)continue;
+    const p=nearestPlain(q.x,q.y);
+    if(bandAt(p.x,p.y)!==band||!inMap(p.x,p.y,120))continue;
+    if(dist(p,S.base)<NEST_BASE_CLEAR)continue;
+    if(sites.some(st=>dist(st,p)<ZONE_R+120))continue;
+    if(nests.some(o=>dist(o,p)<NEST_GAP))continue;
+    if(hidden&&visible(p))continue;
+    return makeNest(p.x,p.y,size);
+  }
+  return null;
+}
+function updateNests(dt){
+  if(tutorialMap)return;
+  liveNests().forEach(n=>{
+    const N=NEST[n.size];
+    if(!n.seen&&visible(n)){n.seen=true;msg(`${N.name} spotted — its patrols roam this area. Destroy it for Dat${n.size==='small'?'':n.size==='medium'?' and fabricator charges':', fabricator charges and salvage'}.`)}
+    // struck: rally defenders (on a cooldown, and not past a ceiling on its living brood)
+    if(n.hp<n.lastHp){n.hitT=S.t;
+      if(n.defendCd<=0&&nestBrood(n)<nestScaled(n,N.brood)+nestScaled(n,N.defend)*2){
+        nestSpawn(n,nestScaled(n,N.defend),'roam').forEach(e=>{e.nest=n;e.aggro=480});
+        n.defendCd=NEST_DEFEND_CD;
+      }}
+    n.defendCd-=dt; n.lastHp=n.hp;
+    // patrols: a pack walks out to a point and back, for as long as it lives
+    n.patrolT-=dt;
+    if(n.patrolT<=0){n.patrolT=N.patrolT*rnd(0.8,1.2);
+      const room=nestScaled(n,N.brood)-nestBrood(n);
+      if(room>0){
+        const a=rnd(0,Math.PI*2),L=rnd(NEST_PATROL_REACH[0],NEST_PATROL_REACH[1]);
+        const b={x:Math.max(150,Math.min(W-150,n.x+Math.cos(a)*L)),y:Math.max(150,Math.min(H-150,n.y+Math.sin(a)*L))};
+        const patrol={a:{x:n.x,y:n.y},b,dir:1};
+        nestSpawn(n,Math.min(room,nestScaled(n,Math.round(rnd(N.patrolN[0],N.patrolN[1])))),'roam').forEach(e=>{e.nest=n;e.patrol=patrol});
+      }}
+    // growth: left alone (not hit lately) a nest grows a size
+    if(N.growT&&S.t-n.hitT>NEST_GROW_QUIET){n.growT-=dt;
+      if(n.growT<=0){
+        const ns=NEST_SIZES[NEST_SIZES.indexOf(n.size)+1], M=NEST[ns], f=n.hp/n.maxHp;
+        n.size=ns;n.r=M.r;n.maxHp=M.hp;n.hp=Math.round(M.hp*f);n.lastHp=n.hp;n.growT=M.growT||0;
+        if(n.seen)msg(`A nest has grown into a ${M.name}.`);
+      }}
+  });
+  // new Small nests sprout in the fog
+  S.nestSproutT-=dt;
+  if(S.nestSproutT<=0){S.nestSproutT=NEST_SPROUT_T*rnd(0.8,1.2);
+    if(liveNests().length<NEST_CAP){const r=rand();placeNest('small',r<0.4?'rim':r<0.75?'dense':'core',true)}}
+}
+// A destroyed nest drops a Dat deposit to collect; Medium ones also kick a charge back into every
+// fabricator, Large ones give up salvage too (a fabricator for the run, or spare drones).
+function nestDestroyed(n){
+  const N=NEST[n.size], amt=Math.round(N.dat*(n.band==='core'?2:n.band==='dense'?1.5:1));
+  S.nodes.push({x:n.x,y:n.y,amt,max:amt,found:true});
+  burst(n.x,n.y,'#ff5c4d',36,200,0.8);burst(n.x,n.y,C.dat,14,120,0.6);shakeScreen(6,0.35);
+  let extra='';
+  if(n.size!=='small'){
+    Object.keys(FABS).forEach(k=>{const st=S.fab[k];if(st.n<FABS[k].charges){st.n++;if(st.n>=FABS[k].charges)st.rt=0}});
+    extra=' Every fabricator gains a charge.';
+  }
+  if(n.size==='large'){
+    const locked=Object.keys(FABS).filter(k=>!fabUnlocked(k));
+    if(locked.length){const k=locked[Math.floor(Math.random()*locked.length)];S.runUnlock[k]=true;S.fab[k].n=FABS[k].charges;S.fab[k].rt=0;
+      extra+=` Salvaged a ${FABS[k].name} fabricator — yours for this run!`}
+    else{addDrones(2);extra+=' Salvaged 2 repair drones.'}
+  }
+  msg(`${N.name} destroyed — drive over its Dat to collect it.${extra}`);
+  updateBuildBar();
+}
+function drawNest(n){
+  const R=n.r, pul=0.5+0.5*Math.sin(S.t*2.2+n.ph), fl=n.flashT>0;
+  ctx.save();ctx.translate(n.x,n.y);
+  ctx.fillStyle='rgba(0,0,0,0.35)';ctx.beginPath();ctx.ellipse(3,5,R*1.2,R*0.85,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle=fl?'#fff':'#4a1d1a';ctx.beginPath();
+  for(let k=0;k<=16;k++){const a=k/16*Math.PI*2, rr=R*(0.86+0.14*Math.sin(a*3+n.ph));ctx.lineTo(Math.cos(a)*rr,Math.sin(a)*rr)}
+  ctx.closePath();ctx.fill();ctx.strokeStyle='#8a2c22';ctx.lineWidth=2;ctx.stroke();
+  const vents=n.size==='small'?3:n.size==='medium'?4:6;
+  for(let k=0;k<vents;k++){const a=k/vents*Math.PI*2+n.ph,d=R*0.52;
+    ctx.fillStyle=`rgba(255,92,77,${0.3+0.5*pul})`;ctx.beginPath();ctx.arc(Math.cos(a)*d,Math.sin(a)*d,R*0.15,0,Math.PI*2);ctx.fill()}
+  ctx.fillStyle=`rgba(255,130,95,${0.5+0.45*pul})`;ctx.beginPath();ctx.arc(0,0,R*0.24,0,Math.PI*2);ctx.fill();
+  ctx.restore();
+  if(n.hp<n.maxHp)hpbar(n.x,n.y-R-10,R*2+8,n.hp/n.maxHp);
 }
 // Where the player's actual mining is happening right now — the average position of harvesters
 // currently working a node (falling back to all harvesters, then the Bastion) — rather than just
@@ -2808,6 +2894,7 @@ function severUnit(u){
 // else they're doing in combat. A cable that runs out of HP severs its owner.
 function cableSeverPass(allUnits,dt){
   S.enemies.forEach(e=>{
+    if(e.kind==='nest')return;
     e.cableCd=(e.cableCd||0)-dt;
     if(e.cableCd>0)return;
     let best=null,bd=CABLE_HIT_RANGE;
@@ -3033,7 +3120,7 @@ mini.addEventListener('pointerdown',e=>{
 document.getElementById('helpToggleBtn').onclick=()=>{document.getElementById('help').classList.toggle('open')};
 function closeProdMenu(){prodMenuOpen=false}
 // ---------- fabricators (v2) ----------
-function fabUnlocked(k){const f=FABS[k];return !f.unlock||!!meta[f.unlock]}
+function fabUnlocked(k){const f=FABS[k];return !f.unlock||!!meta[f.unlock]||!!(S&&S.runUnlock&&S.runUnlock[k])}
 function fabPips(k){const f=FABS[k],st=S.fab[k];return '●'.repeat(st.n)+'○'.repeat(f.charges-st.n)+(st.n<f.charges?` ${Math.ceil(st.rt)}s`:'')}
 // Spend one charge of fabricator k; false (with a message) if it's empty.
 function useFab(k){
@@ -3766,7 +3853,7 @@ function droneJobAlive(o){
 function updateDrones(dt){
   const B=S.base, noDat=S.dat<=0.01;
   const jobs=noDat?[]:droneJobs();
-  if(noDat&&jobs.length===0&&droneJobs().length&&S.t-S.droneNoDatMsgT>30){S.droneNoDatMsgT=S.t;msg('Repair drones are grounded — out of Dat Crystal. Scoop up deposits to get them flying.')}
+  if(noDat&&jobs.length===0&&droneJobs().length&&S.t-S.droneNoDatMsgT>30){S.droneNoDatMsgT=S.t;msg('Repair drones are grounded — out of Dat Crystal. Destroy nests and collect enemy drops to get them flying.')}
   const load=new Map();
   S.drones.forEach(d=>{if(d.target&&(noDat||!droneJobAlive(d.target))){d.target=null;d.state='dock'}if(d.target)load.set(d.target,(load.get(d.target)||0)+1)});
   S.drones.forEach(d=>{
@@ -3812,8 +3899,26 @@ function veinThreat(v){
   return {n:mix('n'),rate:mix('rate'),big:mix('big'),hunt:mix('hunt'),tier:currentTier(v)};
 }
 function veinWaveInterval(v){return BASE_SPAWN_INTERVAL[v.band]/veinThreat(v).rate}
+function compassName(a){const c=Math.cos(a),s=Math.sin(a);return (s>0.38?'south':s<-0.38?'north':'')+(c>0.38?'east':c<-0.38?'west':'')}
 function spawnVeinWave(v){
-  const th=veinThreat(v), n=Math.max(1,Math.round(WAVE_BASE_N[v.band]*th.n));
+  const th=veinThreat(v);
+  // the nests within reach of the vein are what answers the drill: each one swells the wave and
+  // sends its share from where it sits. No nest nearby: just stragglers from the vein's wave line.
+  const feeders=liveNests().filter(nn=>dist(nn,v)<NEST_FEED_R);
+  const feed=feeders.reduce((t,nn)=>t+NEST[nn.size].feed,0);
+  const n=Math.max(1,Math.round(WAVE_BASE_N[v.band]*th.n*(feeders.length?Math.min(3,0.4+0.6*feed):NEST_STRAGGLERS)));
+  const heavy=th.tier==='Legendary'?'A huge wave':th.tier==='Epic'?'A heavy wave':'Wave';
+  const why=th.tier==='Epic'||th.tier==='Legendary'?` — the ${th.tier} yield is drawing them in`:'';
+  if(feeders.length){
+    let left=n;
+    feeders.sort((p,q)=>NEST[q.size].feed-NEST[p.size].feed).forEach((nn,i)=>{
+      const k=i===feeders.length-1?left:Math.min(left,Math.max(1,Math.round(n*NEST[nn.size].feed/feed)));left-=k;
+      if(k>0)nestSpawn(nn,k,'wave',{bigP:th.big}).forEach(e=>{if(rnd(0,1)<th.hunt)e.stabHunter=true});
+    });
+    const top=feeders[0];
+    msg(`${heavy} pouring out of ${feeders.length>1?feeders.length+' nests':'the nest'} to the ${compassName(Math.atan2(top.y-v.y,top.x-v.x))||'near side'}${why}.`);
+    sfx.wave();return;
+  }
   const a=v.waveDir, sx=v.x+Math.cos(a)*WAVE_SPAWN_DIST, sy=v.y+Math.sin(a)*WAVE_SPAWN_DIST;
   const px=-Math.sin(a), py=Math.cos(a);
   for(let i=0;i<n;i++){
@@ -3822,8 +3927,7 @@ function spawnVeinWave(v){
     spawnEnemy(p.x,p.y,'wave',{bigP:th.big});
     if(rnd(0,1)<th.hunt)S.enemies[S.enemies.length-1].stabHunter=true;
   }
-  const heavy=th.tier==='Legendary'?'A huge wave':th.tier==='Epic'?'A heavy wave':'Wave';
-  msg(`${heavy} incoming from the ${a<Math.PI?'south':'north'}${Math.cos(a)>0?'east':'west'}${th.tier==='Epic'||th.tier==='Legendary'?` — the ${th.tier} yield is drawing them in`:''}.`);
+  msg(`A few stragglers incoming from the ${a<Math.PI?'south':'north'}${Math.cos(a)>0?'east':'west'} — no nest is close enough to send a real wave.`);
   sfx.wave();
 }
 // ---------- update ----------
@@ -3922,17 +4026,6 @@ function update(dt){
     }
     }
   }
-  // ambient: the zone is alive even when nobody's drilling, scaled by how deep the Bastion sits
-  S.ambientT-=dt;
-  if(S.ambientT<=0){
-    const band=bandAt(B.x,B.y);
-    if(band!=='rim'){
-      const ang=rnd(0,Math.PI*2),rad=rnd(200,500);
-      const p=nearestPlain(Math.max(20,Math.min(W-20,B.x+Math.cos(ang)*rad)),Math.max(20,Math.min(H-20,B.y+Math.sin(ang)*rad)));
-      spawnEnemy(p.x,p.y,'roam');
-    }
-    S.ambientT=AMBIENT_INTERVAL[band];
-  }
   // off-zone mining pressure — see OFFZONE_* comment above. Checked on a rolling window rather
   // than a running total so it reacts to a sustained haul, not lifetime income.
   if(S.offZonePatrolCd>0)S.offZonePatrolCd-=dt;
@@ -3964,6 +4057,7 @@ function update(dt){
   updateStabilizerShots(dt);
   updateProbes(dt);
   updateFabs(dt);
+  updateNests(dt);
   updateFabShots(dt);
   updateDrones(dt);
   if(!B.locked||S.mods.bastionShootWhileDrilling){
@@ -4224,7 +4318,7 @@ function update(dt){
   S.surgeWaves=S.surgeWaves.filter(w=>{
     w.r=Math.min(ENERGY_SURGE_R,w.r+ENERGY_SURGE_WAVE_SPEED*dt);
     S.enemies.forEach(e=>{
-      if(w.hit.has(e))return;
+      if(w.hit.has(e)||e.kind==='nest')return;
       const d=dist(e,w);
       if(d-e.r>w.r)return;
       w.hit.add(e);
@@ -4250,6 +4344,7 @@ function update(dt){
   // enemies
   const allies=S.troops.concat(S.harvesters).concat(S.builders);
   S.enemies.forEach(e=>{
+    if(e.kind==='nest')return;
     e.cd-=dt; e._enemy=true; // pathing flag: rift is ordinary ground for enemies (see tcost)
     // Energy Surge stun: frozen in place, can't attack, but still gets shoved by crowd separation
     // below (that's physics, not action) and its own attack cooldown keeps ticking down.
@@ -4326,12 +4421,15 @@ function update(dt){
     moveToward(e,aim,e.speed*factor,dt);
   });
   // enemy separation — crowd pressure must not shove anyone clean through a wall
-  for(let i=0;i<S.enemies.length;i++)for(let j=i+1;j<S.enemies.length;j++){const a=S.enemies[i],b=S.enemies[j],d=dist(a,b),m=a.r+b.r;
-    if(d<m&&d>0.5){const p=(m-d)/2,dx=(b.x-a.x)/d,dy=(b.y-a.y)/d;
-      const anx=a.x-dx*p,any=a.y-dy*p,bnx=b.x+dx*p,bny=b.y+dy*p;
+  // (sort-and-sweep on x: only pairs whose x gap is under the largest possible overlap are checked)
+  {const es=S.enemies.slice().sort((p,q)=>p.x-q.x);let maxR=0;for(const e of es)if(e.r>maxR)maxR=e.r;
+  for(let i=0;i<es.length;i++)for(let j=i+1;j<es.length;j++){const a=es[i],b=es[j];if(b.x-a.x>a.r+maxR)break;const d=dist(a,b),m=a.r+b.r;
+    if(d<m&&d>0.5){const an=a.kind==='nest',bn=b.kind==='nest';if(an&&bn)continue;
+      const p=(m-d)/2*(an||bn?2:1),dx=(b.x-a.x)/d,dy=(b.y-a.y)/d;
+      const anx=an?a.x:a.x-dx*p,any=an?a.y:a.y-dy*p,bnx=bn?b.x:b.x+dx*p,bny=bn?b.y:b.y+dy*p;
       if(!wallAt(anx,any)){a.x=anx;a.y=any}
       if(!wallAt(bnx,bny)){b.x=bnx;b.y=bny}
-    }}
+    }}}
 
   cableLenPass(allies);
   cableSeverPass(allies.concat(S.relays.filter(r=>r.built)),dt);
@@ -4339,6 +4437,7 @@ function update(dt){
   // deaths
   const bruteDeaths=[];
   S.enemies=S.enemies.filter(e=>{if(e.hp<=0){
+    if(e.kind==='nest'){nestDestroyed(e);sfx.kill();return false}
     const brute=e.kind==='brute';
     burst(e.x,e.y,brute?'#ff2a2a':e.kind==='saboteur'?C.cable:C.enemy,brute?20:5,brute?150:90,brute?0.6:undefined);
     sfx.kill();
@@ -4965,7 +5064,8 @@ function draw(){
     ctx.globalAlpha=0.35+0.5*p;ctx.strokeStyle=C.zone;ctx.lineWidth=2;ctx.beginPath();ctx.arc(c.x,c.y,c.r+4+(1-p)*22,0,Math.PI*2);ctx.stroke();
     ctx.globalAlpha=1});
   // enemies (only visible)
-  S.enemies.forEach(e=>{if(!debugNoFog&&!visible(e))return;const a=e.ang,brute=e.kind==='brute';ctx.fillStyle=e.flashT>0?'#fff':(e.core?'#0a0a0a':(e.kind==='roam'?'#d9775f':e.kind==='saboteur'?C.cable:e.kind==='corrupted'?C.zone:C.enemy));ctx.beginPath();
+  S.enemies.forEach(e=>{if(e.kind==='nest'){if(debugNoFog||e.seen)drawNest(e);return}
+    if(!debugNoFog&&!visible(e))return;const a=e.ang,brute=e.kind==='brute';ctx.fillStyle=e.flashT>0?'#fff':(e.core?'#0a0a0a':(e.kind==='roam'?'#d9775f':e.kind==='saboteur'?C.cable:e.kind==='corrupted'?C.zone:C.enemy));ctx.beginPath();
     ctx.moveTo(e.x+Math.cos(a)*e.r*1.3,e.y+Math.sin(a)*e.r*1.3);ctx.lineTo(e.x+Math.cos(a+2.5)*e.r,e.y+Math.sin(a+2.5)*e.r);ctx.lineTo(e.x+Math.cos(a-2.5)*e.r,e.y+Math.sin(a-2.5)*e.r);ctx.closePath();ctx.fill();
     if(e.core){ctx.strokeStyle=e.flashT>0?'#fff':'#ff2a2a';ctx.lineWidth=brute?3:1.5;ctx.stroke()}
     if(brute){ctx.globalAlpha=0.45;ctx.strokeStyle='#ff2a2a';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(e.x,e.y,e.r+7,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1}
@@ -5039,7 +5139,8 @@ function drawMini(){const s=mini.width/W;mctx.fillStyle='#10151b';mctx.fillRect(
   S.nodes.forEach(n=>{if((n.found||debugNoFog)&&n.amt>0){mctx.fillStyle=C.dat;mctx.fillRect(n.x*s-1.5,n.y*s-1.5,3,3)}});
   S.relays.forEach(r=>{if(r.built){mctx.fillStyle=C.cable;mctx.fillRect(r.x*s-2,r.y*s-2,4,4)}});
   S.depots.forEach(de=>{if(de.built){mctx.fillStyle=de.hp>0?C.dat:C.enemy;mctx.fillRect(de.x*s-2,de.y*s-2,4,4)}});
-  S.enemies.forEach(e=>{if(debugNoFog||visible(e)){mctx.fillStyle=C.enemy;mctx.fillRect(e.x*s-1,e.y*s-1,2,2)}});
+  S.enemies.forEach(e=>{if(e.kind==='nest'){if(debugNoFog||e.seen){const q=e.size==='small'?2.5:e.size==='medium'?3.5:4.5;mctx.fillStyle='#8a2c22';mctx.beginPath();mctx.arc(e.x*s,e.y*s,q+1,0,Math.PI*2);mctx.fill();mctx.fillStyle=C.enemy;mctx.beginPath();mctx.arc(e.x*s,e.y*s,q*0.55,0,Math.PI*2);mctx.fill()}return}
+    if(debugNoFog||visible(e)){mctx.fillStyle=C.enemy;mctx.fillRect(e.x*s-1,e.y*s-1,2,2)}});
   S.troops.forEach(t=>{mctx.fillStyle=C.ally;mctx.fillRect(t.x*s-1.5,t.y*s-1.5,3,3)});
   S.harvesters.forEach(h=>{mctx.fillStyle=C.harv;mctx.fillRect(h.x*s-1.5,h.y*s-1.5,3,3)});
   S.builders.forEach(bu=>{mctx.fillStyle=C.builder;mctx.fillRect(bu.x*s-1.5,bu.y*s-1.5,3,3)});
