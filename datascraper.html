@@ -337,6 +337,9 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   #dmPad{width:54px;height:54px} #dmHint{display:none} .dmFoot{min-height:0;margin-top:3px} .dmHead{margin-bottom:3px}
   .help.open{inset:6% 6%;max-height:88vh}
 }
+/* While the main menu / landing picker is up, the world behind it (already built around the
+   picked spot) stays hidden, so the preview's haze is the only hint of where veins are. */
+body.inMenu :is(#game,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMeter,.mini,.unitSelCtrl,.help,.tutPanel){visibility:hidden}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}.overlay{animation:none}.bar i.hp.low{animation:none}.overlay button.rewardCard.legendary{animation:none}}
 </style>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;600&display=swap">
@@ -1325,7 +1328,7 @@ function emergeVein(site,o){
     reward:o.contract?{dat:50,living:3}:{dat:Math.round(site.richness*1.2)},
     mine:{x:site.x+Math.cos(ang)*rad,y:site.y+Math.sin(ang)*rad,found:false},
     site,ripeT:o.ripeT||0,crackedT:0,seen:false,collapsed:false,goneT:0,pulsePh:rnd(0,PULSE_PERIOD),
-    haze:o.haze||{x:rnd(-VEIN_HAZE_OFF,VEIN_HAZE_OFF),y:rnd(-VEIN_HAZE_OFF,VEIN_HAZE_OFF)},opening:!!o.opening};
+    haze:o.haze||rollHaze(),opening:!!o.opening};
   v.hot=mkHotspots(v);
   site.vein=v; S.veins.push(v);
   // index the network around it: its zone (what lights up as the vein) and, for ordinary veins,
@@ -1575,13 +1578,16 @@ let menuOpen=true, landingSel=null;
 const LANDING_MARGIN=260;
 // A legal landing spot: inside the map margin and at least LANDING_MARGIN out past the Dense
 // Field's edge (the dashed ring on the landing preview).
-// ...and never inside one of the preview's vein hazes: the glowing patches are the unstable
-// ground, so what's refused is exactly what the player can see. Each haze is centred up to
-// VEIN_HAZE_OFF off its vein and LANDING_HAZE_R across, so the vein itself always sits at least
-// ~290 inside — the Bastion can't touch down on top of one, and the exact spot stays hidden.
+// ...and never inside one of the preview's vein hazes: the dotted ring inside each glow is the
+// unstable ground, so what's refused is exactly what the player can see. Each haze is centred
+// anywhere up to VEIN_HAZE_OFF off its vein, its no-landing ring is LANDING_HAZE_R across (so the
+// vein always sits at least ~300 inside it), and its glow spreads further still (HAZE_GLOW_R) —
+// the Bastion can't touch down on a vein, and the glow says little about where in it the vein is.
 // Empty vein sites don't block landing (they aren't shown); the opening vein and later respawns
 // pick a site well clear of the Bastion instead.
-const LANDING_HAZE_R=520, VEIN_HAZE_OFF=160, LANDING_SITE_CLEAR=450;
+const LANDING_HAZE_R=620, VEIN_HAZE_OFF=320, HAZE_GLOW_R=1000, LANDING_SITE_CLEAR=450;
+// a haze offset: any direction, anywhere within VEIN_HAZE_OFF (two rolls, like the old x/y pair)
+const rollHaze=()=>{const a=rnd(0,Math.PI*2),d=VEIN_HAZE_OFF*Math.sqrt(rnd(0,1));return{x:Math.cos(a)*d,y:Math.sin(a)*d}};
 const hazedVeins=()=>S&&S.veins?S.veins.filter(v=>!v.contract&&!v.opening&&veinAlive(v)&&v.haze):[];
 function nearVeinSite(x,y){return hazedVeins().some(v=>Math.hypot(v.x+v.haze.x-x,v.y+v.haze.y-y)<LANDING_HAZE_R)}
 function canLandAt(x,y){return inMap(x,y,LANDING_MARGIN)&&epiDist(x,y)>=DENSE_R+LANDING_MARGIN&&!nearVeinSite(x,y)}
@@ -1727,7 +1733,7 @@ function reset(landing){
       const ok=pool.filter(st=>!startPicks.some(p=>dist(p.site,st)<700));
       const from=ok.length?ok:pool, st=from[Math.floor(rnd(0,from.length))];
       pool.splice(pool.indexOf(st),1);
-      startPicks.push({site:st,ripeT:rnd(0,RIPEN_STEP_T*1.6),haze:{x:rnd(-VEIN_HAZE_OFF,VEIN_HAZE_OFF),y:rnd(-VEIN_HAZE_OFF,VEIN_HAZE_OFF)}});
+      startPicks.push({site:st,ripeT:rnd(0,RIPEN_STEP_T*1.6),haze:rollHaze()});
     }
   });
   // Dat Crystal deposits: the Rim is thick with small, low-yield nodes — common and unremarkable,
@@ -1848,9 +1854,10 @@ function drawMenuMap(){
   // No vein markers before landing — just a haze of energy roughly where veins are stirring (each
   // haze sits a few hundred units off its vein), so landing is still an informed choice.
   menuCx.save();menuCx.globalCompositeOperation='lighter';
-  hazedVeins().forEach(v=>{const hx=(v.x+v.haze.x)*s,hy=(v.y+v.haze.y)*s,hr=LANDING_HAZE_R*s;
-    const g=menuCx.createRadialGradient(hx,hy,0,hx,hy,hr);g.addColorStop(0,tierBlendCol(v));g.addColorStop(1,'rgba(0,0,0,0)');
-    menuCx.globalAlpha=0.32;menuCx.fillStyle=g;menuCx.beginPath();menuCx.arc(hx,hy,hr,0,Math.PI*2);menuCx.fill();
+  hazedVeins().forEach(v=>{const hx=(v.x+v.haze.x)*s,hy=(v.y+v.haze.y)*s,hr=HAZE_GLOW_R*s;
+    // flat across the middle, so the brightest point isn't a giveaway either
+    const g=menuCx.createRadialGradient(hx,hy,0,hx,hy,hr);g.addColorStop(0,tierBlendCol(v));g.addColorStop(0.45,tierBlendCol(v));g.addColorStop(1,'rgba(0,0,0,0)');
+    menuCx.globalAlpha=0.22;menuCx.fillStyle=g;menuCx.beginPath();menuCx.arc(hx,hy,hr,0,Math.PI*2);menuCx.fill();
     // its faint dotted rim marks the unstable ground the Bastion can't land on
     menuCx.globalAlpha=0.45;menuCx.strokeStyle=tierBlendCol(v);menuCx.lineWidth=1;menuCx.setLineDash([2,4]);
     menuCx.beginPath();menuCx.arc(hx,hy,LANDING_HAZE_R*s,0,Math.PI*2);menuCx.stroke();menuCx.setLineDash([])});
@@ -5153,7 +5160,7 @@ function hud(){
 }
 
 // ---------- loop ----------
-function frame(ts){const dt=Math.min(0.05,(ts-lastT)/1000||0);lastT=ts;update(dt);tutTick();draw();requestAnimationFrame(frame)}
+function frame(ts){const dt=Math.min(0.05,(ts-lastT)/1000||0);lastT=ts;document.body.classList.toggle('inMenu',menuOpen);update(dt);tutTick();draw();requestAnimationFrame(frame)}
 reset();drawMenuMap();refreshMenuMeta();requestAnimationFrame(frame);
 // Title-screen build marker: the live latest commit on master, not a hand-maintained string — a
 // baked-in value can never equal its own commit's hash (the hash is computed FROM the file's
