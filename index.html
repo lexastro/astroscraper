@@ -735,6 +735,14 @@ const WAVE_FRONT_HALF=260; // half-width of the line a wave spawns along, across
 const FIRST_WAVE_LEAD=9;
 const STAB_HUNTER_FRAC=0.35; // share of each drilling wave sent after the Stabilizers
 const WAVE_SPAWN_DIST=820,WAVE_BASE_N={rim:5,dense:10,core:22};
+// v2: the vein's tier sets the threat on top of the zone. It follows the drill meter's live yield
+// (the tier the needle has mostly sat in over the last few seconds), so holding a rich band draws
+// a bigger, faster swarm, and easing down a tier eases off. n = wave size, rate = how much sooner
+// waves come, big = share of heavies, hunt = share sent after the Stabilizers. Deeper zones scale
+// by less (TIER_THREAT_BAND) since their base pressure is already high.
+const TIER_THREAT={Common:{n:0.7,rate:0.85,big:0.1,hunt:0.25},Rare:{n:1,rate:1,big:0.2,hunt:0.35},
+  Epic:{n:1.6,rate:1.3,big:0.3,hunt:0.45},Legendary:{n:2.4,rate:1.6,big:0.4,hunt:0.55}};
+const TIER_THREAT_BAND={rim:1,dense:0.75,core:0.5};
 // Saboteurs are a separate threat while drilling: tiny, individually-fragile swarms that beeline
 // for whichever built Relay is nearest the vein (and opportunistically chew its cable on the way
 // there, same as any enemy near a cable), rather than joining the main wave's raid. A single one
@@ -2164,7 +2172,7 @@ function spawnEnemy(x,y,kind,opts){
   // that comes at you in a rush.
   if(kind==='roam'&&core&&rand()<BRUTE_CHANCE)kind='brute';
   const brute=kind==='brute';
-  const big=kind==='wave'&&rand()<0.2;
+  const big=kind==='wave'&&rand()<((opts&&opts.bigP!=null)?opts.bigP:0.2);
   const sab=kind==='saboteur', swarm=kind==='swarm';
   const hp=(opts&&opts.hp)||(brute?BRUTE_HP:swarm?SWARM_HP:Math.round((big?120:sab?4:34)*(core?CORE_ENEMY_HP_MULT:1)));
   S.enemies.push({x,y,r:brute?BRUTE_R:big?13:sab?4:swarm?SWARM_R:8,hp,maxHp:hp,
@@ -3798,17 +3806,24 @@ function drawDrones(){
 
 // One drilling wave: spawns WAVE_SPAWN_DIST out from the vein in its wave direction, spread along
 // a wide front across the approach (not a tight clump that would all set off down the same line).
+function veinThreat(v){
+  const T=TIER_THREAT[currentTier(v)]||TIER_THREAT.Rare, k=TIER_THREAT_BAND[v.band]??1, R=TIER_THREAT.Rare;
+  const mix=f=>R[f]+(T[f]-R[f])*k;
+  return {n:mix('n'),rate:mix('rate'),big:mix('big'),hunt:mix('hunt'),tier:currentTier(v)};
+}
+function veinWaveInterval(v){return BASE_SPAWN_INTERVAL[v.band]/veinThreat(v).rate}
 function spawnVeinWave(v){
-  const n=Math.round(WAVE_BASE_N[v.band]*(0.7+0.3*S.throttleMul));
+  const th=veinThreat(v), n=Math.max(1,Math.round(WAVE_BASE_N[v.band]*th.n));
   const a=v.waveDir, sx=v.x+Math.cos(a)*WAVE_SPAWN_DIST, sy=v.y+Math.sin(a)*WAVE_SPAWN_DIST;
   const px=-Math.sin(a), py=Math.cos(a);
   for(let i=0;i<n;i++){
     const lat=rnd(-WAVE_FRONT_HALF,WAVE_FRONT_HALF), dep=rnd(-70,70);
     const p=nearestPlain(Math.max(20,Math.min(W-20,sx+px*lat+Math.cos(a)*dep)),Math.max(20,Math.min(H-20,sy+py*lat+Math.sin(a)*dep)));
-    spawnEnemy(p.x,p.y,'wave');
-    if(rnd(0,1)<STAB_HUNTER_FRAC)S.enemies[S.enemies.length-1].stabHunter=true;
+    spawnEnemy(p.x,p.y,'wave',{bigP:th.big});
+    if(rnd(0,1)<th.hunt)S.enemies[S.enemies.length-1].stabHunter=true;
   }
-  msg(`Wave incoming from the ${a<Math.PI?'south':'north'}${Math.cos(a)>0?'east':'west'}.`);
+  const heavy=th.tier==='Legendary'?'A huge wave':th.tier==='Epic'?'A heavy wave':'Wave';
+  msg(`${heavy} incoming from the ${a<Math.PI?'south':'north'}${Math.cos(a)>0?'east':'west'}${th.tier==='Epic'||th.tier==='Legendary'?` — the ${th.tier} yield is drawing them in`:''}.`);
   sfx.wave();
 }
 // ---------- update ----------
@@ -3833,7 +3848,7 @@ function update(dt){
       if(!v.firstWaveSent&&v.prepT<=FIRST_WAVE_LEAD){v.firstWaveSent=true;spawnVeinWave(v)}
       if(v.prepT<=0){
         v.startT=S.t;
-        v.waveT=BASE_SPAWN_INTERVAL[v.band]/S.throttleMul;
+        v.waveT=veinWaveInterval(v);
         v.saboteurT=SABOTEUR_INTERVAL[v.band]/S.throttleMul;
         msg('Drill warmed up — STRIKE! Press Space (or the Strike button) to stop the needle near the centre.');
         sfx.wave();
@@ -3851,7 +3866,7 @@ function update(dt){
     v.waveT-=dt;
     if(v.waveT<=0){
       spawnVeinWave(v);
-      v.waveT=BASE_SPAWN_INTERVAL[v.band]/S.throttleMul;
+      v.waveT=veinWaveInterval(v);
     }
     v.saboteurT-=dt;
     if(v.saboteurT<=0){
@@ -3862,7 +3877,7 @@ function update(dt){
         liveRelays.forEach(r=>{const d=dist(v,r);if(d<rbd){rbd=d;target=r}});
         const dx=target.x-v.x,dy=target.y-v.y,L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L;
         const sx=target.x+ux*SABOTEUR_SPAWN_DIST, sy=target.y+uy*SABOTEUR_SPAWN_DIST;
-        const n=Math.max(1,Math.round(SABOTEUR_BASE_N[v.band]*(0.7+0.3*S.throttleMul)));
+        const n=Math.max(1,Math.round(SABOTEUR_BASE_N[v.band]*Math.sqrt(veinThreat(v).n)));
         for(let i=0;i<n;i++){
           const p=nearestPlain(Math.max(20,Math.min(W-20,sx+rnd(-100,100))),Math.max(20,Math.min(H-20,sy+rnd(-100,100))));
           spawnEnemy(p.x,p.y,'saboteur');
