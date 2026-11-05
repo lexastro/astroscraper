@@ -1182,8 +1182,12 @@ function updateMeterUI(){
   if(cvm.width!==Wc||cvm.height!==Hc){cvm.width=Wc;cvm.height=Hc}
   const g=cvm.getContext('2d'), vw=meterView(m), X=p=>(p-(vw.c-vw.h))/(2*vw.h)*Wc, barY=Hc*0.3, barH=Hc*0.5;
   g.clearRect(0,0,Wc,Hc);
+  // rupture red carries crawling yellow caution stripes
+  const caution=(x0,x1,a)=>{if(x1<=x0)return;g.save();g.beginPath();g.rect(x0,barY,x1-x0,barH);g.clip();g.globalAlpha=a;g.strokeStyle=C.accent;g.lineWidth=3*dpr;
+    const sp=11*dpr,off=(performance.now()/45)%sp;for(let sx=x0-barH-sp-off;sx<x1+sp;sx+=sp){g.beginPath();g.moveTo(sx,barY);g.lineTo(sx+barH,barY+barH);g.stroke()}g.restore()};
   // off the ends of the strip: red
   g.fillStyle=C.enemy;g.globalAlpha=0.55;g.fillRect(0,barY,Wc,barH);g.globalAlpha=1;
+  caution(0,X(0),0.55);caution(X(1),Wc,0.55);
   // the floor tier fills the strip; bands, sliver and red patches on top
   g.fillStyle='#14181d';g.fillRect(X(0),barY,X(1)-X(0),barH);
   g.fillStyle=CARD_TIER_COLOR[m.strip.floor];g.globalAlpha=0.3;g.fillRect(X(0),barY,X(1)-X(0),barH);g.globalAlpha=1;
@@ -1192,6 +1196,7 @@ function updateMeterUI(){
     if(q.red){g.fillStyle=C.enemy;g.globalAlpha=0.85}
     else{g.fillStyle=CARD_TIER_COLOR[q.tier];g.globalAlpha=q.jackpot?0.7+0.3*Math.sin(performance.now()/90):0.75}
     g.fillRect(x0,barY,Math.max(1,x1-x0),barH);g.globalAlpha=1;
+    if(q.red)caution(x0,x1,0.85);
     if(q.tier==='Hive'){g.save();g.beginPath();g.rect(x0,barY,Math.max(1,x1-x0),barH);g.clip();g.strokeStyle='rgba(10,0,4,0.6)';g.lineWidth=2*dpr;
       const off=(performance.now()/60)%(7*dpr);for(let sx=x0-barH-7*dpr+off;sx<x1;sx+=7*dpr){g.beginPath();g.moveTo(sx,barY+barH);g.lineTo(sx+barH,barY);g.stroke()}g.restore()}
   });
