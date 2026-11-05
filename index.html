@@ -4843,7 +4843,7 @@ function pickReward(i){
 const WK_P={x:83.25,y:89.41}, WK_SCALE=0.95, WK_HIP={x:75.87,y:82.78}, WK_TURN=1.6;
 // The turret (drawn WK_TOP_SCALE larger than the art) swings at most WK_TURRET_LIMIT either side of
 // the body's front; aiming past that, the legs walk the whole body round at WK_BODY_TURN.
-const WK_TOP_SCALE=1.5, WK_TURRET_LIMIT=120*Math.PI/180, WK_BODY_TURN=0.9; const WK_WALK_MARGIN=12*Math.PI/180;
+const WK_TOP_SCALE=1.5, WK_TURRET_LIMIT=60*Math.PI/180, WK_BODY_TURN=1.4; const WK_WALK_MARGIN=8*Math.PI/180; // a 120° cone: 60° either side of the front
 const wkPart=(col,d)=>({col,ring:new Path2D(d),fill:new Path2D(d.slice(d.indexOf('ZM')+1))});
 const WK_LEG_OUTER=[ // slides along the leg (telescopes) as the foot lifts
   wkPart('#999','M52.98,57.59l10.86,10.86-2.3,2.3-10.86-10.86,2.3-2.3h0ZM52.98,56.17l-3.72,3.72,12.27,12.27,3.72-3.72-12.27-12.27h0Z'),
@@ -4874,7 +4874,7 @@ const WK_HULL=[ // filled, then stroked black
 // of turn). The next leg may start once the one in the air is WK_OVERLAP of the way through, so
 // long, slow steps still keep pace. Standing still, feet settle back to rest; locked down, the
 // stance widens and they brace outward.
-const WK_STANCE=1.35, WK_STANCE_LOCK=1.5, WK_STEP_TRIG=16, WK_STEP_LEAD=30, WK_STEP_T=0.62, WK_OVERLAP=0.5, WK_FOLD=0.3, WK_ORDER=[0,2,1,3];
+const WK_STANCE=1.35, WK_STANCE_LOCK=1.5, WK_STEP_TRIG=16, WK_STEP_LEAD=30, WK_STEP_T=0.62, WK_STEP_QUICK=2.2, WK_OVERLAP=0.5, WK_FOLD=0.3, WK_ORDER=[0,2,1,3];
 const WK_PLATE_HALF=18, WK_PLATE_W=30; // the foot plate: half its length (hinge to edge) and its width, in art units
 const WK_A0=Math.atan2(WK_FOOT.y-WK_HIP.y,WK_FOOT.x-WK_HIP.x), WK_L0=Math.hypot(WK_FOOT.x-WK_HIP.x,WK_FOOT.y-WK_HIP.y);
 // the leg's resting length: hip to the resting foot spot
@@ -4892,6 +4892,7 @@ function wkRest(B,k){
 function updateWalker(B){
   const dt=Math.max(0,Math.min(0.1,S.t-(B._wt??S.t)));B._wt=S.t;
   if(B.heading==null){B.heading=-Math.PI/2;B.turret=-Math.PI/2;B._px=B.x;B._py=B.y;B.feet=null}
+  const h0=B.heading;
   const dx=B.x-B._px, dy=B.y-B._py, d=Math.hypot(dx,dy);B._px=B.x;B._py=B.y;
   const jumped=d>=60, moving=d>0.01&&!jumped;
 
@@ -4934,11 +4935,19 @@ function updateWalker(B){
   B.turret=B.heading+rel;
   if(!B.feet||jumped){B.feet=[0,1,2,3].map(k=>{const r=wkRest(B,k);return {x:r.x,y:r.y,step:null,lift:0}});B.nextLeg=0;return}
   if(dt<=0)return;
-  const sp=d/dt, lead=sp>5?{x:dx/d*WK_STEP_LEAD,y:dy/d*WK_STEP_LEAD}:{x:0,y:0};
+  const sp=d/dt, w=angDiff(B.heading,h0)/dt, turning=Math.abs(w)>0.15;
+  // Where each foot should land: ahead of its resting spot by how fast that spot is moving — the
+  // walk plus the body's turn (a turning body swings its feet round with it) — over the time a
+  // step's lead is meant to cover. Faster-moving spots also make for quicker steps (up to
+  // WK_STEP_QUICK times), so the legs keep up with a hard turn.
+  const leadT=WK_STEP_LEAD/BASE_SPEED, vxw=sp>5?dx/dt:0, vyw=sp>5?dy/dt:0;
+  const footLead=k=>{const r=wkRest(B,k),rx=r.x-B.x,ry=r.y-B.y;let lx=(vxw-w*ry)*leadT,ly=(vyw+w*rx)*leadT;
+    const L=Math.hypot(lx,ly),M=WK_STEP_LEAD*1.4;if(L>M){lx*=M/L;ly*=M/L}return {x:lx,y:ly}};
+  const restR=dist(wkRest(B,0),B), quick=Math.max(1,Math.min(WK_STEP_QUICK,Math.max(sp,Math.abs(w)*restR)/BASE_SPEED));
   let busy=0, early=false;
   B.feet.forEach((f,k)=>{
     if(!f.step)return;busy++;
-    const r=wkRest(B,k);f.step.to={x:r.x+lead.x,y:r.y+lead.y}; // keeps tracking where it should land
+    const r=wkRest(B,k),ld=footLead(k);f.step.to={x:r.x+ld.x,y:r.y+ld.y}; // keeps tracking where it should land
     f.step.t=Math.min(1,f.step.t+dt/f.step.dur);
     const s=f.step.t;if(s<WK_OVERLAP)early=true;
     // slow to lift, slow to set down: the weight hangs at the ends of the swing
@@ -4950,12 +4959,12 @@ function updateWalker(B){
   });
   if(busy>=2||early)return;
   const err=B.feet.map((f,k)=>f.step?0:dist(f,wkRest(B,k)));
-  const nk=WK_ORDER[B.nextLeg], trig=moving?WK_STEP_TRIG:3;
+  const nk=WK_ORDER[B.nextLeg], trig=moving||turning?WK_STEP_TRIG:3;
   let k=-1;
   if(!B.feet[nk].step&&err[nk]>trig){k=nk;B.nextLeg=(B.nextLeg+1)%4}
   else if(!busy){const m=Math.max(...err);if(m>WK_STEP_TRIG*2.2)k=err.indexOf(m)} // left far behind: out of turn
   if(k<0)return;
-  const f=B.feet[k];f.step={from:{x:f.x,y:f.y},to:null,t:0,dur:WK_STEP_T};
+  const f=B.feet[k];f.step={from:{x:f.x,y:f.y},to:null,t:0,dur:WK_STEP_T/quick};
 }
 function wkFill(parts,flash){parts.forEach(q=>{ctx.fillStyle=flash?'#fff':q.col;ctx.fill(q.fill);ctx.fillStyle='#000';ctx.fill(q.ring,'evenodd')})}
 // The foot plate, drawn in the leg's frame with the hinge at the origin and the leg along -x
