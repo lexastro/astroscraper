@@ -4518,6 +4518,24 @@ function drawVeinCracks(v,target){
   }
   ctx.restore();
 }
+// Fog blur: what's under the fog shouldn't read crisply. Before the dark veil goes on, the frame so
+// far is copied at 1/FOG_BLUR_DOWN size with a gaussian blur (the downscale itself softens it
+// further), the vision mask then keeps that blurred copy only where nothing can currently see, and
+// it's laid back over the frame — sharp inside sight, smeared shapes out in the fog.
+const FOG_BLUR_DOWN=4, FOG_BLUR_PX=3;
+let fogBlurC=document.createElement('canvas'), fogBlurX=fogBlurC.getContext('2d');
+function blurFogged(vw,vh,shkx,shky){
+  const w=Math.max(1,Math.round(cv.width/FOG_BLUR_DOWN)), h=Math.max(1,Math.round(cv.height/FOG_BLUR_DOWN));
+  if(fogBlurC.width!==w||fogBlurC.height!==h){fogBlurC.width=w;fogBlurC.height=h}
+  const X=fogBlurX, dpr=devicePixelRatio;
+  X.setTransform(1,0,0,1,0,0);X.globalCompositeOperation='source-over';X.globalAlpha=1;X.clearRect(0,0,w,h);
+  X.filter=`blur(${FOG_BLUR_PX}px)`;X.imageSmoothingEnabled=true;X.drawImage(cv,0,0,w,h);X.filter='none';
+  X.globalCompositeOperation='destination-in';
+  X.setTransform(dpr/FOG_BLUR_DOWN,0,0,dpr/FOG_BLUR_DOWN,0,0);X.translate(vw/2+shkx,vh/2+shky);X.scale(cam.z,cam.z);X.translate(-cam.x,-cam.y);
+  X.drawImage(fogMaskC,0,0,W,H);
+  X.setTransform(1,0,0,1,0,0);X.globalCompositeOperation='source-over';
+  ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.imageSmoothingEnabled=true;ctx.drawImage(fogBlurC,0,0,cv.width,cv.height);ctx.restore();
+}
 // The vein light layer: veins' glow and hotspots are drawn into it in world space, then the vision
 // mask clears it wherever nothing can currently see, and it's added onto the ground as light — so
 // a vein respects the fog exactly like the cracks and pulses do.
@@ -4862,7 +4880,7 @@ function draw(){
   // particles (impact sparks, kill/vein/destruction bursts)
   S.particles.forEach(p=>{ctx.globalAlpha=Math.max(0,1-p.t/p.life);ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);ctx.fill()});ctx.globalAlpha=1;
   // fog
-  if(!debugNoFog){ctx.imageSmoothingEnabled=true;ctx.drawImage(dimC,0,0,W,H)}
+  if(!debugNoFog){blurFogged(vw,vh,shkx,shky);ctx.imageSmoothingEnabled=true;ctx.drawImage(dimC,0,0,W,H)}
   // energy pulses through the crack network (only where something can see) and bearing beams
   drawExplorationLight(x0-40,y0-40,x1+40,y1+40,vw,vh,shkx,shky);
   drawStabShots();
