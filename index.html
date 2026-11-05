@@ -73,7 +73,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 .throttle button .key{font-family:var(--mono);font-size:10px;color:var(--muted);margin-left:5px}
 .throttle .thStat{font-family:var(--mono);font-size:11px;white-space:nowrap}
 .throttle .thStat.dat{color:var(--dat)} .throttle .thStat.condensed{color:var(--condensed)}
-@media (max-width:720px){
+@media (max-width:720px),(max-height:500px){
   .throttle{padding:5px 8px;gap:5px;max-width:200px}
   .throttle .thSpeed,.throttle .thStat{font-size:9px}
   .throttle button{padding:4px 7px;font-size:11px}
@@ -118,7 +118,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 .chMeta{font-family:var(--mono);font-size:10px;color:var(--muted)}
 .chText{font-size:12.5px;color:var(--fg);line-height:1.4}
 /* clears the build bar, which still shows (dimly, through the overlay) behind the main menu */
-@media (max-width:720px){.versionTag{bottom:calc(66px + env(safe-area-inset-bottom,0px))}.changesPanel{bottom:calc(92px + env(safe-area-inset-bottom,0px))}}
+@media (max-width:720px),(max-height:500px){.versionTag{bottom:calc(66px + env(safe-area-inset-bottom,0px))}.changesPanel{bottom:calc(92px + env(safe-area-inset-bottom,0px))}}
 .overlay h1{font-family:var(--mono);font-weight:500;font-size:26px;margin:0;letter-spacing:.04em;text-wrap:balance}
 .overlay p{margin:0;color:var(--muted);max-width:40ch}
 .overlay button{background:var(--accent);color:#1a1200;border:0;font:inherit;font-weight:600;padding:10px 18px;border-radius:4px;cursor:pointer}
@@ -140,7 +140,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 #dmStrike{background:var(--accent);color:#1a1200;border:0;font:inherit;font-weight:700;padding:5px 14px;border-radius:4px;cursor:pointer;animation:strikePulse .6s ease-in-out infinite alternate}
 #dmStrike .key{font-family:var(--mono);font-size:10px;opacity:.7;margin-left:4px}
 @keyframes strikePulse{from{box-shadow:0 0 0 0 rgba(242,182,60,.7)}to{box-shadow:0 0 0 6px rgba(242,182,60,0)}}
-@media (max-width:720px){.drillMeter{bottom:calc(84px + env(safe-area-inset-bottom,0px))}}
+@media (max-width:720px),(max-height:500px){.drillMeter{bottom:calc(84px + env(safe-area-inset-bottom,0px))}}
 .tutPanel{position:absolute;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top,0px) + 72px);z-index:20;
   width:min(440px,calc(100vw - 32px));background:var(--panel);border:1px solid var(--accent);border-radius:6px;
   padding:10px 14px 12px;font-size:13px;line-height:1.5;color:var(--fg);box-shadow:0 4px 18px rgba(0,0,0,.5)}
@@ -154,7 +154,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 .tutBtns button.secondary{background:var(--panel2);color:var(--fg);border:1px solid var(--line)}
 .tutLink{background:none;border:none;color:var(--muted);font:inherit;font-size:11px;cursor:pointer;text-decoration:underline;padding:0}
 .tutBtns .tutLink{margin-right:auto}
-@media (max-width:720px){.tutPanel{top:calc(env(safe-area-inset-top,0px) + 60px);font-size:12px}}
+@media (max-width:720px),(max-height:500px){.tutPanel{top:calc(env(safe-area-inset-top,0px) + 60px);font-size:12px}}
 #mapTypeLabel{font-size:12px;max-width:440px;text-align:center;margin:0}
 #mapTypeLabel b{color:var(--accent)}
 .mapRow{display:flex;align-items:center;gap:12px;font-size:12px}
@@ -234,7 +234,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 .toast.info{border-left-color:var(--ally)}
 @keyframes toastIn{from{opacity:0;transform:translateX(-14px)}to{opacity:1;transform:translateX(0)}}
 @keyframes toastOut{to{opacity:0;transform:translateX(-14px)}}
-@media (max-width:720px){
+@media (max-width:720px),(max-height:500px){
   /* right under the (now single-row) top HUD strip, and noticeably smaller than desktop */
   .toasts{top:calc(env(safe-area-inset-top,0px) + 68px);width:200px;gap:5px}
   .toast{padding:6px 8px;gap:5px;border-left-width:3px}
@@ -283,17 +283,20 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   .unitSelCtrl button{width:44px;height:44px;font-size:16px}
 }
 /* --- mobile layout restructure --- */
-@media (max-width:720px){
+@media (max-width:720px),(max-height:500px){
   .help{display:none}
   .help.open{display:block;position:fixed;inset:12% 6%;max-width:none;z-index:50;max-height:76vh;overflow:auto}
   .helpToggleBtn{display:inline-flex;align-items:center;justify-content:center}
-  .hud{gap:6px;padding:6px max(10px,env(safe-area-inset-right,0px)) 0 max(10px,env(safe-area-inset-left,0px))}
+  .hud{gap:6px;padding:6px calc(max(10px,env(safe-area-inset-right,0px)) + 42px) 0 max(10px,env(safe-area-inset-left,0px))} /* clear of the ? button */
   .stat{min-width:0;padding:5px 8px}
   .stat .k{font-size:9px}
   .stat .v{font-size:13px}
   .build{justify-content:flex-start;
     flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:10px 8px max(8px,env(safe-area-inset-bottom,0px)) 8px;gap:6px;
     background:linear-gradient(to top,rgba(11,14,18,.92),rgba(11,14,18,0) 85%)}
+  /* stretch to the screen (the bottom bar otherwise sizes it to its buttons, pushing the last ones
+     off the edge where the scroll can't reach them) */
+  .build{align-self:stretch;max-width:100%;box-sizing:border-box}
   .build button{flex:0 0 auto;min-width:60px}
   .build button .cost,.build button .key{display:none}
   .unitActions{padding-left:8px}
@@ -311,6 +314,29 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   #miniWrap.expanded ~ .unitSelCtrl{bottom:max(285px,calc(285px + env(safe-area-inset-bottom,0px)))}
 }
 @media (max-width:600px){.stat{min-width:70px}.stat .v{font-size:14px}}
+/* phone, upright: all seven build buttons share the width evenly — icon over a short label, plus the
+   Stabilizer/Probe charge pips — so nothing has to scroll */
+@media (max-width:720px){
+  .build{overflow-x:visible;gap:4px;padding-left:max(6px,env(safe-area-inset-left,0px));padding-right:max(6px,env(safe-area-inset-right,0px))}
+  .build button{flex:1 1 0;min-width:0;align-items:center;text-align:center;padding:7px 2px;font-size:10px;line-height:1.15;gap:1px}
+  .build button>span{max-width:100%;overflow-wrap:anywhere}
+  .build button .icon{margin:0;font-size:15px}
+  .build button#bStab .cost,.build button#bPing .cost{display:block;font-size:8px;letter-spacing:-.05em}
+}
+/* phone, sideways: little height to spare — tighter build bar, and the select-all buttons stand in a
+   column beside the minimap instead of on top of it (clear of the drill meter, bottom centre) */
+@media (max-height:500px) and (min-width:721px){
+  .unitSelCtrl{bottom:max(90px,calc(90px + env(safe-area-inset-bottom,0px)));right:calc(max(16px,env(safe-area-inset-right,0px)) + 68px)}
+  #miniWrap.expanded ~ .unitSelCtrl{bottom:max(90px,calc(90px + env(safe-area-inset-bottom,0px)));right:calc(max(16px,env(safe-area-inset-right,0px)) + 188px)}
+  .build{padding-top:6px}
+  .build button{min-height:0;padding:5px 10px;font-size:12px;gap:0}
+  .build button .cost{display:block;font-size:10px}
+  .tutPanel{top:calc(env(safe-area-inset-top,0px) + 52px);max-height:calc(100vh - 140px);overflow-y:auto}
+  .toasts{top:calc(env(safe-area-inset-top,0px) + 56px)}
+  .drillMeter{bottom:calc(68px + env(safe-area-inset-bottom,0px));padding:5px 8px 6px;width:min(420px,calc(100vw - 32px))}
+  #dmPad{width:54px;height:54px} #dmHint{display:none} .dmFoot{min-height:0;margin-top:3px} .dmHead{margin-bottom:3px}
+  .help.open{inset:6% 6%;max-height:88vh}
+}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}.overlay{animation:none}.bar i.hp.low{animation:none}.overlay button.rewardCard.legendary{animation:none}}
 </style>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;600&display=swap">
@@ -1153,9 +1179,9 @@ let padScale=1;
 function drawSteerPad(v){
   const pad=document.getElementById('dmPad'), m=v.meter, show=m.phase!=='strike';
   pad.hidden=!show; if(!show)return;
-  const dpr=devicePixelRatio||1, S2=Math.round(72*dpr); if(pad.width!==S2){pad.width=pad.height=S2}
+  const dpr=devicePixelRatio||1, cssS=pad.clientWidth||72, S2=Math.round(cssS*dpr); if(pad.width!==S2){pad.width=pad.height=S2}
   const g=pad.getContext('2d'), sv=steerState(v), sh=sv.sh, c0=S2/2;
-  padScale=(36-7)/(0.8*v.r); const P=(x,y)=>[c0+x*padScale*dpr,c0+y*padScale*dpr];
+  padScale=(cssS/2-7)/(0.8*v.r); const P=(x,y)=>[c0+x*padScale*dpr,c0+y*padScale*dpr];
   g.clearRect(0,0,S2,S2);
   // the hotspots' reach, for scale
   g.strokeStyle='#1f2731';g.lineWidth=dpr;g.beginPath();g.arc(c0,c0,0.72*v.r*padScale*dpr,0,Math.PI*2);g.stroke();
