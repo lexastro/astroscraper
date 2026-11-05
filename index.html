@@ -1325,7 +1325,7 @@ function emergeVein(site,o){
     reward:o.contract?{dat:50,living:3}:{dat:Math.round(site.richness*1.2)},
     mine:{x:site.x+Math.cos(ang)*rad,y:site.y+Math.sin(ang)*rad,found:false},
     site,ripeT:o.ripeT||0,crackedT:0,seen:false,collapsed:false,goneT:0,pulsePh:rnd(0,PULSE_PERIOD),
-    haze:o.haze||{x:rnd(-260,260),y:rnd(-260,260)},opening:!!o.opening};
+    haze:o.haze||{x:rnd(-VEIN_HAZE_OFF,VEIN_HAZE_OFF),y:rnd(-VEIN_HAZE_OFF,VEIN_HAZE_OFF)},opening:!!o.opening};
   v.hot=mkHotspots(v);
   site.vein=v; S.veins.push(v);
   // index the network around it: its zone (what lights up as the vein) and, for ordinary veins,
@@ -1575,12 +1575,15 @@ let menuOpen=true, landingSel=null;
 const LANDING_MARGIN=260;
 // A legal landing spot: inside the map margin and at least LANDING_MARGIN out past the Dense
 // Field's edge (the dashed ring on the landing preview).
-// ...and never within LANDING_SITE_CLEAR of anywhere a vein can emerge (live or not), so the
-// Bastion can't touch down right on top of one — reaching your first vein always takes a trip.
-// The preview doesn't mark these spots (that would give away where veins can be); a click there is
-// just refused.
-const LANDING_SITE_CLEAR=450; // was 700, which left only ~8–30% of open Rim ground landable; 450 leaves ~30–65%
-function nearVeinSite(x,y){return !!(S&&S.sites)&&[...S.sites,S.contractSite].some(st=>st&&Math.hypot(st.x-x,st.y-y)<LANDING_SITE_CLEAR)}
+// ...and never inside one of the preview's vein hazes: the glowing patches are the unstable
+// ground, so what's refused is exactly what the player can see. Each haze is centred up to
+// VEIN_HAZE_OFF off its vein and LANDING_HAZE_R across, so the vein itself always sits at least
+// ~290 inside — the Bastion can't touch down on top of one, and the exact spot stays hidden.
+// Empty vein sites don't block landing (they aren't shown); the opening vein and later respawns
+// pick a site well clear of the Bastion instead.
+const LANDING_HAZE_R=520, VEIN_HAZE_OFF=160, LANDING_SITE_CLEAR=450;
+const hazedVeins=()=>S&&S.veins?S.veins.filter(v=>!v.contract&&!v.opening&&veinAlive(v)&&v.haze):[];
+function nearVeinSite(x,y){return hazedVeins().some(v=>Math.hypot(v.x+v.haze.x-x,v.y+v.haze.y-y)<LANDING_HAZE_R)}
 function canLandAt(x,y){return inMap(x,y,LANDING_MARGIN)&&epiDist(x,y)>=DENSE_R+LANDING_MARGIN&&!nearVeinSite(x,y)}
 // Where the Bastion sits on the preview before a spot is picked: the deepest-Rim corner, pulled in.
 function defaultLanding(){
@@ -1724,7 +1727,7 @@ function reset(landing){
       const ok=pool.filter(st=>!startPicks.some(p=>dist(p.site,st)<700));
       const from=ok.length?ok:pool, st=from[Math.floor(rnd(0,from.length))];
       pool.splice(pool.indexOf(st),1);
-      startPicks.push({site:st,ripeT:rnd(0,RIPEN_STEP_T*1.6),haze:{x:rnd(-260,260),y:rnd(-260,260)}});
+      startPicks.push({site:st,ripeT:rnd(0,RIPEN_STEP_T*1.6),haze:{x:rnd(-VEIN_HAZE_OFF,VEIN_HAZE_OFF),y:rnd(-VEIN_HAZE_OFF,VEIN_HAZE_OFF)}});
     }
   });
   // Dat Crystal deposits: the Rim is thick with small, low-yield nodes — common and unremarkable,
@@ -1794,9 +1797,10 @@ function reset(landing){
   emergeVein(S.contractSite,{contract:true});
   startPicks.forEach(p=>emergeVein(p.site,{ripeT:p.ripeT,haze:p.haze}));
   // the opening vein: if no starting vein is close to the landing, a fresh one emerges at the
-  // nearest Rim site (it isn't part of the preview's haze, so the preview doesn't shift)
-  {const rim=S.sites.filter(st=>st.band==='rim');
-   const open=rim.reduce((a,b)=>dist(b,S.base)<dist(a,S.base)?b:a);
+  // nearest Rim site at least LANDING_SITE_CLEAR away (it isn't part of the preview's haze, so the
+  // preview doesn't shift)
+  {const rim=S.sites.filter(st=>st.band==='rim'), clear=rim.filter(st=>dist(st,S.base)>=LANDING_SITE_CLEAR);
+   const open=(clear.length?clear:rim).reduce((a,b)=>dist(b,S.base)<dist(a,S.base)?b:a);
    if(!open.vein&&(tutorialMap||!S.veins.some(v=>!v.contract&&dist(v,S.base)<1100)))emergeVein(open,{ripeT:0,opening:true})}
   for(let i=0;i<STRAY_COUNT;i++){const st={x:0,y:0,live:true,t:0};S.strays.push(st);placeStray(st)}
   // The Core is deliberately saturated on top of the scatter above — a guaranteed, heavy
@@ -1844,9 +1848,12 @@ function drawMenuMap(){
   // No vein markers before landing — just a haze of energy roughly where veins are stirring (each
   // haze sits a few hundred units off its vein), so landing is still an informed choice.
   menuCx.save();menuCx.globalCompositeOperation='lighter';
-  S.veins.forEach(v=>{if(v.contract||v.opening||!veinAlive(v))return;const hx=(v.x+v.haze.x)*s,hy=(v.y+v.haze.y)*s,hr=520*s;
+  hazedVeins().forEach(v=>{const hx=(v.x+v.haze.x)*s,hy=(v.y+v.haze.y)*s,hr=LANDING_HAZE_R*s;
     const g=menuCx.createRadialGradient(hx,hy,0,hx,hy,hr);g.addColorStop(0,tierBlendCol(v));g.addColorStop(1,'rgba(0,0,0,0)');
-    menuCx.globalAlpha=0.32;menuCx.fillStyle=g;menuCx.beginPath();menuCx.arc(hx,hy,hr,0,Math.PI*2);menuCx.fill()});
+    menuCx.globalAlpha=0.32;menuCx.fillStyle=g;menuCx.beginPath();menuCx.arc(hx,hy,hr,0,Math.PI*2);menuCx.fill();
+    // its faint dotted rim marks the unstable ground the Bastion can't land on
+    menuCx.globalAlpha=0.45;menuCx.strokeStyle=tierBlendCol(v);menuCx.lineWidth=1;menuCx.setLineDash([2,4]);
+    menuCx.beginPath();menuCx.arc(hx,hy,LANDING_HAZE_R*s,0,Math.PI*2);menuCx.stroke();menuCx.setLineDash([])});
   menuCx.restore();
   S.clusters.forEach(([x,y])=>{menuCx.fillStyle=C.dat;menuCx.fillRect(x*s-2,y*s-2,4,4)});
   if(landingSel){
@@ -1859,7 +1866,7 @@ menuCv.addEventListener('pointerdown',e=>{
   const x=(e.clientX-r.left)/r.width*W, y=(e.clientY-r.top)/r.height*H;
   if(!canLandAt(x,y)){
     document.getElementById('menuHint').textContent=nearVeinSite(x,y)&&inMap(x,y,LANDING_MARGIN)&&epiDist(x,y)>=DENSE_R+LANDING_MARGIN
-      ?'The ground there is too unstable to land on — too close to a vein. Pick another spot.'
+      ?"The ground inside a vein's glow is too unstable to land on. Pick another spot."
       :'Pick a spot out in the Rim, beyond the dashed ring.';
     return;
   }
