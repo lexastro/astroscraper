@@ -657,7 +657,7 @@ const COST={wall:5,turret:75,relay:15,depot:150,stabilizer:20,harvester:75,troop
 // the site root); any other branch is an experimental version served at /<branch>/ (see
 // .github/workflows/pages.yml). A branch build keeps its own save and changelog, so experiments
 // never touch the main game's unlocks.
-const GAME_BRANCH='master', SAVE_SUFFIX=GAME_BRANCH==='master'?'':'_'+GAME_BRANCH;
+const GAME_BRANCH='v2', SAVE_SUFFIX=GAME_BRANCH==='master'?'':'_'+GAME_BRANCH;
 const META_KEY='datascraper_meta_v1'+SAVE_SUFFIX;
 // Unlocks are now priced in Living Crystal, not Condensed — it's the rarer of the two (only a
 // handful of veins ever yield any), so even these small costs mean something.
