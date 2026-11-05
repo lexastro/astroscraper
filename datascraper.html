@@ -4763,6 +4763,9 @@ function pickReward(i){
 // (-y) is the front in the art. Each part is the SVG's outline path: its outer ring is filled in
 // the part's colour, then the whole path (outline ring) in black.
 const WK_P={x:83.25,y:89.41}, WK_SCALE=0.95, WK_HIP={x:75.87,y:82.78}, WK_TURN=1.6;
+// The turret (drawn WK_TOP_SCALE larger than the art) swings at most WK_TURRET_LIMIT either side of
+// the body's front; aiming past that, the legs walk the whole body round at WK_BODY_TURN.
+const WK_TOP_SCALE=1.5, WK_TURRET_LIMIT=120*Math.PI/180, WK_BODY_TURN=0.9;
 const wkPart=(col,d)=>({col,ring:new Path2D(d),fill:new Path2D(d.slice(d.indexOf('ZM')+1))});
 const WK_LEG_OUTER=[ // slides along the leg (telescopes) as the foot lifts
   wkPart('#999','M52.98,57.59l10.86,10.86-2.3,2.3-10.86-10.86,2.3-2.3h0ZM52.98,56.17l-3.72,3.72,12.27,12.27,3.72-3.72-12.27-12.27h0Z'),
@@ -4799,6 +4802,7 @@ const WK_A0=Math.atan2(WK_FOOT.y-WK_HIP.y,WK_FOOT.x-WK_HIP.x), WK_L0=Math.hypot(
 // the leg's resting length: hip to the resting foot spot
 const WK_LREST=Math.hypot(WK_P.x+(WK_FOOT.x-WK_P.x)*WK_STANCE-WK_HIP.x,WK_P.y+(WK_FOOT.y-WK_P.y)*WK_STANCE-WK_HIP.y);
 function angLerp(a,b,k){let d=b-a;while(d>Math.PI)d-=Math.PI*2;while(d<-Math.PI)d+=Math.PI*2;return a+d*k}
+function angDiff(a,b){let d=a-b;while(d>Math.PI)d-=Math.PI*2;while(d<-Math.PI)d+=Math.PI*2;return d}
 function angStep(a,b,max){let d=b-a;while(d>Math.PI)d-=Math.PI*2;while(d<-Math.PI)d+=Math.PI*2;return a+Math.max(-max,Math.min(max,d))}
 // world spot where foot k rests (k: 0 NW, 1 NE, 2 SE, 3 SW of the art, turned to the heading)
 function wkRest(B,k){
@@ -4812,10 +4816,15 @@ function updateWalker(B){
   if(B.heading==null){B.heading=-Math.PI/2;B.turret=-Math.PI/2;B._px=B.x;B._py=B.y;B.feet=null}
   const dx=B.x-B._px, dy=B.y-B._py, d=Math.hypot(dx,dy);B._px=B.x;B._py=B.y;
   const jumped=d>=60, moving=d>0.01&&!jumped;
-  if(moving)B.heading=angLerp(B.heading,Math.atan2(dy,dx),Math.min(1,dt*2));
+
   B.plant=(B.plant||0)+((B.locked?1:0)-(B.plant||0))*Math.min(1,dt*1.5);
-  const aim=S.t-(B.aimT??-99)<1.5?B.aim:B.heading;
-  B.turret=angStep(B.turret,aim,WK_TURN*dt);
+  // the turret looks at what it last fired at, else where it's walking; the body only turns when
+  // that's past the turret's arc (the feet lead with the walk, so it can stride any direction)
+  const want=S.t-(B.aimT??-99)<1.5?B.aim:(moving?Math.atan2(dy,dx):B.turret);
+  const off=angDiff(want,B.heading);
+  if(Math.abs(off)>WK_TURRET_LIMIT)B.heading=angStep(B.heading,want-Math.sign(off)*WK_TURRET_LIMIT,WK_BODY_TURN*dt);
+  B.turret=angStep(B.turret,want,WK_TURN*dt);
+  {const rel=angDiff(B.turret,B.heading);if(Math.abs(rel)>WK_TURRET_LIMIT)B.turret=B.heading+Math.sign(rel)*WK_TURRET_LIMIT}
   if(!B.feet||jumped){B.feet=[0,1,2,3].map(k=>{const r=wkRest(B,k);return {x:r.x,y:r.y,step:null,lift:0}});B.nextLeg=0;return}
   if(dt<=0)return;
   const sp=d/dt, lead=sp>5?{x:dx/d*WK_STEP_LEAD,y:dy/d*WK_STEP_LEAD}:{x:0,y:0};
@@ -4882,7 +4891,7 @@ function drawWalker(B){
   if(B.plant>0.05){ctx.save();ctx.scale(1/WK_SCALE,1/WK_SCALE);ctx.globalAlpha=B.plant;ctx.strokeStyle=C.accent;ctx.lineWidth=1.5;
     B.feet.forEach(f=>{ctx.beginPath();ctx.arc(f.x-B.x,f.y-B.y,9,0,Math.PI*2);ctx.stroke()});ctx.globalAlpha=1;ctx.restore()}
   // top layer: the turret
-  ctx.rotate(B.turret+Math.PI/2);ctx.translate(-WK_P.x,-WK_P.y);
+  ctx.rotate(B.turret+Math.PI/2);ctx.scale(WK_TOP_SCALE,WK_TOP_SCALE);ctx.translate(-WK_P.x,-WK_P.y);
   wkFill(WK_TOP,flash);
   ctx.lineWidth=1;ctx.strokeStyle='#000';
   WK_HULL.forEach(q=>{ctx.fillStyle=flash?'#fff':q.col;ctx.fill(q.p);ctx.stroke(q.p)});
@@ -5242,7 +5251,7 @@ function draw(){
     if(de.hp<de.maxHp)hpbar(de.x,de.y-20,22,de.hp/de.maxHp);
   });
   // base: the quad walker
-  drawWalker(B);hpbar(B.x,B.y-B.r*1.5-8,B.r*2,B.hp/B.maxHp);
+  drawWalker(B);hpbar(B.x,B.y-B.r*2.2-8,B.r*2,B.hp/B.maxHp);
   if(WIRELESS_ENABLED){
     const bwt=0.5+0.5*Math.sin(S.t*2.2);
     ctx.strokeStyle=C.cable;ctx.globalAlpha=0.2*bwt;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(B.x,B.y,WIRELESS_TOL_DENSE*S.mods.relayTolMult,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;
