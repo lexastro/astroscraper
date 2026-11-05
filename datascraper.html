@@ -2329,7 +2329,7 @@ function drawHiveBeacons(){
 // ---------- wind motes ----------
 // Faint specks carried on the wind across the whole view, each one drifting (swaying, gusting)
 // roughly toward the live vein whose pull is strongest where it rose — tinted that vein's colour
-// (hives crimson), so the air itself hints which way the energy lies, even out in the dark.
+// (hives crimson), so the air itself hints which way the energy lies. Drawn under the fog.
 // Purely visual; they ignore the hidden contract vein.
 const MOTE_N=80, MOTE_LIFE=[4,8], MOTE_SPEED=[22,44], MOTE_VEIN_R=3400, MOTE_ALPHA=0.45;
 let motes=[], moteLast=0;
@@ -2342,7 +2342,7 @@ function moteTarget(x,y){
 }
 function mkMote(x0,y0,x1,y1){
   const x=rnd(x0,x1),y=rnd(y0,y1),v=moteTarget(x,y);
-  return {x,y,v,t:0,life:rnd(MOTE_LIFE[0],MOTE_LIFE[1]),sp:rnd(MOTE_SPEED[0],MOTE_SPEED[1]),ph:rnd(0,Math.PI*2),len:rnd(6,12),
+  return {x,y,v,t:0,life:rnd(MOTE_LIFE[0],MOTE_LIFE[1]),sp:rnd(MOTE_SPEED[0],MOTE_SPEED[1]),ph:rnd(0,Math.PI*2),len:rnd(3,6),
     col:v?(v.hive?HIVE_COL:tierBlendCol(v)):'#cfd8e3',a:v?MOTE_ALPHA:MOTE_ALPHA*0.45};
 }
 function drawMotes(x0,y0,x1,y1){
@@ -2359,7 +2359,7 @@ function drawMotes(x0,y0,x1,y1){
     const sp=o.sp*gust;
     o.x+=Math.cos(a)*sp*dt;o.y+=Math.sin(a)*sp*dt;
     const f=Math.min(1,o.t/1.2,(o.life-o.t)/1.5);
-    ctx.globalAlpha=Math.max(0,f)*o.a;ctx.strokeStyle=o.col;ctx.lineWidth=2/Math.max(0.5,cam.z);
+    ctx.globalAlpha=Math.max(0,f)*o.a;ctx.strokeStyle=o.col;ctx.lineWidth=1/Math.max(0.5,cam.z);
     const L=o.len/Math.max(0.5,cam.z);
     ctx.beginPath();ctx.moveTo(o.x-Math.cos(a)*L,o.y-Math.sin(a)*L);ctx.lineTo(o.x,o.y);ctx.stroke();
   });
@@ -5205,11 +5205,11 @@ function draw(){
     ctx.globalAlpha=Math.min(1,a*1.4);ctx.strokeStyle='#dff7ff';ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(w.x,w.y,w.r,0,Math.PI*2);ctx.stroke();
   });ctx.globalAlpha=1;
   drawHiveBeacons();
+  drawMotes(x0,y0,x1,y1); // under the fog: they only show where you can see
   // particles (impact sparks, kill/vein/destruction bursts)
   S.particles.forEach(p=>{ctx.globalAlpha=Math.max(0,1-p.t/p.life);ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);ctx.fill()});ctx.globalAlpha=1;
   // fog
   if(!debugNoFog){blurFogged(vw,vh,shkx,shky);ctx.imageSmoothingEnabled=true;ctx.drawImage(dimSoftC,0,0,W,H);ditherFog()}
-  drawMotes(x0,y0,x1,y1);
   // energy pulses through the crack network (only where something can see) and bearing beams
   drawExplorationLight(x0-40,y0-40,x1+40,y1+40,vw,vh,shkx,shky);
   drawDrones();
