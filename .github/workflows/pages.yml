@@ -2,6 +2,7 @@
 #   master -> https://lexastro.github.io/astroscraper/       (the main game)
 #   v2     -> https://lexastro.github.io/astroscraper/v2/    (experimental branch)
 #   v3     -> https://lexastro.github.io/astroscraper/v3/    (experimental branch: direct control)
+#   v4     -> https://lexastro.github.io/astroscraper/v4/    (experimental branch: a run of stops)
 # A push to any of them rebuilds the whole site from the latest of all, so neither
 # version ever knocks the other offline. To add another version: add a checkout + copy step
 # like v2's, add the branch to the push list, and allow it under
@@ -9,7 +10,7 @@
 name: Deploy Pages
 on:
   push:
-    branches: [master, v2, v3]
+    branches: [master, v2, v3, v4]
   workflow_dispatch:
 permissions:
   contents: read
@@ -31,12 +32,15 @@ jobs:
         with: {ref: v2, path: branch_v2}
       - uses: actions/checkout@v4
         with: {ref: v3, path: branch_v3}
+      - uses: actions/checkout@v4
+        with: {ref: v4, path: branch_v4}
       - name: Assemble site
         run: |
-          mkdir -p _site/v2 _site/v3
+          mkdir -p _site/v2 _site/v3 _site/v4
           rsync -a --exclude '.git' --exclude '.github' main/ _site/
           rsync -a --exclude '.git' --exclude '.github' branch_v2/ _site/v2/
           rsync -a --exclude '.git' --exclude '.github' branch_v3/ _site/v3/
+          rsync -a --exclude '.git' --exclude '.github' branch_v4/ _site/v4/
           touch _site/.nojekyll
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
