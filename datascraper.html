@@ -2196,7 +2196,7 @@ const NEST={
 const NEST_BAND_MULT={rim:1,dense:1.5,core:2}; // brood/patrol/guard counts scale with depth
 const NEST_START={rim:{n:6,mix:[0.7,0.3]},dense:{n:6,mix:[0.3,0.5]},core:{n:4,mix:[0,0.4]}}; // mix: small, medium share (rest large)
 const NEST_FEED_R=1200, NEST_STRAGGLERS=0.4, NEST_GAP=550, NEST_BASE_CLEAR=900;
-const NEST_SPROUT_T=140, NEST_CAP=22, NEST_DEFEND_CD=7, NEST_GROW_QUIET=15, NEST_PATROL_REACH=[450,900];
+const NEST_SPROUT_T=140, NEST_CAP=22, NEST_DEFEND_CD=7, NEST_SURGE_STEP=0.2, NEST_SURGE_GROW=2, NEST_GROW_QUIET=15, NEST_PATROL_REACH=[450,900];
 const nestScaled=(n,k)=>Math.max(1,Math.round(k*NEST_BAND_MULT[n.band]));
 const liveNests=()=>S.enemies.filter(e=>e.kind==='nest'&&e.hp>0);
 function nestBrood(n){let c=0;for(const e of S.enemies)if(e.nest===n&&e.hp>0)c++;return c}
@@ -2241,11 +2241,22 @@ function updateNests(dt){
     const N=NEST[n.size];
     if(!n.seen&&visible(n)&&n.hiveVein){n.seen=true}
     if(!n.seen&&visible(n)){n.seen=true;msg(`${N.name} spotted — its patrols roam this area. Destroy it for Dat${n.size==='small'?'':n.size==='medium'?' and fabricator charges':', fabricator charges and salvage'}.`)}
-    // struck: rally defenders (on a cooldown, and not past a ceiling on its living brood)
+    // struck: rally defenders. The more hurt a nest is, the harder it fights back — rallies come
+    // quicker and bigger, the ceiling on its living brood rises, and every NEST_SURGE_STEP of its
+    // health lost it also bursts out an extra surge (growing as it nears death).
     if(n.hp<n.lastHp){n.hitT=S.t;
-      if(n.defendCd<=0&&nestBrood(n)<nestScaled(n,N.brood)+nestScaled(n,N.defend)*2){
-        nestSpawn(n,nestScaled(n,N.defend),'roam').forEach(e=>{e.nest=n;e.aggro=480});
-        n.defendCd=NEST_DEFEND_CD;
+      const hurt=1-Math.max(0,n.hp)/n.maxHp, ceil=nestScaled(n,N.brood)+nestScaled(n,N.defend)*(2+4*hurt);
+      const rally=k=>nestSpawn(n,k,'roam').forEach(e=>{e.nest=n;e.aggro=480});
+      if(n.defendCd<=0&&nestBrood(n)<ceil){
+        rally(Math.round(nestScaled(n,N.defend)*(1+hurt)));
+        n.defendCd=NEST_DEFEND_CD*(1-0.6*hurt);
+      }
+      if(n.surgeMark==null)n.surgeMark=1-NEST_SURGE_STEP;
+      while(n.hp>0&&n.hp/n.maxHp<=n.surgeMark){
+        n.surgeMark-=NEST_SURGE_STEP;
+        rally(Math.round(nestScaled(n,N.defend)*(1+NEST_SURGE_GROW*hurt)));
+        burst(n.x,n.y,'#ff5c4d',14,120,0.5);
+        if(visible(n)&&hurt>0.5&&!n.surgeMsg){n.surgeMsg=true;msg(`The ${N.name.toLowerCase()} is pouring out everything it has!`)}
       }}
     n.defendCd-=dt; n.lastHp=n.hp;
     // patrols: a pack walks out to a point and back, for as long as it lives
