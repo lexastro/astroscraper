@@ -4893,11 +4893,24 @@ function updateWalker(B){
   B.plant=(B.plant||0)+((B.locked?1:0)-(B.plant||0))*Math.min(1,dt*1.5);
   // the turret looks at what it last fired at, else where it's walking; the body only turns when
   // that's past the turret's arc (the feet lead with the walk, so it can stride any direction)
+  // The turret is worked out RELATIVE to the body and never swings through the blind arc behind:
+  // it goes round the front to the limit on the target's side and waits there while the legs turn
+  // the body (same way round, so the turret's side leads) until the target is back inside its arc.
   const want=S.t-(B.aimT??-99)<1.5?B.aim:(moving?Math.atan2(dy,dx):B.turret);
+  let rel=angDiff(B.turret,B.heading); rel=Math.max(-WK_TURRET_LIMIT,Math.min(WK_TURRET_LIMIT,rel));
   const off=angDiff(want,B.heading);
-  if(Math.abs(off)>WK_TURRET_LIMIT)B.heading=angStep(B.heading,want-Math.sign(off)*WK_TURRET_LIMIT,WK_BODY_TURN*dt);
-  B.turret=angStep(B.turret,want,WK_TURN*dt);
-  {const rel=angDiff(B.turret,B.heading);if(Math.abs(rel)>WK_TURRET_LIMIT)B.turret=B.heading+Math.sign(rel)*WK_TURRET_LIMIT}
+  if(Math.abs(off)>WK_TURRET_LIMIT){
+    // which way to swing the body: keep the way it's already going; else the turret's side when
+    // the target is near dead astern (where the shortest way flips); else the shortest way
+    if(!B.turnDir)B.turnDir=Math.abs(off)>Math.PI-0.5&&Math.abs(rel)>0.05?Math.sign(rel):Math.sign(off);
+    B.heading+=B.turnDir*Math.min(WK_BODY_TURN*dt,Math.abs(off)-WK_TURRET_LIMIT);
+  }else B.turnDir=0;
+  // the turret's goal on the body's own scale: the target if it's inside the arc, else the limit on
+  // the side the body is turning toward
+  const relGoal=Math.abs(off)<=WK_TURRET_LIMIT?off:(B.turnDir||Math.sign(off))*WK_TURRET_LIMIT;
+  const relNow=angDiff(B.turret,B.heading)>WK_TURRET_LIMIT||angDiff(B.turret,B.heading)<-WK_TURRET_LIMIT?rel:angDiff(B.turret,B.heading);
+  rel=relNow+Math.max(-WK_TURN*dt,Math.min(WK_TURN*dt,relGoal-relNow));
+  B.turret=B.heading+rel;
   if(!B.feet||jumped){B.feet=[0,1,2,3].map(k=>{const r=wkRest(B,k);return {x:r.x,y:r.y,step:null,lift:0}});B.nextLeg=0;return}
   if(dt<=0)return;
   const sp=d/dt, lead=sp>5?{x:dx/d*WK_STEP_LEAD,y:dy/d*WK_STEP_LEAD}:{x:0,y:0};
