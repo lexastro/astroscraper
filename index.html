@@ -396,7 +396,7 @@ body.inMenu :is(#game,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMeter,.mini,.
   <b>Goal:</b> the ground is cracked all over: <b>follow the pulses of energy</b> running through the cracks back to their source to find a vein, then park the Bastion on its glowing centre and press <kbd>L</kbd> to lock on. Veins <b>emerge, ripen</b> a tier at a time, then go unstable and <b>collapse</b> — and new ones emerge elsewhere. Glowing <b>stray pockets</b> give a bearing toward the nearest vein when a unit reaches one; two bearings from different angles triangulate it. Locking on starts the <b>strike</b> at once: press <kbd>Space</kbd> to stop the needle on a good band of the strip (the thin sliver is a tier above the vein; red ruptures it) — the meter zooms in on where you hit and the drill starts; the first wave arrives about 20s later. While it drills, the needle drifts; Stabilizers hold it steady, and the tier you're paid is where it spends most of its time. If it drifts into the red, the vein ruptures and damages the Bastion. Drain veins for rewards — after 3, the contract vein stirs: it gives off no pulses, so triangulate it with bearings from stray pockets, then drain it to win.<br>
   <b>Controls:</b> drag to select · right-click to move/attack · right-click a friendly unit or building with combat units selected to <b>guard</b> it (escort it, fight off anything that comes near, then fall back) ·<kbd>WASD</kbd> or middle-drag to pan, scroll to zoom<br>
   <b>Touch:</b> tap to select · tap empty ground/an enemy/a resource to move/attack/harvest · drag to pan · hold still then drag to box-select · pinch to zoom · double-tap to select all of a kind<br>
-  <b>Fabricators:</b> nothing costs Dat — every button holds charges that the Bastion's fabricators refill on their own timer. <kbd>1</kbd> launch a turret · <kbd>2</kbd> launch a relay · <kbd>3</kbd> deploy a squad · <kbd>4</kbd> grenadier · <kbd>6</kbd> artillery · <kbd>7</kbd> mech (once unlocked) · <b>Nests</b>: every enemy patrol comes from one, and the nests near a vein send its drilling waves — destroy them (they fight back) for <b>Dat Crystal</b>: drive the Bastion or a unit over the Dat a nest drops (or an enemy's shard) to scoop it up — your <b>repair drones</b> fly out on their own and spend it patching up Stabilizers, turrets, relays and the Bastion · <kbd>5</kbd> fire a Stabilizer from the Bastion (3 charges, one back every 15s; aim at a vein's drifting hotspot and lead it — a hit pins it, buys the vein 15s before it collapses, widens the strike bands and steadies the needle; with all 3 pinned, drag the weight on the steering pad to push the needle — the wider their triangle, the further it goes, but the one you lean on draws the enemy) — turrets and relays land anywhere inside the Bastion's ring (or a relay's)<br>
+  <b>Fabricators:</b> nothing costs Dat — every button holds charges that the Bastion's fabricators refill on their own timer. <kbd>1</kbd> launch a turret · <kbd>2</kbd> launch a relay · <kbd>3</kbd> deploy a squad · <kbd>4</kbd> grenadier · <kbd>6</kbd> artillery · <kbd>7</kbd> mech (once unlocked) · <b>Nests</b>: every enemy patrol comes from one, and the nests near a vein send its drilling waves — destroy them (they fight back) for <b>Dat Crystal</b>. <b>Mega nests</b> glow crimson through the fog: hive veins ringed by brood mounds that pour out its waves — break the mounds, then drain the hive for Hive-tier rewards and salvage. When the contract vein stirs, great mounds rise around it too. <b>Dat Crystal</b>: drive the Bastion or a unit over the Dat a nest drops (or an enemy's shard) to scoop it up — your <b>repair drones</b> fly out on their own and spend it patching up Stabilizers, turrets, relays and the Bastion · <kbd>5</kbd> fire a Stabilizer from the Bastion (3 charges, one back every 15s; aim at a vein's drifting hotspot and lead it — a hit pins it, buys the vein 15s before it collapses, widens the strike bands and steadies the needle; with all 3 pinned, drag the weight on the steering pad to push the needle — the wider their triangle, the further it goes, but the one you lean on draws the enemy) — turrets and relays land anywhere inside the Bastion's ring (or a relay's)<br>
   <b>Tether:</b> wireless works freely on the Rim; past it, units need a live cable back to the Bastion or a Relay, or they go dark — chain Relays to push your reach further out. A dark unit still takes orders, but its Sanity drains; reconnect in time to recover it, or it defects into a hostile Corrupted enemy<br>
   <kbd>N</kbd> recon probe: click a direction and it flies straight out on its fiber line, lifting the fog along a narrow strip for 20s and permanently finding veins it passes (3 charges, one back every 20s) · <kbd>V</kbd> follow Bastion (escorts it as it moves, until given another order) · <kbd>Esc</kbd> cancel, or pause the whole game if nothing's open · <kbd>`</kbd> reveal map (debug)
 </div>
@@ -741,7 +741,7 @@ const WAVE_SPAWN_DIST=820,WAVE_BASE_N={rim:5,dense:10,core:22};
 // waves come, big = share of heavies, hunt = share sent after the Stabilizers. Deeper zones scale
 // by less (TIER_THREAT_BAND) since their base pressure is already high.
 const TIER_THREAT={Common:{n:0.7,rate:0.85,big:0.1,hunt:0.25},Rare:{n:1,rate:1,big:0.2,hunt:0.35},
-  Epic:{n:1.6,rate:1.3,big:0.3,hunt:0.45},Legendary:{n:2.4,rate:1.6,big:0.4,hunt:0.55}};
+  Epic:{n:1.6,rate:1.3,big:0.3,hunt:0.45},Legendary:{n:2.4,rate:1.6,big:0.4,hunt:0.55},Hive:{n:3,rate:1.8,big:0.5,hunt:0.6}};
 const TIER_THREAT_BAND={rim:1,dense:0.75,core:0.5};
 // Saboteurs are a separate threat while drilling: tiny, individually-fragile swarms that beeline
 // for whichever built Relay is nearest the vein (and opportunistically chew its cable on the way
@@ -781,6 +781,14 @@ const VEIN_SLOTS=[
 // Veins in the same band stay well apart so a band's pair spreads across the map; veins in
 // different bands only need to stay clear of each other's zones.
 const VEIN_SAME_BAND_GAP=1500, VEIN_GAP=900, VEIN_X_MARGIN=ZONE_R+250;
+// v2: Mega nests are HIVE VEINS — one in the Dense Field, one in the Core. They glow crimson through
+// the fog from anywhere, never ripen or collapse (they sit at their peak until drained), and are
+// ringed by HIVE_MOUNDS brood mounds (nests of their own) that send out its patrols and its drilling
+// waves; a destroyed mound regrows if left out of sight for MOUND_REGROW_T. Their meter has a Hive
+// band above Legendary, and draining one pays Hive-tier rewards plus salvage. The contract vein is
+// the Ultra Mega nest: when it stirs, CONTRACT_MOUNDS great mounds rise around it.
+const HIVE_COL='#e0284a', HIVE_BANDS=['dense','core'], HIVE_RICHNESS={dense:60,core:90}, HIVE_BASE_CLEAR=1400;
+const HIVE_MOUNDS=4, CONTRACT_MOUNDS=6, MOUND_R=[600,880], MOUND_REGROW_T=150;
 // Each mining zone has one large, rich Dat Crystal cluster of its own — paired 1:1 with its vein
 // and rolled per map along with it — sitting out past a single wireless leash or cable run
 // (MAX_CABLE_LEN=400), so reaching one means stringing Relays out from the vein first, not just
@@ -853,8 +861,10 @@ function placeVeins(){
 // block). So waiting pays, but only up to a point, and a vein you haven't found yet is already
 // counting down. Once the Bastion locks onto a vein its ripeness is frozen, and the payout tier is
 // settled by the drill meter instead. The contract vein ripens to its peak and holds there.
-const TIER_MULT={Common:0.6,Rare:1,Epic:1.5,Legendary:2};
-const TIER_LADDER={rim:['Common','Rare','Epic'],dense:['Rare','Epic','Legendary'],core:['Rare','Epic','Legendary']};
+const TIER_MULT={Common:0.6,Rare:1,Epic:1.5,Legendary:2,Hive:3};
+const TIER_LADDER={rim:['Common','Rare','Epic'],dense:['Rare','Epic','Legendary'],core:['Rare','Epic','Legendary'],hive:['Epic','Legendary','Hive']};
+// v2: a hive vein (Mega nest) has its own ladder topping out at the Hive tier; every other vein uses its band's.
+function veinLadder(v){return TIER_LADDER[v.hive?'hive':v.band]}
 const TIER_ORDER_ALL=['Common','Rare','Epic','Legendary'];
 const RIPEN_STEP_T=60, UNSTABLE_T=40, CRACKED_T=20;
 // Draining a vein (other than the contract one, which ends the run) offers a choice of 3
@@ -864,7 +874,7 @@ const RIPEN_STEP_T=60, UNSTABLE_T=40, CRACKED_T=20;
 // already caps which tiers it can ever pay out at (see TIER_LADDER above), so a Rim vein can
 // never offer a Legendary card — there's no separate restriction to maintain here, the existing
 // tier-decay ladder does it for free.
-const TIER_TRADE_DAT={Common:60,Rare:140,Epic:260,Legendary:450};
+const TIER_TRADE_DAT={Common:60,Rare:140,Epic:260,Legendary:450,Hive:700};
 // Rerolling a reward choice costs Condensed Crystal — the same currency that gets banked into
 // meta-progression at run's end — and gets pricier each time, tracked on S.rerollCount so the
 // escalation persists for the whole run rather than resetting at every new vein's choice.
@@ -917,17 +927,17 @@ const C={ally:css('--ally'),enemy:css('--enemy'),dat:css('--dat'),living:css('--
   builder:css('--builder'),cable:css('--cable'),condensed:css('--condensed'),mech:css('--mech')};
 // Tier colors reuse existing semantic tokens rather than inventing new ones: gold/accent for
 // Legendary, the zone purple for Epic, ally blue for Rare, muted grey for Common.
-const TIER_COLOR={Legendary:C.accent,Epic:C.zone,Rare:C.ally,Common:C.muted};
+const TIER_COLOR={Legendary:C.accent,Epic:C.zone,Rare:C.ally,Common:C.muted,Hive:HIVE_COL};
 // Reward-card outlines: same hues, except Common uses a lighter silver so its outline still reads
 // against the cards' dark-grey face.
 const CARD_TIER_COLOR={...TIER_COLOR,Common:'#b3bcc6'};
 // ---------- ripening ----------
-function ripeIdx(v){const L=TIER_LADDER[v.band].length;return Math.min(L-1,Math.floor((v.ripeT||0)/RIPEN_STEP_T))}
-function ripePeakT(v){return (TIER_LADDER[v.band].length-1)*RIPEN_STEP_T}
-function ripeTier(v){return TIER_LADDER[v.band][ripeIdx(v)]}
+function ripeIdx(v){const L=veinLadder(v).length;return Math.min(L-1,Math.floor((v.ripeT||0)/RIPEN_STEP_T))}
+function ripePeakT(v){return (veinLadder(v).length-1)*RIPEN_STEP_T}
+function ripeTier(v){return veinLadder(v)[ripeIdx(v)]}
 // 0 while still ripening; climbs 0→1 across the unstable phase at the peak.
 // (never unstable: the contract vein, and every vein in the tutorial — those just hold at their peak)
-function holdsAtPeak(v){return v.contract||tutorialMap}
+function holdsAtPeak(v){return v.contract||v.hive||tutorialMap}
 // Stabilizers pinned on a vein stretch its unstable phase (and so its whole life) by STAB_LIFE_BONUS each.
 function unstableDur(v){return UNSTABLE_T+(v.lifeBonus||0)}
 function unstableFrac(v){if(holdsAtPeak(v))return 0;const over=(v.ripeT||0)-ripePeakT(v);return over<0?0:Math.min(1,over/unstableDur(v))}
@@ -1055,12 +1065,12 @@ function hotspotAt(w){
 // vein's Stabilizers pull it back, harder the healthier they are — sliding into whatever bands
 // neighbour the one you hit. The tier paid is the one the needle has spent the most of its recent
 // time in (~METER_AVG_T seconds), so a moment's wobble is forgiven. Touching red ruptures the vein.
-const STRIP_W={Rare:0.10,Epic:0.07,Legendary:0.045}, STRIP_JACKPOT_W=0.018, STRIP_RED_W=0.05;
+const STRIP_W={Rare:0.10,Epic:0.07,Legendary:0.045,Hive:0.045}, STRIP_JACKPOT_W=0.018, STRIP_RED_W=0.05;
 const STAB_WIDEN=0.3, STRIKE_AUTO_T=4, STRIKE_SWEEP_T=1.6, ZOOM_HALF=0.18, ZOOM_T=0.55, METER_AVG_T=6;
-const METER_TURB={Common:0.14,Rare:0.18,Epic:0.24,Legendary:0.3}, METER_K_BASE=1.0, METER_K_STAB=3.5;
+const METER_TURB={Common:0.14,Rare:0.18,Epic:0.24,Legendary:0.3,Hive:0.32}, METER_K_BASE=1.0, METER_K_STAB=3.5;
 function buildStrip(v){
-  const ladder=TIER_LADDER[v.band], idx=v.lockIdx!=null?v.lockIdx:ripeIdx(v);
-  const floor=ladder[0], ripe=ladder[idx], above=TIER_ORDER_ALL[TIER_ORDER_ALL.indexOf(ripe)+1];
+  const ladder=veinLadder(v), idx=v.lockIdx!=null?v.lockIdx:ripeIdx(v);
+  const floor=ladder[0], ripe=ladder[idx], ri=TIER_ORDER_ALL.indexOf(ripe), above=ri>=0?TIER_ORDER_ALL[ri+1]:null; // nothing above Hive
   const widen=1+STAB_WIDEN*veinStabs(v).length, u=v.lockUnstable||0;
   const segs=[];
   const place=(w,o)=>{for(let t=0;t<60;t++){const a=rnd(0.02,0.98-w);if(segs.some(q=>a<q.b+0.012&&a+w>q.a-0.012))continue;segs.push({a,b:a+w,...o});return}};
@@ -1166,6 +1176,8 @@ function updateMeterUI(){
     if(q.red){g.fillStyle=C.enemy;g.globalAlpha=0.85}
     else{g.fillStyle=CARD_TIER_COLOR[q.tier];g.globalAlpha=q.jackpot?0.7+0.3*Math.sin(performance.now()/90):0.75}
     g.fillRect(x0,barY,Math.max(1,x1-x0),barH);g.globalAlpha=1;
+    if(q.tier==='Hive'){g.save();g.beginPath();g.rect(x0,barY,Math.max(1,x1-x0),barH);g.clip();g.strokeStyle='rgba(10,0,4,0.6)';g.lineWidth=2*dpr;
+      const off=(performance.now()/60)%(7*dpr);for(let sx=x0-barH-7*dpr+off;sx<x1;sx+=7*dpr){g.beginPath();g.moveTo(sx,barY+barH);g.lineTo(sx+barH,barY);g.stroke()}g.restore()}
   });
   const np=m.phase==='strike'?m.p:m.anchor+m.x*ZOOM_HALF, nx=X(np);
   g.strokeStyle='#fff';g.lineWidth=2*dpr;g.beginPath();g.moveTo(nx,barY-3*dpr);g.lineTo(nx,barY+barH+2*dpr);g.stroke();
@@ -1233,7 +1245,7 @@ const VEIN_GLOW_R=200;
 // Pulse timing by tier: richer veins draw energy in more often and faster; an unstable vein pulls
 // frantically. period = seconds between waves, travel = seconds for a wave to run in from
 // PULSE_REACH to the mining point.
-const PULSE_TIMING={Common:{period:2.4,travel:2.6},Rare:{period:1.8,travel:2.2},Epic:{period:1.3,travel:1.8},Legendary:{period:0.9,travel:1.4}};
+const PULSE_TIMING={Common:{period:2.4,travel:2.6},Rare:{period:1.8,travel:2.2},Epic:{period:1.3,travel:1.8},Legendary:{period:0.9,travel:1.4},Hive:{period:0.75,travel:1.3}};
 const PULSE_TIMING_UNSTABLE={period:0.22,travel:0.6};
 // Everything the player reads off a vein — its colour and its pulse rate — moves CONTINUOUSLY with
 // time, not in tier steps: ripePos runs linearly from 0 (just emerged, lowest tier) to the top of
@@ -1241,7 +1253,7 @@ const PULSE_TIMING_UNSTABLE={period:0.22,travel:0.6};
 // it. Through the unstable phase, the centre's colour runs linearly toward red and the pulse rate
 // linearly toward the frantic unstable rate. (The tier actually paid still steps — ripeTier.)
 function ripePos(v){
-  const L=TIER_LADDER[v.band];
+  const L=veinLadder(v);
   if(S.activeVein===v&&v.meter&&v.meter.phase==='drill')return L.indexOf(v.meter.yieldTier)>=0?L.indexOf(v.meter.yieldTier):L.length-1;
   if(S.activeVein===v&&v.lockIdx!=null)return v.lockIdx;
   return Math.min(L.length-1,(v.ripeT||0)/RIPEN_STEP_T);
@@ -1255,11 +1267,11 @@ function mixCol(a,b,t){const A=parseCol(a),B=parseCol(b);return `rgb(${Math.roun
 // the vein's tier colour, blended between neighbouring tiers by how far it has ripened
 function tierBlendCol(v){
   if(S.activeVein===v&&v.meter&&v.meter.phase==='drill')return CARD_TIER_COLOR[v.meter.yieldTier];
-  const L=TIER_LADDER[v.band], p=ripePos(v), i=Math.floor(p), f=p-i;
+  const L=veinLadder(v), p=ripePos(v), i=Math.floor(p), f=p-i;
   return mixCol(CARD_TIER_COLOR[L[i]],CARD_TIER_COLOR[L[Math.min(i+1,L.length-1)]],f);
 }
 function pulseTiming(v){
-  const L=TIER_LADDER[v.band], p=ripePos(v), i=Math.floor(p), f=p-i;
+  const L=veinLadder(v), p=ripePos(v), i=Math.floor(p), f=p-i;
   const a=PULSE_TIMING[L[i]], b=PULSE_TIMING[L[Math.min(i+1,L.length-1)]];
   let period=a.period+(b.period-a.period)*f, travel=a.travel+(b.travel-a.travel)*f;
   const u=unstableFrac(v);
@@ -1323,7 +1335,7 @@ const VEINS_PER_BAND=2, GONE_T=20, EMERGE_DELAY=[12,28];
 function emergeVein(site,o){
   o=o||{};
   const ang=rnd(0,Math.PI*2), rad=rnd(0,14); // the mining point is the heart of the site's crack knot
-  const v={x:site.x,y:site.y,r:ZONE_R,richness:site.richness,drillProg:0,done:false,contract:!!o.contract,band:site.band,waveT:0,
+  const v={x:site.x,y:site.y,r:ZONE_R,richness:site.richness,drillProg:0,done:false,contract:!!o.contract,hive:!!o.hive,band:site.band,waveT:0,
     reward:o.contract?{dat:50,living:3}:{dat:Math.round(site.richness*1.2)},
     mine:{x:site.x+Math.cos(ang)*rad,y:site.y+Math.sin(ang)*rad,found:false},
     site,ripeT:o.ripeT||0,crackedT:0,seen:false,collapsed:false,goneT:0,pulsePh:rnd(0,PULSE_PERIOD),
@@ -1373,7 +1385,7 @@ function updateVeinLife(dt){
   // (the replacement's countdown starts the moment a vein dies, not once it's finished fading)
   S.veins=S.veins.filter(v=>{
     if(veinAlive(v)||v.contract)return true;
-    if(!v.respawnQueued){v.respawnQueued=true;S.respawnQ.push({band:v.band,t:rnd(EMERGE_DELAY[0],EMERGE_DELAY[1])})}
+    if(!v.respawnQueued&&!v.hive){v.respawnQueued=true;S.respawnQ.push({band:v.band,t:rnd(EMERGE_DELAY[0],EMERGE_DELAY[1])})}
     v.goneT+=dt; if(v.goneT<GONE_T)return true;
     v.site.vein=null;
     return false;
@@ -1774,7 +1786,9 @@ function reset(landing){
   // otherwise a different landing would shift every roll after it.
   rand=seededRng(mapSeed*7919+Math.round(S.base.x)*31+Math.round(S.base.y));
   clearDisk(S.base.x,S.base.y,240);
-  const allSites=[...S.sites,S.contractSite];
+  // v2: Mega nest (hive vein) sites, cleared and connected like the rest
+  S.hiveSites=tutorialMap?[]:pickHiveSites(startPicks);
+  const allSites=[...S.sites,S.contractSite,...S.hiveSites];
   allSites.forEach(v=>clearDisk(v.x,v.y,ZONE_R+40));
   ensureConnectivity([{x:S.base.x,y:S.base.y},...allSites.map(v=>({x:v.x,y:v.y})),...S.clusters.map(([x,y])=>({x,y})),...riftPockets]);
   closeHoles(S.base.x,S.base.y);
@@ -1791,6 +1805,7 @@ function reset(landing){
   S.veins=[];S.respawnQ=[];S.drained=0;S.contractAwake=false;S.strays=[];S.bearings=[];S.triMark=null;
   emergeVein(S.contractSite,{contract:true});
   startPicks.forEach(p=>emergeVein(p.site,{ripeT:p.ripeT,haze:p.haze}));
+  S.hiveSites.forEach(st=>{const v=emergeVein(st,{hive:true,ripeT:2*RIPEN_STEP_T});v.seen=true;v.mine.found=true;raiseMounds(v,HIVE_MOUNDS,'mound')});
   // the opening vein: if no starting vein is close to the landing, a fresh one emerges at the
   // nearest Rim site at least LANDING_SITE_CLEAR away
   {const rim=S.sites.filter(st=>st.band==='rim'), clear=rim.filter(st=>dist(st,S.base)>=LANDING_SITE_CLEAR);
@@ -2152,6 +2167,8 @@ const NEST={
   small: {name:'Small nest', hp:320, r:20,patrolT:55,patrolN:[2,3],brood:4, guards:2,defend:2,feed:0.6,dat:20,growT:360},
   medium:{name:'Medium nest',hp:700, r:28,patrolT:45,patrolN:[3,4],brood:7, guards:4,defend:3,feed:1,  dat:40,growT:480},
   large: {name:'Large nest', hp:1300,r:38,patrolT:38,patrolN:[4,6],brood:11,guards:6,defend:5,feed:1.6,dat:70},
+  mound: {name:'Brood mound',hp:550, r:26,patrolT:40,patrolN:[3,4],brood:7, guards:4,defend:3,feed:1.1,dat:30},
+  great: {name:'Great brood mound',hp:900,r:32,patrolT:35,patrolN:[4,5],brood:9,guards:5,defend:4,feed:1.4,dat:45},
 };
 const NEST_BAND_MULT={rim:1,dense:1.5,core:2}; // brood/patrol/guard counts scale with depth
 const NEST_START={rim:{n:6,mix:[0.7,0.3]},dense:{n:6,mix:[0.3,0.5]},core:{n:4,mix:[0,0.4]}}; // mix: small, medium share (rest large)
@@ -2181,7 +2198,7 @@ function makeNest(x,y,size){
 // A spot in the band clear of the Bastion, vein sites and other nests (and, for one sprouting
 // mid-run, out of everyone's sight). null if nothing fits.
 function placeNest(size,band,hidden){
-  const sites=[...S.sites,S.contractSite].filter(Boolean), nests=liveNests();
+  const sites=[...S.sites,S.contractSite,...(S.hiveSites||[])].filter(Boolean), nests=liveNests();
   for(let t=0;t<60;t++){
     const q=band==='core'?pointInRing(0,CORE_R-60,150):band==='dense'?pointInRing(CORE_R+80,DENSE_R-60,150):pointInRing(DENSE_R+80,EPI_REACH,150);
     if(!q)continue;
@@ -2199,6 +2216,7 @@ function updateNests(dt){
   if(tutorialMap)return;
   liveNests().forEach(n=>{
     const N=NEST[n.size];
+    if(!n.seen&&visible(n)&&n.hiveVein){n.seen=true}
     if(!n.seen&&visible(n)){n.seen=true;msg(`${N.name} spotted — its patrols roam this area. Destroy it for Dat${n.size==='small'?'':n.size==='medium'?' and fabricator charges':', fabricator charges and salvage'}.`)}
     // struck: rally defenders (on a cooldown, and not past a ceiling on its living brood)
     if(n.hp<n.lastHp){n.hitT=S.t;
@@ -2241,14 +2259,68 @@ function nestDestroyed(n){
     Object.keys(FABS).forEach(k=>{const st=S.fab[k];if(st.n<FABS[k].charges){st.n++;if(st.n>=FABS[k].charges)st.rt=0}});
     extra=' Every fabricator gains a charge.';
   }
-  if(n.size==='large'){
-    const locked=Object.keys(FABS).filter(k=>!fabUnlocked(k));
-    if(locked.length){const k=locked[Math.floor(Math.random()*locked.length)];S.runUnlock[k]=true;S.fab[k].n=FABS[k].charges;S.fab[k].rt=0;
-      extra+=` Salvaged a ${FABS[k].name} fabricator — yours for this run!`}
-    else{addDrones(2);extra+=' Salvaged 2 repair drones.'}
-  }
+  if(n.size==='large')extra+=salvageFab();
   msg(`${N.name} destroyed — drive over its Dat to collect it.${extra}`);
   updateBuildBar();
+}
+// Salvage: a fabricator you don't own yet, for the rest of the run (or 2 drones if you own them all).
+function salvageFab(){
+  const locked=Object.keys(FABS).filter(k=>!fabUnlocked(k));
+  if(locked.length){const k=locked[Math.floor(Math.random()*locked.length)];S.runUnlock[k]=true;S.fab[k].n=FABS[k].charges;S.fab[k].rt=0;updateBuildBar();
+    return ` Salvaged a ${FABS[k].name} fabricator \u2014 yours for this run!`}
+  addDrones(2);return ' Salvaged 2 repair drones.';
+}
+// Brood mounds ring a hive vein; each slot remembers its spot so a lost mound can regrow there.
+function raiseMounds(v,count,size){
+  v.moundSlots=v.moundSlots||[];
+  const a0=rnd(0,Math.PI*2);
+  for(let i=0;i<count;i++){
+    const a=a0+i/count*Math.PI*2+rnd(-0.3,0.3), rr=rnd(MOUND_R[0],MOUND_R[1]);
+    const p=nearestPlain(Math.max(150,Math.min(W-150,v.x+Math.cos(a)*rr)),Math.max(150,Math.min(H-150,v.y+Math.sin(a)*rr)));
+    const slot={x:p.x,y:p.y,size,nest:makeNest(p.x,p.y,size),regrowT:MOUND_REGROW_T};slot.nest.hiveVein=v;
+    v.moundSlots.push(slot);
+  }
+}
+function updateMounds(dt){
+  S.veins.forEach(v=>{
+    if(!v.moundSlots||!veinAlive(v))return;
+    if(v.hive&&!v.hiveIntro&&visible(v)){v.hiveIntro=true;
+      msg('A Mega nest: a hive vein ringed by brood mounds. Its waves pour out of every mound still standing — break them first. Drain it for Hive-tier rewards and salvage.')}
+    v.moundSlots.forEach(sl=>{
+      if(sl.nest&&sl.nest.hp>0&&S.enemies.includes(sl.nest)){sl.regrowT=MOUND_REGROW_T;return}
+      if(visible(sl))return; // nothing regrows while you're watching
+      sl.regrowT-=dt;
+      if(sl.regrowT<=0){sl.nest=makeNest(sl.x,sl.y,sl.size);sl.nest.hiveVein=v;sl.regrowT=MOUND_REGROW_T;
+        if(v.seen)msg(`A ${NEST[sl.size].name.toLowerCase()} has regrown around the ${v.contract?'contract vein':'hive'}.`)}
+    });
+  });
+}
+// A hive takes over one of its band's vein sites (one no starting vein is using), so it sits where
+// the map already made room and cracks for a vein; that site never hosts an ordinary vein again.
+function pickHiveSites(starts){
+  const out=[];
+  HIVE_BANDS.forEach(band=>{
+    const pool=S.sites.filter(st=>st.band===band&&!starts.some(p=>p.site===st));
+    if(!pool.length)return;
+    const far=pool.filter(st=>dist(st,S.base)>=HIVE_BASE_CLEAR), from=far.length?far:pool;
+    const st=from[Math.floor(rnd(0,from.length))];
+    S.sites.splice(S.sites.indexOf(st),1);
+    st.richness=HIVE_RICHNESS[band];
+    out.push(st);
+  });
+  return out;
+}
+// Hive veins burn through the fog: a crimson glow and slow rings, drawn on top of it.
+function drawHiveBeacons(){
+  S.veins.forEach(v=>{if(!v.hive||!veinAlive(v))return;
+    const t=S.t, pul=0.5+0.5*Math.sin(t*1.6);
+    const g=ctx.createRadialGradient(v.x,v.y,0,v.x,v.y,ZONE_R*1.1);
+    g.addColorStop(0,`rgba(224,40,74,${0.35+0.2*pul})`);g.addColorStop(0.5,'rgba(224,40,74,0.12)');g.addColorStop(1,'rgba(224,40,74,0)');
+    ctx.fillStyle=g;ctx.beginPath();ctx.arc(v.x,v.y,ZONE_R*1.1,0,Math.PI*2);ctx.fill();
+    for(let k=0;k<2;k++){const f=((t*0.35+k*0.5)%1);ctx.globalAlpha=(1-f)*0.6;ctx.strokeStyle=HIVE_COL;ctx.lineWidth=3;
+      ctx.beginPath();ctx.arc(v.x,v.y,ZONE_R*(0.3+0.9*f),0,Math.PI*2);ctx.stroke()}
+    ctx.globalAlpha=1;
+  });
 }
 function drawNest(n){
   const R=n.r, pul=0.5+0.5*Math.sin(S.t*2.2+n.ph), fl=n.flashT>0;
@@ -2257,7 +2329,7 @@ function drawNest(n){
   ctx.fillStyle=fl?'#fff':'#4a1d1a';ctx.beginPath();
   for(let k=0;k<=16;k++){const a=k/16*Math.PI*2, rr=R*(0.86+0.14*Math.sin(a*3+n.ph));ctx.lineTo(Math.cos(a)*rr,Math.sin(a)*rr)}
   ctx.closePath();ctx.fill();ctx.strokeStyle='#8a2c22';ctx.lineWidth=2;ctx.stroke();
-  const vents=n.size==='small'?3:n.size==='medium'?4:6;
+  const vents=n.size==='small'?3:n.size==='large'?6:n.size==='great'?7:n.size==='mound'?5:4;
   for(let k=0;k<vents;k++){const a=k/vents*Math.PI*2+n.ph,d=R*0.52;
     ctx.fillStyle=`rgba(255,92,77,${0.3+0.5*pul})`;ctx.beginPath();ctx.arc(Math.cos(a)*d,Math.sin(a)*d,R*0.15,0,Math.PI*2);ctx.fill()}
   ctx.fillStyle=`rgba(255,130,95,${0.5+0.45*pul})`;ctx.beginPath();ctx.arc(0,0,R*0.24,0,Math.PI*2);ctx.fill();
@@ -4018,9 +4090,11 @@ function update(dt){
         if(!S.contractAwake&&S.drained>=TRIANGULATE_AT){
           S.contractAwake=true;
           S.bearings=[];
+          {const cv=S.veins.find(x=>x.contract);if(cv)raiseMounds(cv,CONTRACT_MOUNDS,'great')}
           tail=' The contract vein has stirred deep in the zone — it gives off no pulses, so take bearings from stray energy pockets to triangulate it.';
         }
-        msg(`Vein drained at ${tier} tier — +${condensedEarned} Condensed Crystal.${tail}`);
+        if(v.hive)tail=` The Mega nest is broken.${salvageFab()}`+tail;
+        msg(`${v.hive?'Hive vein':'Vein'} drained at ${tier} tier — +${condensedEarned} Condensed Crystal.${tail}`);
         shakeScreen(4,0.3);showRewardChoice(tier);
       }
     }
@@ -4058,6 +4132,7 @@ function update(dt){
   updateProbes(dt);
   updateFabs(dt);
   updateNests(dt);
+  updateMounds(dt);
   updateFabShots(dt);
   updateDrones(dt);
   if(!B.locked||S.mods.bastionShootWhileDrilling){
@@ -4556,6 +4631,13 @@ function shuffled(arr){const a=[...arr];for(let i=a.length-1;i>0;i--){const j=Ma
 // been skipping), plus a 4th option to cash the whole reward in for a flat chunk of Dat instead.
 // A Common reward has no tier below it, so all 3 just come from the Common pool as before.
 function rollRewardCards(tier){
+  // Hive tier: three cards, all Epic or Legendary
+  if(tier==='Hive'){
+    const pool=shuffled(['Epic','Legendary'].flatMap(t=>UPGRADES[t].map(u=>({tier:t,...u}))));
+    const picks=pool.slice(0,3).map(c=>({kind:'upgrade',...c}));
+    picks.push({kind:'trade',tier,name:'Sell the Reward',desc:`Skip the upgrade — bank +${TIER_TRADE_DAT[tier]} Dat Crystal instead.`,amt:TIER_TRADE_DAT[tier]});
+    return picks;
+  }
   const topIdx=TIER_ORDER.indexOf(tier);
   const topPool=shuffled(UPGRADES[tier]);
   const picks=[{kind:'upgrade',tier,...topPool[0]}];
@@ -4658,7 +4740,7 @@ function veinEnergy(v){
   if(v.crackedT>0)return {col:C.enemy,glow:0.25+0.35*Math.random(),core:0.6,jitter:1};
   const cur=S.activeVein===v;
   if(cur&&v.meter&&v.meter.phase==='drill'){const th=S.throttleMul;return {col:CARD_TIER_COLOR[v.meter.yieldTier],glow:0.75+0.25*Math.sin(t*6*th),core:1,flow:th}}
-  if(cur)return {col:CARD_TIER_COLOR[TIER_LADDER[v.band][v.lockIdx]],glow:0.6+0.3*Math.sin(t*4),core:0.95};
+  if(cur)return {col:CARD_TIER_COLOR[veinLadder(v)[v.lockIdx]],glow:0.6+0.3*Math.sin(t*4),core:0.95};
   // colour and brightness climb steadily as it ripens; through the unstable phase the centre runs
   // linearly to red (incoming pulses keep the tier colour)
   const frac=Math.min(1,(v.ripeT||0)/Math.max(1,ripePeakT(v))), u=unstableFrac(v);
@@ -5083,6 +5165,7 @@ function draw(){
   S.particles.forEach(p=>{ctx.globalAlpha=Math.max(0,1-p.t/p.life);ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);ctx.fill()});ctx.globalAlpha=1;
   // fog
   if(!debugNoFog){blurFogged(vw,vh,shkx,shky);ctx.imageSmoothingEnabled=true;ctx.drawImage(dimSoftC,0,0,W,H);ditherFog()}
+  drawHiveBeacons();
   // energy pulses through the crack network (only where something can see) and bearing beams
   drawExplorationLight(x0-40,y0-40,x1+40,y1+40,vw,vh,shkx,shky);
   drawDrones();
@@ -5133,13 +5216,13 @@ function drawMini(){const s=mini.width/W;mctx.fillStyle='#10151b';mctx.fillRect(
   mctx.drawImage(terrainCv,0,0,W,H,0,0,mini.width,mini.height);
   if(!debugNoFog){mctx.save();mctx.scale(s,s);mctx.drawImage(dimSoftC,0,0,W,H);mctx.restore()}
   // sighted veins in their tier colour (drained/collapsed ones faint), live strays, and bearing beams
-  S.veins.forEach(v=>{if(!debugNoFog&&(v.contract?!v.mine.found:!v.seen))return;mctx.strokeStyle=v.contract?C.living:tierBlendCol(v);mctx.fillStyle=mctx.strokeStyle;mctx.globalAlpha=veinAlive(v)?1:0.3;mctx.beginPath();mctx.arc(v.x*s,v.y*s,2.5,0,Math.PI*2);mctx.fill();mctx.globalAlpha=1});
+  S.veins.forEach(v=>{if(!debugNoFog&&(v.contract?!v.mine.found:!v.seen))return;mctx.strokeStyle=v.contract?C.living:tierBlendCol(v);mctx.fillStyle=mctx.strokeStyle;mctx.globalAlpha=veinAlive(v)?1:0.3;mctx.beginPath();mctx.arc(v.x*s,v.y*s,v.hive?4.5:2.5,0,Math.PI*2);mctx.fill();mctx.globalAlpha=1});
   S.strays.forEach(st=>{if(!st.live||sightAt(st)<=0)return;mctx.fillStyle=STRAY_COL;mctx.globalAlpha=0.6+0.4*Math.sin(S.t*3);mctx.beginPath();mctx.arc(st.x*s,st.y*s,2.5,0,Math.PI*2);mctx.fill();mctx.globalAlpha=1});
   S.bearings.forEach(b=>{mctx.strokeStyle=b.target.contract?C.living:tierBlendCol(b.target);mctx.globalAlpha=0.7;mctx.lineWidth=1;mctx.setLineDash([3,3]);mctx.beginPath();mctx.moveTo(b.x*s,b.y*s);mctx.lineTo((b.x+Math.cos(b.ang)*4200)*s,(b.y+Math.sin(b.ang)*4200)*s);mctx.stroke();mctx.setLineDash([]);mctx.globalAlpha=1});
   S.nodes.forEach(n=>{if((n.found||debugNoFog)&&n.amt>0){mctx.fillStyle=C.dat;mctx.fillRect(n.x*s-1.5,n.y*s-1.5,3,3)}});
   S.relays.forEach(r=>{if(r.built){mctx.fillStyle=C.cable;mctx.fillRect(r.x*s-2,r.y*s-2,4,4)}});
   S.depots.forEach(de=>{if(de.built){mctx.fillStyle=de.hp>0?C.dat:C.enemy;mctx.fillRect(de.x*s-2,de.y*s-2,4,4)}});
-  S.enemies.forEach(e=>{if(e.kind==='nest'){if(debugNoFog||e.seen){const q=e.size==='small'?2.5:e.size==='medium'?3.5:4.5;mctx.fillStyle='#8a2c22';mctx.beginPath();mctx.arc(e.x*s,e.y*s,q+1,0,Math.PI*2);mctx.fill();mctx.fillStyle=C.enemy;mctx.beginPath();mctx.arc(e.x*s,e.y*s,q*0.55,0,Math.PI*2);mctx.fill()}return}
+  S.enemies.forEach(e=>{if(e.kind==='nest'){if(debugNoFog||e.seen){const q=e.size==='small'?2.5:e.size==='large'||e.size==='great'?4.5:3.5;mctx.fillStyle='#8a2c22';mctx.beginPath();mctx.arc(e.x*s,e.y*s,q+1,0,Math.PI*2);mctx.fill();mctx.fillStyle=C.enemy;mctx.beginPath();mctx.arc(e.x*s,e.y*s,q*0.55,0,Math.PI*2);mctx.fill()}return}
     if(debugNoFog||visible(e)){mctx.fillStyle=C.enemy;mctx.fillRect(e.x*s-1,e.y*s-1,2,2)}});
   S.troops.forEach(t=>{mctx.fillStyle=C.ally;mctx.fillRect(t.x*s-1.5,t.y*s-1.5,3,3)});
   S.harvesters.forEach(h=>{mctx.fillStyle=C.harv;mctx.fillRect(h.x*s-1.5,h.y*s-1.5,3,3)});
