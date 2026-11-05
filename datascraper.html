@@ -4762,7 +4762,7 @@ function pickReward(i){
 // face where the walker is going; the top layer is the turret, which turns on its own to aim. Up
 // (-y) is the front in the art. Each part is the SVG's outline path: its outer ring is filled in
 // the part's colour, then the whole path (outline ring) in black.
-const WK_P={x:83.25,y:89.41}, WK_SCALE=0.95, WK_HIP={x:75.87,y:82.78}, WK_STRIDE=34, WK_SWING=0.32, WK_TURN=2.6;
+const WK_P={x:83.25,y:89.41}, WK_SCALE=0.95, WK_HIP={x:75.87,y:82.78}, WK_TURN=2.6;
 const wkPart=(col,d)=>({col,ring:new Path2D(d),fill:new Path2D(d.slice(d.indexOf('ZM')+1))});
 const WK_LEG_OUTER=[ // slides along the leg (telescopes) as the foot lifts
   wkPart('#999','M52.98,57.59l10.86,10.86-2.3,2.3-10.86-10.86,2.3-2.3h0ZM52.98,56.17l-3.72,3.72,12.27,12.27,3.72-3.72-12.27-12.27h0Z'),
@@ -4782,56 +4782,88 @@ const WK_HULL=[ // filled, then stroked black
   {col:'#999',p:new Path2D('M73.93,92.49h18.93v18.93h-18.93Z')},
   {col:'#999',p:new Path2D('M92.86,72.09v13.84h-18.94v-13.84l3.52-1.64c3.83-1.79,8.06-1.79,11.9,0l3.52,1.64Z')},
 ];
-// leg order: NW, NE, SE, SW (rotation k·90°); trot gait — diagonal pairs step together; sign makes
-// a positive swing angle carry that foot forward
-const WK_LEGS=[{off:0,sg:1},{off:0.5,sg:-1},{off:0,sg:-1},{off:0.5,sg:1}];
+// Gait: each foot is pinned to a spot on the ground; its leg turns at the hip and stretches or
+// shortens to keep reaching it while the body glides on. Legs step ONE AT A TIME, in turn
+// (front-left, back-right, front-right, back-left): when it's a leg's turn and its foot has
+// fallen WK_STEP_TRIG behind its resting spot, it folds in toward the hull, swings over and plants
+// WK_STEP_LEAD ahead of the resting spot (a foot left far behind steps out of turn). Standing still,
+// the feet settle back to rest one by one; locked down, the stance widens and they brace outward.
+const WK_STANCE=1.35, WK_STANCE_LOCK=1.5, WK_STEP_TRIG=10, WK_STEP_LEAD=22, WK_STEP_TMAX=0.26, WK_FOLD=0.4, WK_ORDER=[0,2,1,3];
+const WK_V0={x:WK_FOOT.x-WK_HIP.x,y:WK_FOOT.y-WK_HIP.y}, WK_A0=Math.atan2(WK_FOOT.y-WK_HIP.y,WK_FOOT.x-WK_HIP.x), WK_L0=Math.hypot(WK_FOOT.x-WK_HIP.x,WK_FOOT.y-WK_HIP.y);
 function angLerp(a,b,k){let d=b-a;while(d>Math.PI)d-=Math.PI*2;while(d<-Math.PI)d+=Math.PI*2;return a+d*k}
 function angStep(a,b,max){let d=b-a;while(d>Math.PI)d-=Math.PI*2;while(d<-Math.PI)d+=Math.PI*2;return a+Math.max(-max,Math.min(max,d))}
-// Gait bookkeeping, from how far the Bastion actually moved since the last frame.
+// world spot where foot k rests (k: 0 NW, 1 NE, 2 SE, 3 SW of the art, turned to the heading)
+function wkRest(B,k){
+  const st=WK_STANCE+(WK_STANCE_LOCK-WK_STANCE)*(B.plant||0);
+  const lx=(WK_FOOT.x-WK_P.x)*st*WK_SCALE, ly=(WK_FOOT.y-WK_P.y)*st*WK_SCALE;
+  const a=B.heading+Math.PI/2+k*Math.PI/2, c=Math.cos(a), s=Math.sin(a);
+  return {x:B.x+lx*c-ly*s,y:B.y+lx*s+ly*c};
+}
 function updateWalker(B){
   const dt=Math.max(0,Math.min(0.1,S.t-(B._wt??S.t)));B._wt=S.t;
-  if(B.heading==null){B.heading=-Math.PI/2;B.turret=-Math.PI/2;B.walk=0;B.gaitA=0;B._px=B.x;B._py=B.y}
+  if(B.heading==null){B.heading=-Math.PI/2;B.turret=-Math.PI/2;B._px=B.x;B._py=B.y;B.feet=null}
   const dx=B.x-B._px, dy=B.y-B._py, d=Math.hypot(dx,dy);B._px=B.x;B._py=B.y;
-  const moving=d>0.01&&d<60;
-  if(moving){B.walk+=d;B.heading=angLerp(B.heading,Math.atan2(dy,dx),Math.min(1,dt*6))}
-  B.gaitA+=((moving&&!B.locked?1:0)-B.gaitA)*Math.min(1,dt*(moving?8:4));
+  const jumped=d>=60, moving=d>0.01&&!jumped;
+  if(moving)B.heading=angLerp(B.heading,Math.atan2(dy,dx),Math.min(1,dt*5));
   B.plant=(B.plant||0)+((B.locked?1:0)-(B.plant||0))*Math.min(1,dt*3);
-  // turret: onto whatever it last fired at, else back to the direction of travel
   const aim=S.t-(B.aimT??-99)<1.5?B.aim:B.heading;
   B.turret=angStep(B.turret,aim,WK_TURN*dt);
+  if(!B.feet||jumped){B.feet=[0,1,2,3].map(k=>{const r=wkRest(B,k);return {x:r.x,y:r.y,step:null,lift:0}});B.nextLeg=0;return}
+  if(dt<=0)return;
+  const sp=d/dt, lead=sp>5?{x:dx/d*WK_STEP_LEAD,y:dy/d*WK_STEP_LEAD}:{x:0,y:0};
+  // a quick enough step that four in turn keep pace with the body
+  const stepT=Math.max(0.1,Math.min(WK_STEP_TMAX,0.8*(WK_STEP_TRIG+WK_STEP_LEAD)/(4*Math.max(sp,1))));
+  let stepping=false;
+  B.feet.forEach((f,k)=>{
+    if(!f.step)return;stepping=true;
+    const r=wkRest(B,k);f.step.to={x:r.x+lead.x,y:r.y+lead.y}; // keeps tracking where it should land
+    f.step.t=Math.min(1,f.step.t+dt/f.step.dur);
+    const s=f.step.t, e=s*s*(3-2*s), fold=WK_FOLD*Math.sin(Math.PI*s);
+    let x=f.step.from.x+(f.step.to.x-f.step.from.x)*e, y=f.step.from.y+(f.step.to.y-f.step.from.y)*e;
+    x+=(B.x-x)*fold;y+=(B.y-y)*fold; // folds in toward the hull mid-swing
+    f.x=x;f.y=y;f.lift=Math.sin(Math.PI*s);
+    if(s>=1){f.step=null;f.lift=0;if(visible(f))burst(f.x,f.y,'#8a8f96',4,35,0.3)}
+  });
+  if(stepping)return;
+  const err=B.feet.map((f,k)=>dist(f,wkRest(B,k)));
+  const nk=WK_ORDER[B.nextLeg], trig=moving?WK_STEP_TRIG:3;
+  let k=-1;
+  if(err[nk]>trig){k=nk;B.nextLeg=(B.nextLeg+1)%4}
+  else{const m=Math.max(...err);if(m>WK_STEP_TRIG*2.2)k=err.indexOf(m)} // left far behind: out of turn
+  if(k<0)return;
+  const f=B.feet[k];f.step={from:{x:f.x,y:f.y},to:null,t:0,dur:moving?stepT:WK_STEP_TMAX};
 }
 function wkFill(parts,flash){parts.forEach(q=>{ctx.fillStyle=flash?'#fff':q.col;ctx.fill(q.fill);ctx.fillStyle='#000';ctx.fill(q.ring,'evenodd')})}
 function drawWalker(B){
   updateWalker(B);
-  const flash=B.flashT>0, ph=B.walk/WK_STRIDE;
+  const flash=B.flashT>0;
   ctx.save();ctx.translate(B.x,B.y);
-  // shadow
   ctx.fillStyle='rgba(0,0,0,0.35)';ctx.beginPath();ctx.ellipse(4,6,B.r*1.25,B.r*1.15,0,0,Math.PI*2);ctx.fill();
   ctx.scale(WK_SCALE,WK_SCALE);
-  // lower layer: legs, turned to the heading
+  // lower layer: legs, each reaching for its planted foot
   ctx.save();ctx.rotate(B.heading+Math.PI/2);
-  WK_LEGS.forEach((L,k)=>{
-    const f=((ph+L.off)%1+1)%1, stance=f<0.5;
-    const swing=(stance?1-4*f:-1+4*(f-0.5))*WK_SWING*L.sg*B.gaitA;
-    const lift=stance?0:Math.sin(Math.PI*(f-0.5)*2)*B.gaitA;
-    const ext=-3*lift+3*B.plant; // retracts as it lifts; braced out when locked down
+  B.feet.forEach((f,k)=>{
+    // the foot, in this leg's own (NW) frame of the art
+    const a=B.heading+Math.PI/2+k*Math.PI/2, c=Math.cos(a), s=Math.sin(a);
+    const wx=(f.x-B.x)/WK_SCALE, wy=(f.y-B.y)/WK_SCALE, lx=wx*c+wy*s, ly=-wx*s+wy*c;
+    const vx=WK_P.x+lx-WK_HIP.x, vy=WK_P.y+ly-WK_HIP.y;
+    const rot=Math.atan2(vy,vx)-WK_A0, str=Math.max(0.6,Math.min(1.8,Math.hypot(vx,vy)/WK_L0)), lift=f.lift||0;
     ctx.save();ctx.rotate(k*Math.PI/2);ctx.translate(-WK_P.x,-WK_P.y);
-    ctx.translate(WK_HIP.x,WK_HIP.y);ctx.rotate(swing);ctx.translate(-WK_HIP.x,-WK_HIP.y);
+    ctx.translate(WK_HIP.x,WK_HIP.y);ctx.rotate(rot+WK_A0);ctx.scale(str,1);ctx.rotate(-WK_A0);ctx.translate(-WK_HIP.x,-WK_HIP.y);
     wkFill([WK_LEG_INNER],flash);
-    ctx.save();ctx.translate(-0.7071*ext,-0.7071*ext);
-    if(lift>0.01){ctx.translate(WK_FOOT.x,WK_FOOT.y);ctx.scale(1+0.14*lift,1+0.14*lift);ctx.translate(-WK_FOOT.x,-WK_FOOT.y)}
+    if(lift>0.01){ctx.translate(WK_FOOT.x,WK_FOOT.y);ctx.scale(1+0.18*lift,1+0.18*lift);ctx.translate(-WK_FOOT.x,-WK_FOOT.y)}
     wkFill(WK_LEG_OUTER,flash);
-    if(B.plant>0.05){ctx.globalAlpha=B.plant;ctx.strokeStyle=C.accent;ctx.lineWidth=1.6;ctx.beginPath();ctx.arc(WK_FOOT.x,WK_FOOT.y,7,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1}
-    ctx.restore();
     ctx.restore();
   });
   ctx.restore();
+  // anchor rings under the planted feet while locked down
+  if(B.plant>0.05){ctx.save();ctx.scale(1/WK_SCALE,1/WK_SCALE);ctx.globalAlpha=B.plant;ctx.strokeStyle=C.accent;ctx.lineWidth=1.5;
+    B.feet.forEach(f=>{ctx.beginPath();ctx.arc(f.x-B.x,f.y-B.y,7,0,Math.PI*2);ctx.stroke()});ctx.globalAlpha=1;ctx.restore()}
   // top layer: the turret
   ctx.rotate(B.turret+Math.PI/2);ctx.translate(-WK_P.x,-WK_P.y);
   wkFill(WK_TOP,flash);
   ctx.lineWidth=1;ctx.strokeStyle='#000';
   WK_HULL.forEach(q=>{ctx.fillStyle=flash?'#fff':q.col;ctx.fill(q.p);ctx.stroke(q.p)});
-  // status light on the dome: gold while locked down, blue while mobile
   ctx.fillStyle=B.locked?C.accent:C.ally;ctx.beginPath();ctx.arc(WK_P.x,77.5,2.6,0,Math.PI*2);ctx.fill();
   ctx.restore();
 }
