@@ -4765,7 +4765,7 @@ function pickReward(i){
 const WK_P={x:83.25,y:89.41}, WK_SCALE=0.95, WK_HIP={x:75.87,y:82.78}, WK_TURN=1.6;
 // The turret (drawn WK_TOP_SCALE larger than the art) swings at most WK_TURRET_LIMIT either side of
 // the body's front; aiming past that, the legs walk the whole body round at WK_BODY_TURN.
-const WK_TOP_SCALE=1.5, WK_TURRET_LIMIT=120*Math.PI/180, WK_BODY_TURN=0.9;
+const WK_TOP_SCALE=1.5, WK_TURRET_LIMIT=60*Math.PI/180, WK_BODY_TURN=1.4; const WK_WALK_MARGIN=8*Math.PI/180; // a 120° cone: 60° either side of the front
 const wkPart=(col,d)=>({col,ring:new Path2D(d),fill:new Path2D(d.slice(d.indexOf('ZM')+1))});
 const WK_LEG_OUTER=[ // slides along the leg (telescopes) as the foot lifts
   wkPart('#999','M52.98,57.59l10.86,10.86-2.3,2.3-10.86-10.86,2.3-2.3h0ZM52.98,56.17l-3.72,3.72,12.27,12.27,3.72-3.72-12.27-12.27h0Z'),
@@ -4814,24 +4814,64 @@ function wkRest(B,k){
 function updateWalker(B){
   const dt=Math.max(0,Math.min(0.1,S.t-(B._wt??S.t)));B._wt=S.t;
   if(B.heading==null){B.heading=-Math.PI/2;B.turret=-Math.PI/2;B._px=B.x;B._py=B.y;B.feet=null}
+  const h0=B.heading;
   const dx=B.x-B._px, dy=B.y-B._py, d=Math.hypot(dx,dy);B._px=B.x;B._py=B.y;
   const jumped=d>=60, moving=d>0.01&&!jumped;
 
   B.plant=(B.plant||0)+((B.locked?1:0)-(B.plant||0))*Math.min(1,dt*1.5);
   // the turret looks at what it last fired at, else where it's walking; the body only turns when
   // that's past the turret's arc (the feet lead with the walk, so it can stride any direction)
+  // The turret is worked out RELATIVE to the body and never swings through the blind arc behind:
+  // it goes round the front to the limit on the target's side and waits there while the legs turn
+  // the body (same way round, so the turret's side leads) until the target is back inside its arc.
   const want=S.t-(B.aimT??-99)<1.5?B.aim:(moving?Math.atan2(dy,dx):B.turret);
+  let rel=angDiff(B.turret,B.heading); rel=Math.max(-WK_TURRET_LIMIT,Math.min(WK_TURRET_LIMIT,rel));
   const off=angDiff(want,B.heading);
-  if(Math.abs(off)>WK_TURRET_LIMIT)B.heading=angStep(B.heading,want-Math.sign(off)*WK_TURRET_LIMIT,WK_BODY_TURN*dt);
-  B.turret=angStep(B.turret,want,WK_TURN*dt);
-  {const rel=angDiff(B.turret,B.heading);if(Math.abs(rel)>WK_TURRET_LIMIT)B.turret=B.heading+Math.sign(rel)*WK_TURRET_LIMIT}
+  if(Math.abs(off)>WK_TURRET_LIMIT){
+    // which way to swing the body: keep the way it's already going; else the turret's side when
+    // the target is near dead astern (where the shortest way flips); else the shortest way
+    if(!B.turnDir)B.turnDir=Math.abs(off)>Math.PI-0.5&&Math.abs(rel)>0.05?Math.sign(rel):Math.sign(off);
+    B.heading+=B.turnDir*Math.min(WK_BODY_TURN*dt,Math.abs(off)-WK_TURRET_LIMIT);
+  }else{
+    B.turnDir=0;
+    // Walking: the body turns to face where it's going as far as the turret rule allows. Facing
+    // straight down the walk would put the target past the turret's arc? Then it settles for the
+    // nearest heading that keeps the target WK_WALK_MARGIN inside it and side-steps; walking away
+    // from the target, it faces back toward it and walks backwards — whichever of forwards or
+    // backwards needs the smaller compromise (with a little stickiness so it doesn't flip-flop).
+    const vx=B.vx!=null&&dt>0?B.vx:dx/Math.max(dt,1e-3), vy=B.vy!=null&&dt>0?B.vy:dy/Math.max(dt,1e-3);
+    if(Math.hypot(vx,vy)>8){
+      const m=Math.atan2(vy,vx), lim=WK_TURRET_LIMIT-WK_WALK_MARGIN;
+      const fit=h=>{const r=angDiff(h,want);return Math.abs(r)<=lim?h:want+Math.sign(r)*lim}; // nearest heading to h that keeps the target in the arc
+      const F=fit(m), Bk=fit(m+Math.PI), devF=Math.abs(angDiff(F,m)), devB=Math.abs(angDiff(Bk,m+Math.PI));
+      if(B.walkBack){if(devF<devB+0.1)B.walkBack=false}else if(devB+0.35<devF)B.walkBack=true;
+      const goal=B.walkBack?Bk:F;
+      B.heading=angStep(B.heading,goal,WK_BODY_TURN*dt);
+    }
+  }
+  // the turret's goal on the body's own scale: the target if it's inside the arc, else the limit on
+  // the side the body is turning toward
+  const relGoal=Math.abs(off)<=WK_TURRET_LIMIT?off:(B.turnDir||Math.sign(off))*WK_TURRET_LIMIT;
+  const relNow=angDiff(B.turret,B.heading)>WK_TURRET_LIMIT||angDiff(B.turret,B.heading)<-WK_TURRET_LIMIT?rel:angDiff(B.turret,B.heading);
+  rel=relNow+Math.max(-WK_TURN*dt,Math.min(WK_TURN*dt,relGoal-relNow));
+  B.turret=B.heading+rel;
   if(!B.feet||jumped){B.feet=[0,1,2,3].map(k=>{const r=wkRest(B,k);return {x:r.x,y:r.y,step:null,lift:0}});B.nextLeg=0;return}
   if(dt<=0)return;
-  const sp=d/dt, lead=sp>5?{x:dx/d*WK_STEP_LEAD,y:dy/d*WK_STEP_LEAD}:{x:0,y:0};
+  // the turn rate is smoothed: frame-to-frame it's noisy, and every wobble would shove the landing
+  // spot of a foot already in the air
+  const sp=d/dt; B.wSm=(B.wSm||0)+(angDiff(B.heading,h0)/dt-(B.wSm||0))*Math.min(1,dt*5);
+  const w=B.wSm, turning=Math.abs(w)>0.15;
+  // Where each foot should land: ahead of its resting spot by how fast that spot is moving — the
+  // walk plus the body's turn (a turning body swings its feet round with it) — over the time a
+  // step's lead is meant to cover.
+  const leadT=WK_STEP_LEAD/BASE_SPEED, vxw=sp>5?dx/dt:0, vyw=sp>5?dy/dt:0;
+  const footLead=k=>{const r=wkRest(B,k),rx=r.x-B.x,ry=r.y-B.y;let lx=(vxw-w*ry)*leadT,ly=(vyw+w*rx)*leadT;
+    const L=Math.hypot(lx,ly),M=WK_STEP_LEAD*1.4;if(L>M){lx*=M/L;ly*=M/L}return {x:lx,y:ly}};
+
   let busy=0, early=false;
   B.feet.forEach((f,k)=>{
     if(!f.step)return;busy++;
-    const r=wkRest(B,k);f.step.to={x:r.x+lead.x,y:r.y+lead.y}; // keeps tracking where it should land
+    const r=wkRest(B,k),ld=footLead(k);f.step.to={x:r.x+ld.x,y:r.y+ld.y}; // keeps tracking where it should land
     f.step.t=Math.min(1,f.step.t+dt/f.step.dur);
     const s=f.step.t;if(s<WK_OVERLAP)early=true;
     // slow to lift, slow to set down: the weight hangs at the ends of the swing
@@ -4843,7 +4883,7 @@ function updateWalker(B){
   });
   if(busy>=2||early)return;
   const err=B.feet.map((f,k)=>f.step?0:dist(f,wkRest(B,k)));
-  const nk=WK_ORDER[B.nextLeg], trig=moving?WK_STEP_TRIG:3;
+  const nk=WK_ORDER[B.nextLeg], trig=moving||turning?WK_STEP_TRIG:3;
   let k=-1;
   if(!B.feet[nk].step&&err[nk]>trig){k=nk;B.nextLeg=(B.nextLeg+1)%4}
   else if(!busy){const m=Math.max(...err);if(m>WK_STEP_TRIG*2.2)k=err.indexOf(m)} // left far behind: out of turn
