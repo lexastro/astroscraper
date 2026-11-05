@@ -394,7 +394,7 @@ body.inMenu :is(#game,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMeter,.mini,.
 <div class="help" id="help" hidden>
   <button id="helpClose" aria-label="Close">×</button>
   <b>The run:</b> six stops, each one map in a single zone and each deeper and tougher than the last — Rim, Rim, Dense Field, Dense Field, Core, and the Core's heart where the contract vein waits. A barrier (rift on the Rim, a crystal wall deeper in) cuts every map: drain the <b>breach vein</b> in front of it to break through, then walk the Bastion off the eastern edge. Everything you have carries on to the next stop.<br>
-<b>Stock &amp; squads:</b> nothing refills on its own any more — every fabricator, Stabilizer and Probe has a free stock, and once it's empty each use costs Dat (the price shows on the button). You can field a limited number of Squads at once (start 3, up to 8 — the button shows how many you have against the limit); each new one costs Dat. Salvage from Large nests and Mega nests can raise the limit. <b>Quakers</b> — big stone blocks — lumber in while you drill, keep their distance and slam the ground to jolt the drill needle and shake your Stabilizers: send units out to kill them.<br>
+<b>Stock &amp; squads:</b> nothing refills on its own any more — every fabricator, Stabilizer and Probe has a free stock, and once it's empty each use costs Dat (the price shows on the button). You can field a limited number of Squads at once (start 3, up to 8 — the button shows how many you have against the limit); each new one costs Dat. Salvage from Large nests and Mega nests can raise the limit. <b>Wrecks</b> (derelict scrapers) lie hidden on every map, some beyond the barrier — park the Bastion on one for 8s to salvage it (it draws an ambush): Dat, refilled stocks, drones, a barracks module (+1 Squad limit) or a new fabricator for the run. <b>Quakers</b> — big stone blocks — lumber in while you drill, keep their distance and slam the ground to jolt the drill needle and shake your Stabilizers: send units out to kill them.<br>
 <b>Goal:</b> the ground is cracked all over: <b>follow the pulses of energy</b> running through the cracks back to their source to find a vein, then park the Bastion on its glowing centre and press <kbd>F</kbd> to lock on. Veins <b>emerge, ripen</b> a tier at a time, then go unstable and <b>collapse</b> — and new ones emerge elsewhere. Glowing <b>stray pockets</b> give a bearing toward the nearest vein when a unit reaches one; two bearings from different angles triangulate it. Locking on starts the <b>strike</b> at once: press <kbd>Space</kbd> to stop the needle on a good band of the strip (the thin sliver is a tier above the vein; red ruptures it) — the meter zooms in on where you hit and the drill starts; the first wave arrives about 20s later. While it drills, the needle drifts; Stabilizers hold it steady, and the tier you're paid is where it spends most of its time. If it drifts into the red, the vein ruptures and damages the Bastion. Drain veins for rewards — after 3, the contract vein stirs: it gives off no pulses, so triangulate it with bearings from stray pockets, then drain it to win.<br>
   <b>Controls:</b> drag to select · right-click to move/attack · right-click a friendly unit or building with combat units selected to <b>guard</b> it (escort it, fight off anything that comes near, then fall back) · <kbd>C</kbd> select all your units · <kbd>F</kbd> lock on to a vein / strike · <kbd>H</kbd> jump the camera to the Bastion · <kbd>WASD</kbd> or middle-drag to pan, scroll to zoom<br>
   <b>Touch:</b> tap to select · tap empty ground/an enemy/a resource to move/attack/harvest · drag to pan · hold still then drag to box-select · pinch to zoom · double-tap to select all of a kind<br>
@@ -1766,7 +1766,7 @@ function reset(landing){
   rand=seededRng(mapSeed);
   rollLayout();
   const land=landing||defaultLanding();
-  S={t:0,squadCap:SQUAD_CAP_START,quakes:[],quakeMsg:false,barrier:null,breachSite:null,breachVein:null,dat:tutorialMap?TUTORIAL_START_DAT:60,living:0,condensed:0,over:null,rerollCount:0,
+  S={t:0,wrecks:[],beacons:[],squadCap:SQUAD_CAP_START,quakes:[],quakeMsg:false,barrier:null,breachSite:null,breachVein:null,dat:tutorialMap?TUTORIAL_START_DAT:60,living:0,condensed:0,over:null,rerollCount:0,
     base:{x:land.x,y:land.y,hp:450+bastionHpBonus(),maxHp:450+bastionHpBonus(),r:BASE_R,dest:null,locked:false,gunCd:0,bigGunCd:0,pingCd:0},
     troops:[],harvesters:[],builders:[],relays:[],depots:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],shards:[],nades:[],
     veins:[],activeVein:null,throttleMul:1,ambientT:30,
@@ -1875,6 +1875,7 @@ function reset(landing){
     g.forEach((size,i)=>{const a=Math.PI+(i-(g.length-1)/2)*0.9+rnd(-0.2,0.2), rr=rnd(450,700);
       const q=nearestPlain(Math.max(150,Math.min(W-150,bs.x+Math.cos(a)*rr)),Math.max(150,Math.min(H-150,bs.y+Math.sin(a)*rr)));makeNest(q.x,q.y,size)})}
   // v4: the last stop — the contract vein is awake from the start, ringed by its great mounds
+  placePOIs(); // v4: wrecks (ported from v3)
   if(STOP_BAND&&stopInfo().final){S.contractAwake=true;const cv=S.veins.find(v=>v.contract);if(cv)raiseMounds(cv,CONTRACT_MOUNDS,'great')}
   rand=Math.random; // map built — live gameplay goes back to unseeded randomness
   cam={x:S.base.x,y:S.base.y,z:1};
@@ -2602,6 +2603,115 @@ function drawMotes(x0,y0,x1,y1){
     ctx.beginPath();ctx.moveTo(o.x-Math.cos(a)*L,o.y-Math.sin(a)*L);ctx.lineTo(o.x,o.y);ctx.stroke();
   });
   ctx.globalAlpha=1;
+}
+// ---------- places of interest: wrecks & beacons ----------
+// WRECKS are derelict scrapers lying out in the zone, hidden in the fog like everything else. Park
+// the Bastion on one and hold there WRECK_T seconds to salvage it — the noise draws a small ambush
+// the moment you start. Pay-out is rolled by depth (WRECK_LOOT): a Dat cache, every fabricator
+// refilled, spare drones, or a fabricator you don't own for the rest of the run.
+// BEACONS are old survey masts. Any unit (or the Bastion) standing at one for BEACON_T seconds
+// powers it up once: it sweeps BEACON_R around itself and marks every live vein and nest in that
+// radius on your map for good.
+const WRECK_T=8, WRECK_R=44, WRECK_REACH=80, WRECK_N={rim:2,dense:2,core:2}, WRECK_STOP_N=4, WRECK_AMBUSH={rim:3,dense:5,core:8}, WRECK_AMBUSH_D=480;
+const WRECK_DAT={rim:45,dense:75,core:120};
+const WRECK_LOOT={rim:{dat:0.35,refill:0.25,drones:0.1,squad:0.2,fab:0.1},dense:{dat:0.25,refill:0.25,drones:0.1,squad:0.2,fab:0.2},core:{dat:0.2,refill:0.2,drones:0.1,squad:0.2,fab:0.3}};
+const BEACON_T=3, BEACON_REACH=60, BEACON_R=1500, BEACON_N={rim:0,dense:0,core:0}; // v4: wrecks only for now
+const POI_GAP=700;
+// a spot in the band the Bastion can actually walk to, clear of the landing, vein sites, nests and
+// other places of interest
+function placePOI(band,reachable){
+  const sites=[...S.sites,S.contractSite,...(S.hiveSites||[])].filter(Boolean), others=[...S.wrecks,...S.beacons];
+  for(let t=0;t<60;t++){
+    const q=band==='core'?pointInRing(0,CORE_R-80,150):band==='dense'?pointInRing(CORE_R+80,DENSE_R-80,150):pointInRing(DENSE_R+80,EPI_REACH,150);
+    if(!q)continue;
+    const p=nearestPlain(q.x,q.y);
+    if(bandAt(p.x,p.y)!==band||!inMap(p.x,p.y,150))continue;
+    if(tcost(Math.floor(p.x/TCELL),Math.floor(p.y/TCELL),true)===Infinity)continue;
+    if(dist(p,S.base)<800||sites.some(st=>dist(st,p)<ZONE_R+150)||others.some(o=>dist(o,p)<POI_GAP))continue;
+    if(S.enemies.some(e=>e.kind==='nest'&&dist(e,p)<300))continue;
+    // reachable by the Bastion — from the landing, or (on a stop map) from where the breach comes out
+    if(reachable&&!astar(S.base.x,S.base.y,p.x,p.y,true,false)&&!(S.barrier&&S.barrier.out&&astar(S.barrier.out.x,S.barrier.out.y,p.x,p.y,true,false)))continue;
+    return p;
+  }
+  return null;
+}
+function placePOIs(){
+  S.wrecks=[];S.beacons=[];
+  if(tutorialMap)return;
+  Object.entries(STOP_BAND?{[STOP_BAND]:WRECK_STOP_N}:WRECK_N).forEach(([band,cnt])=>{for(let i=0;i<cnt;i++){const p=placePOI(band,true);if(p)S.wrecks.push({x:p.x,y:p.y,band,r:WRECK_R,prog:0,done:false,ambushed:false,seen:false,ang:rnd(0,Math.PI*2),blink:rnd(0,6)})}});
+  Object.keys(BEACON_N).forEach(band=>{for(let i=0;i<BEACON_N[band];i++){const p=placePOI(band,false);if(p)S.beacons.push({x:p.x,y:p.y,band,prog:0,on:false,seen:false,sweep:-1})}});
+}
+function rollWreckLoot(band){
+  const L=WRECK_LOOT[band];let r=Math.random();
+  for(const k of ['dat','refill','drones','squad','fab']){if(r<L[k])return k;r-=L[k]}
+  return 'dat';
+}
+function salvageWreck(w){
+  w.done=true;
+  const kind=rollWreckLoot(w.band);let text;
+  if(kind==='dat'){const a=WRECK_DAT[w.band];S.dat+=a;floatText(w.x,w.y-20,'+'+a+' Dat',C.dat);text=`a Dat Crystal cache (+${a})`}
+  else if(kind==='refill'){Object.keys(FABS).forEach(k=>{S.fab[k].n=FABS[k].charges;S.fab[k].rt=0});S.stabCharges=STAB_CHARGES;text='spare parts: every fabricator is refilled'}
+  else if(kind==='drones'){addDrones(2);text='2 intact repair drones'}
+  else if(kind==='squad'&&raiseSquadCap())text=`a barracks module — you can field ${S.squadCap} squads now`
+  else if(kind==='squad'){const a=WRECK_DAT[w.band];S.dat+=a;floatText(w.x,w.y-20,'+'+a+' Dat',C.dat);text=`a Dat Crystal cache (+${a})`}
+  else text=salvageFab().trim().replace(/^Salvaged /,'').replace(/[!.]$/,'');
+  burst(w.x,w.y,C.accent,24,150,0.7);sfx.veinDone();updateBuildBar();
+  msg(`Wreck salvaged — ${text}.`);
+}
+function updatePOIs(dt){
+  if(!S.wrecks)return;
+  const B=S.base;
+  S.wrecks.forEach(w=>{
+    if(!w.seen&&visible(w)){w.seen=true;msg('A derelict scraper wreck — park the Bastion on it to salvage it.')}
+    if(w.done)return;
+    const on=!B.locked&&dist(B,w)<WRECK_REACH;
+    if(!on)return;
+    if(!w.ambushed){w.ambushed=true;
+      const n=WRECK_AMBUSH[w.band], a=rnd(0,Math.PI*2);
+      for(let i=0;i<n;i++){const p=nearestPlain(Math.max(40,Math.min(W-40,w.x+Math.cos(a)*WRECK_AMBUSH_D+rnd(-80,80))),Math.max(40,Math.min(H-40,w.y+Math.sin(a)*WRECK_AMBUSH_D+rnd(-80,80))));spawnEnemy(p.x,p.y,'wave')}
+      msg(`Salvaging — hold position ${WRECK_T}s. The racket is drawing something in from the ${compassName(a)||'dark'}…`);sfx.wave();
+    }
+    w.prog=Math.min(1,w.prog+dt/WRECK_T);
+    if(w.prog>=1)salvageWreck(w);
+  });
+  S.beacons.forEach(b=>{
+    if(!b.seen&&visible(b)){b.seen=true;msg('A survey beacon — bring any unit to it to power it up and map the area around it.')}
+    if(b.sweep>=0)b.sweep+=dt;
+    if(b.on)return;
+    const near=dist(B,b)<BEACON_REACH+B.r||S.troops.some(t=>dist(t,b)<BEACON_REACH);
+    b.prog=near?Math.min(1,b.prog+dt/BEACON_T):Math.max(0,b.prog-dt/BEACON_T);
+    if(b.prog>=1){
+      b.on=true;b.sweep=0;let nv=0,nn=0;
+      S.veins.forEach(v=>{if(v.contract||!veinAlive(v)||dist(v,b)>BEACON_R)return;if(!v.seen||!v.mine.found)nv++;v.seen=true;v.mine.found=true});
+      S.enemies.forEach(e=>{if(e.kind!=='nest'||e.hp<=0||dist(e,b)>BEACON_R)return;if(!e.seen)nn++;e.seen=true});
+      sfx.ping();msg(`Beacon online — ${nv?nv+' new vein'+(nv===1?'':'s'):'no new veins'} and ${nn?nn+' nest'+(nn===1?'':'s'):'no nests'} marked within range.`);
+    }
+  });
+}
+function drawPOIs(){
+  if(!S.wrecks)return;
+  const t=S.t;
+  S.wrecks.forEach(w=>{if(!(w.seen||debugNoFog))return;
+    ctx.save();ctx.translate(w.x,w.y);ctx.rotate(w.ang);
+    ctx.fillStyle='rgba(0,0,0,0.35)';ctx.beginPath();ctx.ellipse(4,6,w.r*1.1,w.r*0.7,0,0,Math.PI*2);ctx.fill();
+    // a broken hull: body, a torn-off plate, two dead legs
+    ctx.fillStyle=w.done?'#3a3f46':'#59606a';ctx.strokeStyle='#1b1f24';ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(-w.r,-w.r*0.45);ctx.lineTo(w.r*0.55,-w.r*0.6);ctx.lineTo(w.r*0.9,-w.r*0.1);ctx.lineTo(w.r*0.6,w.r*0.5);ctx.lineTo(-w.r*0.7,w.r*0.55);ctx.closePath();ctx.fill();ctx.stroke();
+    ctx.fillStyle=w.done?'#2e3238':'#7b5a3c';ctx.fillRect(-w.r*0.55,-w.r*0.25,w.r*0.6,w.r*0.45);ctx.strokeRect(-w.r*0.55,-w.r*0.25,w.r*0.6,w.r*0.45);
+    ctx.strokeStyle=w.done?'#2e3238':'#4b5159';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(w.r*0.7,w.r*0.4);ctx.lineTo(w.r*1.3,w.r*0.9);ctx.moveTo(-w.r*0.9,-w.r*0.3);ctx.lineTo(-w.r*1.5,-w.r*0.7);ctx.stroke();
+    if(!w.done){const on=Math.sin(t*3+w.blink)>0.3;ctx.fillStyle=on?C.accent:'#6b5420';ctx.beginPath();ctx.arc(w.r*0.3,-w.r*0.2,3.5,0,Math.PI*2);ctx.fill()}
+    ctx.restore();
+    if(!w.done&&w.prog>0){ctx.strokeStyle=C.accent;ctx.lineWidth=3;ctx.beginPath();ctx.arc(w.x,w.y,w.r+14,-Math.PI/2,-Math.PI/2+w.prog*Math.PI*2);ctx.stroke()}
+  });
+  S.beacons.forEach(b=>{if(!(b.seen||debugNoFog))return;
+    const col=b.on?'#8fe3ff':'#5c7f93', pul=0.5+0.5*Math.sin(t*2);
+    ctx.fillStyle='rgba(0,0,0,0.35)';ctx.beginPath();ctx.ellipse(b.x+3,b.y+5,16,11,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#2b333c';ctx.strokeStyle=col;ctx.lineWidth=2;ctx.beginPath();ctx.arc(b.x,b.y,14,0,Math.PI*2);ctx.fill();ctx.stroke();
+    ctx.strokeStyle=col;ctx.lineWidth=2;for(let k=0;k<3;k++){const a=k*Math.PI*2/3-Math.PI/2;ctx.beginPath();ctx.moveTo(b.x,b.y);ctx.lineTo(b.x+Math.cos(a)*20,b.y+Math.sin(a)*20);ctx.stroke()}
+    ctx.fillStyle=b.on?'#dff7ff':`rgba(143,227,255,${0.3+0.5*pul})`;ctx.beginPath();ctx.arc(b.x,b.y,5,0,Math.PI*2);ctx.fill();
+    if(!b.on&&b.prog>0){ctx.strokeStyle='#8fe3ff';ctx.lineWidth=3;ctx.beginPath();ctx.arc(b.x,b.y,26,-Math.PI/2,-Math.PI/2+b.prog*Math.PI*2);ctx.stroke()}
+    if(b.sweep>=0&&b.sweep<2.5){const f=b.sweep/2.5;ctx.globalAlpha=(1-f)*0.7;ctx.strokeStyle='#8fe3ff';ctx.lineWidth=4;ctx.beginPath();ctx.arc(b.x,b.y,BEACON_R*f,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1}
+  });
 }
 function drawNest(n){
   const R=n.r, pul=0.5+0.5*Math.sin(S.t*2.2+n.ph), fl=n.flashT>0;
@@ -4455,6 +4565,7 @@ function update(dt){
   updateQuakes(dt);
   updateNests(dt);
   updateMounds(dt);
+  updatePOIs(dt);
   updateFabShots(dt);
   updateDrones(dt);
   if(!B.locked||S.mods.bastionShootWhileDrilling){
@@ -5653,6 +5764,7 @@ function draw(){
     ctx.globalAlpha=p*0.8*fl;ctx.fillStyle=C.zone;ctx.beginPath();ctx.arc(c.x,c.y,c.r,0,Math.PI*2);ctx.fill();
     ctx.globalAlpha=0.35+0.5*p;ctx.strokeStyle=C.zone;ctx.lineWidth=2;ctx.beginPath();ctx.arc(c.x,c.y,c.r+4+(1-p)*22,0,Math.PI*2);ctx.stroke();
     ctx.globalAlpha=1});
+  drawPOIs();
   // enemies (only visible)
   S.enemies.forEach(e=>{if(e.kind==='nest'){if(debugNoFog||e.seen)drawNest(e);return}
     if(e.kind==='quaker'){if(debugNoFog||visible(e))drawQuaker(e);return}
@@ -5731,6 +5843,7 @@ function drawMini(){const s=mini.width/W;mctx.fillStyle='#10151b';mctx.fillRect(
   S.veins.forEach(v=>{if(!debugNoFog&&(v.contract?!v.mine.found:!v.seen))return;mctx.strokeStyle=v.contract?C.living:tierBlendCol(v);mctx.fillStyle=mctx.strokeStyle;mctx.globalAlpha=veinAlive(v)?1:0.3;mctx.beginPath();mctx.arc(v.x*s,v.y*s,v.hive?4.5:2.5,0,Math.PI*2);mctx.fill();mctx.globalAlpha=1});
   S.strays.forEach(st=>{if(!st.live||sightAt(st)<=0)return;mctx.fillStyle=STRAY_COL;mctx.globalAlpha=0.6+0.4*Math.sin(S.t*3);mctx.beginPath();mctx.arc(st.x*s,st.y*s,2.5,0,Math.PI*2);mctx.fill();mctx.globalAlpha=1});
   S.bearings.forEach(b=>{mctx.strokeStyle=b.target.contract?C.living:tierBlendCol(b.target);mctx.globalAlpha=0.7;mctx.lineWidth=1;mctx.setLineDash([3,3]);mctx.beginPath();mctx.moveTo(b.x*s,b.y*s);mctx.lineTo((b.x+Math.cos(b.ang)*4200)*s,(b.y+Math.sin(b.ang)*4200)*s);mctx.stroke();mctx.setLineDash([]);mctx.globalAlpha=1});
+  (S.wrecks||[]).forEach(w=>{if(!(w.seen||debugNoFog))return;mctx.fillStyle=w.done?'#4b5159':C.accent;mctx.fillRect(w.x*s-2.5,w.y*s-2.5,5,5)});
   S.nodes.forEach(n=>{if((n.found||debugNoFog)&&n.amt>0){mctx.fillStyle=C.dat;mctx.fillRect(n.x*s-1.5,n.y*s-1.5,3,3)}});
   S.relays.forEach(r=>{if(r.built){mctx.fillStyle=C.cable;mctx.fillRect(r.x*s-2,r.y*s-2,4,4)}});
   S.depots.forEach(de=>{if(de.built){mctx.fillStyle=de.hp>0?C.dat:C.enemy;mctx.fillRect(de.x*s-2,de.y*s-2,4,4)}});
