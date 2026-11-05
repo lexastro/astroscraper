@@ -4184,6 +4184,7 @@ function update(dt){
   updateDrones(dt);
   if(!B.locked||S.mods.bastionShootWhileDrilling){
     let best=null,bd=BASE_GUN_RANGE;S.enemies.forEach(e=>{const d=dist(e,B);if(d<bd){bd=d;best=e}});
+    if(best){B.aim=Math.atan2(best.y-B.y,best.x-B.x);B.aimT=S.t}
     if(best&&B.gunCd<=0){damageEnemy(best,BASE_GUN_DMG);tracer(B,best,C.accent);B.gunCd=BASE_GUN_CD}
   }
   // Big Guns (reward card): a slow, long-range, big-blast artillery piece bolted onto the
@@ -4755,6 +4756,85 @@ function pickReward(i){
   updateBuildBar();
 }
 
+// ---------- the Bastion: a quad walker ----------
+// Art from icons/bastionWalker.svg, in that file's coordinates around its pivot (WK_P). The lower
+// layer is four legs (the NW one is drawn and rotated 90° for each of the others), which turns to
+// face where the walker is going; the top layer is the turret, which turns on its own to aim. Up
+// (-y) is the front in the art. Each part is the SVG's outline path: its outer ring is filled in
+// the part's colour, then the whole path (outline ring) in black.
+const WK_P={x:83.25,y:89.41}, WK_SCALE=0.95, WK_HIP={x:75.87,y:82.78}, WK_STRIDE=34, WK_SWING=0.32, WK_TURN=2.6;
+const wkPart=(col,d)=>({col,ring:new Path2D(d),fill:new Path2D(d.slice(d.indexOf('ZM')+1))});
+const WK_LEG_OUTER=[ // slides along the leg (telescopes) as the foot lifts
+  wkPart('#999','M52.98,57.59l10.86,10.86-2.3,2.3-10.86-10.86,2.3-2.3h0ZM52.98,56.17l-3.72,3.72,12.27,12.27,3.72-3.72-12.27-12.27h0Z'),
+  wkPart('#4d4d4d','M63.41,68.02l1.38,1.38-2.3,2.3-1.38-1.38,2.3-2.3h0ZM63.41,66.61l-3.72,3.72,2.8,2.8,3.72-3.72-2.8-2.8h0Z'),
+  wkPart('#ccc','M55.21,49.12l2.41,2.41-13,13-2.41-2.41,5.45-7.55,7.55-5.45h0ZM55.32,47.81l-8.37,6.05-6.05,8.37,3.72,3.72,14.42-14.42-3.72-3.72h0Z'),
+];
+const WK_LEG_INNER=wkPart('#999','M65.46,70.07l10.86,10.86-2.3,2.3-10.86-10.86,2.3-2.3h0ZM65.46,68.65l-3.72,3.72,12.27,12.27,3.72-3.72-12.27-12.27h0Z');
+const WK_FOOT={x:49.8,y:56.6};
+const WK_TOP=[
+  wkPart('#999','M68.89,86.71v12.2h-16.93v-12.2h16.93ZM69.89,85.71h-18.93v14.2h18.93v-14.2h0Z'),
+  wkPart('#e6e6e6','M52.3,67.12l1.84,40.76h-14.88l1.84-40.76h11.21ZM53.25,66.12h-13.12l-1.93,42.76h16.97l-1.93-42.76h0Z'),
+  wkPart('#999','M114.83,86.71v12.2h-16.93v-12.2h16.93ZM115.83,85.71h-18.93v14.2h18.93v-14.2h0Z'),
+  wkPart('#e6e6e6','M125.7,67.12l1.84,40.76h-14.88l1.84-40.76h11.21ZM126.65,66.12h-13.12l-1.93,42.76h16.97l-1.93-42.76h0Z'),
+];
+const WK_HULL=[ // filled, then stroked black
+  {col:'#e6e6e6',p:new Path2D('M100.19,77.2V104.47H66.6V77.2L73.92,74.39V85.73H92.86V74.39Z')},
+  {col:'#999',p:new Path2D('M73.93,92.49h18.93v18.93h-18.93Z')},
+  {col:'#999',p:new Path2D('M92.86,72.09v13.84h-18.94v-13.84l3.52-1.64c3.83-1.79,8.06-1.79,11.9,0l3.52,1.64Z')},
+];
+// leg order: NW, NE, SE, SW (rotation k·90°); trot gait — diagonal pairs step together; sign makes
+// a positive swing angle carry that foot forward
+const WK_LEGS=[{off:0,sg:1},{off:0.5,sg:-1},{off:0,sg:-1},{off:0.5,sg:1}];
+function angLerp(a,b,k){let d=b-a;while(d>Math.PI)d-=Math.PI*2;while(d<-Math.PI)d+=Math.PI*2;return a+d*k}
+function angStep(a,b,max){let d=b-a;while(d>Math.PI)d-=Math.PI*2;while(d<-Math.PI)d+=Math.PI*2;return a+Math.max(-max,Math.min(max,d))}
+// Gait bookkeeping, from how far the Bastion actually moved since the last frame.
+function updateWalker(B){
+  const dt=Math.max(0,Math.min(0.1,S.t-(B._wt??S.t)));B._wt=S.t;
+  if(B.heading==null){B.heading=-Math.PI/2;B.turret=-Math.PI/2;B.walk=0;B.gaitA=0;B._px=B.x;B._py=B.y}
+  const dx=B.x-B._px, dy=B.y-B._py, d=Math.hypot(dx,dy);B._px=B.x;B._py=B.y;
+  const moving=d>0.01&&d<60;
+  if(moving){B.walk+=d;B.heading=angLerp(B.heading,Math.atan2(dy,dx),Math.min(1,dt*6))}
+  B.gaitA+=((moving&&!B.locked?1:0)-B.gaitA)*Math.min(1,dt*(moving?8:4));
+  B.plant=(B.plant||0)+((B.locked?1:0)-(B.plant||0))*Math.min(1,dt*3);
+  // turret: onto whatever it last fired at, else back to the direction of travel
+  const aim=S.t-(B.aimT??-99)<1.5?B.aim:B.heading;
+  B.turret=angStep(B.turret,aim,WK_TURN*dt);
+}
+function wkFill(parts,flash){parts.forEach(q=>{ctx.fillStyle=flash?'#fff':q.col;ctx.fill(q.fill);ctx.fillStyle='#000';ctx.fill(q.ring,'evenodd')})}
+function drawWalker(B){
+  updateWalker(B);
+  const flash=B.flashT>0, ph=B.walk/WK_STRIDE;
+  ctx.save();ctx.translate(B.x,B.y);
+  // shadow
+  ctx.fillStyle='rgba(0,0,0,0.35)';ctx.beginPath();ctx.ellipse(4,6,B.r*1.25,B.r*1.15,0,0,Math.PI*2);ctx.fill();
+  ctx.scale(WK_SCALE,WK_SCALE);
+  // lower layer: legs, turned to the heading
+  ctx.save();ctx.rotate(B.heading+Math.PI/2);
+  WK_LEGS.forEach((L,k)=>{
+    const f=((ph+L.off)%1+1)%1, stance=f<0.5;
+    const swing=(stance?1-4*f:-1+4*(f-0.5))*WK_SWING*L.sg*B.gaitA;
+    const lift=stance?0:Math.sin(Math.PI*(f-0.5)*2)*B.gaitA;
+    const ext=-3*lift+3*B.plant; // retracts as it lifts; braced out when locked down
+    ctx.save();ctx.rotate(k*Math.PI/2);ctx.translate(-WK_P.x,-WK_P.y);
+    ctx.translate(WK_HIP.x,WK_HIP.y);ctx.rotate(swing);ctx.translate(-WK_HIP.x,-WK_HIP.y);
+    wkFill([WK_LEG_INNER],flash);
+    ctx.save();ctx.translate(-0.7071*ext,-0.7071*ext);
+    if(lift>0.01){ctx.translate(WK_FOOT.x,WK_FOOT.y);ctx.scale(1+0.14*lift,1+0.14*lift);ctx.translate(-WK_FOOT.x,-WK_FOOT.y)}
+    wkFill(WK_LEG_OUTER,flash);
+    if(B.plant>0.05){ctx.globalAlpha=B.plant;ctx.strokeStyle=C.accent;ctx.lineWidth=1.6;ctx.beginPath();ctx.arc(WK_FOOT.x,WK_FOOT.y,7,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1}
+    ctx.restore();
+    ctx.restore();
+  });
+  ctx.restore();
+  // top layer: the turret
+  ctx.rotate(B.turret+Math.PI/2);ctx.translate(-WK_P.x,-WK_P.y);
+  wkFill(WK_TOP,flash);
+  ctx.lineWidth=1;ctx.strokeStyle='#000';
+  WK_HULL.forEach(q=>{ctx.fillStyle=flash?'#fff':q.col;ctx.fill(q.p);ctx.stroke(q.p)});
+  // status light on the dome: gold while locked down, blue while mobile
+  ctx.fillStyle=B.locked?C.accent:C.ally;ctx.beginPath();ctx.arc(WK_P.x,77.5,2.6,0,Math.PI*2);ctx.fill();
+  ctx.restore();
+}
 // ---------- draw ----------
 function drawCable(u,col){
   if(!u.trail||u.trail.length===0)return;
@@ -5107,13 +5187,8 @@ function draw(){
     if(!alive)drawCutGlyph(de.x,de.y);
     if(de.hp<de.maxHp)hpbar(de.x,de.y-20,22,de.hp/de.maxHp);
   });
-  // base
-  ctx.save();ctx.translate(B.x,B.y);ctx.fillStyle=B.flashT>0?'#fff':(B.locked?'#4a3a1c':'#2b3745');ctx.strokeStyle=B.locked?C.accent:C.ally;ctx.lineWidth=2.5;
-  ctx.beginPath();ctx.rect(-B.r,-B.r*0.7,B.r*2,B.r*1.4);ctx.fill();ctx.stroke();
-  ctx.fillStyle='#8d9aa8';for(let i=-1;i<=1;i++){ctx.fillRect(i*18-6,-B.r*0.7-6,12,6);ctx.fillRect(i*18-6,B.r*0.7,12,6)}
-  ctx.fillStyle=C.accent;ctx.beginPath();ctx.arc(0,0,9,0,Math.PI*2);ctx.fill();
-  if(B.locked){ctx.strokeStyle=C.accent;ctx.lineWidth=2;for(let i=0;i<4;i++){const a=i*Math.PI/2+Math.PI/4;ctx.beginPath();ctx.moveTo(Math.cos(a)*B.r*1.1,Math.sin(a)*B.r*1.1);ctx.lineTo(Math.cos(a)*B.r*1.5,Math.sin(a)*B.r*1.5);ctx.stroke()}}
-  ctx.restore();hpbar(B.x,B.y-B.r-12,B.r*2,B.hp/B.maxHp);
+  // base: the quad walker
+  drawWalker(B);hpbar(B.x,B.y-B.r*1.5-8,B.r*2,B.hp/B.maxHp);
   if(WIRELESS_ENABLED){
     const bwt=0.5+0.5*Math.sin(S.t*2.2);
     ctx.strokeStyle=C.cable;ctx.globalAlpha=0.2*bwt;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(B.x,B.y,WIRELESS_TOL_DENSE*S.mods.relayTolMult,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;
