@@ -1585,10 +1585,14 @@ const LANDING_MARGIN=260;
 // the Bastion can't touch down on a vein, and the glow says little about where in it the vein is.
 // Empty vein sites don't block landing (they aren't shown); the opening vein and later respawns
 // pick a site well clear of the Bastion instead.
+// SHOW_VEIN_HAZE: off for now — the landing map shows no hint of veins and the whole open Rim is
+// legal, so landing near one is down to luck. Flip it back on to restore the hazes and their
+// no-landing rings (the haze offsets are still rolled either way, so map seeds don't change).
+const SHOW_VEIN_HAZE=false;
 const LANDING_HAZE_R=620, VEIN_HAZE_OFF=320, HAZE_GLOW_R=1000, LANDING_SITE_CLEAR=450;
 // a haze offset: any direction, anywhere within VEIN_HAZE_OFF (two rolls, like the old x/y pair)
 const rollHaze=()=>{const a=rnd(0,Math.PI*2),d=VEIN_HAZE_OFF*Math.sqrt(rnd(0,1));return{x:Math.cos(a)*d,y:Math.sin(a)*d}};
-const hazedVeins=()=>S&&S.veins?S.veins.filter(v=>!v.contract&&!v.opening&&veinAlive(v)&&v.haze):[];
+const hazedVeins=()=>SHOW_VEIN_HAZE&&S&&S.veins?S.veins.filter(v=>!v.contract&&!v.opening&&veinAlive(v)&&v.haze):[];
 function nearVeinSite(x,y){return hazedVeins().some(v=>Math.hypot(v.x+v.haze.x-x,v.y+v.haze.y-y)<LANDING_HAZE_R)}
 function canLandAt(x,y){return inMap(x,y,LANDING_MARGIN)&&epiDist(x,y)>=DENSE_R+LANDING_MARGIN&&!nearVeinSite(x,y)}
 // Where the Bastion sits on the preview before a spot is picked: the deepest-Rim corner, pulled in.
@@ -1851,8 +1855,8 @@ function drawMenuMap(){
   menuCx.strokeStyle=C.accent;menuCx.setLineDash([5,4]);menuCx.lineWidth=1.5;
   menuCx.beginPath();menuCx.arc(ex,ey,(DENSE_R+LANDING_MARGIN)*s,0,Math.PI*2);menuCx.stroke();
   menuCx.setLineDash([]);
-  // No vein markers before landing — just a haze of energy roughly where veins are stirring (each
-  // haze sits a few hundred units off its vein), so landing is still an informed choice.
+  // No vein markers before landing. With SHOW_VEIN_HAZE on, a haze of energy marks roughly where
+  // veins are stirring (each haze sits a few hundred units off its vein); off, there's no hint.
   menuCx.save();menuCx.globalCompositeOperation='lighter';
   hazedVeins().forEach(v=>{const hx=(v.x+v.haze.x)*s,hy=(v.y+v.haze.y)*s,hr=HAZE_GLOW_R*s;
     // flat across the middle, so the brightest point isn't a giveaway either
