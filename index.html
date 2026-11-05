@@ -293,7 +293,8 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
      off the edge where the scroll can't reach them) */
   .build{align-self:stretch;max-width:100%;box-sizing:border-box}
   .build button{flex:0 0 auto;min-width:60px}
-  .build button .cost,.build button .key{display:none}
+  .build button .key{display:none}
+  .build button .cost{font-size:9px}
   .unitActions{padding-left:8px}
   .unitActions button .key{display:none}
   /* minimap: minimized by default above the build bar (with margin), with an expand/collapse icon */
@@ -316,7 +317,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   .build button{flex:1 1 0;min-width:0;align-items:center;text-align:center;padding:7px 2px;font-size:10px;line-height:1.15;gap:1px}
   .build button>span{max-width:100%;overflow-wrap:anywhere}
   .build button .icon{margin:0;font-size:15px}
-  .build button#bStab .cost,.build button#bPing .cost{display:block;font-size:8px;letter-spacing:-.05em}
+  .build button .cost{display:block;font-size:8px;letter-spacing:-.05em}
 }
 /* phone, sideways: little height to spare — tighter build bar, and the select-all buttons stand in a
    column beside the minimap instead of on top of it (clear of the drill meter, bottom centre) */
@@ -356,31 +357,21 @@ body.inMenu :is(#game,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMeter,.mini,.
   <!-- Live drilling readout (speed picking itself happens in the #drillSelectOverlay popup) — sits
        in this same left-side stack, above unitActions, so it never collides with the toast stack
        at the top of the screen or the always-on help panel. -->
-  <div class="throttle" id="throttlePanel" hidden>
-    <span class="thSpeed" id="thSpeed">Normal</span>
-    <button id="bPause"><span id="bPauseLabel">Pause</span><span class="key">P</span></button>
-    <span class="thStat dat" id="thBurn">−0 dat/s</span>
-    <span class="thStat condensed" id="thRate">+0 cond/min</span>
-  </div>
   <!-- Contextual: only the actions relevant to the currently-selected unit type appear here, above
        the build bar, instead of always sitting in it regardless of what's selected. -->
   <div class="unitActions" id="unitActions">
-    <button id="bResumeAuto" hidden><span class="icon">↻</span><span>Resume Auto-Gather</span><span class="key">R</span></button>
-    <button id="bToggleRepair" hidden><span class="icon">⚙</span><span id="bRepairLabel">Auto-Repair: On</span><span class="key">G</span></button>
     <button id="bFollow" hidden><span class="icon">➤</span><span id="bFollowLabel">Follow Bastion</span><span class="key">V</span></button>
-    <button id="bBuildTroop" hidden><span class="icon">▲</span><span>Squad</span><span class="cost" id="cTroopCost">30 dat</span></button>
-    <button id="bBuildGrenadier" hidden><span class="icon">✺</span><span>Grenadier</span><span class="cost" id="cGrenadierCost">45 dat</span></button>
-    <button id="bBuildHarv" hidden><span class="icon">⛏</span><span>Harvester</span><span class="cost" id="cHarvCost">75 dat</span></button>
-    <button id="bBuildBuilder" hidden><span class="icon">⚒</span><span>Builder</span><span class="cost" id="cBuilderCost">20 dat</span></button>
-    <button id="bBuildArtillery" hidden><span class="icon">☄</span><span>Artillery</span><span class="cost" id="cArtilleryCost">140 dat</span></button>
-    <button id="bBuildMech" hidden><span class="icon">◫</span><span>Mech</span><span class="cost" id="cMechCost">90 dat</span></button>
   </div>
+  <!-- v2: every button is a Bastion fabricator — charges that refill on their own timer, no Dat
+       cost. Structures (data-mode) are aimed and launched; units (data-unit) deploy at once. -->
   <div class="build" id="buildBar">
-    <button id="bWall" data-mode="wall"><span class="icon">▭</span><span>Wall</span><span class="cost" id="cWall">5 dat</span><span class="key">1</span></button>
-    <button id="bTurret" data-mode="turret"><span class="icon">⌖</span><span>Turret</span><span class="cost" id="cTurret">75 dat</span><span class="key">2</span></button>
-    <button id="bRelay" data-mode="relay"><span class="icon">⟐</span><span>Relay</span><span class="cost" id="cRelay">15 dat</span><span class="key">3</span></button>
-    <button id="bDepot" data-mode="depot"><span class="icon">⊟</span><span>Depot</span><span class="cost" id="cDepot">150 dat</span><span class="key">4</span></button>
+    <button id="bTurret" data-mode="turret"><span class="icon">⌖</span><span>Turret</span><span class="cost" id="cf_turret">●●</span><span class="key">1</span></button>
+    <button id="bRelay" data-mode="relay"><span class="icon">⟐</span><span>Relay</span><span class="cost" id="cf_relay">●●●</span><span class="key">2</span></button>
+    <button id="bFabTroop" data-unit="troop"><span class="icon">▲</span><span>Squad</span><span class="cost" id="cf_troop">●●</span><span class="key">3</span></button>
+    <button id="bFabGrenadier" data-unit="grenadier" hidden><span class="icon">✺</span><span>Grenadier</span><span class="cost" id="cf_grenadier">●●</span><span class="key">4</span></button>
     <button id="bStab" data-mode="stabilizer"><span class="icon">◈</span><span>Stabilizer</span><span class="cost" id="cStab">●●●</span><span class="key">5</span></button>
+    <button id="bFabArtillery" data-unit="artillery" hidden><span class="icon">☄</span><span>Artillery</span><span class="cost" id="cf_artillery">●</span><span class="key">6</span></button>
+    <button id="bFabMech" data-unit="mech" hidden><span class="icon">◫</span><span>Mech</span><span class="cost" id="cf_mech">●</span><span class="key">7</span></button>
     <button id="bLock"><span class="icon">⛏</span><span id="bLockLabel">Begin Drilling</span><span class="key">L</span></button>
     <button id="bPing"><span class="icon">◬</span><span id="bPingLabel">Probe</span><span class="cost" id="cProbe">●●●</span><span class="key">N</span></button>
   </div>
@@ -398,18 +389,16 @@ body.inMenu :is(#game,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMeter,.mini,.
 <div class="unitSelCtrl" id="unitSelCtrl">
   <button id="selBaseBtn2" aria-label="Select Bastion">⛨</button>
   <button id="selTroopsBtn2" aria-label="Select all Squads">▲<span class="cnt" id="cntTroops2">0</span></button>
-  <button id="selHarvBtn2" aria-label="Select all Harvesters">⛏<span class="cnt" id="cntHarv2">0</span></button>
-  <button id="selBuBtn2" aria-label="Select all Builders">⚒<span class="cnt" id="cntBu2">0</span></button>
 </div>
 
 <div class="help" id="help">
   <button id="helpClose" aria-label="Close">×</button>
-  <b>Goal:</b> harvesters gather Dat Crystal automatically. The ground is cracked all over: <b>follow the pulses of energy</b> running through the cracks back to their source to find a vein, then park the Bastion on its glowing centre and press <kbd>L</kbd> to lock on. Veins <b>emerge, ripen</b> a tier at a time, then go unstable and <b>collapse</b> — and new ones emerge elsewhere. Glowing <b>stray pockets</b> give a bearing toward the nearest vein when a unit reaches one; two bearings from different angles triangulate it. Locking on starts the <b>strike</b> at once: press <kbd>Space</kbd> to stop the needle on a good band of the strip (the thin sliver is a tier above the vein; red ruptures it) — the meter zooms in on where you hit and the drill starts; the first wave arrives about 20s later. While it drills, the needle drifts; Stabilizers hold it steady, and the tier you're paid is where it spends most of its time. If it drifts into the red, the vein ruptures and damages the Bastion. Drain veins for rewards — after 3, the contract vein stirs: it gives off no pulses, so triangulate it with bearings from stray pockets, then drain it to win.<br>
-  <b>Controls:</b> drag to select · right-click to move/attack/harvest · right-click a friendly unit or building with combat units selected to <b>guard</b> it (escort it, fight off anything that comes near, then fall back) ·<kbd>WASD</kbd> or middle-drag to pan, scroll to zoom<br>
+  <b>Goal:</b> the ground is cracked all over: <b>follow the pulses of energy</b> running through the cracks back to their source to find a vein, then park the Bastion on its glowing centre and press <kbd>L</kbd> to lock on. Veins <b>emerge, ripen</b> a tier at a time, then go unstable and <b>collapse</b> — and new ones emerge elsewhere. Glowing <b>stray pockets</b> give a bearing toward the nearest vein when a unit reaches one; two bearings from different angles triangulate it. Locking on starts the <b>strike</b> at once: press <kbd>Space</kbd> to stop the needle on a good band of the strip (the thin sliver is a tier above the vein; red ruptures it) — the meter zooms in on where you hit and the drill starts; the first wave arrives about 20s later. While it drills, the needle drifts; Stabilizers hold it steady, and the tier you're paid is where it spends most of its time. If it drifts into the red, the vein ruptures and damages the Bastion. Drain veins for rewards — after 3, the contract vein stirs: it gives off no pulses, so triangulate it with bearings from stray pockets, then drain it to win.<br>
+  <b>Controls:</b> drag to select · right-click to move/attack · right-click a friendly unit or building with combat units selected to <b>guard</b> it (escort it, fight off anything that comes near, then fall back) ·<kbd>WASD</kbd> or middle-drag to pan, scroll to zoom<br>
   <b>Touch:</b> tap to select · tap empty ground/an enemy/a resource to move/attack/harvest · drag to pan · hold still then drag to box-select · pinch to zoom · double-tap to select all of a kind<br>
-  <b>Build:</b> <kbd>1</kbd> wall · <kbd>2</kbd> turret · <kbd>3</kbd> relay · <kbd>4</kbd> depot (drop-off closer than the Bastion) · <kbd>5</kbd> fire a Stabilizer from the Bastion (3 charges, one back every 15s; aim at a vein's drifting hotspot and lead it — a hit pins it, buys the vein 15s before it collapses, widens the strike bands and steadies the needle; with all 3 pinned, drag the weight on the steering pad to push the needle — the wider their triangle, the further it goes, but the one you lean on draws the enemy) — everything can be built any time within range · right-click a still-queued structure to cancel it for a full refund<br>
+  <b>Fabricators:</b> nothing costs Dat — every button holds charges that the Bastion's fabricators refill on their own timer. <kbd>1</kbd> launch a turret · <kbd>2</kbd> launch a relay · <kbd>3</kbd> deploy a squad · <kbd>4</kbd> grenadier · <kbd>6</kbd> artillery · <kbd>7</kbd> mech (once unlocked) · <b>Dat Crystal</b>: drive the Bastion or a unit over a deposit to scoop it up — your <b>repair drones</b> fly out on their own and spend it patching up Stabilizers, turrets, relays and the Bastion · <kbd>5</kbd> fire a Stabilizer from the Bastion (3 charges, one back every 15s; aim at a vein's drifting hotspot and lead it — a hit pins it, buys the vein 15s before it collapses, widens the strike bands and steadies the needle; with all 3 pinned, drag the weight on the steering pad to push the needle — the wider their triangle, the further it goes, but the one you lean on draws the enemy) — turrets and relays land anywhere inside the Bastion's ring (or a relay's)<br>
   <b>Tether:</b> wireless works freely on the Rim; past it, units need a live cable back to the Bastion or a Relay, or they go dark — chain Relays to push your reach further out. A dark unit still takes orders, but its Sanity drains; reconnect in time to recover it, or it defects into a hostile Corrupted enemy<br>
-  <kbd>N</kbd> recon probe: click a direction and it flies straight out on its fiber line, lifting the fog along a narrow strip for 20s and permanently finding deposits and veins it passes (3 charges, one back every 20s) · <kbd>V</kbd> follow Bastion (escorts it as it moves, until given another order) · <kbd>G</kbd> repair mode · <kbd>R</kbd> resume harvester auto-gather · <kbd>Esc</kbd> cancel, or pause the whole game if nothing's open · <kbd>`</kbd> reveal map (debug)
+  <kbd>N</kbd> recon probe: click a direction and it flies straight out on its fiber line, lifting the fog along a narrow strip for 20s and permanently finding deposits and veins it passes (3 charges, one back every 20s) · <kbd>V</kbd> follow Bastion (escorts it as it moves, until given another order) · <kbd>Esc</kbd> cancel, or pause the whole game if nothing's open · <kbd>`</kbd> reveal map (debug)
 </div>
 
 <!-- Guided tutorial: one instruction at a time, advancing on its own as the player does each thing. -->
@@ -650,6 +639,26 @@ const BASE_GUN_RANGE=260, BASE_GUN_DMG=18, BASE_GUN_CD=0.5;
 const PING_REACH=2400, PING_REVEAL_R=450, PING_ENEMY_T=20, PING_CD=60;
 const WALL_HP=220;
 const COST={wall:5,turret:75,relay:15,depot:150,stabilizer:20,harvester:75,troop:30,builder:20,grenadier:45,artillery:140,mech:90};
+// v2 fabricators: nothing is bought with Dat any more. Each kind of thing the Bastion can make has
+// its own fabricator holding `charges`; a spent charge comes back after `t` seconds (one at a time,
+// like the Stabilizer and Probe). Structures are aimed and launched into the build ring; units
+// deploy straight out of the Bastion. A lost unit or structure is never refunded.
+const FABS={
+  turret:{name:'Turret',charges:2,t:45,kind:'structure'},
+  relay:{name:'Relay',charges:3,t:20,kind:'structure'},
+  troop:{name:'Squad',charges:2,t:40,kind:'unit'},
+  grenadier:{name:'Grenadier',charges:2,t:50,kind:'unit',unlock:'unlockGrenadier'},
+  artillery:{name:'Artillery',charges:1,t:90,kind:'unit',unlock:'unlockArtillery'},
+  mech:{name:'Mech',charges:1,t:70,kind:'unit',unlock:'unlockMech'},
+};
+const FAB_FLIGHT_SPEED=380;
+// Repair drones (replace Builders): a small flying swarm that lives on the Bastion and launches on
+// its own to patch up anything damaged within DRONE_RANGE of it — Stabilizers first, then relays,
+// turrets and the Bastion itself. Repairs burn Dat Crystal (DRONE_DAT_PER_SEC per drone at work).
+// They fly, so the current (all-melee) enemies can't touch them, and they ignore terrain.
+const DRONE_COUNT=4, DRONE_SPEED=170, DRONE_RANGE=760, DRONE_HPS=9, DRONE_DAT_PER_SEC=0.4, DRONE_WORK_R=18;
+// Dat Crystal deposits are pickups now: the Bastion or any unit that rolls over one scoops up the lot.
+const DAT_PICKUP_R=26;
 // Persistent meta-progression: saved to localStorage, carried across runs and page reloads —
 // not cookies, since this never needs to leave the browser or ride along with a server request,
 // and localStorage holds far more than a cookie's ~4KB.
@@ -858,30 +867,26 @@ function rerollCost(){return REROLL_BASE_COST+S.rerollCount*REROLL_COST_STEP}
 function spawnFreeTroops(n,kind){for(let i=0;i<n;i++)S.troops.push(mkTroop(Date.now()+Math.floor(Math.random()*1000)+i,kind))}
 const UPGRADES={
   Common:[
-    {id:'carry1',name:'Reinforced Haulers I',desc:'Harvester carry capacity +25%.',apply:()=>{S.mods.carryMult*=1.25}},
     {id:'dmg1',name:'Battle Drills I',desc:'Squad damage +10%.',apply:()=>{S.mods.troopDmgMult*=1.1}},
     {id:'grenrate1',name:'Lubed Tubes I',desc:'Grenadier fire rate +10%.',apply:()=>{S.mods.grenFireRateMult*=1.1}},
     {id:'grensplash1',name:'Blast Power I',desc:'Explosive blast radius +10%.',apply:()=>{S.mods.grenSplashMult*=1.1}},
-    {id:'spd1',name:'Quick March',desc:'Harvester & Builder move speed +10%.',apply:()=>{S.mods.moveSpeedMult*=1.1}},
     {id:'vis1',name:"Surveyor's Eye",desc:'Vision radius +20% for every unit.',apply:()=>{S.mods.visionMult*=1.2}},
-    {id:'relay1',name:'Prefab Relay',desc:'Your next 5 Relays cost no Dat Crystal.',apply:()=>{S.mods.freeRelayCharges+=5}},
+    {id:'drones1',name:'Spare Drones',desc:'+2 repair drones join the swarm.',apply:()=>{addDrones(2)}},
   ],
   Rare:[
-    {id:'carry2',name:'Reinforced Haulers II',desc:'Harvester carry capacity +50%.',apply:()=>{S.mods.carryMult*=1.5}},
     {id:'dmg2',name:'Battle Drills II',desc:'Squad damage +20%.',apply:()=>{S.mods.troopDmgMult*=1.2}},
     {id:'grenrate2',name:'Lubed Tubes II',desc:'Grenadier fire rate +20%.',apply:()=>{S.mods.grenFireRateMult*=1.2}},
     {id:'grensplash2',name:'Blast Power II',desc:'Explosive blast radius +20%.',apply:()=>{S.mods.grenSplashMult*=1.2}},
     {id:'tol1',name:'Signal Boost',desc:'Wireless tether range +35% (Bastion & Relays).',apply:()=>{S.mods.relayTolMult*=1.35}},
-    {id:'burn1',name:'Efficient Drill',desc:'Drill Dat Crystal burn rate −25%.',apply:()=>{S.mods.drillBurnMult*=0.75}},
     {id:'cable1',name:'Spooled Cable',desc:'Max tether cable length +150.',apply:()=>{S.mods.cableLenAdd+=150}},
     {id:'recruit1',name:'Fresh Recruits',desc:'+3 free Squads, right now.',apply:()=>{spawnFreeTroops(3,'troop')}},
     {id:'biggun',name:'Big Guns',desc:"Mounts an artillery piece on the Bastion — slower fire rate than a Grenadier, but longer range and a bigger blast. Only ever fires on enemies you've actually revealed.",apply:()=>{S.mods.bigGuns=true}},
     {id:'energySurge1',name:'Energy Surge I',desc:'Every 10s while mining, all tethered Relays fire an energy pulse together — enemies it reaches are knocked back and stunned for 1s.',apply:()=>{S.mods.energySurgeLevel=Math.max(S.mods.energySurgeLevel,1)}},
     {id:'armedRelays',name:'Armed Relays',desc:'Tethered Relays fire on enemies like a Turret — half the damage, half the fire rate.',apply:()=>{S.mods.armedRelays=true}},
     {id:'martyrs',name:'Martyrs',desc:'A unit that would corrupt detonates instead, damaging enemies and friendlies alike nearby.',apply:()=>{S.mods.martyrs=true}},
+    {id:'fabrate1',name:'Tuned Fabricators',desc:'Every fabricator recharges 25% faster.',apply:()=>{S.mods.fabRateMult*=1.25}},
   ],
   Epic:[
-    {id:'carry3',name:'Reinforced Haulers III',desc:'Harvester carry capacity +75%.',apply:()=>{S.mods.carryMult*=1.75}},
     {id:'hardscopes',name:'Hard Scopes',desc:"Squad vision and firing range +20% (stacks with Surveyor's Eye).",apply:()=>{S.mods.squadRangeMult*=1.2}},
     {id:'dmg3',name:'Battle Drills III',desc:'Squad damage +30%.',apply:()=>{S.mods.troopDmgMult*=1.3}},
     {id:'tactical',name:'Tactical Reinforcements',desc:'+5 free Squads, +3 free Grenadiers, right now.',apply:()=>{spawnFreeTroops(5,'troop');spawnFreeTroops(3,'grenadier')}},
@@ -889,8 +894,7 @@ const UPGRADES={
     {id:'energySurge2',name:'Energy Surge II',desc:'Energy Surge now pulses every 5s instead of 10s.',apply:()=>{S.mods.energySurgeLevel=Math.max(S.mods.energySurgeLevel,2)}},
   ],
   Legendary:[
-    {id:'carry4',name:'Reinforced Haulers IV',desc:'Harvester carry capacity +100%.',apply:()=>{S.mods.carryMult*=2.0}},
-    {id:'overdrive',name:'Overdrive Capacitor',desc:'Drill rate +40% (burns Dat faster to match).',apply:()=>{S.mods.drillRateMult*=1.4}},
+    {id:'overdrive',name:'Overdrive Capacitor',desc:'Drill rate +40%.',apply:()=>{S.mods.drillRateMult*=1.4}},
     {id:'cablehp2',name:'Hardened Network',desc:'All tether cable HP +150%.',apply:()=>{S.mods.cableHpMult*=2.5}},
     {id:'living1',name:'Rich Vein Memory',desc:'Living Crystal yield ×2 for the rest of the run.',apply:()=>{S.mods.livingMult*=2}},
     {id:'energySurge3',name:'Energy Surge III',desc:'Energy Surge still pulses every 5s, and now damages enemies it reaches too.',apply:()=>{S.mods.energySurgeLevel=Math.max(S.mods.energySurgeLevel,3)}},
@@ -1638,6 +1642,8 @@ function bandAt(x,y){const d=epiDist(x,y);return d<=CORE_R?'core':d<=DENSE_R?'de
 
 function mkTroop(id,kind){kind=kind||'troop';const baseHp=kind==='artillery'?ARTY_HP:kind==='grenadier'?GREN_HP:kind==='mech'?MECH_HP:70;const hp=Math.round(baseHp*unitHpMult());const r=kind==='artillery'?ARTY_R:kind==='mech'?MECH_R:TROOP_R;return {id,kind,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp,maxHp:hp,r,dest:null,target:null,state:'idle',cd:0,ang:-Math.PI/2,mechSide:false,tetherOk:true,severed:false,sanity:SANITY_MAX,trail:null,cableHp:0,cableLen:0,cableMaxed:false,following:false,followAng:0,followDist:0}}
 function mkHarv(id){return {id,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp:50,maxHp:50,r:HARV_R,dest:null,node:null,carry:0,state:'idle',autoLoop:true,hv:0,tetherOk:true,severed:false,sanity:SANITY_MAX,trail:null,cableHp:0,cableLen:0,cableMaxed:false,following:false,followAng:0,followDist:0}}
+function mkDrone(){const a=rnd(0,Math.PI*2);return {x:S.base.x+Math.cos(a)*20,y:S.base.y+Math.sin(a)*20,orbit:a,orbitR:rnd(18,30),target:null,state:'dock',ang:a,beamT:0}}
+function addDrones(n){for(let i=0;i<n;i++)S.drones.push(mkDrone())}
 function mkBuilder(id){return {id,x:S.base.x+rnd(-30,30),y:S.base.y+rnd(-30,30),hp:40,maxHp:40,r:BUILDER_R,dest:null,state:'idle',autoRepair:true,target:null,tetherOk:true,severed:false,sanity:SANITY_MAX,trail:null,cableHp:0,cableLen:0,cableMaxed:false,following:false,followAng:0,followDist:0}}
 // Stats for the hostile unit a mobile ally becomes if its Sanity ever hits 0 — a notch weaker
 // across the board than its living counterpart, and visibly distinct (kind:'corrupted').
@@ -1709,12 +1715,15 @@ function reset(landing){
     mods:{carryMult:1,troopDmgMult:1,moveSpeedMult:1,visionMult:1,relayTolMult:1,drillBurnMult:1,
       cableLenAdd:0,cableHpMult:1,condensedMult:1,livingMult:1,fastBonus:0,drillRateMult:1,freeRelayCharges:0,
       grenFireRateMult:1,grenSplashMult:1,squadRangeMult:1,bigGuns:false,bastionShootWhileDrilling:false,
-      energySurgeLevel:0,armedRelays:false,martyrs:false},
+      energySurgeLevel:0,armedRelays:false,martyrs:false,fabRateMult:1},
     rewardChoice:null,pingRing:null,pings:[],reanim:[],stabs:[],stabShots:[],stabCharges:3,stabRechargeT:0,probes:[],probeCharges:3,probeRechargeT:0,paused:false,
-    sel:{base:false,troops:new Set(),harv:new Set(),bu:new Set()}};
-  for(let i=0;i<4;i++) S.troops.push(mkTroop(i));
-  for(let i=0;i<2;i++) S.harvesters.push(mkHarv(i));
-  for(let i=0;i<2;i++) S.builders.push(mkBuilder(i));
+    sel:{base:false,troops:new Set(),harv:new Set(),bu:new Set()},
+    // v2: harvesters, builders, depots and walls are gone — their arrays stay (always empty) so
+    // the shared unit/structure code paths keep working untouched.
+    fab:{},fabShots:[],drones:[],droneNoDatMsgT:-99};
+  Object.keys(FABS).forEach(k=>{S.fab[k]={n:FABS[k].charges,rt:0}});
+  addDrones(DRONE_COUNT);
+  for(let i=0;i<2;i++) S.troops.push(mkTroop(i));
   prodMenuOpen=false;
 
   S.mapSeed=mapSeed; S.mapType=mapType.id; S.mapLayout=mapLayout.id;
@@ -2032,7 +2041,7 @@ const TUTORIAL_STEPS=[
    target:()=>{const v=tutVein();return{x:v.x,y:v.y,r:v.r+20}},
    done:()=>tutVein().mine.found},
   {title:'Dat Crystal',
-   text:()=>`Found it! While your Squads scouted, your orange <b>Harvesters</b> were gathering <b>Dat Crystal</b> (◆, top left) all on their own. Dat is what you spend on everything — buildings, new units, and fuel for the drill.`},
+   text:()=>`Found it! On the way you may have rolled over some <b>Dat Crystal</b> (◆, top left) — the Bastion or any unit scoops up a deposit just by passing over it. Your little teal <b>repair drones</b> spend Dat to patch up whatever gets damaged near the Bastion.`},
   {title:'Move the Bastion',
    text:()=>`Now bring the rig over. Click the Bastion (or press <kbd>B</kbd>) to select it, then <b>right-click the glowing mining point</b> inside the vein. It's slow, so give it a moment to roll over.`,
    target:()=>{const v=tutVein();return{x:v.mine.x,y:v.mine.y,r:40}},
@@ -2041,17 +2050,17 @@ const TUTORIAL_STEPS=[
    text:()=>`The Bastion is in position. Press <kbd>L</kbd> (or <b>Begin Drilling</b> in the bottom bar) to lock on. A needle sweeps the drill meter — press <kbd>Space</kbd> to stop it on a good band. The meter zooms in on where you hit, and the drill starts.`,
    done:()=>S.base.locked},
   {title:'Build a Turret',
-   text:()=>`The first wave takes about 20 seconds to arrive after you lock on — dig in. Press <kbd>2</kbd> and click inside the Bastion's ring to place a <b>Turret</b>. Your Builders will put it up.`,
+   text:()=>`The first wave takes about 20 seconds to arrive after you lock on — dig in. Press <kbd>1</kbd> and click inside the Bastion's ring to launch a <b>Turret</b>. Nothing costs Dat — the Bastion's fabricators hold a few charges of each thing it can make, and refill them over time.`,
    target:()=>({x:S.base.x,y:S.base.y,r:BUILD_R}),
    done:()=>S.turrets.some(t=>t.built)},
   {title:'Hold the line',
-   text:()=>`Waves attack from the direction of the red arrow. Keep your Squads near the Bastion and watch your Dat — the drill burns it as it runs. Press <kbd>5</kbd> and click a vein's glowing hotspot to fire a Stabilizer at it: it steadies the drill needle. Hold out until the vein is drained.`,
+   text:()=>`Waves attack from the direction of the red arrow. Keep your Squads near the Bastion — press <kbd>3</kbd> to deploy another from the fabricator. Press <kbd>5</kbd> and click a vein's glowing hotspot to fire a Stabilizer at it: it steadies the drill needle. Hold out until the vein is drained.`,
    done:()=>tutVein().done},
   {title:'Pick a reward',
    text:()=>`Vein drained! Every drained vein lets you pick one upgrade card for the rest of the run — or sell it for Dat. Choose one now.`,
    done:()=>!S.rewardChoice},
   {title:'Extend your reach with Relays',
-   text:()=>`Out on the Rim, your units' wireless link works anywhere. Deeper in, they need a cable back to the Bastion or a <b>Relay</b>, or they lose signal and slowly go mad. Press <kbd>3</kbd> and place a Relay near the edge of the Bastion's ring.`,
+   text:()=>`Out on the Rim, your units' wireless link works anywhere. Deeper in, they need a cable back to the Bastion or a <b>Relay</b>, or they lose signal and slowly go mad. Press <kbd>2</kbd> and launch a Relay near the edge of the Bastion's ring.`,
    target:()=>({x:S.base.x,y:S.base.y,r:BUILD_R}),
    done:()=>S.relays.some(r=>r.built)},
   {title:"That's the loop",
@@ -2965,16 +2974,11 @@ cv.addEventListener('dblclick',e=>{
 cv.addEventListener('wheel',e=>{e.preventDefault();const w0=toWorld(e.clientX,e.clientY);cam.z=Math.min(2.2,Math.max(0.35,cam.z*(e.deltaY>0?0.9:1.1)));const w1=toWorld(e.clientX,e.clientY);cam.x+=w0.x-w1.x;cam.y+=w0.y-w1.y;clampCam()},{passive:false});
 addEventListener('keydown',e=>{
   if(menuOpen||e.target.tagName==='INPUT')return; keys[e.key.toLowerCase()]=true; keys[e.key]=true;
-  if(e.key==='1')setBuild('wall'); else if(e.key==='2')setBuild('turret'); else if(e.key==='3')setBuild('relay'); else if(e.key==='4')setBuild('depot'); else if(e.key==='5')setBuild('stabilizer');
+  if(e.key==='1')setBuild(buildMode==='turret'?null:'turret'); else if(e.key==='2')setBuild(buildMode==='relay'?null:'relay'); else if(e.key==='3')fabUnit('troop'); else if(e.key==='4')fabUnit('grenadier'); else if(e.key==='5')setBuild(buildMode==='stabilizer'?null:'stabilizer'); else if(e.key==='6')fabUnit('artillery'); else if(e.key==='7')fabUnit('mech');
   else if(e.key==='Escape'){if(!document.getElementById('drillSelectOverlay').hidden){closeDrillSelect()}else if(probeMode){setProbeMode(false)}else if(pingMode){setPingMode(false)}else if(buildMode||prodMenuOpen){setBuild(null);closeProdMenu()}else togglePause()} else if(e.key.toLowerCase()==='b'){S.sel.troops.clear();S.sel.harv.clear();S.sel.bu.clear();S.sel.base=true}
   else if(e.key.toLowerCase()==='t'){selectAllUnitsOfKind('troops')}
-  else if(e.key.toLowerCase()==='h'){selectAllUnitsOfKind('harv')}
-  else if(e.key.toLowerCase()==='u'){selectAllUnitsOfKind('bu')}
   else if(e.key.toLowerCase()==='f'){cam.x=S.base.x;cam.y=S.base.y}
   else if(e.key.toLowerCase()==='l'){tryLockdown()}
-  else if(e.key.toLowerCase()==='r'){resumeAutoLoop()}
-  else if(e.key.toLowerCase()==='g'){toggleRepairMode()}
-  else if(e.key.toLowerCase()==='p'){toggleDrillPause()}
   else if(e.key.toLowerCase()==='n'){tryProbe()}
   else if(e.key.toLowerCase()==='v'){followSelected()}
   else if(e.key==='`'){debugNoFog=!debugNoFog;msg(debugNoFog?'Debug: fog of war disabled':'Debug: fog of war re-enabled')}
@@ -2982,10 +2986,9 @@ addEventListener('keydown',e=>{
 });
 addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;keys[e.key]=false});
 document.querySelectorAll('#buildBar button[data-mode]').forEach(b=>b.addEventListener('click',()=>{setBuild(buildMode===b.dataset.mode?null:b.dataset.mode);sfx.click()}));
+document.querySelectorAll('#buildBar button[data-unit]').forEach(b=>b.addEventListener('click',()=>fabUnit(b.dataset.unit)));
 document.getElementById('bLock').onclick=()=>tryLockdown();
 document.getElementById('bPing').onclick=()=>tryProbe();
-document.getElementById('bResumeAuto').onclick=resumeAutoLoop;
-document.getElementById('bToggleRepair').onclick=toggleRepairMode;
 document.getElementById('bFollow').onclick=followSelected;
 // Shared by the top HUD selector buttons, their mobile equivalents next to the zoom controls, and
 // the T/H/U hotkeys — one selection path for "select every unit of this kind" everywhere it appears.
@@ -3001,15 +3004,6 @@ function selectAllUnitsOfKind(kind){
 }
 document.getElementById('selBaseBtn2').onclick=()=>selectAllUnitsOfKind('base');
 document.getElementById('selTroopsBtn2').onclick=()=>selectAllUnitsOfKind('troops');
-document.getElementById('selHarvBtn2').onclick=()=>selectAllUnitsOfKind('harv');
-document.getElementById('selBuBtn2').onclick=()=>selectAllUnitsOfKind('bu');
-document.getElementById('bBuildTroop').onclick=buildTroop;
-document.getElementById('bBuildGrenadier').onclick=buildGrenadier;
-document.getElementById('bBuildHarv').onclick=buildHarvester;
-document.getElementById('bBuildBuilder').onclick=buildBuilderUnit;
-document.getElementById('bBuildArtillery').onclick=buildArtillery;
-document.getElementById('bBuildMech').onclick=buildMech;
-document.getElementById('bPause').onclick=toggleDrillPause;
 document.getElementById('drillCancelBtn').onclick=()=>closeDrillSelect();
 document.getElementById('helpClose').onclick=()=>{document.getElementById('help').hidden=true};
 document.getElementById('ovBtn').onclick=()=>{document.getElementById('overlay').hidden=true;openMainMenu()};
@@ -3030,50 +3024,53 @@ mini.addEventListener('pointerdown',e=>{
 });
 document.getElementById('helpToggleBtn').onclick=()=>{document.getElementById('help').classList.toggle('open')};
 function closeProdMenu(){prodMenuOpen=false}
-function buildTroop(){
-  if(S.dat<COST.troop){msg('Not enough Dat Crystal for a new squad.');return}
-  S.dat-=COST.troop;
-  S.troops.push(mkTroop(Date.now()+Math.floor(Math.random()*1000)));
-  msg('Squad recruited.');
-  updateBuildBar();
+// ---------- fabricators (v2) ----------
+function fabUnlocked(k){const f=FABS[k];return !f.unlock||!!meta[f.unlock]}
+function fabPips(k){const f=FABS[k],st=S.fab[k];return '●'.repeat(st.n)+'○'.repeat(f.charges-st.n)+(st.n<f.charges?` ${Math.ceil(st.rt)}s`:'')}
+// Spend one charge of fabricator k; false (with a message) if it's empty.
+function useFab(k){
+  const f=FABS[k],st=S.fab[k];
+  if(st.n<=0){msg(`${f.name} fabricator is empty — next charge in ${Math.ceil(st.rt)}s.`);return false}
+  if(st.n===f.charges)st.rt=f.t;
+  st.n--;updateBuildBar();return true;
 }
-function buildGrenadier(){
-  if(!meta.unlockGrenadier)return;
-  if(S.dat<COST.grenadier){msg('Not enough Dat Crystal for a grenadier.');return}
-  S.dat-=COST.grenadier;
-  S.troops.push(mkTroop(Date.now()+Math.floor(Math.random()*1000),'grenadier'));
-  msg('Grenadier recruited.');
-  updateBuildBar();
+function updateFabs(dt){
+  Object.keys(FABS).forEach(k=>{const f=FABS[k],st=S.fab[k];
+    if(st.n<f.charges){st.rt-=dt*S.mods.fabRateMult;if(st.rt<=0){st.n++;st.rt=st.n<f.charges?f.t:0;if(fabUnlocked(k))floatText(S.base.x,S.base.y-46,`+1 ${f.name}`,C.ally)}}});
 }
-function buildHarvester(){
-  if(S.dat<COST.harvester){msg('Not enough Dat Crystal for a harvester.');return}
-  S.dat-=COST.harvester;
-  S.harvesters.push(mkHarv(Date.now()+Math.floor(Math.random()*1000)));
-  msg('Harvester built.');
-  updateBuildBar();
+// Units walk straight out of the Bastion.
+function fabUnit(k){
+  if(!S||S.over||menuOpen)return;
+  if(!fabUnlocked(k))return;
+  if(!useFab(k))return;
+  const a=rnd(0,Math.PI*2), u=mkTroop(Date.now()+Math.floor(Math.random()*1000),k);
+  u.x=S.base.x+Math.cos(a)*(S.base.r+12);u.y=S.base.y+Math.sin(a)*(S.base.r+12);
+  S.troops.push(u);
+  burst(u.x,u.y,C.ally,8,90,0.35);sfx.build();
+  msg(`${FABS[k].name} deployed.`);
 }
-function buildBuilderUnit(){
-  if(S.dat<COST.builder){msg('Not enough Dat Crystal for a builder.');return}
-  S.dat-=COST.builder;
-  S.builders.push(mkBuilder(Date.now()+Math.floor(Math.random()*1000)));
-  msg('Builder constructed.');
-  updateBuildBar();
+// Structures are lobbed from the Bastion and stand up the moment they land.
+function landFabShot(sh){
+  const w={x:sh.tx,y:sh.ty};
+  if(sh.k==='turret'){
+    S.turrets.push({x:w.x,y:w.y,hp:TURRET_HP,maxHp:TURRET_HP,cd:0,ang:0,kind:'turret',built:true,buildT:TURRET_BUILD_T,buildTotal:TURRET_BUILD_T,builder:null,repairer:null});
+    msg('Turret deployed.');
+  }else{
+    S.relays.push({x:w.x,y:w.y,hp:RELAY_HP,maxHp:RELAY_HP,kind:'relay',built:true,buildT:RELAY_BUILD_T,buildTotal:RELAY_BUILD_T,builder:null,repairer:null,
+      state:null,tetherOk:false,trail:null,cableHp:0,cableLen:0,cableMaxed:false,reconnectT:0,wasFree:false,gunCd:0,ang:0});
+    msg('Relay deployed.');
+  }
+  burst(w.x,w.y,C.builder,12,120,0.45);shakeScreen(2,0.12);sfx.build();
 }
-function buildArtillery(){
-  if(!meta.unlockArtillery)return;
-  if(S.dat<COST.artillery){msg('Not enough Dat Crystal for an artillery piece.');return}
-  S.dat-=COST.artillery;
-  S.troops.push(mkTroop(Date.now()+Math.floor(Math.random()*1000),'artillery'));
-  msg('Artillery piece deployed.');
-  updateBuildBar();
+function updateFabShots(dt){
+  S.fabShots=S.fabShots.filter(sh=>{sh.t+=dt;if(sh.t<sh.dur)return true;landFabShot(sh);return false});
 }
-function buildMech(){
-  if(!meta.unlockMech)return;
-  if(S.dat<COST.mech){msg('Not enough Dat Crystal for a mech.');return}
-  S.dat-=COST.mech;
-  S.troops.push(mkTroop(Date.now()+Math.floor(Math.random()*1000),'mech'));
-  msg('Mech deployed.');
-  updateBuildBar();
+function drawFabShots(){
+  S.fabShots.forEach(sh=>{const p=sh.t/sh.dur, x=sh.x0+(sh.tx-sh.x0)*p, y=sh.y0+(sh.ty-sh.y0)*p, lift=Math.sin(p*Math.PI)*Math.min(90,sh.dur*60);
+    ctx.fillStyle='rgba(0,0,0,0.35)';ctx.beginPath();ctx.ellipse(x,y,6,3,0,0,Math.PI*2);ctx.fill();
+    ctx.save();ctx.translate(x,y-lift);ctx.rotate(sh.t*6);ctx.fillStyle=sh.k==='turret'?C.accent:C.cable;ctx.strokeStyle='#000';ctx.lineWidth=1;
+    ctx.fillRect(-6,-6,12,12);ctx.strokeRect(-6,-6,12,12);ctx.restore();
+    ctx.strokeStyle=C.builder;ctx.globalAlpha=0.35;ctx.setLineDash([4,6]);ctx.beginPath();ctx.arc(sh.tx,sh.ty,14,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1});
 }
 function resumeAutoLoop(){
   if(S.sel.harv.size===0){msg('Select harvesters to resume their auto-gather loop.');return}
@@ -3134,11 +3131,16 @@ function updateBuildBar(){
       if(c)c.textContent='●'.repeat(S.stabCharges)+'○'.repeat(STAB_CHARGES-S.stabCharges)+(S.stabCharges<STAB_CHARGES?` ${Math.ceil(S.stabRechargeT)}s`:'');
       return;
     }
-    const cost=b.dataset.mode==='relay'&&S.mods.freeRelayCharges>0?0:COST[b.dataset.mode];
-    b.disabled=S.dat<cost&&buildMode!==b.dataset.mode;
+    const k=b.dataset.mode;
+    b.disabled=S.fab[k].n<=0&&buildMode!==k;
+    document.getElementById('cf_'+k).textContent=fabPips(k);
   });
-  const crEl=document.getElementById('cRelay');
-  if(crEl)crEl.textContent=S.mods.freeRelayCharges>0?`FREE ×${S.mods.freeRelayCharges}`:`${COST.relay} dat`;
+  document.querySelectorAll('#buildBar button[data-unit]').forEach(b=>{
+    const k=b.dataset.unit;
+    b.hidden=!fabUnlocked(k);
+    b.disabled=S.fab[k].n<=0;
+    document.getElementById('cf_'+k).textContent=fabPips(k);
+  });
   const lb=document.getElementById('bLock');
   if(lb){
     const preppingNow=S.base.locked&&S.activeVein&&S.activeVein.prepT>0;
@@ -3152,11 +3154,6 @@ function updateBuildBar(){
     document.getElementById('bPingLabel').textContent=probeMode?'Aim…':'Probe';
     document.getElementById('cProbe').textContent='●'.repeat(S.probeCharges)+'○'.repeat(PROBE_CHARGES-S.probeCharges)+(S.probeCharges<PROBE_CHARGES?` ${Math.ceil(S.probeRechargeT)}s`:'');
   }
-  document.getElementById('bResumeAuto').hidden=S.sel.harv.size===0;
-  const rb=document.getElementById('bToggleRepair');
-  rb.hidden=S.sel.bu.size===0;
-  const anyOnSel=S.builders.some(b=>S.sel.bu.has(b.id)&&b.autoRepair);
-  document.getElementById('bRepairLabel').textContent=anyOnSel?'Auto-Repair: On':'Auto-Repair: Off';
   const selCount=S.sel.troops.size+S.sel.harv.size+S.sel.bu.size;
   const fb=document.getElementById('bFollow');
   fb.hidden=selCount===0;
@@ -3164,37 +3161,6 @@ function updateBuildBar(){
     ||[...S.sel.harv].some(id=>{const h=S.harvesters.find(x=>x.id===id);return h&&h.following})
     ||[...S.sel.bu].some(id=>{const b=S.builders.find(x=>x.id===id);return b&&b.following});
   fb.classList.toggle('on',anyFollowSel);
-  const prodVisible=prodMenuOpen&&S.sel.base;
-  const bt=document.getElementById('bBuildTroop');
-  bt.hidden=!prodVisible; bt.disabled=S.dat<COST.troop;
-  const gb=document.getElementById('bBuildGrenadier');
-  gb.hidden=!prodVisible||!meta.unlockGrenadier;
-  gb.disabled=S.dat<COST.grenadier;
-  const hb=document.getElementById('bBuildHarv');
-  hb.hidden=!prodVisible; hb.disabled=S.dat<COST.harvester;
-  const bb=document.getElementById('bBuildBuilder');
-  bb.hidden=!prodVisible; bb.disabled=S.dat<COST.builder;
-  const ab=document.getElementById('bBuildArtillery');
-  ab.hidden=!prodVisible||!meta.unlockArtillery;
-  ab.disabled=S.dat<COST.artillery;
-  const mb=document.getElementById('bBuildMech');
-  mb.hidden=!prodVisible||!meta.unlockMech;
-  mb.disabled=S.dat<COST.mech;
-  // Speed picking now happens in the #drillSelectOverlay popup (see openDrillSelect); this panel
-  // is just a live readout once the drill is actually running.
-  const tp=document.getElementById('throttlePanel');
-  tp.hidden=!S.base.locked;
-  if(S.base.locked){
-    document.getElementById('thSpeed').textContent='Drilling';
-  }
-  const pb=document.getElementById('bPause');
-  if(pb){
-    pb.disabled=!S.base.locked;
-    if(S.activeVein){
-      pb.classList.toggle('on',!!S.activeVein.paused);
-      document.getElementById('bPauseLabel').textContent=S.activeVein.paused?'Resume':'Pause';
-    }
-  }
 }
 function clampCam(){cam.x=Math.max(0,Math.min(W,cam.x));cam.y=Math.max(0,Math.min(H,cam.y))}
 
@@ -3494,7 +3460,6 @@ function rightClick(w){
   if(probeMode){setProbeMode(false);return}
   if(pingMode){setPingMode(false);return}
   if(buildMode){setBuild(null);return}
-  if(cancelPendingBuild(w))return;
   const rawT=[...S.sel.troops].map(id=>S.troops.find(t=>t.id===id)).filter(Boolean);
   const rawH=[...S.sel.harv].map(id=>S.harvesters.find(h=>h.id===id)).filter(Boolean);
   const rawBu=[...S.sel.bu].map(id=>S.builders.find(b=>b.id===id)).filter(Boolean);
@@ -3605,38 +3570,16 @@ function updateStabilizerShots(dt){
 }
 function tryBuild(w){
   if(buildMode==='stabilizer')return fireStabilizer(w);
-  const freeToLockdown=buildMode==='relay'||buildMode==='depot';
-  if(!inBuildRange(w)){msg('Build inside the Bastion\'s dashed ring.');return}
-  if(terrainAt(w.x,w.y)===2){msg('Cannot build on solid rock.');return}
-  const freeRelay=buildMode==='relay'&&S.mods.freeRelayCharges>0;
-  const cost=freeRelay?0:COST[buildMode];
-  if(S.dat<cost){msg('Not enough Dat Crystal. Send harvesters to a deposit.');return}
-  if(buildMode==='wall'){const gx=Math.floor(w.x/CELL),gy=Math.floor(w.y/CELL),k=key(gx,gy);const cx=gx*CELL+CELL/2,cy=gy*CELL+CELL/2;
-    if(S.walls.has(k)||dist({x:cx,y:cy},S.base)<BASE_R+CELL)return;
-    if(S.turrets.some(t=>dist(t,{x:cx,y:cy})<CELL)||S.relays.some(r=>dist(r,{x:cx,y:cy})<CELL)||S.depots.some(d=>dist(d,{x:cx,y:cy})<CELL))return;
-    S.walls.set(k,{gx,gy,x:cx,y:cy,hp:WALL_HP,maxHp:WALL_HP,kind:'wall',built:false,buildT:0,buildTotal:WALL_BUILD_T,builder:null,repairer:null});S.dat-=cost;
-    msg('Wall queued — a builder needs to finish it.');
-  }else if(buildMode==='turret'){
-    if(dist(w,S.base)<BASE_R+14||S.turrets.some(t=>dist(t,w)<26)||S.relays.some(r=>dist(r,w)<26)||S.depots.some(d=>dist(d,w)<26))return;
-    const k=key(Math.floor(w.x/CELL),Math.floor(w.y/CELL));if(S.walls.has(k))return;
-    S.turrets.push({x:w.x,y:w.y,hp:TURRET_HP,maxHp:TURRET_HP,cd:0,ang:0,kind:'turret',built:false,buildT:0,buildTotal:TURRET_BUILD_T,builder:null,repairer:null});S.dat-=cost;
-    msg('Turret queued — a builder needs to finish it.');
-  }else if(buildMode==='relay'){
-    if(dist(w,S.base)<BASE_R+14||S.turrets.some(t=>dist(t,w)<26)||S.relays.some(r=>dist(r,w)<40)||S.depots.some(d=>dist(d,w)<26))return;
-    const k=key(Math.floor(w.x/CELL),Math.floor(w.y/CELL));if(S.walls.has(k))return;
-    S.relays.push({x:w.x,y:w.y,hp:RELAY_HP,maxHp:RELAY_HP,kind:'relay',built:false,buildT:0,buildTotal:RELAY_BUILD_T,builder:null,repairer:null,
-      state:null,tetherOk:false,trail:null,cableHp:0,cableLen:0,cableMaxed:false,reconnectT:0,wasFree:freeRelay,
-      gunCd:0,ang:0});S.dat-=cost;
-    if(freeRelay){S.mods.freeRelayCharges--;msg('Relay queued for free — a builder needs to finish it.')}
-    else msg('Relay queued — a builder needs to finish it.');
-  }else{
-    if(dist(w,S.base)<BASE_R+14||S.turrets.some(t=>dist(t,w)<26)||S.relays.some(r=>dist(r,w)<26)||S.depots.some(d=>dist(d,w)<40))return;
-    const k=key(Math.floor(w.x/CELL),Math.floor(w.y/CELL));if(S.walls.has(k))return;
-    S.depots.push({x:w.x,y:w.y,hp:DEPOT_HP,maxHp:DEPOT_HP,kind:'depot',built:false,buildT:0,buildTotal:DEPOT_BUILD_T,builder:null,repairer:null});S.dat-=cost;
-    msg('Depot queued — a builder needs to finish it.');
-  }
-  sfx.click();
-  updateBuildBar();
+  if(buildMode!=='turret'&&buildMode!=='relay')return;
+  if(!inBuildRange(w)){msg("Launch inside the Bastion's dashed ring (or a Relay's).");return}
+  if(terrainAt(w.x,w.y)===2){msg('Cannot land a structure on solid rock.');return}
+  const gap=buildMode==='relay'?40:26;
+  if(dist(w,S.base)<BASE_R+14||S.turrets.some(t=>dist(t,w)<26)||S.relays.some(r=>dist(r,w)<gap)||S.fabShots.some(sh=>dist({x:sh.tx,y:sh.ty},w)<26))return;
+  if(!useFab(buildMode))return;
+  const d=dist(w,S.base);
+  S.fabShots.push({k:buildMode,x0:S.base.x,y0:S.base.y,tx:w.x,ty:w.y,t:0,dur:Math.max(0.4,d/FAB_FLIGHT_SPEED)});
+  tone(200,0.12,'square',0.06,0,420);
+  if(S.fab[buildMode].n<=0)setBuild(null);
   return true;
 }
 
@@ -3794,6 +3737,65 @@ function findRepairTarget(bu){
   return found;
 }
 
+// ---------- repair drones (v2) ----------
+// Everything the swarm will fly out to fix, best first: Stabilizers (they hold the drill needle),
+// then Relays (network reach — a cut Relay counts even at full HP), Turrets, and the Bastion.
+function droneJobs(){
+  const B=S.base, jobs=[];
+  const add=(o,pri)=>{if(dist(o,B)<=DRONE_RANGE)jobs.push({o,pri})};
+  S.stabs.forEach(st=>{if(st.built&&st.hp>0&&st.hp<st.maxHp)add(st,0)});
+  S.relays.forEach(r=>{if(r.built&&needsRepair(r))add(r,1)});
+  S.turrets.forEach(t=>{if(t.built&&t.hp<t.maxHp)add(t,2)});
+  if(B.hp<B.maxHp)jobs.push({o:B,pri:3});
+  return jobs;
+}
+function droneJobAlive(o){
+  if(o===S.base)return S.base.hp<S.base.maxHp;
+  if(S.stabs.includes(o))return o.hp>0&&o.hp<o.maxHp&&dist(o,S.base)<=DRONE_RANGE;
+  if(S.relays.includes(o)||S.turrets.includes(o))return needsRepair(o)&&dist(o,S.base)<=DRONE_RANGE;
+  return false;
+}
+function updateDrones(dt){
+  const B=S.base, noDat=S.dat<=0.01;
+  const jobs=noDat?[]:droneJobs();
+  if(noDat&&jobs.length===0&&droneJobs().length&&S.t-S.droneNoDatMsgT>30){S.droneNoDatMsgT=S.t;msg('Repair drones are grounded — out of Dat Crystal. Scoop up deposits to get them flying.')}
+  const load=new Map();
+  S.drones.forEach(d=>{if(d.target&&(noDat||!droneJobAlive(d.target))){d.target=null;d.state='dock'}if(d.target)load.set(d.target,(load.get(d.target)||0)+1)});
+  S.drones.forEach(d=>{
+    if(!d.target&&jobs.length){
+      let best=null,bs=Infinity;
+      jobs.forEach(j=>{const sc=j.pri*600+(load.get(j.o)||0)*450+dist(d,j.o);if(sc<bs){bs=sc;best=j.o}});
+      d.target=best;d.state='fly';d.workAng=rnd(0,Math.PI*2);load.set(best,(load.get(best)||0)+1);
+    }
+    let gx,gy;
+    if(d.target){const r=(d.target.r||12)+DRONE_WORK_R;d.workAng+=dt*0.8;gx=d.target.x+Math.cos(d.workAng)*r;gy=d.target.y+Math.sin(d.workAng)*r}
+    else{d.orbit+=dt*1.4;gx=B.x+Math.cos(d.orbit)*d.orbitR;gy=B.y+Math.sin(d.orbit)*d.orbitR}
+    const dx=gx-d.x,dy=gy-d.y,L=Math.hypot(dx,dy);
+    if(L>0.5){d.ang=Math.atan2(dy,dx);const st=Math.min(L,DRONE_SPEED*dt);d.x+=dx/L*st;d.y+=dy/L*st}
+    d.state=d.target?(L<10?'repair':'fly'):'dock';
+    if(d.state==='repair'&&S.dat>0){
+      const o=d.target;
+      if(o.hp<o.maxHp){S.dat=Math.max(0,S.dat-DRONE_DAT_PER_SEC*dt);o.hp=Math.min(o.maxHp,o.hp+DRONE_HPS*dt)}
+      if(o.kind==='relay'&&o.state==='cut'){o.reconnectT+=dt;if(o.reconnectT>=RELAY_RECONNECT_T){o.state=null;o.reconnectT=0;msg('Relay tether spliced — reconnecting to the network.')}}
+      d.beamT+=dt;
+    }
+  });
+}
+function drawDrones(){
+  S.drones.forEach(d=>{
+    if(d.state==='repair'&&d.target){
+      ctx.strokeStyle=C.builder;ctx.globalAlpha=0.35+0.4*Math.abs(Math.sin(d.beamT*18));ctx.lineWidth=1.2;
+      ctx.beginPath();ctx.moveTo(d.x,d.y);ctx.lineTo(d.target.x+rnd(-3,3),d.target.y+rnd(-3,3));ctx.stroke();ctx.globalAlpha=1;
+    }
+    // flying: a soft shadow below and a small dart above it
+    ctx.fillStyle='rgba(0,0,0,0.3)';ctx.beginPath();ctx.arc(d.x+3,d.y+5,2.2,0,Math.PI*2);ctx.fill();
+    ctx.save();ctx.translate(d.x,d.y);ctx.rotate(d.ang);
+    ctx.fillStyle=C.builder;ctx.strokeStyle='#000';ctx.lineWidth=0.8;
+    ctx.beginPath();ctx.moveTo(4.5,0);ctx.lineTo(-3,-3);ctx.lineTo(-1.5,0);ctx.lineTo(-3,3);ctx.closePath();ctx.fill();ctx.stroke();
+    ctx.restore();
+  });
+}
+
 // One drilling wave: spawns WAVE_SPAWN_DIST out from the vein in its wave direction, spread along
 // a wide front across the approach (not a tight clump that would all set off down the same line).
 function spawnVeinWave(v){
@@ -3843,16 +3845,8 @@ function update(dt){
     // at every speed; squaring it means Fast actually costs more overall, not just faster per tick.
     // nothing burns or progresses until the strike has set the drill
     if(v.meter&&v.meter.phase==='drill'){
-    const need=DRILL_DAT_COST*S.mods.drillBurnMult*S.mods.drillRateMult*dt;
-    if(S.dat>=need){
-      if(v.stalled){v.stalled=false;msg('Dat Crystal flowing again — drilling resumed.');sfx.resume()}
-      S.dat-=need;
-      v.drillProg+=DRILL_RATE*S.mods.drillRateMult*dt;
-    } else if(!v.stalled){
-      v.stalled=true;
-      msg('Out of Dat Crystal — drilling has stalled. Bring more in to keep going.');
-      sfx.stall();
-    }
+    // v2: the drill runs on its own power — no Dat Crystal burn, no stalling
+    v.drillProg+=DRILL_RATE*S.mods.drillRateMult*dt;
     }
     v.waveT-=dt;
     if(v.waveT<=0){
@@ -3954,6 +3948,9 @@ function update(dt){
   if(S.reanim.length)updateReanimation(dt);
   updateStabilizerShots(dt);
   updateProbes(dt);
+  updateFabs(dt);
+  updateFabShots(dt);
+  updateDrones(dt);
   if(!B.locked||S.mods.bastionShootWhileDrilling){
     let best=null,bd=BASE_GUN_RANGE;S.enemies.forEach(e=>{const d=dist(e,B);if(d<bd){bd=d;best=e}});
     if(best&&B.gunCd<=0){damageEnemy(best,BASE_GUN_DMG);tracer(B,best,C.accent);B.gunCd=BASE_GUN_CD}
@@ -4151,6 +4148,12 @@ function update(dt){
 
   {const vm=S.mods.visionMult;
   S.nodes.forEach(n=>{if(!n.found&&dist(n,B)<BASE_VISION*vm)n.found=true});
+  // Dat deposits are pickups: whatever rolls over one first scoops up the lot
+  S.nodes.forEach(n=>{if(n.amt<=0)return;
+    const who=dist(n,B)<B.r+DAT_PICKUP_R?B:S.troops.find(t=>dist(t,n)<t.r+DAT_PICKUP_R*pickupRangeMult());
+    if(!who)return;
+    S.dat+=n.amt;floatText(n.x,n.y-14,'+'+n.amt+' Dat',C.dat);burst(n.x,n.y,C.dat,10,100,0.4);sfx.gather();
+    n.amt=0;n.found=true});
   // A vein is SEEN once any of your units' sight reaches into its zone; its mining point is FOUND
   // once sight reaches the point itself. The contract vein is never found by sight — only by
   // triangulating it (see takeBearing).
@@ -4376,15 +4379,6 @@ function update(dt){
       if(got){S.dat+=sh.amt;floatText(sh.x,sh.y-10,'+'+sh.amt,C.dat);sfx.gather();spark(sh.x,sh.y,C.dat,3);updateBuildBar()}
       return !got;
     });
-  }
-  if(S.troops.length===0&&!S.troopsLostMsg){S.troopsLostMsg=true;msg('All squads lost. New squads form at the Bastion in 20s.');S.respawnT=20}
-  if(S.respawnT!==undefined){S.respawnT-=dt;if(S.respawnT<=0){S.respawnT=undefined;S.troopsLostMsg=false;for(let i=0;i<2;i++)S.troops.push(mkTroop(Date.now()+i))}}
-  if(S.harvesters.length===0&&!S.harvLostMsg){S.harvLostMsg=true;msg('All harvesters lost. A free one forms at the Bastion in 45s.');S.harvRespawnT=45;S.harvRespawnWarn10=false;S.harvRespawnWarn3=false}
-  if(S.harvRespawnT!==undefined){
-    S.harvRespawnT-=dt;
-    if(S.harvRespawnT<=10&&!S.harvRespawnWarn10){S.harvRespawnWarn10=true;msg('Free Harvester arriving in 10s.')}
-    if(S.harvRespawnT<=3&&!S.harvRespawnWarn3){S.harvRespawnWarn3=true;msg('Free Harvester arriving in 3s.')}
-    if(S.harvRespawnT<=0){S.harvRespawnT=undefined;S.harvLostMsg=false;S.harvesters.push(mkHarv(Date.now()))}
   }
   S.tracers=S.tracers.filter(t=>(t.t-=dt)>0);
   S.nades=S.nades.filter(n=>{n.t+=dt;const pt=Math.min(1,n.t/n.dur);n.x=n.x0+(n.tx-n.x0)*pt;n.y=n.y0+(n.ty-n.y0)*pt;if(pt>=1){explodeNade(n);return false}return true});
@@ -4976,6 +4970,8 @@ function draw(){
   if(!debugNoFog){blurFogged(vw,vh,shkx,shky);ctx.imageSmoothingEnabled=true;ctx.drawImage(dimSoftC,0,0,W,H);ditherFog()}
   // energy pulses through the crack network (only where something can see) and bearing beams
   drawExplorationLight(x0-40,y0-40,x1+40,y1+40,vw,vh,shkx,shky);
+  drawDrones();
+  drawFabShots();
   drawStabShots();
   drawProbes();
   // probe aiming: the straight line it will fly, out to its full range, and the strip it will reveal
@@ -5005,7 +5001,7 @@ function draw(){
     ctx.globalAlpha=0.9;ctx.lineWidth=2/cam.z;ctx.beginPath();ctx.arc(mouse.wx,mouse.wy,STAB_SNAP,0,Math.PI*2);ctx.stroke();
     ctx.fillStyle=col;ctx.font='600 12px '+css('--mono');ctx.textAlign='center';ctx.fillText(`${Math.max(0.45,d/STAB_FLIGHT_SPEED).toFixed(1)}s`,mouse.wx,mouse.wy-STAB_SNAP-8);
     ctx.restore()}
-  else if(buildMode){const ok=inBuildRange({x:mouse.wx,y:mouse.wy})&&terrainAt(mouse.wx,mouse.wy)!==2&&S.dat>=COST[buildMode];ctx.globalAlpha=0.6;
+  else if(buildMode){const ok=inBuildRange({x:mouse.wx,y:mouse.wy})&&terrainAt(mouse.wx,mouse.wy)!==2&&S.fab[buildMode]&&S.fab[buildMode].n>0;ctx.globalAlpha=0.6;
     if(buildMode==='wall'){const gx=Math.floor(mouse.wx/CELL)*CELL,gy=Math.floor(mouse.wy/CELL)*CELL;ctx.fillStyle=ok?'#8d9aa8':C.enemy;ctx.fillRect(gx+1,gy+1,CELL-2,CELL-2)}
     else{const rng=buildMode==='turret'?TURRET_RANGE:wirelessTol('dense');ctx.fillStyle=ok?C.accent:C.enemy;ctx.beginPath();ctx.arc(mouse.wx,mouse.wy,11,0,Math.PI*2);ctx.fill();if(rng>0){ctx.strokeStyle=ok?C.accent:C.enemy;ctx.lineWidth=1;ctx.setLineDash([4,6]);ctx.beginPath();ctx.arc(mouse.wx,mouse.wy,rng,0,Math.PI*2);ctx.stroke();ctx.setLineDash([])}}
     ctx.globalAlpha=1}
@@ -5050,22 +5046,6 @@ function hud(){
       $('hObj').textContent=`drilling ${v.band} ${Math.floor(100*v.drillProg/v.richness)}%${v.paused?' — PAUSED':v.stalled?' — STALLED':''}`;
       $('hObjBar').style.width=(100*v.drillProg/v.richness)+'%';
     }
-    // live burn rate and projected Condensed Crystal payoff — both update instantly with throttle,
-    // so the tradeoff is visible before you commit to a setting, not just after the fact. Paused
-    // (or still warming up) means neither is actually happening right now, so show it as a flat
-    // standstill instead.
-    if(v.prepT>0){
-      $('thBurn').textContent='warming up';
-      $('thRate').textContent='warming up';
-    }else if(v.paused){
-      $('thBurn').textContent='paused';
-      $('thRate').textContent='paused';
-    }else{
-      const burnRate=DRILL_DAT_COST*S.mods.drillBurnMult*S.mods.drillRateMult;
-      $('thBurn').textContent=`−${burnRate.toFixed(1)} dat/s`;
-      const condensedRatePerMin=60*CONDENSED_RATE*S.mods.condensedMult*DRILL_RATE*S.mods.drillRateMult;
-      $('thRate').textContent=`+${condensedRatePerMin.toFixed(1)} cond/min`;
-    }
   }else{
     const ready=canLockdown();
     const cv=S.veins.find(v=>v.contract);
@@ -5076,12 +5056,8 @@ function hud(){
   }
   updateMeterUI();
   $('cntTroops2').textContent=S.troops.length;
-  $('cntHarv2').textContent=S.harvesters.length;
-  $('cntBu2').textContent=S.builders.length;
   document.getElementById('selBaseBtn2').classList.toggle('sel',S.sel.base);
   document.getElementById('selTroopsBtn2').classList.toggle('sel',S.sel.troops.size>0);
-  document.getElementById('selHarvBtn2').classList.toggle('sel',S.sel.harv.size>0);
-  document.getElementById('selBuBtn2').classList.toggle('sel',S.sel.bu.size>0);
   updateBuildBar();
 }
 
