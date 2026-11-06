@@ -502,6 +502,7 @@ body.inMenu :is(#game,#fogGrain,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMet
   <div class="menuMeta">
     <div class="metaRow"><span class="crystalIcon living">❖</span><span class="v" id="metaLiving">0</span><span class="crystalIcon condensed">⬢</span><span class="v" id="metaCondensed">0</span></div>
     <button id="openUnlocksBtn" class="secondary">Unlocks</button>
+    <button id="openPressureBtn" class="secondary">Pressure</button>
   </div>
   <button id="tutorialBtn" class="secondary">Tutorial</button>
   <button id="settingsBtn" class="secondary">Settings</button>
@@ -528,6 +529,17 @@ body.inMenu :is(#game,#fogGrain,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMet
     <div class="unlockCards" id="upgradeCards"></div>
   </div>
   <button id="unlocksBackBtn" class="secondary">Back</button>
+</div>
+
+<div class="overlay" id="pressureOverlay" hidden>
+  <h1>Pressure</h1>
+  <div class="shopSection">
+    <div class="shopHeader"><b>Make the next run harder</b><span class="metaRow"><span class="crystalIcon condensed">⬢</span><span class="v" id="pressureBank">0</span></span></div>
+    <p>Spend Condensed Crystal to start your next run under Pressure. Each one makes the run tougher, and whatever you bank at the end of that run — Condensed and Living Crystal — is multiplied by the bonus. The cost is paid when the run starts and is gone whether you win or lose. Your picks are remembered.</p>
+    <div class="unlockCards" id="pressureCards"></div>
+    <p id="pressureSummary"></p>
+  </div>
+  <button id="pressureBackBtn" class="secondary">Back</button>
 </div>
 
 <div class="overlay" id="settingsOverlay" hidden>
@@ -906,6 +918,16 @@ const AUTOBUY_KEY='datascraper_autobuy'+SAVE_SUFFIX;
 let autoBuy=false;try{autoBuy=localStorage.getItem(AUTOBUY_KEY)==='1'}catch(e){}
 // Unlocks are now priced in Living Crystal, not Condensed — it's the rarer of the two (only a
 // handful of veins ever yield any), so even these small costs mean something.
+// v4: PRESSURE — before a run you can pay Condensed Crystal to make it harder; whatever you bank at the
+// end of that run (Condensed and Living Crystal) is multiplied by 1 + the sum of the bonuses picked.
+// The cost is paid when the run starts and isn't refunded, win or lose. Your picks are remembered.
+const PRESSURE=[
+  {id:'nests',name:'Hardened Nests',icon:'◉',cost:6,bonus:0.15,desc:'Every nest and brood mound has 50% more health.'},
+  {id:'tide',name:'Swarm Tide',icon:'≋',cost:6,bonus:0.15,desc:'Drilling waves are 30% bigger.'},
+  {id:'frenzy',name:'Frenzied Brood',icon:'⇶',cost:6,bonus:0.15,desc:'Every enemy moves 15% faster.'},
+  {id:'frail',name:'Brittle Units',icon:'✚',cost:8,bonus:0.2,desc:'Squads, Brawlers and the rest have 25% less health.'},
+  {id:'lean',name:'Lean Start',icon:'◇',cost:4,bonus:0.1,desc:'Start with 20 Dat, 2 Squads and no Brawlers (instead of 60 Dat, 3 Squads and 4 Brawlers).'},
+];
 const ARTY_UNLOCK_COST=2, GREN_UNLOCK_COST=1, MECH_UNLOCK_COST=1, ROCKET_UNLOCK_COST=1;
 function loadMeta(){
   try{
@@ -916,14 +938,14 @@ function loadMeta(){
       // recordingConsent is tri-state: true (allowed), false (disabled), undefined (never asked
       // — the consent screen shows until this becomes one of the other two).
       return {condensedBank:m.condensedBank|0,livingBank:m.livingBank|0,unlockArtillery:!!m.unlockArtillery,unlockGrenadier:!!m.unlockGrenadier,
-        unlockMech:!!m.unlockMech,unlockRocket:!!m.unlockRocket,
+        unlockMech:!!m.unlockMech,unlockRocket:!!m.unlockRocket,pressure:Array.isArray(m.pressure)?m.pressure.filter(x=>typeof x==='string'):[],
         // every stored tier, whatever the key — listing them by hand here silently dropped any
         // upgrade added later (Rapid Loaders / Magnetic Collectors) on every page reload
         upgrades:Object.fromEntries(Object.entries(mu).map(([k,v])=>[k,v|0])),
         recordingConsent:m.recordingConsent===true?true:m.recordingConsent===false?false:undefined};
     }
   }catch(e){}
-  return {condensedBank:0,livingBank:0,unlockArtillery:false,unlockGrenadier:false,unlockMech:false,unlockRocket:false,
+  return {condensedBank:0,livingBank:0,unlockArtillery:false,unlockGrenadier:false,unlockMech:false,unlockRocket:false,pressure:[],
     upgrades:{bastionHp:0,unitHp:0,pingRange:0},recordingConsent:undefined};
 }
 function saveMeta(){try{localStorage.setItem(META_KEY,JSON.stringify(meta))}catch(e){}}
@@ -2070,7 +2092,7 @@ function reset(landing){
   rand=seededRng(mapSeed);
   rollLayout();
   const land=landing||defaultLanding();
-  S={t:0,surveyVein:null,wrecks:[],beacons:[],squadCap:SQUAD_CAP_START,quakes:[],quakeMsg:false,barrier:null,breachSite:null,breachVein:null,rigSite:null,rig:null,dat:tutorialMap?TUTORIAL_START_DAT:60,living:0,condensed:0,over:null,rerollCount:0,
+  S={t:0,surveyVein:null,wrecks:[],beacons:[],squadCap:SQUAD_CAP_START,quakes:[],quakeMsg:false,barrier:null,breachSite:null,breachVein:null,rigSite:null,rig:null,dat:tutorialMap?TUTORIAL_START_DAT:pressureOn('lean')?20:60,living:0,condensed:0,over:null,rerollCount:0,
     base:{x:land.x,y:land.y,hp:450+bastionHpBonus(),maxHp:450+bastionHpBonus(),r:BASE_R,dest:null,locked:false,gunCd:0,bigGunCd:0,pingCd:0},
     troops:[],harvesters:[],builders:[],relays:[],depots:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],shards:[],nades:[],
     veins:[],activeVein:null,throttleMul:1,ambientT:30,
@@ -2089,8 +2111,8 @@ function reset(landing){
     fab:{},fabShots:[],drones:[],droneNoDatMsgT:-99,runUnlock:{},nestSproutT:NEST_SPROUT_T};
   Object.keys(FABS).forEach(k=>{S.fab[k]={n:FABS[k].charges,rt:0}});
   addDrones(DRONE_COUNT);
-  for(let i=0;i<SQUAD_START_N;i++){const u=mkTroop(i);S.troops.push(u);guardBastion(u)}
-  if(!tutorialMap)for(let i=0;i<BRAWL_START_N;i++){const u=mkTroop(100+i,'brawler');S.troops.push(u);guardBastion(u)}
+  for(let i=0;i<(pressureOn('lean')?2:SQUAD_START_N);i++){const u=mkTroop(i);S.troops.push(u);guardBastion(u)}
+  if(!tutorialMap&&!pressureOn('lean'))for(let i=0;i<BRAWL_START_N;i++){const u=mkTroop(100+i,'brawler');S.troops.push(u);guardBastion(u)}
   prodMenuOpen=false;
 
   S.mapSeed=mapSeed; S.mapType=mapType.id; S.mapLayout=mapLayout.id;
@@ -2280,6 +2302,7 @@ function applyCarry(c){
   S.troops=[];c.troops.forEach((t,i)=>{const u=mkTroop(Date.now()+i,t.kind);u.hp=t.hp;u.maxHp=t.maxHp;if(t.grp!=null)u.grp=t.grp;S.troops.push(u);guardBastion(u)});
   updateBuildBar();
 }
+function pressureNote(){return RUN&&RUN.pressure&&RUN.pressure.ids.length?` Pressure on: ${RUN.pressure.ids.map(id=>PRESSURE.find(p=>p.id===id).name).join(', ')} (+${Math.round(RUN.pressure.bonus*100)}% rewards).`:''}
 function buildStop(carry){
   STOP_BAND=RUN_STOPS[RUN.stop].band;
   mapSeed=newMapSeed();
@@ -2288,6 +2311,7 @@ function buildStop(carry){
   reset(spawn);
   applyCarry(carry);
   const st=stopInfo();
+  if(RUN.stop===0&&pressureNote())setTimeout(()=>msg(pressureNote().trim()),50);
   msg(st.final?`Stop ${RUN.stop+1} of ${RUN_STOPS.length} — the heart of the Core. The contract vein is here and already stirring: take bearings from stray energy to triangulate it, then drain it.`:
     `Stop ${RUN.stop+1} of ${RUN_STOPS.length} — ${stopName(STOP_BAND)}. A ${S.barrier&&S.barrier.type===RIFT?'band of rift':'wall of crystal'} cuts the way east: find the breach vein in front of it and drain it to break through.`);
 }
@@ -2326,11 +2350,17 @@ function drawExit(){
 // ---------- starting a run ----------
 // Play rolls a fresh map and drops the Bastion at a semi-random Rim spot (pickSpawn) — no landing
 // picker, so every run opens at a similar distance from its first vein.
+const pressureOn=id=>!!(RUN&&RUN.pressure&&RUN.pressure.ids.includes(id));
+function pressureBonus(ids){return ids.reduce((a,id)=>a+(PRESSURE.find(p=>p.id===id)||{bonus:0}).bonus,0)}
+function pressureCost(ids){return ids.reduce((a,id)=>a+(PRESSURE.find(p=>p.id===id)||{cost:0}).cost,0)}
 function startRun(){
   // v4: a run is a journey of stops (see "the run")
-  RUN={stop:0,carry:null};
+  // pay for the chosen Pressure (anything no longer affordable is dropped)
+  const ids=[];meta.pressure.forEach(id=>{if(PRESSURE.some(p=>p.id===id)&&pressureCost([...ids,id])<=meta.condensedBank)ids.push(id)});
+  meta.condensedBank-=pressureCost(ids);saveMeta();
+  RUN={stop:0,carry:null,pressure:{ids,bonus:pressureBonus(ids)}};
   menuOpen=false;
-  ['mainMenuOverlay','unlocksOverlay','settingsOverlay','stopOverlay'].forEach(id=>document.getElementById(id)._hd=true);
+  ['mainMenuOverlay','unlocksOverlay','pressureOverlay','settingsOverlay','stopOverlay'].forEach(id=>document.getElementById(id)._hd=true);
   buildStop(null);
 }
 // Shared by every "spend Living Crystal to permanently unlock X" unit — Artillery, Grenadier,
@@ -2360,7 +2390,7 @@ const META_UPGRADES=[
    desc:'Widens the pickup radius for dropped Dat Crystal shards. +20% range per purchase.'},
 ];
 function bastionHpBonus(){return (meta.upgrades.bastionHp||0)*250}
-function unitHpMult(){const t=meta.upgrades.unitHp||0;return t>0?1+META_UPGRADES[1].pct[t-1]/100:1}
+function unitHpMult(){const t=meta.upgrades.unitHp||0;return (t>0?1+META_UPGRADES[1].pct[t-1]/100:1)*(pressureOn('frail')?0.75:1)}
 function pingRangeMult(){const t=meta.upgrades.pingRange||0;return t>0?1+META_UPGRADES[2].pct[t-1]/100:1}
 function squadFireRateMult(){const t=meta.upgrades.squadFireRate||0;return t>0?1+META_UPGRADES[3].pct[t-1]/100:1}
 function pickupRangeMult(){const t=meta.upgrades.pickupRange||0;return t>0?1+META_UPGRADES[4].pct[t-1]/100:1}
@@ -2427,6 +2457,38 @@ function renderUpgradeCards(){
     host.appendChild(card);
   });
 }
+function renderPressure(){
+  const bank=meta.condensedBank, on=meta.pressure, total=pressureCost(on);
+  document.getElementById('pressureBank')._tc=bank;
+  const host=document.getElementById('pressureCards');host.innerHTML='';
+  PRESSURE.forEach(pr=>{
+    const act=on.includes(pr.id);
+    const card=document.createElement('div');card.className='unlockCard'+(act?' unlocked':'');
+    card.innerHTML=`<span class="ucIcon">${pr.icon}</span><span class="ucName">${pr.name}</span><span class="ucDesc">${pr.desc}</span>`+
+      `<span class="ucPrice"><span class="crystalIcon condensed">⬢</span>${pr.cost} · +${Math.round(pr.bonus*100)}% rewards</span>`+
+      `<button class="metaUnlock${act?' unlocked':''}">${act?'On':'Off'}</button>`;
+    const btn=card.querySelector('button');
+    btn._ds=!act&&total+pr.cost>bank;
+    btn.onclick=()=>{
+      if(act)meta.pressure=on.filter(x=>x!==pr.id);
+      else if(total+pr.cost<=bank)meta.pressure=[...on,pr.id];
+      else return;
+      saveMeta();renderPressure();
+    };
+    host.appendChild(card);
+  });
+  document.getElementById('pressureSummary')._tc=on.length?`Next run: costs ${total} Condensed, rewards +${Math.round(pressureBonus(on)*100)}%.`:'No Pressure chosen — a normal run.';
+}
+document.getElementById('openPressureBtn').onclick=()=>{
+  document.getElementById('mainMenuOverlay')._hd=true;
+  document.getElementById('pressureOverlay')._hd=false;
+  renderPressure();
+};
+document.getElementById('pressureBackBtn').onclick=()=>{
+  document.getElementById('pressureOverlay')._hd=true;
+  document.getElementById('mainMenuOverlay')._hd=false;
+  refreshMenuMeta();
+};
 document.getElementById('openUnlocksBtn').onclick=()=>{
   document.getElementById('mainMenuOverlay')._hd=true;
   document.getElementById('unlocksOverlay')._hd=false;
@@ -2668,7 +2730,7 @@ function startTutorial(){
     if(canLandAt(x,y)&&terrainAt(x,y)===0)land={x,y};
   }
   menuOpen=false;
-  ['mainMenuOverlay','unlocksOverlay','settingsOverlay'].forEach(id=>document.getElementById(id)._hd=true);
+  ['mainMenuOverlay','unlocksOverlay','pressureOverlay','settingsOverlay'].forEach(id=>document.getElementById(id)._hd=true);
   reset(land||d0);
   const tv=S.veins.find(x=>!x.contract&&x.band==='rim'&&Math.abs(x.x-v.x)<1&&Math.abs(x.y-v.y)<1)
     ||S.veins.filter(x=>!x.contract&&x.band==='rim').reduce((a,b)=>dist(b,S.base)<dist(a,S.base)?b:a);
@@ -2762,7 +2824,7 @@ function spawnEnemy(x,y,kind,opts){
   const hp=(opts&&opts.hp)||(brute?BRUTE_HP:swarm?SWARM_HP:Math.round((big?120:sab?4:34)*(core?CORE_ENEMY_HP_MULT:1)));
   S.enemies.push({x,y,r:brute?BRUTE_R:big?13:sab?4:swarm?SWARM_R:8,hp,maxHp:hp,
     speed:brute?BRUTE_SPEED:big?48:sab?105:swarm?SWARM_SPEED:78,dmg:brute?BRUTE_DMG:big?12:sab?1.5:swarm?SWARM_DMG:5,cd:0,kind,core,target:null,aggro:kind==='roam'||brute?260:1e9,home:{x,y},ang:rnd(0,Math.PI*2),faceT:rnd(1,3),stunT:0});
-  if(RUN){const e=S.enemies[S.enemies.length-1];e.hp=e.maxHp=Math.round(e.maxHp*stopHpMult())}
+  if(RUN){const e=S.enemies[S.enemies.length-1];e.hp=e.maxHp=Math.round(e.maxHp*stopHpMult());if(pressureOn('frenzy'))e.speed*=1.15}
 }
 // ---------- Quakers ----------
 // v4: a big stone block whose whole job is to wreck a drilling operation. One lumbers in now and
@@ -2864,7 +2926,7 @@ function makeNest(x,y,size){
   const N=NEST[size],band=bandAt(x,y);
   const n={x,y,r:N.r,hp:N.hp,maxHp:N.hp,kind:'nest',size,band,core:false,speed:0,dmg:0,cd:0,aggro:0,ang:0,faceT:9,stunT:0,
     target:null,home:{x,y},patrolT:rnd(N.patrolT*0.3,N.patrolT),growT:N.growT||0,defendCd:0,lastHp:N.hp,hitT:-99,seen:false,ph:rnd(0,Math.PI*2)};
-  if(RUN){n.hp=n.maxHp=Math.round(n.maxHp*stopHpMult())}
+  if(RUN){n.hp=n.maxHp=Math.round(n.maxHp*stopHpMult()*(pressureOn('nests')?1.5:1))}
   S.enemies.push(n);
   nestSpawn(n,nestScaled(n,N.guards),'roam').forEach(e=>e.nest=n);
   return n;
@@ -5079,7 +5141,7 @@ function spawnVeinWave(v){
   // sends its share from where it sits. No nest nearby: just stragglers from the vein's wave line.
   const feeders=liveNests().filter(nn=>dist(nn,v)<NEST_FEED_R);
   const feed=feeders.reduce((t,nn)=>t+NEST[nn.size].feed,0);
-  let n=Math.max(1,Math.round(WAVE_BASE_N[v.band]*th.n*(feeders.length?Math.min(3,0.4+0.6*feed):NEST_STRAGGLERS)));
+  let n=Math.max(1,Math.round((pressureOn('tide')?1.3:1)*WAVE_BASE_N[v.band]*th.n*(feeders.length?Math.min(3,0.4+0.6*feed):NEST_STRAGGLERS)));
   const ss=strainedStab(v);let strainMsg='';
   if(ss){const k=Math.max(1,Math.round(n*(WAVE_STRAIN_SHARE+0.3*ss.strain)));spawnAtStab(v,ss,k,th);n=Math.max(1,n-k);
     strainMsg=` A pack is circling in on the Stabilizer you're leaning on.`}
@@ -5780,13 +5842,14 @@ function softenFogLayers(){
 // Living Crystal were collected into the persistent save, same as a roguelite "you keep what you
 // earned" payout. Living Crystal is what Unlocks actually spends; Condensed just keeps accruing.
 function showOverlay(t,s,payoutMult){
-  const paidOut=Math.round(S.condensed*(payoutMult===undefined?1:payoutMult));
+  const pb=RUN&&RUN.pressure?1+RUN.pressure.bonus:1; // v4: Pressure raises what you bank
+  const paidOut=Math.round(S.condensed*(payoutMult===undefined?1:payoutMult)*pb), livingPaid=Math.round(S.living*pb);
   meta.condensedBank+=paidOut;
-  meta.livingBank+=S.living;
+  meta.livingBank+=livingPaid;
   saveMeta();
   document.getElementById('ovTitle')._tc=t;
   document.getElementById('ovText')._tc=`${s} Banked ${paidOut} Condensed Crystal (total: ${meta.condensedBank})`+
-    (S.living?` and ${S.living} Living Crystal (total: ${meta.livingBank}).`:'.');
+    (livingPaid?` and ${livingPaid} Living Crystal (total: ${meta.livingBank}).`:'.')+(pb>1?` Pressure bonus: +${Math.round((pb-1)*100)}%.`:'');
   document.getElementById('overlay')._hd=false;
 }
 const TIER_ORDER=Object.keys(TIER_MULT);
