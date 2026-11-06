@@ -2074,7 +2074,7 @@ function reset(landing){
   // v4: nests dug in around the breach, between it and where you land
   if(S.breachSite&&!tutorialMap){const g=STOP_GUARDS[Math.min(RUN.stop,STOP_GUARDS.length-1)],bs=S.breachSite;
     g.forEach((size,i)=>{const a=Math.PI+(i-(g.length-1)/2)*0.9+rnd(-0.2,0.2), rr=rnd(450,700);
-      const q=nearestPlain(Math.max(150,Math.min(W-150,bs.x+Math.cos(a)*rr)),Math.max(150,Math.min(H-150,bs.y+Math.sin(a)*rr)));makeNest(q.x,q.y,size)})}
+      const m=STOP_BAND==='dense'?NEST_DENSE_EDGE:150;const q=nearestPlain(Math.max(m,Math.min(W-m,bs.x+Math.cos(a)*rr)),Math.max(m,Math.min(H-m,bs.y+Math.sin(a)*rr)));makeNest(q.x,q.y,size)})}
   // v4: the last stop — the contract vein is awake from the start, ringed by its great mounds
   placePOIs(); // v4: wrecks (ported from v3)
   if(STOP_BAND==='dense'&&S.barrier){denseMaze();{const keep=rand;rand=seededRng(mapSeed*131+17);terrainCv=buildTerrainCanvas();rand=keep}buildTerrainBlur()}
@@ -2759,13 +2759,16 @@ function makeNest(x,y,size){
 }
 // A spot in the band clear of the Bastion, vein sites and other nests (and, for one sprouting
 // mid-run, out of everyone's sight). null if nothing fits.
+const NEST_DENSE_EDGE=520;
 function placeNest(size,band,hidden){
   const sites=[...S.sites,S.contractSite,...(S.hiveSites||[])].filter(Boolean), nests=liveNests();
-  for(let t=0;t<60;t++){
+  // v4: on the Dense Field stops nests sit well inland, away from the map's edges
+  const edge=STOP_BAND==='dense'&&band==='dense'?NEST_DENSE_EDGE:120;
+  for(let t=0;t<(edge>120?160:60);t++){
     const q=band==='core'?pointInRing(0,CORE_R-60,150):band==='dense'?pointInRing(CORE_R+80,DENSE_R-60,150):pointInRing(DENSE_R+80,EPI_REACH,150);
     if(!q)continue;
     const p=nearestPlain(q.x,q.y);
-    if(bandAt(p.x,p.y)!==band||!inMap(p.x,p.y,120))continue;
+    if(bandAt(p.x,p.y)!==band||!inMap(p.x,p.y,edge))continue;
     if(dist(p,S.base)<NEST_BASE_CLEAR)continue;
     if(sites.some(st=>dist(st,p)<ZONE_R+120))continue;
     if(nests.some(o=>dist(o,p)<NEST_GAP))continue;
@@ -2839,7 +2842,8 @@ function raiseMounds(v,count,size){
   const a0=rnd(0,Math.PI*2);
   for(let i=0;i<count;i++){
     const a=a0+i/count*Math.PI*2+rnd(-0.3,0.3), rr=rnd(MOUND_R[0],MOUND_R[1]);
-    const p=nearestPlain(Math.max(150,Math.min(W-150,v.x+Math.cos(a)*rr)),Math.max(150,Math.min(H-150,v.y+Math.sin(a)*rr)));
+    const m=STOP_BAND==='dense'&&v.band==='dense'?NEST_DENSE_EDGE:150;
+    const p=nearestPlain(Math.max(m,Math.min(W-m,v.x+Math.cos(a)*rr)),Math.max(m,Math.min(H-m,v.y+Math.sin(a)*rr)));
     const slot={x:p.x,y:p.y,size,nest:makeNest(p.x,p.y,size),regrowT:MOUND_REGROW_T};slot.nest.hiveVein=v;
     v.moundSlots.push(slot);
   }
@@ -2865,7 +2869,10 @@ function pickHiveSites(starts){
   HIVE_BANDS.forEach(band=>{
     const pool=S.sites.filter(st=>st.band===band&&!starts.some(p=>p.site===st));
     if(!pool.length)return;
-    const far=pool.filter(st=>dist(st,S.base)>=HIVE_BASE_CLEAR), from=far.length?far:pool;
+    let far=pool.filter(st=>dist(st,S.base)>=HIVE_BASE_CLEAR);
+    // v4: on the Dense Field stops the hive (and its mounds) sit well inland too
+    if(STOP_BAND==='dense'&&band==='dense'){const inl=(far.length?far:pool).filter(st=>Math.min(st.x,st.y,W-st.x,H-st.y)>=NEST_DENSE_EDGE+MOUND_R[1]);if(inl.length)far=inl}
+    const from=far.length?far:pool;
     const st=from[Math.floor(rnd(0,from.length))];
     S.sites.splice(S.sites.indexOf(st),1);
     st.richness=HIVE_RICHNESS[band];
