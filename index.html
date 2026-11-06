@@ -935,7 +935,7 @@ function placeVeins(){
   return {veins,extra,clusters};
 }
 // Veins live and die. A vein EMERGES at one of its band's sites at the band's lowest tier and
-// RIPENS one step every RIPEN_STEP_T seconds, up to its peak (TIER_LADDER lists each band's tiers
+// RIPENS a step at a time (RIPEN_DWELL — shorter at each higher tier), up to its peak (TIER_LADDER lists each band's tiers
 // lowest first). Reaching the peak makes it unstable, and UNSTABLE_T seconds later it COLLAPSES for
 // good — a new vein emerges at another site in the band a little later (see the exploration
 // block). So waiting pays, but only up to a point, and a vein you haven't found yet is already
@@ -946,7 +946,10 @@ const TIER_LADDER={rim:['Common','Rare','Epic'],dense:['Rare','Epic','Legendary'
 // v2: a hive vein (Mega nest) has its own ladder topping out at the Hive tier; every other vein uses its band's.
 function veinLadder(v){return TIER_LADDER[v.hive?'hive':v.band]}
 const TIER_ORDER_ALL=['Common','Rare','Epic','Legendary'];
-const RIPEN_STEP_T=60, UNSTABLE_T=40, CRACKED_T=20;
+// v4: each rung of the ladder lasts less than the one below it — RIPEN_DWELL[i] seconds at rung i —
+// and the peak lasts only UNSTABLE_T before collapse, so the best tier is the briefest window.
+const RIPEN_DWELL=[45,30], UNSTABLE_T=20, CRACKED_T=20;
+function ripeStart(i){let t=0;for(let k=0;k<i;k++)t+=RIPEN_DWELL[Math.min(k,RIPEN_DWELL.length-1)];return t}
 // Draining a vein (other than the contract one, which ends the run) offers a choice of 3
 // upgrades at that vein's tier, plus a 4th option to cash it in for Dat instead — every upgrade
 // is a flat multiplier/bonus on an existing stat, applied immediately and only for this run
@@ -1015,8 +1018,8 @@ const TIER_COLOR={Legendary:C.accent,Epic:C.zone,Rare:C.ally,Common:C.muted,Hive
 // against the cards' dark-grey face.
 const CARD_TIER_COLOR={...TIER_COLOR,Common:'#b3bcc6'};
 // ---------- ripening ----------
-function ripeIdx(v){const L=veinLadder(v).length;return Math.min(L-1,Math.floor((v.ripeT||0)/RIPEN_STEP_T))}
-function ripePeakT(v){return (veinLadder(v).length-1)*RIPEN_STEP_T}
+function ripeIdx(v){const L=veinLadder(v).length,t=v.ripeT||0;let i=0;while(i<L-1&&t>=ripeStart(i+1))i++;return i}
+function ripePeakT(v){return ripeStart(veinLadder(v).length-1)}
 function ripeTier(v){return veinLadder(v)[ripeIdx(v)]}
 // 0 while still ripening; climbs 0→1 across the unstable phase at the peak.
 // (never unstable: the contract vein, and every vein in the tutorial — those just hold at their peak)
@@ -1063,7 +1066,7 @@ const HOTSPOTS_PER_VEIN=3, STAB_HP=140, STAB_BUILD_T=3, STAB_SNAP=32;
 // moment to land — the hotspots keep drifting, so you have to lead them. Land on a free hotspot
 // and it's pinned, and the vein holds together STAB_LIFE_BONUS seconds longer before collapsing
 // (up to one per hotspot). Miss and the charge is spent.
-const STAB_CHARGES=3, STAB_RECHARGE_T=15, STAB_RANGE=650, STAB_FLIGHT_SPEED=420, STAB_LIFE_BONUS=15;
+const STAB_CHARGES=3, STAB_RECHARGE_T=15, STAB_RANGE=650, STAB_FLIGHT_SPEED=420, STAB_LIFE_BONUS=10;
 function mkHotspots(v){
   const hs=[];
   for(let i=0;i<HOTSPOTS_PER_VEIN;i++)hs.push({a0:i/HOTSPOTS_PER_VEIN*Math.PI*2+rnd(-0.5,0.5),spin:rnd(0.25,0.45)*(rnd(0,1)<0.5?-1:1),
@@ -1253,13 +1256,13 @@ function updateSurveyUI(){
   const L=veinLadder(v), locked=S.activeVein===v&&S.base.locked, tier=locked&&v.meter&&v.meter.phase==='drill'?v.meter.yieldTier:ripeTier(v);
   const tEl=document.getElementById('vsTier');tEl.textContent=tier;tEl.style.color=CARD_TIER_COLOR[tier]||'';
   // ladder: each rung fills as the vein ripens through it; the unstable stretch shows red on the last
-  const idx=ripeIdx(v), within=Math.min(1,((v.ripeT||0)-idx*RIPEN_STEP_T)/RIPEN_STEP_T), u=unstableFrac(v);
+  const idx=ripeIdx(v), within=idx<L.length-1?Math.min(1,((v.ripeT||0)-ripeStart(idx))/RIPEN_DWELL[Math.min(idx,RIPEN_DWELL.length-1)]):1, u=unstableFrac(v);
   document.getElementById('vsLadder').innerHTML=L.map((t,i)=>{const f=i<idx?1:i===idx?(i===L.length-1?1:within):0;
     return `<i title="${t}"><b style="width:${Math.round(f*100)}%;background:${i===L.length-1&&u>0?C.enemy:CARD_TIER_COLOR[t]}"></b></i>`}).join('');
   let line;
   if(locked)line=`Locked on at ${ripeTier(v)} — ripening is frozen while you drill.`;
-  else if(holdsAtPeak(v))line=idx<L.length-1?`Ripens to ${L[idx+1]} in ${fmtT((idx+1)*RIPEN_STEP_T-(v.ripeT||0))}. Holds at its peak — it never collapses.`:'At its peak — it never collapses.';
-  else if(idx<L.length-1)line=`Ripens to ${L[idx+1]} in ${fmtT((idx+1)*RIPEN_STEP_T-(v.ripeT||0))} · collapses in ${fmtT(ripePeakT(v)+unstableDur(v)-(v.ripeT||0))}.`;
+  else if(holdsAtPeak(v))line=idx<L.length-1?`Ripens to ${L[idx+1]} in ${fmtT(ripeStart(idx+1)-(v.ripeT||0))}. Holds at its peak — it never collapses.`:'At its peak — it never collapses.';
+  else if(idx<L.length-1)line=`Ripens to ${L[idx+1]} in ${fmtT(ripeStart(idx+1)-(v.ripeT||0))} · collapses in ${fmtT(ripePeakT(v)+unstableDur(v)-(v.ripeT||0))}.`;
   else line=`<span class="warn">Unstable</span> at its peak — collapses in <span class="warn">${fmtT(ripePeakT(v)+unstableDur(v)-(v.ripeT||0))}</span>.`;
   document.getElementById('vsLine').innerHTML=line;
 }
@@ -1402,7 +1405,7 @@ function ripePos(v){
   const L=veinLadder(v);
   if(S.activeVein===v&&v.meter&&v.meter.phase==='drill')return L.indexOf(v.meter.yieldTier)>=0?L.indexOf(v.meter.yieldTier):L.length-1;
   if(S.activeVein===v&&v.lockIdx!=null)return v.lockIdx;
-  return Math.min(L.length-1,(v.ripeT||0)/RIPEN_STEP_T);
+  {const i=ripeIdx(v);if(i>=L.length-1)return L.length-1;return i+((v.ripeT||0)-ripeStart(i))/RIPEN_DWELL[Math.min(i,RIPEN_DWELL.length-1)]}
 }
 function parseCol(c){
   c=String(c).trim();
@@ -1924,7 +1927,7 @@ function reset(landing){
       const ok=pool.filter(st=>!startPicks.some(p=>dist(p.site,st)<700));
       const from=ok.length?ok:pool, st=from[Math.floor(rnd(0,from.length))];
       pool.splice(pool.indexOf(st),1);
-      startPicks.push({site:st,ripeT:rnd(0,RIPEN_STEP_T*1.6),haze:rollHaze()});
+      startPicks.push({site:st,ripeT:rnd(0,ripeStart(2)*0.8),haze:rollHaze()});
     }
   });
   // Dat Crystal deposits: the Rim is thick with small, low-yield nodes — common and unremarkable,
@@ -1969,8 +1972,8 @@ function reset(landing){
   S.veins=[];S.respawnQ=[];S.drained=0;S.contractAwake=false;S.strays=[];S.bearings=[];S.triMark=null;
   if(!STOP_BAND||stopInfo().final)emergeVein(S.contractSite,{contract:true});
   startPicks.forEach(p=>emergeVein(p.site,{ripeT:p.ripeT,haze:p.haze}));
-  S.hiveSites.forEach(st=>{const v=emergeVein(st,{hive:true,ripeT:2*RIPEN_STEP_T});raiseMounds(v,HIVE_MOUNDS,'mound')});
-  S.breachVein=S.breachSite?emergeVein(S.breachSite,{breach:true,ripeT:2*RIPEN_STEP_T}):null;
+  S.hiveSites.forEach(st=>{const v=emergeVein(st,{hive:true,ripeT:ripeStart(2)});raiseMounds(v,HIVE_MOUNDS,'mound')});
+  S.breachVein=S.breachSite?emergeVein(S.breachSite,{breach:true,ripeT:ripeStart(2)}):null;
   // the opening vein: if no starting vein is close to the landing, a fresh one emerges at the
   // nearest Rim site at least LANDING_SITE_CLEAR away
   if(S.sites.some(st=>st.band===(STOP_BAND||'rim'))){const rim=S.sites.filter(st=>st.band===(STOP_BAND||'rim')), clear=rim.filter(st=>dist(st,S.base)>=LANDING_SITE_CLEAR);
