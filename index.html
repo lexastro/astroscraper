@@ -2177,6 +2177,14 @@ function advanceStop(){
   RUN.stop++;buildStop(RUN.carry);
 }
 document.getElementById('stopBtn').onclick=advanceStop;
+// debug: a button that skips to the next map, shown only while the fog is switched off with `
+const dbgSkip=document.createElement('button');dbgSkip.textContent='Debug: next map';dbgSkip.hidden=true;
+dbgSkip.style.cssText='position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:50;padding:6px 12px;background:#2a1a12;color:#ff9a5a;border:1px solid #ff9a5a;border-radius:4px;font:12px var(--mono,monospace);cursor:pointer';
+dbgSkip.addEventListener('click',e=>{e.stopPropagation();
+  if(!RUN||!S||S.over||tutorialMap||stopInfo().final){msg('Debug: no next map to skip to');return}
+  RUN.carry=captureCarry();advanceStop()});
+dbgSkip.addEventListener('keydown',e=>e.preventDefault());
+document.body.appendChild(dbgSkip);
 // the way out: a band of gold chevrons along the east edge once the breach is open
 function drawExit(){
   if(!S.barrier||!S.barrier.open)return;
@@ -3962,7 +3970,7 @@ addEventListener('keydown',e=>{
   else if(e.key.toLowerCase()==='f'){if(!e.repeat)tryLockdown()}
   else if(e.key.toLowerCase()==='t'){tryProbe()}
   else if(e.key.toLowerCase()==='v'){followSelected()}
-  else if(e.key==='`'){debugNoFog=!debugNoFog;msg(debugNoFog?'Debug: fog of war disabled':'Debug: fog of war re-enabled')}
+  else if(e.key==='`'){debugNoFog=!debugNoFog;dbgSkip.hidden=!debugNoFog;msg(debugNoFog?'Debug: fog of war disabled':'Debug: fog of war re-enabled')}
   if(e.key===' '){e.preventDefault();if(!e.repeat&&strikeReady())doStrike()}
 });
 addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;keys[e.key]=false});
