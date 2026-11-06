@@ -38,6 +38,8 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 /* v4: the anti-banding grain is a static CSS layer over the canvas, composited by the browser for free,
    instead of a full-screen canvas pass every frame */
 #fogGrain{position:absolute;inset:0;pointer-events:none;background-repeat:repeat;opacity:.035}
+body.lowGfx #fogGrain{display:none}
+#perfHud{position:fixed;top:6px;left:50%;transform:translateX(-50%);z-index:50;pointer-events:none;font:11px var(--mono,monospace);color:#cfe;background:rgba(0,0,0,.7);padding:3px 8px;border-radius:4px;white-space:nowrap}
 .hud{position:absolute;top:env(safe-area-inset-top,0px);left:0;right:0;display:flex;gap:10px;align-items:stretch;
   padding:8px max(16px,env(safe-area-inset-right,0px)) 0 max(16px,env(safe-area-inset-left,0px));pointer-events:none;flex-wrap:wrap}
 .stat{background:var(--panel);border:1px solid var(--line);padding:6px 10px;border-radius:4px;display:flex;flex-direction:column;gap:2px;min-width:92px}
@@ -549,6 +551,16 @@ body.inMenu :is(#game,#fogGrain,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMet
 <script>
 (() => {
 'use strict';
+// v4 perf: the HUD is refreshed every frame, but most values don't change from one frame to the
+// next. Rewriting the page anyway makes the browser restyle it every frame (Firefox gets
+// slower and slower at this). These setters only touch the page when the value actually changes.
+{const P=HTMLElement.prototype, def=(k,set)=>Object.defineProperty(P,k,{set,configurable:true});
+ def('_tc',function(v){v=v==null?'':String(v);if(this.textContent!==v)this.textContent=v});
+ def('_hd',function(v){v=!!v;if(this.hidden!==v)this.hidden=v});
+ def('_ds',function(v){v=!!v;if(this.disabled!==v)this.disabled=v});
+ def('_ih',function(v){if(this.__ih!==v){this.__ih=v;this.innerHTML=v}});
+ for(const [k,prop] of [['_sw','width'],['_sc','color'],['_sb','background']])
+   def(k,function(v){const c='__'+k;if(this[c]!==v){this[c]=v;this.style[prop]=v}});}
 // ---------- constants ----------
 // Map is kept square (W===H) — the menu/minimap renderers scale x and y by the same factor
 // (canvas width / W), so a non-square map would misalign every overlay (vein markers, zone
@@ -1282,19 +1294,19 @@ function updateSurveyUI(){
   if(v&&(!veinAlive(v)||v.done))v=S.surveyVein=null;
   const meter=document.getElementById('drillMeter'), body=meter.querySelector('.dmBody'), docked=!meter.hidden&&S.activeVein===v;
   // the meter's up for another vein: keep out of its way
-  if(!v||menuOpen||S.over||(!meter.hidden&&!docked)){el.hidden=true;return}
-  el.hidden=false;
+  if(!v||menuOpen||S.over||(!meter.hidden&&!docked)){el._hd=true;return}
+  el._hd=false;
   if(docked&&el.parentNode!==body){body.appendChild(el);el.classList.add('inMeter')}
   else if(!docked&&el.parentNode===body){meter.parentNode.insertBefore(el,meter);el.classList.remove('inMeter')}
   const L=veinLadder(v), locked=S.activeVein===v&&S.base.locked, tier=locked&&v.meter&&v.meter.phase==='drill'?v.meter.yieldTier:ripeTier(v);
-  const tEl=document.getElementById('vsTier');tEl.textContent=tier;tEl.style.color=CARD_TIER_COLOR[tier]||'';
+  const tEl=document.getElementById('vsTier');tEl._tc=tier;tEl._sc=CARD_TIER_COLOR[tier]||'';
   // ladder: each rung fills as the vein ripens through it; the unstable stretch shows red on the last
   const idx=ripeIdx(v), within=idx<L.length-1?Math.min(1,((v.ripeT||0)-ripeStart(idx))/RIPEN_DWELL[Math.min(idx,RIPEN_DWELL.length-1)]):1, u=unstableFrac(v);
   // each rung is as wide as that tier lasts (the peak: its unstable window, Stabilizer bonus and all),
   // so the bar is a true timeline; the peak rung fills as that window burns down, reddening as it goes
   const last=L.length-1, hold=holdsAtPeak(v);
   const dur=i=>i<last?RIPEN_DWELL[Math.min(i,RIPEN_DWELL.length-1)]:(hold?RIPEN_DWELL[RIPEN_DWELL.length-1]:unstableDur(v));
-  document.getElementById('vsLadder').innerHTML=L.map((t,i)=>{
+  document.getElementById('vsLadder')._ih=L.map((t,i)=>{
     const f=i<idx?1:i===idx?(i===last?(hold?1:u):within):0, col=i===last&&u>0?mixCol(CARD_TIER_COLOR[t],C.enemy,Math.min(1,u*1.2)):CARD_TIER_COLOR[t];
     return `<i title="${t} — ${i===last&&hold?'holds':Math.round(dur(i))+'s'}" style="flex:${dur(i)} 1 0"><b style="width:${(f*100).toFixed(1)}%;background:${col}"></b></i>`}).join('');
   let line;
@@ -1302,7 +1314,7 @@ function updateSurveyUI(){
   else if(holdsAtPeak(v))line=idx<L.length-1?`Ripens to ${L[idx+1]} in ${fmtT(ripeStart(idx+1)-(v.ripeT||0))}. Holds at its peak — it never collapses.`:'At its peak — it never collapses.';
   else if(idx<L.length-1)line=`Ripens to ${L[idx+1]} in ${fmtT(ripeStart(idx+1)-(v.ripeT||0))} · collapses in ${fmtT(ripePeakT(v)+unstableDur(v)-(v.ripeT||0))}.`;
   else line=`<span class="warn">Unstable</span> at its peak — collapses in <span class="warn">${fmtT(ripePeakT(v)+unstableDur(v)-(v.ripeT||0))}</span>.`;
-  document.getElementById('vsLine').innerHTML=line;
+  document.getElementById('vsLine')._ih=line;
 }
 // v4: one console card per Stabilizer slot on the vein being drilled — its health, how steady it
 // is, how much of the steering weight it's carrying, and a warning when the enemy is coming for it.
@@ -1313,12 +1325,12 @@ function updateStabBay(v){
     const h=v.hot&&v.hot[+b.dataset.i], st=h&&h.stab&&h.stab.built&&h.stab.hp>0?h.stab:null;
     const state=b.querySelector('.sState'), bar=b.querySelector('.sBar i'), sub=b.querySelector('.sSub');
     b.classList.toggle('empty',!st);b.classList.toggle('targeted',!!st&&tg.has(st));
-    if(!st){state.textContent='EMPTY';state.style.color='var(--muted)';bar.style.width='0%';sub.textContent='Fire one with E';return}
+    if(!st){state._tc='EMPTY';state._sc='var(--muted)';bar._sw='0%';sub._tc='Fire one with E';return}
     const hp=st.hp/st.maxHp, sn=st.strain||0, targeted=tg.has(st);
     const [label,col]=targeted?['TARGETED','#ff6a3d']:hp<0.35?['FAILING',C.enemy]:sn>0.6?['STRAINED','#ffb36b']:sn>0.2?['LOADED','#e8c46a']:['STEADY','#7fd88a'];
-    state.textContent=label;state.style.color=col;
-    bar.style.width=Math.round(100*hp)+'%';bar.style.background=hp<0.35?C.enemy:hp<0.65?'#e8c46a':'#7fd88a';
-    sub.textContent=`HP ${Math.ceil(st.hp)}/${st.maxHp} · load ${Math.round(100*sn)}%`;
+    state._tc=label;state._sc=col;
+    bar._sw=Math.round(100*hp)+'%';bar._sb=hp<0.35?C.enemy:hp<0.65?'#e8c46a':'#7fd88a';
+    sub._tc=`HP ${Math.ceil(st.hp)}/${st.maxHp} · load ${Math.round(100*sn)}%`;
   });
 }
 {document.querySelectorAll('#dmStabs .dmStab').forEach(b=>b.addEventListener('click',()=>{
@@ -1327,27 +1339,27 @@ function updateStabBay(v){
 function updateMeterUI(){
   const el=document.getElementById('drillMeter'), v=S.activeVein;
   const show=!!(S.base.locked&&v&&!v.done&&v.meter&&!menuOpen);
-  el.hidden=!show; if(!show)return;
+  el._hd=!show; if(!show)return;
   const m=v.meter, title=document.getElementById('dmTitle'), yieldEl=document.getElementById('dmYield'), hint=document.getElementById('dmHint');
-  document.getElementById('dmStrike').hidden=m.phase!=='strike';
+  document.getElementById('dmStrike')._hd=m.phase!=='strike';
   const nStab=veinStabs(v).length;
   el.classList.toggle('alarm',!!m.inRed);
-  if(m.phase==='strike'){title.style.color='';
-    title.textContent=m.t<1.5?'STRIKE!':`STRIKE! — bands shrinking: ${Math.round(100*Math.max(STRIKE_SHRINK_MIN,1-m.t/STRIKE_SHRINK_T))}% wide`;
-    const h=stripAt(m.strip,m.p);yieldEl.textContent=h.red?'RUPTURE':h.tier;yieldEl.style.color=h.red?C.enemy:CARD_TIER_COLOR[h.tier];
-    hint.textContent='Stop the needle on a good band — the thin sliver is a tier above the vein, red ruptures it.';
+  if(m.phase==='strike'){title._sc='';
+    title._tc=m.t<1.5?'STRIKE!':`STRIKE! — bands shrinking: ${Math.round(100*Math.max(STRIKE_SHRINK_MIN,1-m.t/STRIKE_SHRINK_T))}% wide`;
+    const h=stripAt(m.strip,m.p);yieldEl._tc=h.red?'RUPTURE':h.tier;yieldEl._sc=h.red?C.enemy:CARD_TIER_COLOR[h.tier];
+    hint._tc='Stop the needle on a good band — the thin sliver is a tier above the vein, red ruptures it.';
   }else{
-    title.textContent=m.phase==='zoom'?'Struck — locking in…':m.inRed?`⚠ RUPTURE IN ${Math.max(0,RED_GRACE-m.redT).toFixed(1)}s — steer out of the red!`:m.redT>0?`Drilling — danger easing (${Math.round(100*m.redT/RED_GRACE)}%)`:v.stalled?'Drilling — STALLED':v.paused?'Drilling — PAUSED':'Drilling';
-    title.style.color=m.inRed||m.redT>0?C.enemy:'';
-    yieldEl.textContent=`Yield: ${m.yieldTier}`;yieldEl.style.color=CARD_TIER_COLOR[m.yieldTier];
+    title._tc=m.phase==='zoom'?'Struck — locking in…':m.inRed?`⚠ RUPTURE IN ${Math.max(0,RED_GRACE-m.redT).toFixed(1)}s — steer out of the red!`:m.redT>0?`Drilling — danger easing (${Math.round(100*m.redT/RED_GRACE)}%)`:v.stalled?'Drilling — STALLED':v.paused?'Drilling — PAUSED':'Drilling';
+    title._sc=m.inRed||m.redT>0?C.enemy:'';
+    yieldEl._tc=`Yield: ${m.yieldTier}`;yieldEl._sc=CARD_TIER_COLOR[m.yieldTier];
     const hold=nStab?Math.round(100*stabHold(v)/nStab):0;
-    hint.textContent=nStab>=3?`Drag the weight to steer — east pushes the needle right. The Stabilizer you lean on draws the enemy. (${hold}%)`
+    hint._tc=nStab>=3?`Drag the weight to steer — east pushes the needle right. The Stabilizer you lean on draws the enemy. (${hold}%)`
       :nStab?`${nStab} Stabilizer${nStab===1?'':'s'} holding at ${hold}% — pin all 3 to steer the needle.`:'No Stabilizers — the needle is drifting freely.';
   }
   // extraction progress, and how long the drill has left at its current rate
   {const f=Math.min(1,v.drillProg/v.richness), left=(v.richness-v.drillProg)/(DRILL_RATE*S.mods.drillRateMult);
-   document.getElementById('dmProgFill').style.width=(100*f).toFixed(1)+'%';
-   document.getElementById('dmProgTxt').textContent=m.phase==='drill'?`${Math.floor(100*f)}% · ${fmtT(left)} left`:'—'}
+   document.getElementById('dmProgFill')._sw=(100*f).toFixed(1)+'%';
+   document.getElementById('dmProgTxt')._tc=m.phase==='drill'?`${Math.floor(100*f)}% · ${fmtT(left)} left`:'—'}
   updateStabBay(v);
   const cvm=document.getElementById('dmCanvas'), dpr=devicePixelRatio||1, Wc=Math.max(1,Math.round(cvm.clientWidth*dpr)), Hc=Math.round(44*dpr);
   if(cvm.width!==Wc||cvm.height!==Hc){cvm.width=Wc;cvm.height=Hc}
@@ -1381,7 +1393,7 @@ function updateMeterUI(){
 let padScale=1;
 function drawSteerPad(v){
   const pad=document.getElementById('dmPad'), m=v.meter, show=m.phase!=='strike';
-  pad.hidden=!show; if(!show)return;
+  pad._hd=!show; if(!show)return;
   const dpr=devicePixelRatio||1, cssS=pad.clientWidth||132, S2=Math.round(cssS*dpr); if(pad.width!==S2){pad.width=pad.height=S2}
   const g=pad.getContext('2d'), sv=steerState(v), sh=sv.sh, c0=S2/2;
   padScale=(cssS/2-7)/(0.8*v.r); const P=(x,y)=>[c0+x*padScale*dpr,c0+y*padScale*dpr];
@@ -1668,7 +1680,7 @@ function drawPulseRing(src,R,col,I,vx0,vy0,vx1,vy1,c){
 const CRACK_DEPTH_BUCKETS=6;
 function drawCrackNet(vw,vh,shkx,shky,x0,y0,x1,y1){
   const net=S.crackNet,dep=S.crackDepth; if(!net)return;
-  const dpr=devicePixelRatio;
+  const dpr=gDpr();
   if(crackLayer.width!==cv.width||crackLayer.height!==cv.height){crackLayer.width=cv.width;crackLayer.height=cv.height}
   const L=crackLX;
   L.setTransform(1,0,0,1,0,0);L.globalCompositeOperation='source-over';L.clearRect(0,0,crackLayer.width,crackLayer.height);
@@ -1725,7 +1737,7 @@ function drawStrayPockets(vx0,vy0,vx1,vy1){
 // and the layer is added onto the frame as light.
 let pulseLayer=document.createElement('canvas'), pulseLX=pulseLayer.getContext('2d');
 function drawExplorationLight(vx0,vy0,vx1,vy1,vw,vh,shkx,shky){
-  const dpr=devicePixelRatio, P=pulseLX;
+  const dpr=gDpr(), P=pulseLX;
   if(pulseLayer.width!==cv.width||pulseLayer.height!==cv.height){pulseLayer.width=cv.width;pulseLayer.height=cv.height}
   P.setTransform(1,0,0,1,0,0);P.globalCompositeOperation='source-over';P.clearRect(0,0,pulseLayer.width,pulseLayer.height);
   P.setTransform(dpr,0,0,dpr,0,0);P.translate(vw/2+shkx,vh/2+shky);P.scale(cam.z,cam.z);P.translate(-cam.x,-cam.y);
@@ -2035,8 +2047,8 @@ function reset(landing){
   cam={x:S.base.x,y:S.base.y,z:1};
   fogX.globalCompositeOperation='source-over'; fogX.fillStyle='#000'; fogX.fillRect(0,0,fogC.width,fogC.height);
   S.sel.base=true; buildMode=null; pingMode=false; probeMode=false; updateBuildBar();
-  document.getElementById('overlay').hidden=true;
-  document.getElementById('pauseOverlay').hidden=true;
+  document.getElementById('overlay')._hd=true;
+  document.getElementById('pauseOverlay')._hd=true;
   msg('Watch the cracks for pulses of energy — follow them upstream to find a vein.');
   S.paused=menuOpen; // held while the main menu is up
 }
@@ -2135,12 +2147,12 @@ function finishStop(){
   if(!RUN||!S.barrier||!S.barrier.open)return;
   RUN.carry=captureCarry();S.paused=true;
   const next=RUN_STOPS[RUN.stop+1];
-  document.getElementById('stopTitle').textContent=`Stop ${RUN.stop+1} cleared`;
-  document.getElementById('stopText').textContent=`Next: stop ${RUN.stop+2} of ${RUN_STOPS.length} — ${stopName(next.band)}${next.final?', where the contract vein waits':''}. Everything you have comes with you; enemies there are tougher.`;
-  document.getElementById('stopOverlay').hidden=false;
+  document.getElementById('stopTitle')._tc=`Stop ${RUN.stop+1} cleared`;
+  document.getElementById('stopText')._tc=`Next: stop ${RUN.stop+2} of ${RUN_STOPS.length} — ${stopName(next.band)}${next.final?', where the contract vein waits':''}. Everything you have comes with you; enemies there are tougher.`;
+  document.getElementById('stopOverlay')._hd=false;
 }
 function advanceStop(){
-  document.getElementById('stopOverlay').hidden=true;
+  document.getElementById('stopOverlay')._hd=true;
   RUN.stop++;buildStop(RUN.carry);
 }
 document.getElementById('stopBtn').onclick=advanceStop;
@@ -2161,7 +2173,7 @@ function startRun(){
   // v4: a run is a journey of stops (see "the run")
   RUN={stop:0,carry:null};
   menuOpen=false;
-  ['mainMenuOverlay','unlocksOverlay','settingsOverlay','stopOverlay'].forEach(id=>document.getElementById(id).hidden=true);
+  ['mainMenuOverlay','unlocksOverlay','settingsOverlay','stopOverlay'].forEach(id=>document.getElementById(id)._hd=true);
   buildStop(null);
 }
 // Shared by every "spend Living Crystal to permanently unlock X" unit — Artillery, Grenadier,
@@ -2195,20 +2207,20 @@ function pingRangeMult(){const t=meta.upgrades.pingRange||0;return t>0?1+META_UP
 function squadFireRateMult(){const t=meta.upgrades.squadFireRate||0;return t>0?1+META_UPGRADES[3].pct[t-1]/100:1}
 function pickupRangeMult(){const t=meta.upgrades.pickupRange||0;return t>0?1+META_UPGRADES[4].pct[t-1]/100:1}
 function refreshMenuMeta(){
-  document.getElementById('metaLiving').textContent=meta.livingBank;
-  document.getElementById('metaCondensed').textContent=meta.condensedBank;
+  document.getElementById('metaLiving')._tc=meta.livingBank;
+  document.getElementById('metaCondensed')._tc=meta.condensedBank;
   const rb=document.getElementById('recordingToggleBtn');
-  rb.textContent=meta.recordingConsent?'Gameplay Recording: On (click to disable)':'Gameplay Recording: Off (click to enable)';
+  rb._tc=meta.recordingConsent?'Gameplay Recording: On (click to disable)':'Gameplay Recording: Off (click to enable)';
   const allUnlocked=UNLOCKS.every(u=>meta[u.flag]);
-  document.getElementById('debugUnlockAllBtn').textContent=allUnlocked?'[Debug] Lock everything again':'[Debug] Unlock everything free';
+  document.getElementById('debugUnlockAllBtn')._tc=allUnlocked?'[Debug] Lock everything again':'[Debug] Unlock everything free';
   const owned=Object.values(meta.upgrades).reduce((a,b)=>a+b,0);
   const wb=document.getElementById('debugWipeUpgradesBtn');
   wb.dataset.armed='';
-  wb.textContent=`[Debug] Wipe upgrades (${owned} tier${owned===1?'':'s'} owned)`;
-  wb.disabled=owned===0;
+  wb._tc=`[Debug] Wipe upgrades (${owned} tier${owned===1?'':'s'} owned)`;
+  wb._ds=owned===0;
 }
 function renderUnlockCards(){
-  document.getElementById('unlocksLiving').textContent=meta.livingBank;
+  document.getElementById('unlocksLiving')._tc=meta.livingBank;
   const host=document.getElementById('unlockCards');
   host.innerHTML='';
   UNLOCKS.forEach(u=>{
@@ -2218,7 +2230,7 @@ function renderUnlockCards(){
       `<span class="ucPrice"><span class="crystalIcon living">❖</span>${u.cost}</span>`+
       `<button class="metaUnlock${meta[u.flag]?' unlocked':''}">${meta[u.flag]?'Unlocked':'Unlock'}</button>`;
     const btn=card.querySelector('button');
-    btn.disabled=meta[u.flag]||meta.livingBank<u.cost;
+    btn._ds=meta[u.flag]||meta.livingBank<u.cost;
     btn.onclick=()=>{
       if(meta[u.flag]||meta.livingBank<u.cost)return;
       meta.livingBank-=u.cost;
@@ -2231,7 +2243,7 @@ function renderUnlockCards(){
   });
 }
 function renderUpgradeCards(){
-  document.getElementById('upgradesCondensed').textContent=meta.condensedBank;
+  document.getElementById('upgradesCondensed')._tc=meta.condensedBank;
   const host=document.getElementById('upgradeCards');
   host.innerHTML='';
   META_UPGRADES.forEach(u=>{
@@ -2245,7 +2257,7 @@ function renderUpgradeCards(){
       `<span class="ucPrice">${maxed?'Maxed':`${tier+1}/${u.max} — <span class="crystalIcon condensed">⬢</span>${cost}`}</span>`+
       `<button class="metaUnlock${maxed?' unlocked':''}">${maxed?'Maxed':'Upgrade'}</button>`;
     const btn=card.querySelector('button');
-    btn.disabled=maxed||meta.condensedBank<cost;
+    btn._ds=maxed||meta.condensedBank<cost;
     btn.onclick=()=>{
       if(maxed||meta.condensedBank<u.costs[tier])return;
       meta.condensedBank-=u.costs[tier];
@@ -2258,27 +2270,27 @@ function renderUpgradeCards(){
   });
 }
 document.getElementById('openUnlocksBtn').onclick=()=>{
-  document.getElementById('mainMenuOverlay').hidden=true;
-  document.getElementById('unlocksOverlay').hidden=false;
+  document.getElementById('mainMenuOverlay')._hd=true;
+  document.getElementById('unlocksOverlay')._hd=false;
   renderUnlockCards();
   renderUpgradeCards();
 };
 document.getElementById('unlocksBackBtn').onclick=()=>{
-  document.getElementById('unlocksOverlay').hidden=true;
-  document.getElementById('mainMenuOverlay').hidden=false;
+  document.getElementById('unlocksOverlay')._hd=true;
+  document.getElementById('mainMenuOverlay')._hd=false;
   refreshMenuMeta();
 };
 // Main menu: Play starts a run straight away, Unlocks is the meta shop, Settings holds the
 // recording and debug toggles.
 document.getElementById('playBtn').onclick=startRun;
 document.getElementById('settingsBtn').onclick=()=>{
-  document.getElementById('mainMenuOverlay').hidden=true;
-  document.getElementById('settingsOverlay').hidden=false;
+  document.getElementById('mainMenuOverlay')._hd=true;
+  document.getElementById('settingsOverlay')._hd=false;
   refreshMenuMeta();
 };
 document.getElementById('settingsBackBtn').onclick=()=>{
-  document.getElementById('settingsOverlay').hidden=true;
-  document.getElementById('mainMenuOverlay').hidden=false;
+  document.getElementById('settingsOverlay')._hd=true;
+  document.getElementById('mainMenuOverlay')._hd=false;
 };
 // Dev convenience: grants (or, toggled again, revokes) every unlock without spending anything, so
 // testing a build doesn't require actually grinding Condensed Crystal first — and testing the
@@ -2294,11 +2306,11 @@ document.getElementById('debugUnlockAllBtn').onclick=()=>{
 // refund, and unit unlocks are left alone). Takes two clicks — the first arms it, the second wipes.
 document.getElementById('debugWipeUpgradesBtn').onclick=()=>{
   const wb=document.getElementById('debugWipeUpgradesBtn');
-  if(!wb.dataset.armed){wb.dataset.armed='1';wb.textContent='[Debug] Click again to wipe all upgrades';return}
+  if(!wb.dataset.armed){wb.dataset.armed='1';wb._tc='[Debug] Click again to wipe all upgrades';return}
   Object.keys(meta.upgrades).forEach(k=>{meta.upgrades[k]=0});
   saveMeta();
   refreshMenuMeta();
-  wb.textContent='[Debug] Upgrades wiped';
+  wb._tc='[Debug] Upgrades wiped';
 };
 // Applies the player's stored choice to the actual PostHog client — opt_out_capturing_by_default
 // in the init config above means nothing records until this (or the consent screen) runs.
@@ -2311,7 +2323,7 @@ function setRecordingConsent(allow){
   meta.recordingConsent=allow;
   saveMeta();
   applyRecordingConsent();
-  document.getElementById('consentOverlay').hidden=true;
+  document.getElementById('consentOverlay')._hd=true;
   refreshMenuMeta();
 }
 document.getElementById('consentAllowBtn').onclick=()=>setRecordingConsent(true);
@@ -2321,11 +2333,11 @@ document.getElementById('recordingToggleBtn').onclick=()=>setRecordingConsent(!m
 // Opens the main menu again after a run ends — Play then rolls a fresh map.
 function openMainMenu(){
   endTutorialState();
-  RUN=null;STOP_BAND=null;document.getElementById('stopOverlay').hidden=true;
+  RUN=null;STOP_BAND=null;document.getElementById('stopOverlay')._hd=true;
   menuOpen=true;
-  document.getElementById('mainMenuOverlay').hidden=false;
-  document.getElementById('unlocksOverlay').hidden=true;
-  document.getElementById('settingsOverlay').hidden=true;
+  document.getElementById('mainMenuOverlay')._hd=false;
+  document.getElementById('unlocksOverlay')._hd=true;
+  document.getElementById('settingsOverlay')._hd=true;
   refreshMenuMeta();
   reset(); // parks (paused) on a fresh map behind the menu
 }
@@ -2434,7 +2446,7 @@ function startTutorial(){
     if(canLandAt(x,y)&&terrainAt(x,y)===0)land={x,y};
   }
   menuOpen=false;
-  ['mainMenuOverlay','unlocksOverlay','settingsOverlay'].forEach(id=>document.getElementById(id).hidden=true);
+  ['mainMenuOverlay','unlocksOverlay','settingsOverlay'].forEach(id=>document.getElementById(id)._hd=true);
   reset(land||d0);
   const tv=S.veins.find(x=>!x.contract&&x.band==='rim'&&Math.abs(x.x-v.x)<1&&Math.abs(x.y-v.y)<1)
     ||S.veins.filter(x=>!x.contract&&x.band==='rim').reduce((a,b)=>dist(b,S.base)<dist(a,S.base)?b:a);
@@ -2444,19 +2456,19 @@ function startTutorial(){
 }
 function endTutorialState(){
   tutorial=null; tutorialMap=false;
-  document.getElementById('tutPanel').hidden=true;
+  document.getElementById('tutPanel')._hd=true;
 }
 function renderTutorialStep(){
   const st=TUTORIAL_STEPS[tutorial.step];
-  document.getElementById('tutPanel').hidden=false;
-  document.getElementById('tutStep').textContent=`Tutorial · ${tutorial.step+1} / ${TUTORIAL_STEPS.length}`;
-  document.getElementById('tutTitle').textContent=st.title;
+  document.getElementById('tutPanel')._hd=false;
+  document.getElementById('tutStep')._tc=`Tutorial · ${tutorial.step+1} / ${TUTORIAL_STEPS.length}`;
+  document.getElementById('tutTitle')._tc=st.title;
   if(st.enter&&!st.entered){st.entered=true;st.enter()}
-  document.getElementById('tutText').innerHTML=st.text();
+  document.getElementById('tutText')._ih=st.text();
   const next=document.getElementById('tutNext'), alt=document.getElementById('tutAlt');
-  next.hidden=!!st.done; next.textContent=st.finish?'Finish tutorial':'Next';
-  alt.hidden=!st.finish; alt.textContent='Keep playing';
-  document.getElementById('tutSkipStep').hidden=!st.done;
+  next._hd=!!st.done; next._tc=st.finish?'Finish tutorial':'Next';
+  alt._hd=!st.finish; alt._tc='Keep playing';
+  document.getElementById('tutSkipStep')._hd=!st.done;
 }
 function advanceTutorial(){
   if(!tutorial)return;
@@ -3004,9 +3016,9 @@ function renderToasts(){
   toastLog.forEach((tst,i)=>{
     const div=document.createElement('div');
     div.className=`toast ${tst.type} ${i===0?'primary':'secondary'}`;
-    const ti=document.createElement('span');ti.className='ti';ti.textContent=toastIcon(tst.type);
-    const tx=document.createElement('span');tx.className='tx';tx.textContent=tst.text;
-    const tc=document.createElement('button');tc.className='tc';tc.setAttribute('aria-label','Dismiss');tc.textContent='×';
+    const ti=document.createElement('span');ti.className='ti';ti._tc=toastIcon(tst.type);
+    const tx=document.createElement('span');tx.className='tx';tx._tc=tst.text;
+    const tc=document.createElement('button');tc.className='tc';tc.setAttribute('aria-label','Dismiss');tc._tc='×';
     tc.onclick=()=>dismissToast(tst.id);
     div.append(ti,tx,tc);
     el.appendChild(div);
@@ -3618,7 +3630,13 @@ function cableSeverPass(allUnits,dt){
 }
 
 // ---------- input ----------
-function resize(){cv.width=cv.clientWidth*devicePixelRatio;cv.height=cv.clientHeight*devicePixelRatio;}
+// v4: F8 toggles low graphics — the map is drawn at 60% of screen resolution and stretched to fit
+// (far fewer pixels to fill each frame), and the film grain is turned off. Remembered per browser.
+const LOWGFX_KEY='datascraper_lowgfx_v4';
+let lowGfx=false;try{lowGfx=localStorage.getItem(LOWGFX_KEY)==='1'}catch(e){}
+function gDpr(){return lowGfx?Math.min(1,devicePixelRatio||1)*0.6:(devicePixelRatio||1)}
+function resize(){const d=gDpr();cv.width=Math.round(cv.clientWidth*d);cv.height=Math.round(cv.clientHeight*d);document.body.classList.toggle('lowGfx',lowGfx)}
+function setLowGfx(on){lowGfx=on;try{localStorage.setItem(LOWGFX_KEY,on?'1':'0')}catch(e){}resize();msg(on?'Low graphics ON — lower resolution, no grain (F8 to turn off).':'Low graphics OFF (F8).')}
 addEventListener('resize',resize);resize();
 function toWorld(sx,sy){const r=cv.getBoundingClientRect();return{x:(sx-r.left-r.width/2)/cam.z+cam.x,y:(sy-r.top-r.height/2)/cam.z+cam.y}}
 cv.addEventListener('contextmenu',e=>e.preventDefault());
@@ -3772,6 +3790,8 @@ addEventListener('keydown',e=>{
   if(e.key.toLowerCase()==='q')setBuild(buildMode==='turret'?null:'turret'); else if(e.key==='2')setBuild(buildMode==='relay'?null:'relay'); else if(e.key==='3')fabUnit('troop'); else if(e.key==='4')fabUnit('grenadier'); else if(e.key.toLowerCase()==='e')setBuild(buildMode==='stabilizer'?null:'stabilizer'); else if(e.key==='6')fabUnit('artillery'); else if(e.key==='7')fabUnit('mech');
   else if(e.key==='Escape'){if(!document.getElementById('drillSelectOverlay').hidden){closeDrillSelect()}else if(probeMode){setProbeMode(false)}else if(pingMode){setPingMode(false)}else if(buildMode||prodMenuOpen){setBuild(null);closeProdMenu()}else togglePause()} else if(e.key.toLowerCase()==='b'){S.sel.troops.clear();S.sel.harv.clear();S.sel.bu.clear();S.sel.base=true}
   // v4: keys follow v3 — Q turret, E Stabilizer, T probe, C all units, F drill (lock on / strike)
+  else if(e.key==='F8'){e.preventDefault();setLowGfx(!lowGfx)}
+  else if(e.key==='F9'){e.preventDefault();perf.on=!perf.on;if(perf.el)perf.el.hidden=!perf.on}
   else if(e.key.toLowerCase()==='c'){selectAllUnitsOfKind('troops')}
   else if(e.key.toLowerCase()==='h'){cam.x=S.base.x;cam.y=S.base.y}
   else if(e.key.toLowerCase()==='f'){if(!e.repeat)tryLockdown()}
@@ -3785,7 +3805,7 @@ document.querySelectorAll('#buildBar button[data-mode]').forEach(b=>b.addEventLi
 document.querySelectorAll('#buildBar button[data-unit]').forEach(b=>b.addEventListener('click',()=>fabUnit(b.dataset.unit)));
 // v4: right-click any build button to buy one more charge of it with Dat (a Squad button buys a
 // Squad outright). Stocks top out at their usual size.
-function refreshAutoBuy(){const b=document.getElementById('bAutoBuy');b.classList.toggle('on',autoBuy);document.getElementById('bAutoBuyLabel').textContent=`Auto-buy: ${autoBuy?'on':'off'}`}
+function refreshAutoBuy(){const b=document.getElementById('bAutoBuy');b.classList.toggle('on',autoBuy);document.getElementById('bAutoBuyLabel')._tc=`Auto-buy: ${autoBuy?'on':'off'}`}
 document.getElementById('bAutoBuy').onclick=()=>{autoBuy=!autoBuy;try{localStorage.setItem(AUTOBUY_KEY,autoBuy?'1':'0')}catch(e){}refreshAutoBuy();sfx.click();
   msg(autoBuy?'Auto-buy on — using an empty stock buys the charge with Dat.':'Auto-buy off — right-click a button to buy charges.')};
 refreshAutoBuy();
@@ -3825,13 +3845,13 @@ function selectAllUnitsOfKind(kind){
 document.getElementById('selBaseBtn2').onclick=()=>selectAllUnitsOfKind('base');
 document.getElementById('selTroopsBtn2').onclick=()=>selectAllUnitsOfKind('troops');
 document.getElementById('drillCancelBtn').onclick=()=>closeDrillSelect();
-document.getElementById('helpClose').onclick=()=>{const h=document.getElementById('help');h.hidden=true;h.classList.remove('open')};
-document.getElementById('ovBtn').onclick=()=>{document.getElementById('overlay').hidden=true;openMainMenu()};
+document.getElementById('helpClose').onclick=()=>{const h=document.getElementById('help');h._hd=true;h.classList.remove('open')};
+document.getElementById('ovBtn').onclick=()=>{document.getElementById('overlay')._hd=true;openMainMenu()};
 document.getElementById('pauseResumeBtn').onclick=togglePause;
 const miniWrap=document.getElementById('miniWrap'), miniToggle=document.getElementById('miniToggle');
 function setMiniExpanded(v){
   miniWrap.classList.toggle('expanded',v);
-  miniToggle.textContent=v?'⤡':'⤢';
+  miniToggle._tc=v?'⤡':'⤢';
   miniToggle.setAttribute('aria-label',v?'Collapse minimap':'Expand minimap');
 }
 miniToggle.addEventListener('pointerdown',e=>{e.stopPropagation()});
@@ -3842,7 +3862,7 @@ mini.addEventListener('pointerdown',e=>{
   if(getComputedStyle(miniToggle).display!=='none'&&!miniWrap.classList.contains('expanded')){setMiniExpanded(true);return}
   const r=mini.getBoundingClientRect();cam.x=(e.clientX-r.left)/r.width*W;cam.y=(e.clientY-r.top)/r.height*H;clampCam()
 });
-document.getElementById('helpToggleBtn').onclick=()=>{const h=document.getElementById('help'),open=!h.hidden&&h.classList.contains('open');h.hidden=open;h.classList.toggle('open',!open)};
+document.getElementById('helpToggleBtn').onclick=()=>{const h=document.getElementById('help'),open=!h.hidden&&h.classList.contains('open');h._hd=open;h.classList.toggle('open',!open)};
 function closeProdMenu(){prodMenuOpen=false}
 // ---------- fabricators (v2) ----------
 function unitAlive(k){return S.troops.filter(t=>(t.kind||'troop')===k&&t.hp>0).length}
@@ -3951,38 +3971,38 @@ function updateBuildBar(){
   document.querySelectorAll('#buildBar button[data-mode]').forEach(b=>{
     b.classList.toggle('on',b.dataset.mode===buildMode);
     if(b.dataset.mode==='stabilizer'){
-      b.disabled=false;b.classList.toggle('dry',S.stabCharges<=0);
+      b._ds=false;b.classList.toggle('dry',S.stabCharges<=0);
       const c=document.getElementById('cStab');
-      if(c)c.textContent='●'.repeat(S.stabCharges)+'○'.repeat(STAB_CHARGES-S.stabCharges)+(S.stabCharges<=0?` ◆${STAB_DAT}`:'');
+      if(c)c._tc='●'.repeat(S.stabCharges)+'○'.repeat(STAB_CHARGES-S.stabCharges)+(S.stabCharges<=0?` ◆${STAB_DAT}`:'');
       return;
     }
     const k=b.dataset.mode;
-    b.disabled=false;b.classList.toggle('dry',S.fab[k].n<=0);
-    document.getElementById('cf_'+k).textContent=fabPips(k);
+    b._ds=false;b.classList.toggle('dry',S.fab[k].n<=0);
+    document.getElementById('cf_'+k)._tc=fabPips(k);
   });
   document.querySelectorAll('#buildBar button[data-unit]').forEach(b=>{
     const k=b.dataset.unit;
-    b.hidden=!fabUnlocked(k);
-    if(k==='troop'){b.disabled=squadCount()>=S.squadCap;b.classList.toggle('dry',S.dat<SQUAD_DAT);document.getElementById('cf_'+k).textContent=squadPips();return}
-    b.disabled=false;b.classList.toggle('dry',S.fab[k].n<=0);
-    document.getElementById('cf_'+k).textContent=fabPips(k);
+    b._hd=!fabUnlocked(k);
+    if(k==='troop'){b._ds=squadCount()>=S.squadCap;b.classList.toggle('dry',S.dat<SQUAD_DAT);document.getElementById('cf_'+k)._tc=squadPips();return}
+    b._ds=false;b.classList.toggle('dry',S.fab[k].n<=0);
+    document.getElementById('cf_'+k)._tc=fabPips(k);
   });
   const lb=document.getElementById('bLock');
   if(lb){
     const preppingNow=S.base.locked&&S.activeVein&&S.activeVein.prepT>0;
-    document.getElementById('bLockLabel').textContent=preppingNow?`Warming Up… (${Math.ceil(S.activeVein.prepT)}s)`:S.base.locked?'Drilling…':'Begin Drilling';
-    lb.disabled=S.base.locked?true:!canLockdown();
+    document.getElementById('bLockLabel')._tc=preppingNow?`Warming Up… (${Math.ceil(S.activeVein.prepT)}s)`:S.base.locked?'Drilling…':'Begin Drilling';
+    lb._ds=S.base.locked?true:!canLockdown();
   }
   const pgb=document.getElementById('bPing');
   if(pgb){
-    pgb.disabled=S.probeCharges<=0&&!probeMode;pgb.classList.remove('dry');
+    pgb._ds=S.probeCharges<=0&&!probeMode;pgb.classList.remove('dry');
     pgb.classList.toggle('on',probeMode);
-    document.getElementById('bPingLabel').textContent=probeMode?'Aim…':'Probe';
-    document.getElementById('cProbe').textContent='●'.repeat(S.probeCharges)+'○'.repeat(PROBE_CHARGES-S.probeCharges)+(S.probeCharges<PROBE_CHARGES?` ${Math.ceil(S.probeRechargeT)}s`:'');
+    document.getElementById('bPingLabel')._tc=probeMode?'Aim…':'Probe';
+    document.getElementById('cProbe')._tc='●'.repeat(S.probeCharges)+'○'.repeat(PROBE_CHARGES-S.probeCharges)+(S.probeCharges<PROBE_CHARGES?` ${Math.ceil(S.probeRechargeT)}s`:'');
   }
   const selCount=S.sel.troops.size+S.sel.harv.size+S.sel.bu.size;
   const fb=document.getElementById('bFollow');
-  fb.hidden=selCount===0;
+  fb._hd=selCount===0;
   const anyFollowSel=[...S.sel.troops].some(id=>{const t=S.troops.find(x=>x.id===id);return t&&t.following})
     ||[...S.sel.harv].some(id=>{const h=S.harvesters.find(x=>x.id===id);return h&&h.following})
     ||[...S.sel.bu].some(id=>{const b=S.builders.find(x=>x.id===id);return b&&b.following});
@@ -4002,7 +4022,7 @@ const THROTTLE_LABELS=['Slow','Normal','Fast'];
 // immediately — see renderDrillCards for the cost/reward/enemy-response estimate shown per option.
 function openDrillSelect(){tryLockdown()}
 function closeDrillSelect(){
-  document.getElementById('drillSelectOverlay').hidden=true;
+  document.getElementById('drillSelectOverlay')._hd=true;
   S.paused=false;
 }
 // Every estimate here mirrors the real formulas in tryLockdown/the drill-progress update loop
@@ -4011,7 +4031,7 @@ function closeDrillSelect(){
 // just quicker.
 function renderDrillCards(v){
   const tier=currentTier(v);
-  document.getElementById('drillSelectHint').textContent=
+  document.getElementById('drillSelectHint')._tc=
     `Choose a drill speed for this ${v.band} vein (currently ${tier} tier) — it's locked in for the whole drill once you start.`;
   const pressures=[0,1,2].map(i=>{
     const tm=throttleValue(i);
@@ -4081,7 +4101,7 @@ function toggleDrillPause(){
 function togglePause(){
   if(S.over||S.rewardChoice)return;
   S.paused=!S.paused;
-  document.getElementById('pauseOverlay').hidden=!S.paused;
+  document.getElementById('pauseOverlay')._hd=!S.paused;
   sfx.click();
 }
 // Ping, step one: arm targeting (see PING_* above). Pressing it again, right-clicking or Esc
@@ -5357,10 +5377,10 @@ function showOverlay(t,s,payoutMult){
   meta.condensedBank+=paidOut;
   meta.livingBank+=S.living;
   saveMeta();
-  document.getElementById('ovTitle').textContent=t;
-  document.getElementById('ovText').textContent=`${s} Banked ${paidOut} Condensed Crystal (total: ${meta.condensedBank})`+
+  document.getElementById('ovTitle')._tc=t;
+  document.getElementById('ovText')._tc=`${s} Banked ${paidOut} Condensed Crystal (total: ${meta.condensedBank})`+
     (S.living?` and ${S.living} Living Crystal (total: ${meta.livingBank}).`:'.');
-  document.getElementById('overlay').hidden=false;
+  document.getElementById('overlay')._hd=false;
 }
 const TIER_ORDER=Object.keys(TIER_MULT);
 function shuffled(arr){const a=[...arr];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
@@ -5396,7 +5416,7 @@ function rollRewardCards(tier){
 function showRewardChoice(tier){
   const cards=rollRewardCards(tier);
   S.rewardChoice={tier,cards};
-  document.getElementById('rewardTitle').textContent=`Choose a Reward — ${tier} Tier`;
+  document.getElementById('rewardTitle')._tc=`Choose a Reward — ${tier} Tier`;
   const host=document.getElementById('rewardCards');
   host.innerHTML='';
   cards.forEach((c,i)=>{
@@ -5410,9 +5430,9 @@ function showRewardChoice(tier){
   });
   const cost=rerollCost();
   const rb=document.getElementById('rerollBtn');
-  rb.textContent=`Reroll (${cost} ⬢)`;
-  rb.disabled=S.condensed<cost;
-  document.getElementById('rewardOverlay').hidden=false;
+  rb._tc=`Reroll (${cost} ⬢)`;
+  rb._ds=S.condensed<cost;
+  document.getElementById('rewardOverlay')._hd=false;
   sfx.veinDone();
 }
 // Spends escalating Condensed Crystal — the same currency banked into meta-progression at run's
@@ -5441,7 +5461,7 @@ function pickReward(i){
     msg(`${c.name} acquired — ${c.desc}`);
   }
   sfx.click();
-  document.getElementById('rewardOverlay').hidden=true;
+  document.getElementById('rewardOverlay')._hd=true;
   S.rewardChoice=null;
   updateBuildBar();
 }
@@ -5735,7 +5755,7 @@ function buildTerrainBlur(){
 function blurFogged(vw,vh,shkx,shky){
   const w=Math.max(1,Math.round(cv.width/FOG_BLUR_DOWN)), h=Math.max(1,Math.round(cv.height/FOG_BLUR_DOWN));
   if(fogBlurC.width!==w||fogBlurC.height!==h){fogBlurC.width=w;fogBlurC.height=h}
-  const X=fogBlurX, dpr=devicePixelRatio;
+  const X=fogBlurX, dpr=gDpr();
   X.setTransform(1,0,0,1,0,0);X.globalCompositeOperation='source-over';X.globalAlpha=1;X.clearRect(0,0,w,h);
   X.setTransform(dpr/FOG_BLUR_DOWN,0,0,dpr/FOG_BLUR_DOWN,0,0);X.translate(vw/2+shkx,vh/2+shky);X.scale(cam.z,cam.z);X.translate(-cam.x,-cam.y);
   X.imageSmoothingEnabled=true;X.drawImage(terrainBlurC,0,0,W,H);
@@ -5749,7 +5769,7 @@ function blurFogged(vw,vh,shkx,shky){
 // a vein respects the fog exactly like the cracks and pulses do.
 let veinLayer=document.createElement('canvas'), veinLX=veinLayer.getContext('2d');
 function beginVeinLight(vw,vh,shkx,shky){
-  const dpr=devicePixelRatio, L=veinLX;
+  const dpr=gDpr(), L=veinLX;
   if(veinLayer.width!==cv.width||veinLayer.height!==cv.height){veinLayer.width=cv.width;veinLayer.height=cv.height}
   L.setTransform(1,0,0,1,0,0);L.globalCompositeOperation='source-over';L.globalAlpha=1;L.clearRect(0,0,veinLayer.width,veinLayer.height);
   L.setTransform(dpr,0,0,dpr,0,0);L.translate(vw/2+shkx,vh/2+shky);L.scale(cam.z,cam.z);L.translate(-cam.x,-cam.y);
@@ -5865,7 +5885,7 @@ function drawGuardGlyph(x,y){
   ctx.beginPath();ctx.moveTo(x-5,y-20);ctx.lineTo(x+5,y-20);ctx.lineTo(x+5,y-16);ctx.quadraticCurveTo(x+5,y-12,x,y-10);ctx.quadraticCurveTo(x-5,y-12,x-5,y-16);ctx.closePath();ctx.stroke();
 }
 function draw(){
-  const B=S.base,dpr=devicePixelRatio,vw=cv.width/dpr,vh=cv.height/dpr;
+  const B=S.base,dpr=gDpr(),vw=cv.width/dpr,vh=cv.height/dpr;
   ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle='#0b0e12';ctx.fillRect(0,0,vw,vh);
   const shk=S.shake.t>0?S.shake.mag*(S.shake.t/S.shake.dur):0;
   const shkx=shk?rnd(-shk,shk):0, shky=shk?rnd(-shk,shk):0;
@@ -6164,47 +6184,60 @@ function drawMini(){const s=mini.width/W;mctx.fillStyle='#10151b';mctx.fillRect(
   S.harvesters.forEach(h=>{mctx.fillStyle=C.harv;mctx.fillRect(h.x*s-1.5,h.y*s-1.5,3,3)});
   S.builders.forEach(bu=>{mctx.fillStyle=C.builder;mctx.fillRect(bu.x*s-1.5,bu.y*s-1.5,3,3)});
   mctx.fillStyle=C.accent;mctx.fillRect(S.base.x*s-3,S.base.y*s-3,6,6);
-  const vw=cv.width/devicePixelRatio/cam.z,vh=cv.height/devicePixelRatio/cam.z;mctx.strokeStyle='rgba(255,255,255,0.5)';mctx.lineWidth=1;mctx.strokeRect((cam.x-vw/2)*s,(cam.y-vh/2)*s,vw*s,vh*s)}
-const $=id=>document.getElementById(id);
+  const vw=cv.width/gDpr()/cam.z,vh=cv.height/gDpr()/cam.z;mctx.strokeStyle='rgba(255,255,255,0.5)';mctx.lineWidth=1;mctx.strokeRect((cam.x-vw/2)*s,(cam.y-vh/2)*s,vw*s,vh*s)}
+const $cache={}, $=id=>$cache[id]||($cache[id]=document.getElementById(id));
 function hud(){
   const B=S.base;
-  $('hDat').textContent=Math.floor(S.dat);$('hLiving').textContent=S.living;$('hCondensed').textContent=S.condensed;
-  $('hBase').textContent=Math.ceil(B.hp)+' / '+B.maxHp;$('hBaseBar').style.width=(100*B.hp/B.maxHp)+'%';
+  $('hDat')._tc=Math.floor(S.dat);$('hLiving')._tc=S.living;$('hCondensed')._tc=S.condensed;
+  $('hBase')._tc=Math.ceil(B.hp)+' / '+B.maxHp;$('hBaseBar')._sw=(100*B.hp/B.maxHp).toFixed(1)+'%';
   $('hBaseBar').classList.toggle('low',B.hp/B.maxHp<0.25);
   if(B.locked&&S.activeVein){
     const v=S.activeVein;
-    $('hObjK').textContent=v.contract?'Contract vein':'Vein';
+    $('hObjK')._tc=v.contract?'Contract vein':'Vein';
     if(v.prepT>0){
-      $('hObj').textContent=`warming up — ${Math.ceil(v.prepT)}s until drilling begins`;
-      $('hObjBar').style.width='0%';
+      $('hObj')._tc=`warming up — ${Math.ceil(v.prepT)}s until drilling begins`;
+      $('hObjBar')._sw='0%';
     }else{
-      $('hObj').textContent=`drilling ${v.band} ${Math.floor(100*v.drillProg/v.richness)}%${v.paused?' — PAUSED':v.stalled?' — STALLED':''}`;
-      $('hObjBar').style.width=(100*v.drillProg/v.richness)+'%';
+      $('hObj')._tc=`drilling ${v.band} ${Math.floor(100*v.drillProg/v.richness)}%${v.paused?' — PAUSED':v.stalled?' — STALLED':''}`;
+      $('hObjBar')._sw=(100*v.drillProg/v.richness).toFixed(1)+'%';
     }
   }else{
     const ready=canLockdown();
     const cv=S.veins.find(v=>v.contract);
     if(RUN&&!stopInfo().final){
-      $('hObjK').textContent=`Stop ${RUN.stop+1}/${RUN_STOPS.length} · ${STOP_BAND==='rim'?'Rim':STOP_BAND==='dense'?'Dense':'Core'}`;
-      $('hObj').textContent=ready?'ready to drill — press F':S.barrier&&S.barrier.open?'way open — head east':S.breachVein&&S.breachVein.seen?'drain the breach vein':'find the breach vein';
-      $('hObjBar').style.width=(100*RUN.stop/(RUN_STOPS.length-1))+'%';
+      $('hObjK')._tc=`Stop ${RUN.stop+1}/${RUN_STOPS.length} · ${STOP_BAND==='rim'?'Rim':STOP_BAND==='dense'?'Dense':'Core'}`;
+      $('hObj')._tc=ready?'ready to drill — press F':S.barrier&&S.barrier.open?'way open — head east':S.breachVein&&S.breachVein.seen?'drain the breach vein':'find the breach vein';
+      $('hObjBar')._sw=(100*RUN.stop/(RUN_STOPS.length-1))+'%';
     }else{
-    $('hObjK').textContent=S.contractAwake?(RUN?`Stop ${RUN.stop+1}/${RUN_STOPS.length} · Contract`:'Contract vein'):'Veins';
-    $('hObj').textContent=ready?'ready to drill — press F':
+    $('hObjK')._tc=S.contractAwake?(RUN?`Stop ${RUN.stop+1}/${RUN_STOPS.length} · Contract`:'Contract vein'):'Veins';
+    $('hObj')._tc=ready?'ready to drill — press F':
       S.contractAwake?(cv&&cv.mine.found?'located — drill it to win':'triangulate it from stray energy'):`${S.drained}/${TRIANGULATE_AT} drained`;
-    $('hObjBar').style.width=(100*Math.min(1,S.drained/TRIANGULATE_AT))+'%';
+    $('hObjBar')._sw=(100*Math.min(1,S.drained/TRIANGULATE_AT))+'%';
     }
   }
   updateMeterUI();
   updateSurveyUI();
-  $('cntTroops2').textContent=S.troops.length;
+  $('cntTroops2')._tc=S.troops.length;
   document.getElementById('selBaseBtn2').classList.toggle('sel',S.sel.base);
   document.getElementById('selTroopsBtn2').classList.toggle('sel',S.sel.troops.size>0);
   updateBuildBar();
 }
 
 // ---------- loop ----------
-function frame(ts){const dt=Math.min(0.05,(ts-lastT)/1000||0);lastT=ts;document.body.classList.toggle('inMenu',menuOpen);update(dt);tutTick();draw();requestAnimationFrame(frame)}
+// v4: F9 shows a small performance readout — frames per second, the slowest frame of the last
+// second, and how long the game's own update and drawing take — for tracking down slowdowns.
+const perf={on:false,n:0,t0:0,worst:0,up:0,dr:0,el:null};
+function perfTick(ts,gap,up,dr){
+  perf.n++;perf.worst=Math.max(perf.worst,gap);perf.up+=up;perf.dr+=dr;
+  if(ts-perf.t0<1000)return;
+  if(perf.on){
+    if(!perf.el){perf.el=document.createElement('div');perf.el.id='perfHud';document.body.appendChild(perf.el)}
+    const n=perf.n;perf.el.textContent=`${Math.round(n*1000/(ts-perf.t0))} fps · worst ${perf.worst.toFixed(0)}ms · update ${(perf.up/n).toFixed(1)}ms · draw ${(perf.dr/n).toFixed(1)}ms · foes ${S.enemies.length} · ${cv.width}×${cv.height}${lowGfx?' · low gfx':''}`;
+  }
+  perf.n=0;perf.t0=ts;perf.worst=0;perf.up=0;perf.dr=0;
+}
+function frame(ts){const gap=ts-lastT,dt=Math.min(0.05,gap/1000||0);lastT=ts;document.body.classList.toggle('inMenu',menuOpen);
+  const a=performance.now();update(dt);tutTick();const b=performance.now();draw();perfTick(ts,gap||0,b-a,performance.now()-b);requestAnimationFrame(frame)}
 reset();refreshMenuMeta();requestAnimationFrame(frame);
 // Title-screen build marker: the live latest commit on master, not a hand-maintained string — a
 // baked-in value can never equal its own commit's hash (the hash is computed FROM the file's
@@ -6218,17 +6251,17 @@ reset();refreshMenuMeta();requestAnimationFrame(frame);
 const CHANGELOG_N=8, CHANGELOG_KEY='datascraper_changelog_v1'+SAVE_SUFFIX;
 function renderChangelog(list){
   if(!Array.isArray(list)||!list.length)return;
-  document.getElementById('versionText').textContent=`v${list[0].sha} — ${list[0].subject}`;
+  document.getElementById('versionText')._tc=`v${list[0].sha} — ${list[0].subject}`;
   const ol=document.getElementById('changesList');
   ol.innerHTML='';
   list.forEach((c,i)=>{
     const li=document.createElement('li');
     const when=c.date?new Date(c.date).toLocaleDateString(undefined,{month:'short',day:'numeric'}):'';
-    const meta=document.createElement('span');meta.className='chMeta';meta.textContent=`v${c.sha}${when?' · '+when:''}${i===0?' · current':''}`;
-    const txt=document.createElement('span');txt.className='chText';txt.textContent=c.subject;
+    const meta=document.createElement('span');meta.className='chMeta';meta._tc=`v${c.sha}${when?' · '+when:''}${i===0?' · current':''}`;
+    const txt=document.createElement('span');txt.className='chText';txt._tc=c.subject;
     li.append(meta,txt);ol.appendChild(li);
   });
-  document.getElementById('changesBtn').hidden=false;
+  document.getElementById('changesBtn')._hd=false;
 }
 function cachedChangelog(){try{return JSON.parse(localStorage.getItem(CHANGELOG_KEY)||'null')}catch(e){return null}}
 fetch(`https://api.github.com/repos/lexastro/astroscraper/commits?sha=${GAME_BRANCH}&per_page=${CHANGELOG_N}`)
@@ -6246,11 +6279,11 @@ if(GAME_BRANCH!=='master'){
   document.title+=' · '+GAME_BRANCH;
   document.querySelector('#mainMenuOverlay h1').insertAdjacentHTML('afterend',`<p class="branchTag">${GAME_BRANCH} · experimental build</p>`);
 }
-document.getElementById('changesBtn').onclick=()=>{const p=document.getElementById('changesPanel');p.hidden=!p.hidden};
-document.getElementById('changesClose').onclick=()=>{document.getElementById('changesPanel').hidden=true};
+document.getElementById('changesBtn').onclick=()=>{const p=document.getElementById('changesPanel');p._hd=!p.hidden};
+document.getElementById('changesClose').onclick=()=>{document.getElementById('changesPanel')._hd=true};
 // Gameplay recording consent: ask once, up front, before the main menu is usable; a past choice
 // (allowed or disabled) is applied straight away instead of asking again.
-if(meta.recordingConsent===undefined)document.getElementById('consentOverlay').hidden=false;
+if(meta.recordingConsent===undefined)document.getElementById('consentOverlay')._hd=false;
 else applyRecordingConsent();
 })();
 </script>
