@@ -2100,7 +2100,7 @@ function reset(landing){
   rand=seededRng(mapSeed);
   rollLayout();
   const land=landing||defaultLanding();
-  S={t:0,surveyVein:null,wrecks:[],beacons:[],squadCap:SQUAD_CAP_START,quakes:[],quakeMsg:false,barrier:null,breachSite:null,breachVein:null,rigSite:null,rig:null,dat:tutorialMap?TUTORIAL_START_DAT:pressureOn('lean')?20:60,living:0,condensed:0,over:null,rerollCount:0,
+  S={t:0,surveyVein:null,wrecks:[],beacons:[],squadCap:SQUAD_CAP_START,quakes:[],quakeMsg:false,barrier:null,breachSite:null,breachVein:null,rigSite:null,rig:null,glass:null,dat:tutorialMap?TUTORIAL_START_DAT:pressureOn('lean')?20:60,living:0,condensed:0,over:null,rerollCount:0,
     base:{x:land.x,y:land.y,hp:450+bastionHpBonus(),maxHp:450+bastionHpBonus(),r:BASE_R,dest:null,locked:false,gunCd:0,bigGunCd:0,pingCd:0},
     troops:[],harvesters:[],builders:[],relays:[],depots:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],shards:[],nades:[],
     veins:[],activeVein:null,throttleMul:1,ambientT:30,
@@ -2219,7 +2219,9 @@ function reset(landing){
       const m=STOP_BAND==='dense'?NEST_DENSE_EDGE:150;const q=nearestPlain(Math.max(m,Math.min(W-m,bs.x+Math.cos(a)*rr)),Math.max(m,Math.min(H-m,bs.y+Math.sin(a)*rr)));makeNest(q.x,q.y,size)})}
   // v4: the last stop — the contract vein is awake from the start, ringed by its great mounds
   placePOIs(); // v4: wrecks (ported from v3)
-  if(STOP_BAND==='dense'&&S.barrier){denseMaze();{const keep=rand;rand=seededRng(mapSeed*131+17);terrainCv=buildTerrainCanvas();rand=keep}buildTerrainBlur()}
+  {const maze=STOP_BAND==='dense'&&S.barrier;if(maze)denseMaze();
+   const glass=STOP_BAND&&!tutorialMap?placeGlass():false; // v4: purple glass formations in the rift
+   if(maze||glass){const keep=rand;rand=seededRng(mapSeed*131+17);terrainCv=buildTerrainCanvas();rand=keep;buildTerrainBlur()}}
   if(STOP_BAND&&stopInfo().final){S.contractAwake=true;const cv=S.veins.find(v=>v.contract);if(cv)raiseMounds(cv,CONTRACT_MOUNDS,'great')}
   rand=Math.random; // map built — live gameplay goes back to unseeded randomness
   cam={x:S.base.x,y:S.base.y,z:1};
@@ -3629,17 +3631,52 @@ function closeHoles(sx,sy){
     if(terrain[id]!==2&&!seen[id])terrain[id]=2;
   }
 }
+// v4: purple glass crystal formations growing out of the rift. They're solid (terrain 2, so nothing
+// walks through them, and fire and pathing go around), set in clumps of a few cells inside the rift, never
+// touching open ground, the barrier, or anything placed on the map — so the corridors stay as they are
+// and it's the rift between them that gets trickier to wade through and fight across.
+const GLASS_DENSITY=0.05, GLASS_CLEAR=210;
+function placeGlass(){
+  S.glass=null;
+  if(!S.barrier&&!STOP_BAND)return false;
+  const N=TGX*TGY, g=new Uint8Array(N), B=S.barrier, bx=B?B.centre:-1e9;
+  const pts=[S.base,S.breachSite,S.contractSite,S.rigSite,...S.sites,...(S.hiveSites||[]),...S.wrecks,...S.beacons,...S.enemies,...S.troops].filter(Boolean);
+  const cx=id=>(id%TGX)*TCELL+TCELL/2, cy=id=>Math.floor(id/TGX)*TCELL+TCELL/2;
+  const ok=id=>{
+    const gx=id%TGX,gy=(id-gx)/TGX;
+    if(gx<2||gy<2||gx>=TGX-2||gy>=TGY-2||terrain[id]!==RIFT||g[id])return false;
+    if(B&&(B.mask[id]||Math.abs(cx(id)-bx)<BARRIER_HALF+240))return false;
+    if(EXIT_X&&cx(id)>EXIT_X-260)return false;
+    for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const t=terrain[(gy+dy)*TGX+gx+dx];if(t===0||t===1)return false}
+    const x=cx(id),y=cy(id);
+    for(const o of pts){const d=GLASS_CLEAR+(o===S.base?200:0);if(Math.abs(o.x-x)<d&&Math.abs(o.y-y)<d&&Math.hypot(o.x-x,o.y-y)<d)return false}
+    return true;
+  };
+  const cand=[];for(let id=0;id<N;id++)if(terrain[id]===RIFT)cand.push(id);
+  if(!cand.length)return false;
+  const seeds=Math.round(cand.length*GLASS_DENSITY/3.5);let made=0;
+  for(let n=0;n<seeds*4&&made<seeds;n++){
+    const start=cand[Math.floor(rand()*cand.length)];if(!ok(start))continue;
+    const want=2+Math.floor(rand()*6), cl=[start];g[start]=1;
+    for(let k=0;k<want*5&&cl.length<want;k++){
+      const b=cl[Math.floor(rand()*cl.length)],dirs=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,-1]],d=dirs[Math.floor(rand()*dirs.length)];
+      const nid=b+d[1]*TGX+d[0];if(ok(nid)){g[nid]=1;cl.push(nid)}
+    }
+    cl.forEach(id=>{terrain[id]=2});made++;
+  }
+  S.glass=g;return made>0;
+}
 function buildTerrainCanvas(){
   const cv2=document.createElement('canvas'); cv2.width=W;cv2.height=H; const x2=cv2.getContext('2d');
   x2.fillStyle='#10151b'; x2.fillRect(0,0,W,H);
   for(let gy=0;gy<TGY;gy++)for(let gx=0;gx<TGX;gx++){
     const v=terrain[gy*TGX+gx]; if(v===0)continue;
-    x2.fillStyle = v===1 ? '#352c1c' : v===RIFT ? '#2a1030' : '#363d44';
+    x2.fillStyle = v===1 ? '#352c1c' : v===RIFT ? '#2a1030' : (v===2&&S&&S.glass&&S.glass[gy*TGX+gx]) ? '#2a1030' : '#363d44';
     x2.fillRect(gx*TCELL,gy*TCELL,TCELL,TCELL);
   }
   x2.fillStyle='rgba(0,0,0,0.25)';
   for(let gy=0;gy<TGY;gy++)for(let gx=0;gx<TGX;gx++){
-    if(terrain[gy*TGX+gx]!==2)continue;
+    if(terrain[gy*TGX+gx]!==2||(S&&S.glass&&S.glass[gy*TGX+gx]))continue;
     for(let k=0;k<4;k++){const px=gx*TCELL+rnd(4,TCELL-4), py=gy*TCELL+rnd(4,TCELL-4); x2.fillRect(px,py,rnd(3,7),rnd(3,7))}
   }
   // rift cracks — same glowing violet as its minimap/HUD marker, so it reads as the same hazard
@@ -3659,6 +3696,23 @@ function buildTerrainCanvas(){
       const x=gx*TCELL,y=gy*TCELL,h=Math.imul(gx,73856093)^Math.imul(gy,19349663),u=h>>>0;
       x2.fillStyle=`hsl(${188+(u%34)},${55+(u>>5)%25}%,${30+(u>>9)%22}%)`;x2.fillRect(x,y,TCELL,TCELL);
       x2.fillStyle='rgba(225,250,255,0.32)';x2.beginPath();x2.moveTo(x+(u%TCELL),y);x2.lineTo(x+TCELL,y+((u>>3)%TCELL));x2.lineTo(x+((u>>6)%TCELL),y+TCELL);x2.closePath();x2.fill()}}
+  // v4: the purple glass formations — faceted clumps of crystal, a few to a cell
+  if(S&&S.glass){
+    for(let gy=0;gy<TGY;gy++)for(let gx=0;gx<TGX;gx++){
+      if(!S.glass[gy*TGX+gx])continue;
+      const x=gx*TCELL,y=gy*TCELL;
+      for(let k=0;k<3;k++){
+        const px=x+rnd(8,TCELL-8),py=y+rnd(8,TCELL-8),R=rnd(15,30),pts=[];
+        for(let i=0;i<6;i++){const a=i*Math.PI/3+rnd(-0.3,0.3),rr=R*rnd(0.72,1.1);pts.push([px+Math.cos(a)*rr,py+Math.sin(a)*rr])}
+        x2.fillStyle=`hsl(${266+rnd(0,38)},${58+rnd(0,18)}%,${36+rnd(0,20)}%)`;x2.strokeStyle='rgba(18,0,38,0.75)';x2.lineWidth=1.6;
+        x2.beginPath();pts.forEach((q,i)=>i?x2.lineTo(q[0],q[1]):x2.moveTo(q[0],q[1]));x2.closePath();x2.fill();x2.stroke();
+        const f=Math.floor(rnd(0,6));
+        x2.fillStyle='rgba(238,220,255,0.30)';x2.beginPath();x2.moveTo(px,py);x2.lineTo(pts[f][0],pts[f][1]);x2.lineTo(pts[(f+1)%6][0],pts[(f+1)%6][1]);x2.closePath();x2.fill();
+        x2.fillStyle='rgba(20,0,40,0.28)';x2.beginPath();x2.moveTo(px,py);x2.lineTo(pts[(f+3)%6][0],pts[(f+3)%6][1]);x2.lineTo(pts[(f+4)%6][0],pts[(f+4)%6][1]);x2.closePath();x2.fill();
+        x2.strokeStyle='rgba(255,245,255,0.55)';x2.lineWidth=1.2;x2.beginPath();x2.moveTo(pts[f][0],pts[f][1]);x2.lineTo(px,py);x2.stroke();
+      }
+    }
+  }
   // v4: a stop is one zone — tint the whole map by it instead of in rings
   if(STOP_BAND){const c={rim:null,dense:'rgba(178,100,255,0.24)',core:'rgba(255,90,40,0.36)'}[STOP_BAND];
     if(c){x2.globalCompositeOperation='overlay';x2.fillStyle=c;x2.fillRect(0,0,W,H);x2.globalCompositeOperation='source-over'}
