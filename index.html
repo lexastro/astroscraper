@@ -574,7 +574,7 @@ const MAP_SCALE=0.7, MS=MAP_SCALE;
 let W=Math.round(5020*MS),H=Math.round(5020*MS); const CELL=24;
 // v4: Rim stops are drawn on a map 20% smaller across (MAP_SIZE_BY_BAND) with the same things on it
 // — a tighter, busier start. Everything sized from W/H is redone by setMapSize at the start of reset().
-const MAP_SIZE_BY_BAND={rim:0.8};
+const MAP_SIZE_BY_BAND={rim:0.8,dense:1.15}; // v4: Dense Field maps a little bigger, room for nests to sit out in the rift
 // The Black Flame epicenter moves map to map (see rollLayout) and the three depth bands are rings
 // around it: Core within CORE_R, Dense Field out to DENSE_R, Rim beyond that. Where the epicenter
 // sits decides the map's whole shape — hugging an edge, tucked in a corner, or dead centre with
@@ -2759,7 +2759,7 @@ function makeNest(x,y,size){
 }
 // A spot in the band clear of the Bastion, vein sites and other nests (and, for one sprouting
 // mid-run, out of everyone's sight). null if nothing fits.
-const NEST_DENSE_EDGE=520;
+const NEST_DENSE_EDGE=520, NEST_DENSE_SITE_GAP=520;
 function placeNest(size,band,hidden){
   const sites=[...S.sites,S.contractSite,...(S.hiveSites||[])].filter(Boolean), nests=liveNests();
   // v4: on the Dense Field stops nests sit well inland, away from the map's edges
@@ -2770,7 +2770,7 @@ function placeNest(size,band,hidden){
     const p=nearestPlain(q.x,q.y);
     if(bandAt(p.x,p.y)!==band||!inMap(p.x,p.y,edge))continue;
     if(dist(p,S.base)<NEST_BASE_CLEAR)continue;
-    if(sites.some(st=>dist(st,p)<ZONE_R+120))continue;
+    if(sites.some(st=>dist(st,p)<ZONE_R+(edge>120&&t<110?NEST_DENSE_SITE_GAP:120)))continue; // dense stops: out in the rift, well away from the vein rooms
     if(nests.some(o=>dist(o,p)<NEST_GAP))continue;
     if(hidden&&visible(p))continue;
     return makeNest(p.x,p.y,size);
@@ -3289,7 +3289,7 @@ function fillDenseRift(){
 // crystal wall on its own) as a branching network with a loop or two — and they steer well clear
 // of the nests and wrecks, which sit out in the rift: squads can wade out to them, but the
 // Bastion's reach only gets there by chaining Relays across.
-const MAZE_W=1, MAZE_ROOM=ZONE_R+40, MAZE_AVOID=380, MAZE_LOOPS=2;
+const MAZE_W=1, MAZE_ROOM=ZONE_R+40, MAZE_AVOID=720, MAZE_LOOPS=2;
 function denseMaze(){
   const N=TGX*TGY, B=S.barrier, cc=(x,y)=>Math.max(0,Math.min(TGY-1,Math.floor(y/TCELL)))*TGX+Math.max(0,Math.min(TGX-1,Math.floor(x/TCELL)));
   // winding: a smooth random cost field (coarse random values, bilinearly blended)
@@ -3302,7 +3302,7 @@ function denseMaze(){
     const n=(v(0,0)*(1-tx)+v(1,0)*tx)*(1-ty)+(v(0,1)*(1-tx)+v(1,1)*tx)*ty;
     const x=gx*TCELL+TCELL/2,y=gy*TCELL+TCELL/2;
     let c=1+6*n*n+(gx<2||gy<2||gx>=TGX-2||gy>=TGY-2?20:0);
-    for(const o of avoid){const d=Math.hypot(o.x-x,o.y-y);if(d<MAZE_AVOID)c+=60*(1-d/MAZE_AVOID)+20}
+    for(const o of avoid){const d=Math.hypot(o.x-x,o.y-y);if(d<MAZE_AVOID)c+=260*(1-d/MAZE_AVOID)+80}  // v4: corridors steer well clear of nests, wrecks and beacons
     cost[id]=c;
   }
   // everything but the crystal wall becomes rift; the rooms and corridors are opened back up
