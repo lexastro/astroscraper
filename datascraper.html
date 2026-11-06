@@ -458,7 +458,7 @@ body.inMenu :is(#game,#fogGrain,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMet
 <b>Goal:</b> the ground is cracked all over: <b>follow the pulses of energy</b> running through the cracks back to their source to find a vein, then park the Bastion on its glowing centre and press <kbd>F</kbd> to lock on. Veins <b>emerge, ripen</b> a tier at a time, then go unstable and <b>collapse</b> — and new ones emerge elsewhere. Glowing <b>stray pockets</b> give a bearing toward the nearest vein when a unit reaches one; two bearings from different angles triangulate it. Locking on starts the <b>strike</b> at once: press <kbd>Space</kbd> to stop the needle on a good band of the strip (the thin sliver is a tier above the vein; red ruptures it) — the meter zooms in on where you hit and the drill starts; the first wave arrives about 20s later. While it drills, the needle drifts; Stabilizers hold it steady, and the tier you're paid is where it spends most of its time. If it drifts into the red, the vein ruptures and damages the Bastion. Drain veins for rewards — after 3, the contract vein stirs: it gives off no pulses, so triangulate it with bearings from stray pockets, then drain it to win.<br>
   <b>Controls:</b> drag to select · right-click to move/attack · right-click a friendly unit or building with combat units selected to <b>guard</b> it (escort it, fight off anything that comes near, then fall back) · <kbd>C</kbd> select all your units · <kbd>F</kbd> lock on to a vein / strike · <kbd>H</kbd> jump the camera to the Bastion · <kbd>WASD</kbd> or middle-drag to pan, scroll to zoom<br>
   <b>Touch:</b> tap to select · tap empty ground/an enemy/a resource to move/attack/harvest · drag to pan · hold still then drag to box-select · pinch to zoom · double-tap to select all of a kind<br>
-  <b>Fabricators:</b> Turrets and Relays hold a free stock; once it's empty each use costs Dat (shown on the button). Unit buttons (Squad, Brawler, Grenadier, Rocketeer, Mech) show how many you can field against how many you have, and the price of the next one — just click to deploy. <kbd>Q</kbd> launch a turret · <kbd>R</kbd> launch a relay · <kbd>G</kbd> power up a derelict rig ·  <b>Nests</b>: every enemy patrol comes from one, and the nests near a vein send its drilling waves — destroy them (they fight back) for <b>Dat Crystal</b>. <b>Mega nests</b> glow crimson through the fog: hive veins ringed by brood mounds that pour out its waves — break the mounds, then drain the hive for Hive-tier rewards and salvage. When the contract vein stirs, great mounds rise around it too. <b>Dat Crystal</b>: drive the Bastion or a unit over the Dat a nest drops (or an enemy's shard) to scoop it up — your <b>repair drones</b> fly out on their own and spend it patching up Stabilizers, turrets, relays and the Bastion · <kbd>E</kbd> fire a Stabilizer from the Bastion (3 free, then Dat each; aim at a vein's drifting hotspot and lead it — a hit pins it, buys the vein 15s before it collapses, widens the strike bands and steadies the needle; with all 3 pinned, drag the weight on the steering pad to push the needle — the wider their triangle, the further it goes, but the one you lean on draws the enemy) — turrets and relays land anywhere inside the Bastion's ring (or a relay's)<br>
+  <b>Fabricators:</b> Turrets and Relays hold a free stock; once it's empty each use costs Dat (shown on the button). Unit buttons (Squad, Brawler, Grenadier, Rocketeer, Mech) show how many you can field against how many you have, and the price of the next one — just click to deploy. <kbd>Q</kbd> launch a turret · <kbd>Ctrl</kbd>+<kbd>1</kbd>–<kbd>9</kbd> save the selected units as a control group, <kbd>1</kbd>–<kbd>9</kbd> select it (twice to look at it) · <kbd>R</kbd> launch a relay · <kbd>G</kbd> power up a derelict rig ·  <b>Nests</b>: every enemy patrol comes from one, and the nests near a vein send its drilling waves — destroy them (they fight back) for <b>Dat Crystal</b>. <b>Mega nests</b> glow crimson through the fog: hive veins ringed by brood mounds that pour out its waves — break the mounds, then drain the hive for Hive-tier rewards and salvage. When the contract vein stirs, great mounds rise around it too. <b>Dat Crystal</b>: drive the Bastion or a unit over the Dat a nest drops (or an enemy's shard) to scoop it up — your <b>repair drones</b> fly out on their own and spend it patching up Stabilizers, turrets, relays and the Bastion · <kbd>E</kbd> fire a Stabilizer from the Bastion (3 free, then Dat each; aim at a vein's drifting hotspot and lead it — a hit pins it, buys the vein 15s before it collapses, widens the strike bands and steadies the needle; with all 3 pinned, drag the weight on the steering pad to push the needle — the wider their triangle, the further it goes, but the one you lean on draws the enemy) — turrets and relays land anywhere inside the Bastion's ring (or a relay's)<br>
   <b>Tether:</b> wireless works freely on the Rim; past it, units need a live cable back to the Bastion or a Relay, or they go dark — chain Relays to push your reach further out. A dark unit still takes orders, but its Sanity drains; reconnect in time to recover it, or it defects into a hostile Corrupted enemy<br>
   <kbd>T</kbd> recon probe: click a direction and it flies straight out on its fiber line, lifting the fog along a narrow strip for 20s and permanently finding veins it passes (3 charges, one back every 20s) · <kbd>V</kbd> follow Bastion (escorts it as it moves, until given another order) · <kbd>Esc</kbd> cancel, or pause the whole game if nothing's open · <kbd>`</kbd> reveal map (debug)
 </div>
@@ -2267,7 +2267,7 @@ function openBreach(v){
 function captureCarry(){
   return {dat:S.dat,living:S.living,condensed:S.condensed,rerollCount:S.rerollCount,mods:{...S.mods},runUnlock:{...S.runUnlock},
     fab:JSON.parse(JSON.stringify(S.fab)),stabCharges:S.stabCharges,probeCharges:S.probeCharges,
-    hp:S.base.hp,maxHp:S.base.maxHp,drones:S.drones.length,squadCap:S.squadCap,troops:S.troops.map(t=>({kind:t.kind||'troop',hp:t.hp,maxHp:t.maxHp}))};
+    hp:S.base.hp,maxHp:S.base.maxHp,drones:S.drones.length,squadCap:S.squadCap,troops:S.troops.map(t=>({kind:t.kind||'troop',hp:t.hp,maxHp:t.maxHp,grp:t.grp}))};
 }
 function applyCarry(c){
   if(!c)return;
@@ -2275,7 +2275,7 @@ function applyCarry(c){
   S.mods={...S.mods,...c.mods};S.runUnlock={...c.runUnlock};S.fab=c.fab;
   S.base.hp=c.hp;S.base.maxHp=c.maxHp;S.squadCap=c.squadCap||SQUAD_CAP_START;
   S.drones=[];addDrones(c.drones);
-  S.troops=[];c.troops.forEach((t,i)=>{const u=mkTroop(Date.now()+i,t.kind);u.hp=t.hp;u.maxHp=t.maxHp;S.troops.push(u);guardBastion(u)});
+  S.troops=[];c.troops.forEach((t,i)=>{const u=mkTroop(Date.now()+i,t.kind);u.hp=t.hp;u.maxHp=t.maxHp;if(t.grp!=null)u.grp=t.grp;S.troops.push(u);guardBastion(u)});
   updateBuildBar();
 }
 function buildStop(carry){
@@ -4097,6 +4097,7 @@ cv.addEventListener('dblclick',e=>{
 cv.addEventListener('wheel',e=>{e.preventDefault();const w0=toWorld(e.clientX,e.clientY);cam.z=Math.min(2.2,Math.max(0.35,cam.z*(e.deltaY>0?0.9:1.1)));const w1=toWorld(e.clientX,e.clientY);cam.x+=w0.x-w1.x;cam.y+=w0.y-w1.y;clampCam()},{passive:false});
 addEventListener('keydown',e=>{
   if(menuOpen||e.target.tagName==='INPUT')return; keys[e.key.toLowerCase()]=true; keys[e.key]=true;
+  if(/^Digit[0-9]$/.test(e.code||'')&&!e.altKey){e.preventDefault();const n=+e.code.slice(5);if(e.ctrlKey||e.metaKey)assignGroup(n);else if(!e.repeat)recallGroup(n);return}
   if(e.key.toLowerCase()==='q')setBuild(buildMode==='turret'?null:'turret'); else if(e.key.toLowerCase()==='r')setBuild(buildMode==='relay'?null:'relay'); else if(e.key.toLowerCase()==='e')setBuild(buildMode==='stabilizer'?null:'stabilizer');
   else if(e.key==='Escape'){if(!document.getElementById('drillSelectOverlay').hidden){closeDrillSelect()}else if(probeMode){setProbeMode(false)}else if(pingMode){setPingMode(false)}else if(buildMode||prodMenuOpen){setBuild(null);closeProdMenu()}else togglePause()} else if(e.key.toLowerCase()==='b'){S.sel.troops.clear();S.sel.harv.clear();S.sel.bu.clear();S.sel.base=true}
   // v4: keys follow v3 — Q turret, E Stabilizer, T probe, C all units, F drill (lock on / strike)
@@ -4144,6 +4145,26 @@ document.getElementById('bRig').onclick=()=>tryCaptureRig();
 document.getElementById('bFollow').onclick=followSelected;
 // Shared by the top HUD selector buttons, their mobile equivalents next to the zoom controls, and
 // the T/H/U hotkeys — one selection path for "select every unit of this kind" everywhere it appears.
+// v4: control groups. Ctrl+number (Cmd on a Mac) assigns the selected units to that number (a unit is
+// in one group at a time); pressing the number selects them again, and pressing it twice quickly
+// centres the view on them. Groups survive onto the next stop with their units.
+let lastGroupKey={n:-1,t:0};
+function assignGroup(n){
+  const sel=S.troops.filter(t=>S.sel.troops.has(t.id));
+  if(!sel.length){msg(`Select some units first, then Ctrl+${n} to make them group ${n}.`);return}
+  S.troops.forEach(t=>{if(t.grp===n)t.grp=null});
+  sel.forEach(t=>{t.grp=n});
+  sfx.click();msg(`Group ${n}: ${sel.length} unit${sel.length===1?'':'s'}.`);
+}
+function recallGroup(n){
+  const g=S.troops.filter(t=>t.grp===n&&t.hp>0);
+  if(!g.length){msg(`Group ${n} is empty — select units and press Ctrl+${n} to set it.`);return}
+  S.sel.base=false;S.sel.harv.clear();S.sel.bu.clear();closeProdMenu();
+  S.sel.troops.clear();g.forEach(t=>S.sel.troops.add(t.id));
+  const now=performance.now();
+  if(lastGroupKey.n===n&&now-lastGroupKey.t<400){cam.x=g.reduce((a,t)=>a+t.x,0)/g.length;cam.y=g.reduce((a,t)=>a+t.y,0)/g.length;clampCam()}
+  lastGroupKey={n,t:now};
+}
 function selectAllUnitsOfKind(kind){
   S.sel.base=kind==='base';
   if(kind!=='troops')S.sel.troops.clear();
@@ -6439,6 +6460,7 @@ function draw(){
     }
     else{ctx.beginPath();ctx.arc(t.x,t.y,t.r,0,Math.PI*2);ctx.fill()}
     if(t.hp<t.maxHp)hpbar(t.x,t.y-14,16,t.hp/t.maxHp);
+    if(sel&&t.grp!=null){ctx.fillStyle='#bfe6ff';ctx.font='bold 9px monospace';ctx.textAlign='center';ctx.fillText(t.grp,t.x,t.y-20);ctx.textAlign='start'}
     if(t.sanity<SANITY_MAX)sanityBar(t.x,t.y-10,16,t.sanity/SANITY_MAX);
     if(!t.tetherOk)drawCutGlyph(t.x,t.y); if(t.following)drawFollowGlyph(t.x,t.y);
     if(t.state==='guard'&&t.guard){
