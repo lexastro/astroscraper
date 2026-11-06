@@ -570,7 +570,10 @@ body.inMenu :is(#game,#fogGrain,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMet
 // v4: maps are 30% smaller across (MAP_SCALE); spacings and counts that were tuned to the old size
 // are scaled with it below (MS for distances, MS*MS for how many things fill the area).
 const MAP_SCALE=0.7, MS=MAP_SCALE;
-const W=Math.round(5020*MS),H=Math.round(5020*MS), CELL=24;
+let W=Math.round(5020*MS),H=Math.round(5020*MS); const CELL=24;
+// v4: Rim stops are drawn on a map 20% smaller across (MAP_SIZE_BY_BAND) with the same things on it
+// — a tighter, busier start. Everything sized from W/H is redone by setMapSize at the start of reset().
+const MAP_SIZE_BY_BAND={rim:0.8};
 // The Black Flame epicenter moves map to map (see rollLayout) and the three depth bands are rings
 // around it: Core within CORE_R, Dense Field out to DENSE_R, Rim beyond that. Where the epicenter
 // sits decides the map's whole shape — hugging an edge, tucked in a corner, or dead centre with
@@ -587,7 +590,7 @@ const STOP_HP=[1,1.2,1.1,1.3,1.15,1.35];          // enemy toughness per stop, o
 const STOP_DEPTH=[0,0.1,0.45,0.55,0.9,1];          // how deep each stop counts as, for depth-scaled pressure
 const STOP_NESTS={rim:Math.round(10*MS*1.1),dense:Math.round(11*MS*1.1),core:Math.round(10*MS*1.1)}, STOP_RICH={rim:[20,30],dense:[40,58],core:[75,95]};
 const STOP_GUARDS=[['small','medium','small'],['medium','medium','small'],['medium','large','medium'],['large','large','medium'],['large','large','large']];
-const BARRIER_X=0.64, BARRIER_HALF=150, BREACH_GAP=170, EXIT_X=W-200, LAND_X=420;
+const BARRIER_X=0.64, BARRIER_HALF=150, BREACH_GAP=170, LAND_X=420; let EXIT_X=W-200;
 let RUN=null, STOP_BAND=null;
 // Epicenter layouts. `pos` places the epicenter for a given roll; `core`/`dense` are the band
 // radii. A centred epicenter gets tighter bands so a Rim ring still fits in the corners.
@@ -804,7 +807,7 @@ function loadMeta(){
 function saveMeta(){try{localStorage.setItem(META_KEY,JSON.stringify(meta))}catch(e){}}
 let meta=loadMeta();
 const ZONE_R=200;
-const TCELL=60, TGX=Math.ceil(W/TCELL), TGY=Math.ceil(H/TCELL), MUD_MULT=0.55;
+const TCELL=60, MUD_MULT=0.55; let TGX=Math.ceil(W/TCELL), TGY=Math.ceil(H/TCELL);
 // Terrain values: 0 plain, 1 mud (slow), 2 rock (impassable to everyone), 3 rift (impassable to
 // the Bastion only — troops, harvesters and builders cross it at mud speed). Rift pockets each
 // seed one outsized Dat Crystal deposit, so reaching the map's richest nodes means sending units
@@ -1923,7 +1926,13 @@ function updateReanimation(dt){
   });
 }
 
+function setMapSize(f){
+  const w=Math.round(5020*MS*f); if(w===W)return;
+  W=H=w; TGX=Math.ceil(W/TCELL); TGY=Math.ceil(H/TCELL); EXIT_X=W-200;
+  [fogC,dimC,fogMaskC].forEach(c=>{c.width=W/FOG_S;c.height=H/FOG_S});
+}
 function reset(landing){
+  setMapSize(STOP_BAND&&MAP_SIZE_BY_BAND[STOP_BAND]||1);
   // Map layout comes first, entirely from the map seed and independent of where the Bastion lands:
   // epicenter + map type, terrain, veins, clusters, and where every deposit gets rolled. That way
   // picking a different landing spot on the same seed only changes things right around the
@@ -1965,8 +1974,13 @@ function reset(landing){
     S.sites.forEach(t=>{t.band=STOP_BAND;t.richness=Math.round(rnd(r[0],r[1]))});
     S.contractSite.band=STOP_BAND;
     if(st.final){S.contractSite.x=rnd(W*0.72,W-450);S.contractSite.y=rnd(H*0.25,H*0.75);S.sites=S.sites.filter(t=>dist(t,S.contractSite)>900)}
-    else{const bs=S.breachSite=pickBreachSite(), bx=W*BARRIER_X;
-      S.sites=S.sites.filter(t=>dist(t,bs)>1100&&Math.abs(t.x-bx)>ZONE_R+BARRIER_HALF+200)}
+    else{const bs=S.breachSite=pickBreachSite(), bx=W*BARRIER_X, f=MAP_SIZE_BY_BAND[STOP_BAND]||1, want=S.sites.length;
+      const ok=(t,gap)=>dist(t,bs)>1100*f&&Math.abs(t.x-bx)>ZONE_R+BARRIER_HALF+200&&!S.sites.some(o=>o!==t&&dist(o,t)<gap);
+      S.sites=S.sites.filter(t=>ok(t,0));
+      // v4: on a smaller map more sites fall foul of the breach and the wall — top them back up to
+      // the same number, spaced out as well as the room allows
+      if(f<1)for(let t=0;t<600&&S.sites.length<want;t++){const q={x:rnd(VEIN_X_MARGIN,W-VEIN_X_MARGIN),y:rnd(VEIN_X_MARGIN,H-VEIN_X_MARGIN)};
+        if(ok(q,VEIN_SAME_BAND_GAP*f*(t<300?0.75:0.5)))S.sites.push({x:q.x,y:q.y,band:STOP_BAND,richness:Math.round(rnd(r[0],r[1])),vein:null})}}
   }
   S.crackNet=genCrackNet([...S.sites,S.contractSite,...(S.breachSite?[S.breachSite]:[])]);
   // Which sites start with a live vein (and how far along each is) is part of the map, decided
@@ -2042,6 +2056,7 @@ function reset(landing){
       const q=nearestPlain(Math.max(150,Math.min(W-150,bs.x+Math.cos(a)*rr)),Math.max(150,Math.min(H-150,bs.y+Math.sin(a)*rr)));makeNest(q.x,q.y,size)})}
   // v4: the last stop — the contract vein is awake from the start, ringed by its great mounds
   placePOIs(); // v4: wrecks (ported from v3)
+  if(STOP_BAND==='dense'&&S.barrier){denseMaze();{const keep=rand;rand=seededRng(mapSeed*131+17);terrainCv=buildTerrainCanvas();rand=keep}buildTerrainBlur()}
   if(STOP_BAND&&stopInfo().final){S.contractAwake=true;const cv=S.veins.find(v=>v.contract);if(cv)raiseMounds(cv,CONTRACT_MOUNDS,'great')}
   rand=Math.random; // map built — live gameplay goes back to unseeded randomness
   cam={x:S.base.x,y:S.base.y,z:1};
@@ -3162,6 +3177,82 @@ function fillDenseRift(){
       px=nx;py=ny;
     }
   }
+}
+// v4: Dense Field stops are a sea of rift crossed by thin, winding corridors the Bastion can walk.
+// The corridors join the landing, every vein site, the breach and the way out (each side of the
+// crystal wall on its own) as a branching network with a loop or two — and they steer well clear
+// of the nests and wrecks, which sit out in the rift: squads can wade out to them, but the
+// Bastion's reach only gets there by chaining Relays across.
+const MAZE_W=1, MAZE_ROOM=ZONE_R+40, MAZE_AVOID=380, MAZE_LOOPS=2;
+function denseMaze(){
+  const N=TGX*TGY, B=S.barrier, cc=(x,y)=>Math.max(0,Math.min(TGY-1,Math.floor(y/TCELL)))*TGX+Math.max(0,Math.min(TGX-1,Math.floor(x/TCELL)));
+  // winding: a smooth random cost field (coarse random values, bilinearly blended)
+  const G=6, gw=Math.ceil(TGX/G)+2, gh=Math.ceil(TGY/G)+2, gv=Array.from({length:gw*gh},()=>rand());
+  const cost=new Float32Array(N), costBase=cost;
+  const avoid=[...liveNests(),...S.wrecks,...S.beacons];
+  for(let gy=0;gy<TGY;gy++)for(let gx=0;gx<TGX;gx++){
+    const id=gy*TGX+gx; if(B.mask[id]){cost[id]=Infinity;continue}
+    const fx=gx/G,fy=gy/G,ix=Math.floor(fx),iy=Math.floor(fy),tx=fx-ix,ty=fy-iy,v=(a,b)=>gv[(iy+b)*gw+ix+a];
+    const n=(v(0,0)*(1-tx)+v(1,0)*tx)*(1-ty)+(v(0,1)*(1-tx)+v(1,1)*tx)*ty;
+    const x=gx*TCELL+TCELL/2,y=gy*TCELL+TCELL/2;
+    let c=1+6*n*n+(gx<2||gy<2||gx>=TGX-2||gy>=TGY-2?20:0);
+    for(const o of avoid){const d=Math.hypot(o.x-x,o.y-y);if(d<MAZE_AVOID)c+=60*(1-d/MAZE_AVOID)+20}
+    cost[id]=c;
+  }
+  // everything but the crystal wall becomes rift; the rooms and corridors are opened back up
+  for(let id=0;id<N;id++)if(!B.mask[id])terrain[id]=RIFT;
+  const net=new Uint8Array(N);
+  const room=(p,r)=>{clearDisk(p.x,p.y,r);const cx=Math.floor(p.x/TCELL),cy=Math.floor(p.y/TCELL),cr=Math.ceil(r/TCELL);
+    for(let gy=cy-cr;gy<=cy+cr;gy++)for(let gx=cx-cr;gx<=cx+cr;gx++)if(gx>=0&&gy>=0&&gx<TGX&&gy<TGY&&Math.hypot(gx-cx,gy-cy)*TCELL<=r){net[gy*TGX+gx]=1;cost[gy*TGX+gx]=Math.min(cost[gy*TGX+gx],0.3)}};
+  // cheapest route from p to any cell where done(id) is true; carved, and joined to the network
+  const route=(p,done,cost2)=>{const cost=cost2||costBase;
+    const g=new Float32Array(N).fill(Infinity), came=new Int32Array(N).fill(-1), h=new MinHeap(), s0=cc(p.x,p.y);
+    g[s0]=0;h.push(s0,0);let hit=-1;
+    while(!h.empty()){const id=h.pop(),cx=id%TGX,cy=(id-cx)/TGX;
+      if(id!==s0&&done(id)){hit=id;break}
+      for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){if(!dx&&!dy)continue;const nx=cx+dx,ny=cy+dy;if(nx<0||ny<0||nx>=TGX||ny>=TGY)continue;
+        const nid=ny*TGX+nx,c=cost[nid];if(c===Infinity)continue;
+        if(dx&&dy&&(cost[cy*TGX+nx]===Infinity||cost[ny*TGX+cx]===Infinity))continue;
+        const ng=g[id]+c*(dx&&dy?1.414:1);if(ng<g[nid]){g[nid]=ng;came[nid]=id;h.push(nid,ng)}}}
+    if(hit<0)return false;
+    // carved two tiles wide: room for the walker, and not a step more
+    for(let id=hit;id>=0;id=came[id]){const cx=id%TGX,cy=(id-cx)/TGX;
+      for(let dy=0;dy<=1;dy++)for(let dx=0;dx<=1;dx++){const gx=cx+dx,gy=cy+dy;if(gx<TGX&&gy<TGY)terrain[gy*TGX+gx]=0}}
+    // the carve may nick the wall's edge: it stays crystal
+    for(let id=0;id<N;id++){if(B.mask[id])terrain[id]=2;else if(terrain[id]===0&&!net[id]){net[id]=1;costBase[id]=Math.min(costBase[id],0.3)}}
+    return true;
+  };
+  const bx=B.centre, out=B.out, exitPt=B.exitPt, inn={x:bx-BARRIER_HALF-160,y:B.y};
+  const pts=[...S.sites,...S.hiveSites,S.contractSite].filter(v=>v&&dist(v,S.base)>1&&v.x>60&&v.x<W-60).map(v=>({x:v.x,y:v.y,r:MAZE_ROOM}));
+  const sides=[
+    {start:{x:S.base.x,y:S.base.y,r:240},pts:[...pts.filter(q=>q.x<bx-BARRIER_HALF),{x:S.breachSite.x,y:S.breachSite.y,r:MAZE_ROOM},{...inn,r:120}]},
+    {start:{...out,r:120},pts:[...pts.filter(q=>q.x>bx+BARRIER_HALF),{...exitPt,r:160}]}];
+  sides.forEach(sd=>{
+    room(sd.start,sd.start.r);const joined=[sd.start],left=[...sd.pts];
+    while(left.length){
+      // the nearest unjoined point to the network goes next
+      let bi=0,bd=Infinity;left.forEach((q,i)=>{const d=Math.min(...joined.map(j=>dist(j,q)));if(d<bd){bd=d;bi=i}});
+      const q=left.splice(bi,1)[0];
+      if(!net[cc(q.x,q.y)])route(q,id=>net[id]);
+      room(q,q.r);joined.push(q);
+    }
+    // a loop or two: a far-apart (by corridor) but nearby pair gets a second way between them
+    for(let k=0;k<MAZE_LOOPS&&joined.length>3;k++){
+      const a=joined[1+Math.floor(rand()*(joined.length-1))];
+      const others=joined.filter(o=>o!==a&&dist(o,a)>500).sort((m,n)=>dist(m,a)-dist(n,a));
+      const b=others[Math.min(others.length-1,1)];if(!b)continue;
+      // existing corridors cost extra for this one, so it finds a second way rather than retracing the first
+      const inRoom=(id,q)=>{const gx=id%TGX,gy=(id-gx)/TGX;return Math.hypot(gx*TCELL+TCELL/2-q.x,gy*TCELL+TCELL/2-q.y)<=q.r};
+      const c2=Float32Array.from(costBase,(c,id)=>net[id]&&!inRoom(id,a)&&!inRoom(id,b)?c+12:c);
+      route(a,id=>inRoom(id,b),c2);
+    }
+  });
+  // the breach line itself: from the breach vein to the wall's mouths, clear on both sides
+  carveLine(S.breachSite.x,S.breachSite.y,inn.x,inn.y,MAZE_W);
+  for(let id=0;id<N;id++)if(B.mask[id])terrain[id]=2;
+  clearDisk(out.x,out.y,120);clearDisk(inn.x,inn.y,120);
+  // a small patch of open ground under each nest and wreck — an island in the rift
+  avoid.forEach(o=>{if(!B.mask[cc(o.x,o.y)])clearDisk(o.x,o.y,90)});
 }
 function carveLine(x0,y0,x1,y1,w){
   const d=Math.hypot(x1-x0,y1-y0); const steps=Math.max(1,Math.ceil(d/(TCELL*0.5)));
@@ -6236,8 +6327,9 @@ function perfTick(ts,gap,up,dr){
   }
   perf.n=0;perf.t0=ts;perf.worst=0;perf.up=0;perf.dr=0;
 }
-function frame(ts){const gap=ts-lastT,dt=Math.min(0.05,gap/1000||0);lastT=ts;document.body.classList.toggle('inMenu',menuOpen);
-  const a=performance.now();update(dt);tutTick();const b=performance.now();draw();perfTick(ts,gap||0,b-a,performance.now()-b);requestAnimationFrame(frame)}
+function frame(ts){requestAnimationFrame(frame); // asked for first, so one bad frame can't stop the game for good
+  const gap=ts-lastT,dt=Math.min(0.05,gap/1000||0);lastT=ts;document.body.classList.toggle('inMenu',menuOpen);
+  const a=performance.now();update(dt);tutTick();const b=performance.now();if(cv.width>0&&cv.height>0)draw();perfTick(ts,gap||0,b-a,performance.now()-b)}
 reset();refreshMenuMeta();requestAnimationFrame(frame);
 // Title-screen build marker: the live latest commit on master, not a hand-maintained string — a
 // baked-in value can never equal its own commit's hash (the hash is computed FROM the file's
