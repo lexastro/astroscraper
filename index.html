@@ -2259,7 +2259,7 @@ const TUTORIAL_STEPS=[
    target:()=>({x:S.base.x,y:S.base.y,r:BUILD_R}),
    done:()=>S.turrets.some(t=>t.built)},
   {title:'Hold the line',
-   text:()=>`Waves attack from the direction of the red arrow. Keep your Squads near the Bastion — press <kbd>3</kbd> to deploy another from the fabricator. Press <kbd>E</kbd> and click a vein's glowing hotspot to fire a Stabilizer at it: it steadies the drill needle. Hold out until the vein is drained.`,
+   text:()=>`Waves pour out of the nests around the vein. Keep your Squads near the Bastion — press <kbd>3</kbd> to deploy another from the fabricator. Press <kbd>E</kbd> and click a vein's glowing hotspot to fire a Stabilizer at it: it steadies the drill needle. Hold out until the vein is drained.`,
    done:()=>tutVein().done},
   {title:'Pick a reward',
    text:()=>`Vein drained! Every drained vein lets you pick one upgrade card for the rest of the run — or sell it for Dat. Choose one now.`,
@@ -5555,6 +5555,15 @@ function drawStabShots(){
     ctx.restore();
   });
 }
+// v4: which Stabilizers the enemy is coming for right now — the one carrying the most steering
+// weight (it pulls a share of every wave) and any that enemies or saboteurs have been sent after.
+let stabTargetsT=-1, stabTargets=new Set();
+function targetedStabs(){
+  if(stabTargetsT===S.t)return stabTargets;stabTargetsT=S.t;stabTargets=new Set();
+  const v=S.activeVein;if(v&&veinAlive(v)){const ss=strainedStab(v);if(ss)stabTargets.add(ss)}
+  S.enemies.forEach(e=>{if(e.hp<=0)return;[e.focusStab,e.sabTarget].forEach(t=>{if(t&&t.hp>0&&S.stabs.includes(t))stabTargets.add(t)})});
+  return stabTargets;
+}
 function drawStabilizer(st){
   const en=veinEnergy(st.vein), dmg=st.built?1-st.hp/st.maxHp:0;
   ctx.save();ctx.translate(st.x,st.y);
@@ -5575,6 +5584,11 @@ function drawStabilizer(st){
   ctx.globalAlpha=st.built?0.35+0.1*Math.sin(S.t*3):0.2;ctx.fillStyle=g;ctx.beginPath();ctx.arc(0,0,26,0,Math.PI*2);ctx.fill();
   if(sn>0.05){const R=26+22*sn,h=ctx.createRadialGradient(0,0,0,0,0,R);h.addColorStop(0,'#ffb36b');h.addColorStop(1,'rgba(0,0,0,0)'); // strained: running hot
     ctx.globalAlpha=sn*(0.45+0.2*Math.sin(S.t*(6+6*sn)));ctx.fillStyle=h;ctx.beginPath();ctx.arc(0,0,R,0,Math.PI*2);ctx.fill()}
+  // targeted: rings of light running IN to it, the way pulses run in to a vein — this is where
+  // the enemy is heading
+  if(st.built&&targetedStabs().has(st)){
+    for(let k=0;k<3;k++){const ph=((S.t*0.9+k/3)%1), R=14+78*(1-ph);
+      ctx.globalAlpha=0.15+0.6*ph;ctx.strokeStyle='#ff6a3d';ctx.lineWidth=2+3*ph;ctx.beginPath();ctx.arc(0,0,R,0,Math.PI*2);ctx.stroke()}}
   ctx.globalCompositeOperation='source-over';
   if(dmg>0.6)ctx.translate((Math.random()-0.5)*1.5,(Math.random()-0.5)*1.5); // rattling apart
   const k=STAB_SIZE/STAB_VB;ctx.scale(k,k);ctx.translate(-STAB_VB/2,-STAB_VB/2);
@@ -5626,16 +5640,7 @@ function draw(){
         ctx.fillText(`WARMING UP — ${Math.ceil(v.prepT)}s`,v.x,v.y-v.r-30);
         ctx.globalAlpha=1;
       }
-      if(v.waveDir!=null){
-        const pulse=0.65+0.35*Math.sin(S.t*4);
-        const ex=v.x+Math.cos(v.waveDir)*(v.r+6),ey=v.y+Math.sin(v.waveDir)*(v.r+6);
-        const tx=v.x+Math.cos(v.waveDir)*(v.r+44),ty=v.y+Math.sin(v.waveDir)*(v.r+44);
-        ctx.globalAlpha=pulse;ctx.strokeStyle=C.enemy;ctx.lineWidth=3;ctx.setLineDash([5,6]);
-        ctx.beginPath();ctx.moveTo(ex,ey);ctx.lineTo(tx,ty);ctx.stroke();ctx.setLineDash([]);
-        ctx.save();ctx.translate(tx,ty);ctx.rotate(v.waveDir);
-        ctx.fillStyle=C.enemy;ctx.beginPath();ctx.moveTo(16,0);ctx.lineTo(-9,9);ctx.lineTo(-9,-9);ctx.closePath();ctx.fill();
-        ctx.restore();ctx.globalAlpha=0.9;
-      }
+      // (v4: no wave-direction arrow — waves come out of the nests and at the loaded Stabilizer)
     }
     if(v.done||v.contract){ctx.fillStyle=v.contract?C.living:C.zone;ctx.font='500 22px '+css('--mono');ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(v.done?'✓':'◆',v.x,v.y)}
     // no marker on the mining point and no tier label: the vein's glow is centred on the mining
