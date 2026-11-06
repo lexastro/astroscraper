@@ -3635,7 +3635,7 @@ function closeHoles(sx,sy){
 // walks through them, and fire and pathing go around), set in clumps of a few cells inside the rift, never
 // touching open ground, the barrier, or anything placed on the map — so the corridors stay as they are
 // and it's the rift between them that gets trickier to wade through and fight across.
-const GLASS_DENSITY=0.05, GLASS_CLEAR=210;
+const GLASS_DENSITY=0.22, GLASS_CLEAR=150;
 function placeGlass(){
   S.glass=null;
   if(!S.barrier&&!STOP_BAND)return false;
@@ -3655,7 +3655,7 @@ function placeGlass(){
   const cand=[];for(let id=0;id<N;id++)if(terrain[id]===RIFT)cand.push(id);
   if(!cand.length)return false;
   const seeds=Math.round(cand.length*GLASS_DENSITY/3.5);let made=0;
-  for(let n=0;n<seeds*4&&made<seeds;n++){
+  for(let n=0;n<seeds*10&&made<seeds;n++){
     const start=cand[Math.floor(rand()*cand.length)];if(!ok(start))continue;
     const want=2+Math.floor(rand()*6), cl=[start];g[start]=1;
     for(let k=0;k<want*5&&cl.length<want;k++){
