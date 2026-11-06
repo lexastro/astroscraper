@@ -1091,7 +1091,7 @@ function stabHold(v){return veinStabs(v).reduce((a,st)=>a+st.hp/st.maxHp,0)}
 // glows hot, cracks the ground, and draws enemies to it from STRAIN_AGGRO_R; a damaged one's corner
 // pulls in toward the vein, shrinking the triangle and shoving the weight; and losing a strained
 // one jerks the needle hard the other way (STRAIN_KICK). Leaning also loosens the needle's hold.
-const STEER_MAX=0.85, STEER_REF_R=0.55, STEER_WOBBLE=0.4, STRAIN_AGGRO_R=520, STRAIN_KICK=0.6;
+const STEER_LAG=2.5, STEER_MAX=0.85, STEER_REF_R=0.55, STEER_WOBBLE=0.4, STRAIN_AGGRO_R=520, STRAIN_KICK=0.6;
 function steerShape(v){
   const cs=veinStabs(v).map(st=>{const k=0.3+0.7*st.hp/st.maxHp;return {st,x:(st.x-v.x)*k,y:(st.y-v.y)*k}});
   if(cs.length<3)return {cs,area:0,auth:0,cx:0,cy:0};
@@ -1150,7 +1150,7 @@ function hotspotAt(w){
 // vein's Stabilizers pull it back, harder the healthier they are — sliding into whatever bands
 // neighbour the one you hit. The tier paid is the one the needle has spent the most of its recent
 // time in (~METER_AVG_T seconds), so a moment's wobble is forgiven. Touching red ruptures the vein.
-const STRIP_W={Rare:0.10,Epic:0.07,Legendary:0.045,Hive:0.045}, STRIP_JACKPOT_W=0.018, STRIP_RED_W=0.05;
+const STRIP_W={Rare:0.07,Epic:0.05,Legendary:0.032,Hive:0.032}, STRIP_N_TOP=4, STRIP_N_LOWER=3, STRIP_JACKPOT_W=0.018, STRIP_RED_W=0.05; // v4: more, narrower bands
 const STAB_WIDEN=0.2, STRIKE_SHRINK_T=12, STRIKE_SHRINK_MIN=0.2, STRIKE_SWEEP_T=1.6, ZOOM_HALF=0.18, ZOOM_T=0.55, METER_AVG_T=6;
 const METER_TURB={Common:0.17,Rare:0.22,Epic:0.29,Legendary:0.36,Hive:0.38}, METER_K_BASE=1.0, METER_K_STAB=3.5;
 function buildStrip(v){
@@ -1158,9 +1158,9 @@ function buildStrip(v){
   const floor=ladder[0], ripe=ladder[idx], ri=TIER_ORDER_ALL.indexOf(ripe), above=ri>=0?TIER_ORDER_ALL[ri+1]:null; // nothing above Hive
   const widen=1+STAB_WIDEN*veinStabs(v).length, u=v.lockUnstable||0;
   const segs=[];
-  const place=(w,o)=>{for(let t=0;t<60;t++){const a=rnd(0.02,0.98-w);if(segs.some(q=>a<q.b+0.012&&a+w>q.a-0.012))continue;segs.push({a,b:a+w,...o});return}};
+  const place=(w,o)=>{for(let t=0;t<80;t++){const a=rnd(0.02,0.98-w);if(segs.some(q=>a<q.b+0.008&&a+w>q.a-0.008))continue;segs.push({a,b:a+w,...o});return}};
   if(above)place(STRIP_JACKPOT_W*widen,{tier:above,jackpot:true});
-  for(let i=idx;i>=1;i--){const t=ladder[i];for(let c=0;c<(i===idx?2:1);c++)place(STRIP_W[t]*widen,{tier:t})}
+  for(let i=idx;i>=1;i--){const t=ladder[i];for(let c=0;c<(i===idx?STRIP_N_TOP:STRIP_N_LOWER);c++)place(STRIP_W[t]*widen,{tier:t})}
   // rupture patches: a small chance of one on a calm vein, up to three on a vein about to collapse
   const nRed=Math.floor(rnd(0,1)+0.3+2.7*u);
   for(let i=0;i<nRed;i++)place(STRIP_RED_W*(1+0.5*u),{red:true});
@@ -1194,7 +1194,12 @@ function updateMeter(v,dt){
   if(m.phase==='zoom'){m.t+=dt;if(m.t>=ZOOM_T){m.phase='drill';v.startT=S.t}return}
   if(m.phase!=='drill'||v.paused)return;
   const sv=steerState(v), K=(METER_K_BASE+METER_K_STAB*stabHold(v))*(1+0.5*sv.sh.auth)*(1-STEER_WOBBLE*sv.L), sig=METER_TURB[m.anchorTier];
-  m.x+=-K*(m.x-sv.target)*dt+sig*Math.sqrt(dt)*gauss();
+  // v4: the Stabilizers take a while to bring the needle round — it's pulled toward m.aim, which
+  // only catches up with where the weight points over STEER_LAG seconds, so a last-second swing
+  // of the weight can't flip the payout
+  if(m.aim==null)m.aim=sv.target;
+  m.aim+=(sv.target-m.aim)*Math.min(1,dt/STEER_LAG);
+  m.x+=-K*(m.x-m.aim)*dt+sig*Math.sqrt(dt)*gauss();
   const here=stripAt(m.strip,m.anchor+m.x*ZOOM_HALF);
   if(here.red){ruptureVein(v,'The drill needle slipped into the red — the vein ruptured!');return}
   // time-share of each tier over the last few seconds; the biggest share is the yield
@@ -1321,9 +1326,11 @@ function updateMeterUI(){
   const np=m.phase==='strike'?m.p:m.anchor+m.x*ZOOM_HALF, nx=X(np);
   g.strokeStyle='#fff';g.lineWidth=2*dpr;g.beginPath();g.moveTo(nx,barY-3*dpr);g.lineTo(nx,barY+barH+2*dpr);g.stroke();
   g.fillStyle='#fff';g.beginPath();g.moveTo(nx,barY-1);g.lineTo(nx-5*dpr,2*dpr);g.lineTo(nx+5*dpr,2*dpr);g.closePath();g.fill();
-  // where the weight is steering the needle to: a hollow tick on the strip
+  // where the weight points (dashed tick) and where the needle is actually being pulled right now,
+  // still catching up (solid tick)
   if(m.phase==='drill'&&m.w){const sv=steerState(v),tx=X(m.anchor+sv.target*ZOOM_HALF);
-    g.strokeStyle=C.accent;g.globalAlpha=0.8;g.lineWidth=1.5*dpr;g.setLineDash([3*dpr,3*dpr]);g.beginPath();g.moveTo(tx,barY);g.lineTo(tx,barY+barH);g.stroke();g.setLineDash([]);g.globalAlpha=1}
+    g.strokeStyle=C.accent;g.globalAlpha=0.55;g.lineWidth=1.5*dpr;g.setLineDash([3*dpr,3*dpr]);g.beginPath();g.moveTo(tx,barY);g.lineTo(tx,barY+barH);g.stroke();g.setLineDash([]);g.globalAlpha=1;
+    if(m.aim!=null){const ax=X(m.anchor+m.aim*ZOOM_HALF);g.strokeStyle=C.accent;g.globalAlpha=0.95;g.lineWidth=2*dpr;g.beginPath();g.moveTo(ax,barY-2*dpr);g.lineTo(ax,barY+barH+2*dpr);g.stroke();g.globalAlpha=1}}
   drawSteerPad(v);
 }
 // The steering pad: the vein seen from above, north-up — the Stabilizers' triangle (brighter the
