@@ -705,6 +705,7 @@ const isBigTarget=e=>e.kind==='nest'||e.kind==='quaker';
 // v4 Brawler: a cheap melee wall. Very durable and hits hard up close (with a little cleave), but short
 // of reach, slow, and not much to look at against a horde on its own — it holds enemies off while
 // the Squads' guns do the killing. No unlock: it's available from the start.
+const BRAWL_WALL_GAP=21, BRAWL_WALL_ENGAGE=110, BRAWL_WALL_LEASH=55;
 const BRAWL_R=9, BRAWL_HP=240, BRAWL_SPEED=88, BRAWL_RANGE=30, BRAWL_CD=1.0, BRAWL_DMG=5, BRAWL_CLEAVE_R=36, BRAWL_CLEAVE=0.4, BRAWL_COLOR='#9fb6d0';
 const HARV_R=8, HARV_SPEED=105, HARV_VISION=280, CARRY=24;
 const BUILDER_R=7, BUILDER_SPEED=100, BUILDER_VISION=200;
@@ -3685,19 +3686,21 @@ function astar(x0,y0,x1,y1,forBastion,forEnemy){
 // engage, walk back to the post.
 function mechEngage(t,range,speed,dt){
   if(!t.post)t.post={x:t.x,y:t.y};
-  let near=null,nd=MECH_ENGAGE_R;
-  S.enemies.forEach(e=>{if(!visible(e))return;const d=dist(e,t);if(d<nd&&dist(e,t.post)<MECH_LEASH+range){nd=d;near=e}});
+  // a Brawler in a shield wall holds its place: it only steps out to meet what's right at the line
+  const wall=t.kind==='brawler'&&t.wall, eR=wall?BRAWL_WALL_ENGAGE:MECH_ENGAGE_R, leash=wall?BRAWL_WALL_LEASH:MECH_LEASH;
+  let near=null,nd=eR;
+  S.enemies.forEach(e=>{if(!visible(e))return;const d=dist(e,t);if(d<nd&&dist(e,t.post)<leash+range){nd=d;near=e}});
   if(near){
     if(nd-(t.kind==='brawler'?near.r||0:0)<=range-10)return; // already in range — the auto-fire below handles it
     const ox=t.x,oy=t.y,od=dist(t,t.post);
     t.ang=Math.atan2(near.y-t.y,near.x-t.x);
     moveToward(t,waypointFor(t,near.x,near.y),speed,dt);
     const nd2=dist(t,t.post);
-    if(nd2>MECH_LEASH&&nd2>od){t.x=ox;t.y=oy} // at the end of its leash — hold here
+    if(nd2>leash&&nd2>od){t.x=ox;t.y=oy} // at the end of its leash — hold here
   }else if(dist(t,t.post)>6){
     t.ang=Math.atan2(t.post.y-t.y,t.post.x-t.x);
     moveToward(t,waypointFor(t,t.post.x,t.post.y),speed,dt);
-  }
+  }else if(wall&&t.wallAng!=null)t.ang=t.wallAng; // back in the line: shields forward again
 }
 // Enemy approach spreading. Pathing straight at the target sends every enemy down the same line,
 // so each one gets its own flank bias (e.flank, -1..1) and, while still far off, steers for a point
@@ -4638,9 +4641,22 @@ function rightClick(w){
   // (a selected unit clicked on itself just stays put; the rest of the group guards it)
   const friend=!en&&selT.length?friendlyAt(w):null;
   const guards=friend?selT.filter(t=>t!==friend):[];
+  // v4: Brawlers sent to a spot line up on arrival in a shield wall across the way they were heading,
+  // everyone else in the group taking up positions behind it
+  const wallSlot=new Map();let wallFace=0;
+  {const br=selT.filter(t=>t.kind==='brawler');
+   if(!en&&!friend&&br.length){
+     const cx=br.reduce((a,t)=>a+t.x,0)/br.length, cy=br.reduce((a,t)=>a+t.y,0)/br.length;
+     wallFace=Math.atan2(w.y-cy,w.x-cx);
+     if(Math.hypot(w.x-cx,w.y-cy)<20)wallFace=br[0].ang||0;
+     const px=-Math.sin(wallFace),py=Math.cos(wallFace);
+     // ordered along the line by where each already stands, so nobody has to cross anyone
+     const ord=[...br].sort((a,b)=>(a.x*px+a.y*py)-(b.x*px+b.y*py));
+     ord.forEach((t,k)=>{const o=(k-(ord.length-1)/2)*BRAWL_WALL_GAP;wallSlot.set(t,{x:w.x+px*o,y:w.y+py*o})})}}
   selT.forEach((t,i)=>{
-    const off=selT.length>1?{x:Math.cos(i*2.1)*14,y:Math.sin(i*2.1)*14}:{x:0,y:0};
-    t.following=false;t.guard=null;
+    let off=selT.length>1?{x:Math.cos(i*2.1)*14,y:Math.sin(i*2.1)*14}:{x:0,y:0};
+    if(wallSlot.size&&!wallSlot.has(t)){off={x:off.x-Math.cos(wallFace)*42,y:off.y-Math.sin(wallFace)*42}}
+    t.following=false;t.guard=null;t.wall=false;
     if(en){t.state='attack';t.target=en;t.dest=null}
     else if(friend){
       if(t===friend){t.state='idle';t.dest=null;t.target=null;t.post={x:t.x,y:t.y};return}
@@ -4649,8 +4665,10 @@ function rightClick(w){
       t.guardAng=(k/guards.length)*Math.PI*2+rnd(-0.2,0.2);
       t.guardDist=rnd(22,48);
     }
+    else if(wallSlot.has(t)){t.state='move';t.dest=wallSlot.get(t);t.target=null;t.wall=true;t.wallAng=wallFace}
     else{t.state='move';t.dest={x:w.x+off.x,y:w.y+off.y};t.target=null}
   });
+  if(wallSlot.size>1)msg(`${wallSlot.size} Brawlers moving to form a shield wall.`);
   if(guards.length){
     msg(`${guards.length===1?'1 unit is':guards.length+' units are'} now guarding ${guardName(friend)}.`);
     sfx.click();
@@ -5229,7 +5247,7 @@ function update(dt){
       if(mech||brawl)t.ang=Math.atan2(t.dest.y-t.y,t.dest.x-t.x);
       const aim=waypointFor(t,t.dest.x,t.dest.y);
       moveToward(t,aim,speed*factor,dt);
-      if(dist(t,t.dest)<4){t.dest=null;t.state='idle';if(mech||brawl)t.post={x:t.x,y:t.y}}
+      if(dist(t,t.dest)<4){t.dest=null;t.state='idle';if(mech||brawl)t.post={x:t.x,y:t.y};if(brawl&&t.wall&&t.wallAng!=null)t.ang=t.wallAng}
     }
     else if(t.state==='attack'){
       if(!t.target||t.target.hp<=0){t.target=null;t.state='idle';if(mech||brawl)t.post={x:t.x,y:t.y}}
