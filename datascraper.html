@@ -440,7 +440,7 @@ body.inMenu :is(#game,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMeter,.mini,.
 <div class="help" id="help" hidden>
   <button id="helpClose" aria-label="Close">×</button>
   <b>The run:</b> six stops, each one map in a single zone and each deeper and tougher than the last — Rim, Rim, Dense Field, Dense Field, Core, and the Core's heart where the contract vein waits. A barrier (rift on the Rim, a crystal wall deeper in) cuts every map: drain the <b>breach vein</b> in front of it to break through, then walk the Bastion off the eastern edge. Everything you have carries on to the next stop.<br>
-<b>Stock &amp; squads:</b> nothing refills on its own any more — every fabricator, Stabilizer and Probe has a free stock, and once it's empty each use costs Dat (the price shows on the button). You can field a limited number of Squads at once (start 3, up to 8 — the button shows how many you have against the limit); each new one costs Dat. Salvage from Large nests and Mega nests can raise the limit. <b>Wrecks</b> (derelict scrapers) lie hidden on every map, some beyond the barrier — park the Bastion on one for 8s to salvage it (it draws an ambush): Dat, refilled stocks, drones, a barracks module (+1 Squad limit) or a new fabricator for the run. <b>Quakers</b> — big stone blocks — lumber in while you drill, keep their distance and slam the ground to jolt the drill needle and shake your Stabilizers: send units out to kill them.<br>
+<b>Stock &amp; squads:</b> nothing refills on its own any more — every fabricator, Stabilizer and Probe has a free stock, and once it's empty each use costs Dat (the price shows on the button). You have 8 Squad slots (4 filled for free at the start — the button shows how many you have against the limit); each new Squad costs Dat, and right-clicking any build button buys another charge of it. Salvage from Large nests and Mega nests can raise the limit. <b>Wrecks</b> (derelict scrapers) lie hidden on every map, some beyond the barrier — park the Bastion on one for 8s to salvage it (it draws an ambush): Dat, refilled stocks, drones, a barracks module (+1 Squad limit) or a new fabricator for the run. <b>Quakers</b> — big stone blocks — lumber in while you drill, keep their distance and slam the ground to jolt the drill needle and shake your Stabilizers: send units out to kill them.<br>
 <b>Goal:</b> the ground is cracked all over: <b>follow the pulses of energy</b> running through the cracks back to their source to find a vein, then park the Bastion on its glowing centre and press <kbd>F</kbd> to lock on. Veins <b>emerge, ripen</b> a tier at a time, then go unstable and <b>collapse</b> — and new ones emerge elsewhere. Glowing <b>stray pockets</b> give a bearing toward the nearest vein when a unit reaches one; two bearings from different angles triangulate it. Locking on starts the <b>strike</b> at once: press <kbd>Space</kbd> to stop the needle on a good band of the strip (the thin sliver is a tier above the vein; red ruptures it) — the meter zooms in on where you hit and the drill starts; the first wave arrives about 20s later. While it drills, the needle drifts; Stabilizers hold it steady, and the tier you're paid is where it spends most of its time. If it drifts into the red, the vein ruptures and damages the Bastion. Drain veins for rewards — after 3, the contract vein stirs: it gives off no pulses, so triangulate it with bearings from stray pockets, then drain it to win.<br>
   <b>Controls:</b> drag to select · right-click to move/attack · right-click a friendly unit or building with combat units selected to <b>guard</b> it (escort it, fight off anything that comes near, then fall back) · <kbd>C</kbd> select all your units · <kbd>F</kbd> lock on to a vein / strike · <kbd>H</kbd> jump the camera to the Bastion · <kbd>WASD</kbd> or middle-drag to pan, scroll to zoom<br>
   <b>Touch:</b> tap to select · tap empty ground/an enemy/a resource to move/attack/harvest · drag to pan · hold still then drag to box-select · pinch to zoom · double-tap to select all of a kind<br>
@@ -721,7 +721,7 @@ const FAB_FLIGHT_SPEED=380;
 const FAB_DAT={turret:30,relay:12,grenadier:30,artillery:45,mech:60}, STAB_DAT=12, PROBE_DAT=8;
 // Squads aren't stocked: you can field up to S.squadCap of them at once (SQUAD_CAP_START, raised by
 // salvage and a reward card up to SQUAD_CAP_MAX), each new one costing SQUAD_DAT.
-const SQUAD_CAP_START=3, SQUAD_CAP_MAX=8, SQUAD_DAT=20;
+const SQUAD_CAP_START=8, SQUAD_CAP_MAX=12, SQUAD_START_N=4, SQUAD_DAT=20;
 function squadCount(){return S.troops.filter(t=>(t.kind||'troop')==='troop').length}
 function raiseSquadCap(){if(S.squadCap>=SQUAD_CAP_MAX)return false;S.squadCap++;updateBuildBar();return true}
 // pay for one use of an empty stock; false (with a message) if there isn't the Dat
@@ -811,7 +811,7 @@ const WAVE_FRONT_HALF=260; // half-width of the line a wave spawns along, across
 // WAVE_SPAWN_DIST, so it arrives as drilling starts.
 const FIRST_WAVE_LEAD=9;
 const STAB_HUNTER_FRAC=0.35; // share of each drilling wave sent after the Stabilizers
-const WAVE_SPAWN_DIST=820,WAVE_BASE_N={rim:9,dense:12,core:22};
+const WAVE_SPAWN_DIST=820,WAVE_BASE_N={rim:8,dense:12,core:22};
 // v2: the vein's tier sets the threat on top of the zone. It follows the drill meter's live yield
 // (the tier the needle has mostly sat in over the last few seconds), so holding a rich band draws
 // a bigger, faster swarm, and easing down a tier eases off. n = wave size, rate = how much sooner
@@ -819,7 +819,7 @@ const WAVE_SPAWN_DIST=820,WAVE_BASE_N={rim:9,dense:12,core:22};
 // by less (TIER_THREAT_BAND) since their base pressure is already high.
 const TIER_THREAT={Common:{n:0.85,rate:0.95,big:0.1,hunt:0.25},Rare:{n:1,rate:1,big:0.2,hunt:0.35},
   Epic:{n:1.6,rate:1.3,big:0.3,hunt:0.45},Legendary:{n:2.4,rate:1.6,big:0.4,hunt:0.55},Hive:{n:3,rate:1.8,big:0.5,hunt:0.6}};
-const TIER_THREAT_BAND={rim:1,dense:0.75,core:0.5};
+const TIER_THREAT_BAND={rim:0.85,dense:0.75,core:0.5};
 // Saboteurs are a separate threat while drilling: tiny, individually-fragile swarms that beeline
 // for whichever built Relay is nearest the vein (and opportunistically chew its cable on the way
 // there, same as any enemy near a cable), rather than joining the main wave's raid. A single one
@@ -982,7 +982,7 @@ const UPGRADES={
     {id:'armedRelays',name:'Armed Relays',desc:'Tethered Relays fire on enemies like a Turret — half the damage, half the fire rate.',apply:()=>{S.mods.armedRelays=true}},
     {id:'martyrs',name:'Martyrs',desc:'A unit that would corrupt detonates instead, damaging enemies and friendlies alike nearby.',apply:()=>{S.mods.martyrs=true}},
     {id:'resupply1',name:'Resupply',desc:'Every fabricator, Stabilizer and Probe stock is topped up to full, right now.',apply:()=>{Object.keys(FABS).forEach(k=>{S.fab[k].n=FABS[k].charges});S.stabCharges=STAB_CHARGES;S.probeCharges=PROBE_CHARGES}},
-    {id:'barracks1',name:'Barracks Expansion',desc:'Field one more Squad at a time (up to 8).',apply:()=>{raiseSquadCap()}},
+    {id:'barracks1',name:'Barracks Expansion',desc:'Field one more Squad at a time (up to 12).',apply:()=>{raiseSquadCap()}},
   ],
   Epic:[
     {id:'hardscopes',name:'Hard Scopes',desc:"Squad vision and firing range +20% (stacks with Surveyor's Eye).",apply:()=>{S.mods.squadRangeMult*=1.2}},
@@ -1883,7 +1883,7 @@ function reset(landing){
     fab:{},fabShots:[],drones:[],droneNoDatMsgT:-99,runUnlock:{},nestSproutT:NEST_SPROUT_T};
   Object.keys(FABS).forEach(k=>{S.fab[k]={n:FABS[k].charges,rt:0}});
   addDrones(DRONE_COUNT);
-  for(let i=0;i<SQUAD_CAP_START;i++){const u=mkTroop(i);S.troops.push(u);guardBastion(u)}
+  for(let i=0;i<SQUAD_START_N;i++){const u=mkTroop(i);S.troops.push(u);guardBastion(u)}
   prodMenuOpen=false;
 
   S.mapSeed=mapSeed; S.mapType=mapType.id; S.mapLayout=mapLayout.id;
@@ -3656,6 +3656,26 @@ addEventListener('keydown',e=>{
 addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;keys[e.key]=false});
 document.querySelectorAll('#buildBar button[data-mode]').forEach(b=>b.addEventListener('click',()=>{setBuild(buildMode===b.dataset.mode?null:b.dataset.mode);sfx.click()}));
 document.querySelectorAll('#buildBar button[data-unit]').forEach(b=>b.addEventListener('click',()=>fabUnit(b.dataset.unit)));
+// v4: right-click any build button to buy one more charge of it with Dat (a Squad button buys a
+// Squad outright). Stocks top out at their usual size.
+function buyCharge(k){
+  if(!S||S.over||menuOpen)return;
+  if(k==='troop'){fabUnit('troop');return}
+  const isStab=k==='stabilizer', isProbe=k==='probe';
+  const name=isStab?'Stabilizer':isProbe?'Probe':FABS[k].name, cost=isStab?STAB_DAT:isProbe?PROBE_DAT:FAB_DAT[k];
+  const have=isStab?S.stabCharges:isProbe?S.probeCharges:S.fab[k].n, max=isStab?STAB_CHARGES:isProbe?PROBE_CHARGES:FABS[k].charges;
+  if(have>=max){msg(`${name} stock is already full.`);return}
+  if(S.dat<cost){msg(`Not enough Dat for a ${name} charge — it costs ${cost}, you have ${Math.floor(S.dat)}.`);return}
+  S.dat-=cost;floatText(S.base.x,S.base.y-46,`-${cost} Dat`,C.dat);
+  if(isStab)S.stabCharges++;else if(isProbe)S.probeCharges++;else S.fab[k].n++;
+  sfx.build();updateBuildBar();
+}
+document.querySelectorAll('#buildBar button').forEach(b=>{
+  const k=b.dataset.mode||b.dataset.unit||(b.id==='bPing'?'probe':null);if(!k)return;
+  b.addEventListener('contextmenu',e=>{e.preventDefault();buyCharge(k)});
+  const cost=k==='stabilizer'?STAB_DAT:k==='probe'?PROBE_DAT:k==='troop'?SQUAD_DAT:FAB_DAT[k];
+  b.title=k==='troop'?`Deploy a Squad (${cost} Dat) — right-click works too`:`Right-click to buy another charge for ${cost} Dat`;
+});
 document.getElementById('bLock').onclick=()=>tryLockdown();
 document.getElementById('bPing').onclick=()=>tryProbe();
 document.getElementById('bFollow').onclick=followSelected;
@@ -4471,10 +4491,19 @@ function drawDrones(){
 
 // One drilling wave: spawns WAVE_SPAWN_DIST out from the vein in its wave direction, spread along
 // a wide front across the approach (not a tight clump that would all set off down the same line).
+// v4: the threat doesn't jump the instant the yield does — it follows the tier at THREAT_EASE
+// seconds a tier (starting one below where you struck), and every drill eases in from
+// THREAT_RAMP_MIN of full pressure over its first THREAT_RAMP_T seconds.
+const THREAT_ORDER=['Common','Rare','Epic','Legendary','Hive'], THREAT_EASE=22, THREAT_RAMP_T=50, THREAT_RAMP_MIN=0.55;
 function veinThreat(v){
-  const T=TIER_THREAT[currentTier(v)]||TIER_THREAT.Rare, k=TIER_THREAT_BAND[v.band]??1, R=TIER_THREAT.Rare;
-  const mix=f=>R[f]+(T[f]-R[f])*k;
-  return {n:mix('n'),rate:mix('rate'),big:mix('big'),hunt:mix('hunt'),tier:currentTier(v)};
+  const want=Math.max(0,THREAT_ORDER.indexOf(currentTier(v)));
+  if(v.threatLvl==null){v.threatLvl=Math.max(0,want-1);v.threatT=S.t}
+  const dt=Math.max(0,S.t-v.threatT);v.threatT=S.t;
+  v.threatLvl+=Math.max(-dt/THREAT_EASE,Math.min(dt/THREAT_EASE,want-v.threatLvl));
+  const i=Math.floor(v.threatLvl),f=v.threatLvl-i,A=TIER_THREAT[THREAT_ORDER[i]],Z=TIER_THREAT[THREAT_ORDER[Math.min(i+1,THREAT_ORDER.length-1)]];
+  const k=TIER_THREAT_BAND[v.band]??1, R=TIER_THREAT.Rare, lv=q=>A[q]+(Z[q]-A[q])*f, mix=q=>R[q]+(lv(q)-R[q])*k;
+  const ramp=S.activeVein===v&&v.startT!=null?THREAT_RAMP_MIN+(1-THREAT_RAMP_MIN)*Math.min(1,Math.max(0,S.t-v.startT)/THREAT_RAMP_T):1;
+  return {n:mix('n')*ramp,rate:mix('rate')*(0.8+0.2*ramp),big:mix('big'),hunt:mix('hunt'),tier:THREAT_ORDER[Math.round(v.threatLvl)]};
 }
 function veinWaveInterval(v){return BASE_SPAWN_INTERVAL[v.band]/veinThreat(v).rate}
 function compassName(a){const c=Math.cos(a),s=Math.sin(a);return (s>0.38?'south':s<-0.38?'north':'')+(c>0.38?'east':c<-0.38?'west':'')}
