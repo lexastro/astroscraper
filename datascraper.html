@@ -1778,6 +1778,9 @@ let fogC=document.createElement('canvas'), fogX; const FOG_S=6; fogC.width=W/FOG
 // short ramp right at the edge of sight, so everything inside stays fully clear. FOG_DITHER: a fine,
 // fixed grain laid over the frame after the fog, which breaks the dark gradient's 8-bit steps
 // (banding) into noise too fine to see.
+// v4: ground you've explored stays at the lighter FOG_EXPLORED (unexplored is FOG_DARK), and the
+// out-of-sight blur only applies at FOG_EXPLORED_BLUR strength there — full strength in the unknown.
+const FOG_EXPLORED=0.62, FOG_EXPLORED_BLUR=0.3;
 const FOG_DARK=0.93, FOG_EDGE_BLUR=2.5, FOG_EDGE_IN=0.9, FOG_EDGE_OUT=1.06, FOG_DITHER=0.07;
 let dimC=document.createElement('canvas'), dimX; dimC.width=W/FOG_S; dimC.height=H/FOG_S; dimX=dimC.getContext('2d');
 // Vision mask: opaque everywhere nothing can currently see, punched clear (with the same soft edges
@@ -5153,21 +5156,25 @@ function update(dt){
   S.walls.forEach(w=>{if(w.flashT>0)w.flashT=Math.max(0,w.flashT-dt)});
 
   // dim veil, rebuilt fresh every frame: dark over everything, then punched fully clear around
-  // current vision sources. No permanent "explored" memory anymore — the map goes back to dim
-  // the moment nothing is nearby to see it, instead of staying lit once scouted.
+  // current vision sources. v4: with a permanent "explored" memory again (fogC) — ground you've
+  // seen stays at a lighter veil once nothing is watching it.
   dimX.clearRect(0,0,dimC.width,dimC.height);
   // The fog is properly dark (FOG_DARK). Each vision source cuts one soft-edged hole in it, then
   // the whole veil (and the matching vision mask the cracks, pulses and veins use) is gaussian-
   // blurred, so the edge of sight fades out smoothly — no rings or steps — into the blurred,
   // darkened ground beyond (see blurFogged).
-  dimX.globalCompositeOperation='source-over'; dimX.fillStyle=`rgba(0,0,0,${FOG_DARK})`; dimX.fillRect(0,0,dimC.width,dimC.height);
+  // explored ground: the lighter veil; the never-seen (fogC, opaque where unexplored) darkens to FOG_DARK
+  dimX.globalCompositeOperation='source-over'; dimX.fillStyle=`rgba(0,0,0,${FOG_EXPLORED})`; dimX.fillRect(0,0,dimC.width,dimC.height);
+  dimX.globalAlpha=(FOG_DARK-FOG_EXPLORED)/(1-FOG_EXPLORED); dimX.drawImage(fogC,0,0,dimC.width,dimC.height); dimX.globalAlpha=1;
   dimX.globalCompositeOperation='destination-out';
+  fogX.globalCompositeOperation='destination-out';
   fogMaskX.globalCompositeOperation='source-over'; fogMaskX.clearRect(0,0,fogMaskC.width,fogMaskC.height); fogMaskX.fillStyle='#000'; fogMaskX.fillRect(0,0,fogMaskC.width,fogMaskC.height);
   fogMaskX.globalCompositeOperation='destination-out';
   const unveil=(x,y,r)=>{
     const g=dimX.createRadialGradient(x/FOG_S,y/FOG_S,r*FOG_EDGE_IN/FOG_S,x/FOG_S,y/FOG_S,r*FOG_EDGE_OUT/FOG_S);g.addColorStop(0,'rgba(0,0,0,1)');g.addColorStop(1,'rgba(0,0,0,0)');
     dimX.fillStyle=g;dimX.beginPath();dimX.arc(x/FOG_S,y/FOG_S,r*FOG_EDGE_OUT/FOG_S,0,Math.PI*2);dimX.fill();
-    fogMaskX.fillStyle=g;fogMaskX.beginPath();fogMaskX.arc(x/FOG_S,y/FOG_S,r*FOG_EDGE_OUT/FOG_S,0,Math.PI*2);fogMaskX.fill()};
+    fogMaskX.fillStyle=g;fogMaskX.beginPath();fogMaskX.arc(x/FOG_S,y/FOG_S,r*FOG_EDGE_OUT/FOG_S,0,Math.PI*2);fogMaskX.fill();
+    fogX.fillStyle=g;fogX.beginPath();fogX.arc(x/FOG_S,y/FOG_S,r*FOG_EDGE_OUT/FOG_S,0,Math.PI*2);fogX.fill()}; // remembered as explored
   {const vm=S.mods.visionMult;
   unveil(B.x,B.y,BASE_VISION*vm);S.pings.forEach(pg=>unveil(pg.x,pg.y,pg.probe?pg.r*Math.min(1,pg.t/2):pg.r));S.troops.forEach(t=>unveil(t.x,t.y,TROOP_VISION*vm*S.mods.squadRangeMult));S.harvesters.forEach(h=>unveil(h.x,h.y,HARV_VISION*vm));S.builders.forEach(bu=>unveil(bu.x,bu.y,BUILDER_VISION*vm));}
   softenFogLayers();
@@ -5175,12 +5182,21 @@ function update(dt){
 // Blurred copies of the fog veil and vision mask — what actually gets drawn/used each frame.
 let dimSoftC=document.createElement('canvas'), dimSoftX=dimSoftC.getContext('2d');
 let fogMaskSoftC=document.createElement('canvas'), fogMaskSoftX=fogMaskSoftC.getContext('2d');
+// blurMaskC: where the out-of-sight ground blur applies — full strength over unexplored ground,
+// FOG_EXPLORED_BLUR over ground you've already seen, nothing where you can see now.
+let blurMaskC=document.createElement('canvas'), blurMaskX=blurMaskC.getContext('2d');
 function softenFogLayers(){
   [[dimSoftC,dimSoftX,dimC],[fogMaskSoftC,fogMaskSoftX,fogMaskC]].forEach(([c,x,src])=>{
     if(c.width!==src.width||c.height!==src.height){c.width=src.width;c.height=src.height}
     x.setTransform(1,0,0,1,0,0);x.globalCompositeOperation='source-over';x.clearRect(0,0,c.width,c.height);
     x.filter=`blur(${FOG_EDGE_BLUR}px)`;x.drawImage(src,0,0);x.filter='none';
   });
+  const c=blurMaskC,x=blurMaskX;
+  if(c.width!==fogMaskSoftC.width||c.height!==fogMaskSoftC.height){c.width=fogMaskSoftC.width;c.height=fogMaskSoftC.height}
+  x.globalCompositeOperation='source-over';x.globalAlpha=1;x.clearRect(0,0,c.width,c.height);
+  x.globalAlpha=FOG_EXPLORED_BLUR;x.drawImage(fogMaskSoftC,0,0);x.globalAlpha=1;
+  x.filter=`blur(${FOG_EDGE_BLUR}px)`;x.drawImage(fogC,0,0,c.width,c.height);x.filter='none';
+  x.globalCompositeOperation='destination-in';x.drawImage(fogMaskSoftC,0,0);x.globalCompositeOperation='source-over';
 }
 // Called exactly once per run, right as it ends (win or lose) — banks whatever Condensed and
 // Living Crystal were collected into the persistent save, same as a roguelite "you keep what you
@@ -5563,7 +5579,7 @@ function blurFogged(vw,vh,shkx,shky){
   X.filter=`blur(${FOG_BLUR_PX}px)`;X.imageSmoothingEnabled=true;X.drawImage(cv,0,0,w,h);X.filter='none';
   X.globalCompositeOperation='destination-in';
   X.setTransform(dpr/FOG_BLUR_DOWN,0,0,dpr/FOG_BLUR_DOWN,0,0);X.translate(vw/2+shkx,vh/2+shky);X.scale(cam.z,cam.z);X.translate(-cam.x,-cam.y);
-  X.drawImage(fogMaskSoftC,0,0,W,H);
+  X.drawImage(blurMaskC,0,0,W,H); // v4: full blur in the unknown, a little over explored ground
   X.setTransform(1,0,0,1,0,0);X.globalCompositeOperation='source-over';
   ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.imageSmoothingEnabled=true;ctx.drawImage(fogBlurC,0,0,cv.width,cv.height);ctx.restore();
 }
