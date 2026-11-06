@@ -2368,7 +2368,7 @@ function compass(dx,dy){
 }
 function tutVein(){return tutorial?tutorial.vein:null}
 const TUTORIAL_STEPS=[
-  {title:'Welcome to Datascraper',
+  {topic:'The basics',title:'Welcome to Datascraper',
    text:()=>`You command the <b>Bastion</b> — a mobile drilling rig — and its crew. The goal of every run: drill crystal veins across the zone, growing stronger with each one, until you can crack the hidden contract vein near the Black Flame at the map's heart. This tutorial walks you through your first vein.`},
   {title:'Look around',
    text:()=>`Pan the camera with <kbd>WASD</kbd> or the arrow keys (or middle-mouse drag), and scroll to zoom. Press <kbd>H</kbd> any time to snap back to the Bastion.`,
@@ -2382,7 +2382,7 @@ const TUTORIAL_STEPS=[
    done:()=>tutVein().mine.found},
   {title:'Dat Crystal',
    text:()=>`Found it! <b>Dat Crystal</b> (◆, top left) drops from enemies and from destroyed nests — the Bastion or any unit scoops it up just by passing over it. Your little teal <b>repair drones</b> spend Dat to patch up whatever gets damaged near the Bastion.`},
-  {title:'Survey it with a Stabilizer',
+  {topic:'Drilling a vein',title:'Survey it with a Stabilizer',
    text:()=>`Before you commit, read the vein. Press <kbd>E</kbd> and click one of the <b>glowing hotspots</b> drifting inside it to fire a <b>Stabilizer</b> — lead it, the hotspots move, and the aiming ring shows how far it reaches. The first Stabilizer you pin on a vein <b>surveys</b> it: a panel shows its tier and how long until it ripens or collapses.`,
    target:()=>{const v=tutVein();return{x:v.x,y:v.y,r:v.r+20}},
    done:()=>!!tutVein().surveyed},
@@ -2412,7 +2412,7 @@ const TUTORIAL_STEPS=[
   {title:'Pick a reward',
    text:()=>`Vein drained! Every drained vein lets you pick one upgrade card for the rest of the run — or sell it for Dat. Choose one now.`,
    done:()=>!S.rewardChoice},
-  {title:'A vein about to collapse',
+  {topic:'Veins over time',title:'A vein about to collapse',
    enter:()=>{S.stabCharges=STAB_CHARGES;updateBuildBar();tutSpawnDemo(false)},
    text:()=>{const d=tutorial.demo;return `Veins ripen, peak, then go <b>unstable and collapse</b> — and the best tier is the shortest window. One just went unstable to the <b>${d?compass(d.x-S.base.x,d.y-S.base.y):'side'}</b> (highlighted). Get within range and fire a Stabilizer at one of its hotspots <b>now</b>: every Stabilizer pinned holds a vein together 10 seconds longer, and its survey shows the countdown. (Your Stabilizer stock has been topped up for this.)`},
    target:()=>{const d=tutorial.demo;return d?{x:d.x,y:d.y,r:d.r+20}:null},
@@ -2424,10 +2424,30 @@ const TUTORIAL_STEPS=[
   {title:'Drain it',
    text:()=>`Locked on — that vein's safe now. Drain it as before; you'll pick another reward at the end.`,
    done:()=>{const d=tutorial.demo;return !d||d.done||d.collapsed}},
-  {title:'Extend your reach with Relays',
-   text:()=>`Out on the Rim, your units' wireless link works anywhere. Deeper in, they need a cable back to the Bastion or a <b>Relay</b>, or they lose signal and slowly go mad. Press <kbd>2</kbd> and launch a Relay near the edge of the Bastion's ring.`,
+  {topic:'The deep zone',title:'Into the Dense Field',
+   enter:()=>tutDeepSetup(),
+   text:()=>`We've moved the Bastion to the edge of the <b>Dense Field</b> — the rift-choked ring closer to the Black Flame. Two things change out here. The violet <b>rift</b> is everywhere: Squads can wade through it (slowly), but the Bastion can only walk the grey corridors. And the Rim's free wireless link is gone — <b>every unit needs a cable</b> back to the Bastion.`},
+  {title:'Every unit runs a cable',
+   text:()=>`Select your Squads (<kbd>C</kbd>) and <b>right-click the marked spot</b> out in the rift. Watch the line they trail behind them — that's their cable, paid out from the Bastion as they go.`,
+   target:()=>{const d=tutorial.deep;return d?{x:d.near.x,y:d.near.y,r:50}:null},
+   done:()=>S.troops.some(t=>t.trail&&(t.cableLen||0)>150)},
+  {title:'The end of the line',
+   text:()=>`There's a <b>wreck</b> worth salvaging further out (marked). Send the Squads on to it. A cable only reaches <b>${MAX_CABLE_LEN}</b> — when it runs out they stop dead and can't go further.`,
+   target:()=>{const d=tutorial.deep;return d?{x:d.wreck.x,y:d.wreck.y,r:60}:null},
+   done:()=>S.troops.some(t=>t.cableMaxed)||(tutorial.deep&&tutorial.deep.wreck.done)},
+  {title:'Relays carry the line',
+   text:()=>`A <b>Relay</b> is a new anchor out in the field. Press <kbd>2</kbd> and launch one <b>toward the wreck, near the edge of the Bastion's ring</b>. It runs its own cable back to the Bastion, and every unit re-runs its cable from whichever anchor is nearest — so your Squads can push on from there.`,
    target:()=>({x:S.base.x,y:S.base.y,r:BUILD_R}),
-   done:()=>S.relays.some(r=>r.built)},
+   done:()=>S.relays.some(r=>r.built&&r.tetherOk&&dist(r,S.base)>140)||(tutorial.deep&&tutorial.deep.wreck.done)},
+  {title:'Chain them out',
+   text:()=>`Still short? A Relay has a <b>launch ring</b> of its own, so you can lob the next one from it — Relays link to each other up to ${MAX_CABLE_LEN} apart, as long as the chain leads back to the Bastion. String another out toward the wreck, then send your Squads onto it to <b>salvage</b> it.`,
+   target:()=>{const d=tutorial.deep;return d?{x:d.wreck.x,y:d.wreck.y,r:60}:null},
+   done:()=>!!tutorial.deep&&tutorial.deep.wreck.done},
+  {title:'Guard your lines',
+   enter:()=>tutDeepRaid(),
+   text:()=>`Cables can be <b>cut</b> — enemies chew through any line they wander across. A unit whose cable is cut keeps fighting, but its <b>Sanity</b> (the violet bar) drains, and at zero it turns on you; bring it back near the Bastion or a live Relay and it reconnects. A Relay that's cut goes dark, and so does any Turret it was powering. Raiders are heading for your line now — <b>fight them off</b>.`,
+   target:()=>{const f=(tutorial.deep&&tutorial.deep.foes||[]).find(e=>e.hp>0&&S.enemies.includes(e));return f?{x:f.x,y:f.y,r:40}:null},
+   done:()=>{const d=tutorial.deep;return !!d&&!!d.foes&&(d.foes.every(e=>e.hp<=0||!S.enemies.includes(e))||S.t-d.raidT>60)}},
   {title:"That's the loop",
    text:()=>`Scout a vein, drill it, defend it, take an upgrade, push deeper. Veins nearer the Black Flame pay far more but are guarded far harder. Drain three and the hidden <b>contract vein</b> reveals itself — drain that to win the run. Crystal you bring home buys permanent upgrades between runs.`,
    finish:true},
@@ -2444,6 +2464,50 @@ function tutSpawnDemo(again){
   v.ripeT=ripePeakT(v)+1; v.lifeBonus=Math.max(0,left-(UNSTABLE_T-1)); // already unstable, with `left` seconds to go
   tutorial.demo=v;
   if(again)msg('It collapsed — another vein nearby has just gone unstable. Be quicker this time!');
+}
+// The deep-zone lessons: the Bastion and its Squads are set down on a corridor just inside the
+// Dense Field, with a wreck out in the rift far enough away that it takes two Relays to reach.
+function tutDeepSetup(){
+  const B=S.base, seen=bfsReachableBastion(B.x,B.y);
+  let spot=null,bd=Infinity;
+  for(let id=0;id<terrain.length;id++){
+    if(!seen[id]||terrain[id]!==0)continue;
+    const gx=id%TGX,gy=(id-gx)/TGX,x=gx*TCELL+TCELL/2,y=gy*TCELL+TCELL/2,e=epiDist(x,y);
+    if(e>DENSE_R-200||e<DENSE_R-550||!inMap(x,y,300))continue;
+    const d=dist({x,y},B);if(d<bd){bd=d;spot={x,y}}
+  }
+  if(!spot)spot={x:B.x,y:B.y};
+  // the wreck: ~780 out, into the rift, along the ring rather than toward the Core
+  const open=(x,y)=>inMap(x,y,150)&&terrainAt(x,y)!==2&&epiDist(x,y)>CORE_R+150;
+  const out=Math.atan2(spot.y-EPI.y,spot.x-EPI.x);let wreck=null;
+  for(let k=0;k<48&&!wreck;k++){
+    const a=out+Math.PI/2*(k%2?1:-1)+(k>>1)*0.13*(k%4<2?1:-1), D=780, w={x:spot.x+Math.cos(a)*D,y:spot.y+Math.sin(a)*D};
+    if(!open(w.x,w.y)||bandAt(w.x,w.y)!=='dense')continue;
+    if(![0.3,0.6].every(f=>open(spot.x+Math.cos(a)*D*f,spot.y+Math.sin(a)*D*f)))continue;
+    wreck=w;
+  }
+  if(!wreck)wreck={x:spot.x+780,y:spot.y};
+  B.x=spot.x;B.y=spot.y;B.dest=null;B.locked=false;B._path=null;B._pg=null;
+  if(S.activeVein&&S.activeVein.done)S.activeVein=null;
+  S.enemies=S.enemies.filter(e=>dist(e,B)>1400);S.fabShots=[];
+  S.troops.forEach((u,i)=>{const a=i*2.1;u.x=B.x+Math.cos(a)*(B.r+20);u.y=B.y+Math.sin(a)*(B.r+20);
+    u.trail=null;u.cableLen=0;u.cableMaxed=false;u.severed=false;u.tetherOk=true;u.sanity=SANITY_MAX;u._path=null;u._pg=null;guardBastion(u)});
+  S.fab.relay.n=Math.max(S.fab.relay.n,FABS.relay.charges);updateBuildBar();
+  const w={x:wreck.x,y:wreck.y,band:'dense',r:WRECK_R,prog:0,done:false,ambushed:true,seen:true,ang:rnd(0,Math.PI*2),blink:rnd(0,6)};
+  S.wrecks.push(w);
+  const a=Math.atan2(w.y-B.y,w.x-B.x);
+  tutorial.deep={wreck:w,near:{x:B.x+Math.cos(a)*260,y:B.y+Math.sin(a)*260},foes:null};
+  cam.x=B.x+Math.cos(a)*200;cam.y=B.y+Math.sin(a)*200;cam.z=Math.min(cam.z,0.8);
+  S.sel.base=false;
+}
+// A handful of raiders that come in across the Relay line
+function tutDeepRaid(){
+  const d=tutorial.deep;if(!d)return;
+  const B=S.base, mid={x:(B.x+d.wreck.x)/2,y:(B.y+d.wreck.y)/2}, a=Math.atan2(d.wreck.y-B.y,d.wreck.x-B.x)+Math.PI/2*(rand()<0.5?1:-1);
+  d.foes=[];d.raidT=S.t;
+  for(let i=0;i<4;i++){const p=nearestPlain(Math.max(60,Math.min(W-60,mid.x+Math.cos(a)*520+rnd(-60,60))),Math.max(60,Math.min(H-60,mid.y+Math.sin(a)*520+rnd(-60,60))));
+    spawnEnemy(p.x,p.y,'wave',{bigP:0});d.foes.push(S.enemies[S.enemies.length-1])}
+  sfx.wave();
 }
 function tutCheckDemo(){const d=tutorial.demo;if(d&&d.collapsed&&!(S.activeVein===d))tutSpawnDemo(true)}
 function startTutorial(){
@@ -2465,7 +2529,7 @@ function startTutorial(){
   reset(land||d0);
   const tv=S.veins.find(x=>!x.contract&&x.band==='rim'&&Math.abs(x.x-v.x)<1&&Math.abs(x.y-v.y)<1)
     ||S.veins.filter(x=>!x.contract&&x.band==='rim').reduce((a,b)=>dist(b,S.base)<dist(a,S.base)?b:a);
-  tutorial={step:0,vein:tv,demo:null,cam0:{x:cam.x,y:cam.y,z:cam.z}};
+  tutorial={step:0,vein:tv,demo:null,deep:null,cam0:{x:cam.x,y:cam.y,z:cam.z}};
   TUTORIAL_STEPS.forEach(st=>{st.entered=false});
   renderTutorialStep();
 }
@@ -2476,7 +2540,11 @@ function endTutorialState(){
 function renderTutorialStep(){
   const st=TUTORIAL_STEPS[tutorial.step];
   document.getElementById('tutPanel')._hd=false;
-  document.getElementById('tutStep')._tc=`Tutorial · ${tutorial.step+1} / ${TUTORIAL_STEPS.length}`;
+  // v4: the steps come in topics — the header names the topic and the step within it
+  let t0=tutorial.step;while(t0>0&&!TUTORIAL_STEPS[t0].topic)t0--;
+  let t1=t0+1;while(t1<TUTORIAL_STEPS.length&&!TUTORIAL_STEPS[t1].topic&&!TUTORIAL_STEPS[t1].finish)t1++;
+  const topics=TUTORIAL_STEPS.filter(x=>x.topic), ti=topics.indexOf(TUTORIAL_STEPS[t0]);
+  document.getElementById('tutStep')._tc=st.finish?'Tutorial complete':`Part ${ti+1}/${topics.length} · ${TUTORIAL_STEPS[t0].topic} · ${tutorial.step-t0+1} / ${t1-t0}`;
   document.getElementById('tutTitle')._tc=st.title;
   if(st.enter&&!st.entered){st.entered=true;st.enter()}
   document.getElementById('tutText')._ih=st.text();
