@@ -419,6 +419,7 @@ body.inMenu :is(#game,#fogGrain,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMet
     <button id="bFabRocket" data-unit="rocket" hidden><span class="icon">➶</span><span>Rocketeer</span><span class="cost" id="cf_rocket">●●</span><span class="key">5</span></button>
     <button id="bFabMech" data-unit="mech" hidden><span class="icon">◫</span><span>Mech</span><span class="cost" id="cf_mech">●</span><span class="key">7</span></button>
     <button id="bLock"><span class="icon">⛏</span><span id="bLockLabel">Begin Drilling</span><span class="key">F</span></button>
+    <button id="bRig" hidden><span class="icon">⛭</span><span id="bRigLabel">Power the Rig</span><span class="cost" id="cRig"></span><span class="key">G</span></button>
     <button id="bPing"><span class="icon">◬</span><span id="bPingLabel">Probe</span><span class="cost" id="cProbe">●●●</span><span class="key">T</span></button>
     <button id="bAutoBuy" title="When on, using an empty stock buys the charge with Dat automatically"><span class="icon">⟳</span><span id="bAutoBuyLabel">Auto-buy: off</span></button>
   </div>
@@ -456,7 +457,7 @@ body.inMenu :is(#game,#fogGrain,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMet
 <b>Goal:</b> the ground is cracked all over: <b>follow the pulses of energy</b> running through the cracks back to their source to find a vein, then park the Bastion on its glowing centre and press <kbd>F</kbd> to lock on. Veins <b>emerge, ripen</b> a tier at a time, then go unstable and <b>collapse</b> — and new ones emerge elsewhere. Glowing <b>stray pockets</b> give a bearing toward the nearest vein when a unit reaches one; two bearings from different angles triangulate it. Locking on starts the <b>strike</b> at once: press <kbd>Space</kbd> to stop the needle on a good band of the strip (the thin sliver is a tier above the vein; red ruptures it) — the meter zooms in on where you hit and the drill starts; the first wave arrives about 20s later. While it drills, the needle drifts; Stabilizers hold it steady, and the tier you're paid is where it spends most of its time. If it drifts into the red, the vein ruptures and damages the Bastion. Drain veins for rewards — after 3, the contract vein stirs: it gives off no pulses, so triangulate it with bearings from stray pockets, then drain it to win.<br>
   <b>Controls:</b> drag to select · right-click to move/attack · right-click a friendly unit or building with combat units selected to <b>guard</b> it (escort it, fight off anything that comes near, then fall back) · <kbd>C</kbd> select all your units · <kbd>F</kbd> lock on to a vein / strike · <kbd>H</kbd> jump the camera to the Bastion · <kbd>WASD</kbd> or middle-drag to pan, scroll to zoom<br>
   <b>Touch:</b> tap to select · tap empty ground/an enemy/a resource to move/attack/harvest · drag to pan · hold still then drag to box-select · pinch to zoom · double-tap to select all of a kind<br>
-  <b>Fabricators:</b> every button holds a free stock; once it's empty each use costs Dat (shown on the button). <kbd>Q</kbd> launch a turret · <kbd>2</kbd> launch a relay · <kbd>3</kbd> deploy a squad · <kbd>4</kbd> grenadier · <kbd>5</kbd> rocketeer ·  <kbd>7</kbd> mech (once unlocked) · <b>Nests</b>: every enemy patrol comes from one, and the nests near a vein send its drilling waves — destroy them (they fight back) for <b>Dat Crystal</b>. <b>Mega nests</b> glow crimson through the fog: hive veins ringed by brood mounds that pour out its waves — break the mounds, then drain the hive for Hive-tier rewards and salvage. When the contract vein stirs, great mounds rise around it too. <b>Dat Crystal</b>: drive the Bastion or a unit over the Dat a nest drops (or an enemy's shard) to scoop it up — your <b>repair drones</b> fly out on their own and spend it patching up Stabilizers, turrets, relays and the Bastion · <kbd>E</kbd> fire a Stabilizer from the Bastion (3 free, then Dat each; aim at a vein's drifting hotspot and lead it — a hit pins it, buys the vein 15s before it collapses, widens the strike bands and steadies the needle; with all 3 pinned, drag the weight on the steering pad to push the needle — the wider their triangle, the further it goes, but the one you lean on draws the enemy) — turrets and relays land anywhere inside the Bastion's ring (or a relay's)<br>
+  <b>Fabricators:</b> every button holds a free stock; once it's empty each use costs Dat (shown on the button). <kbd>Q</kbd> launch a turret · <kbd>2</kbd> launch a relay · <kbd>3</kbd> deploy a squad · <kbd>G</kbd> power up a derelict rig · <kbd>4</kbd> grenadier · <kbd>5</kbd> rocketeer ·  <kbd>7</kbd> mech (once unlocked) · <b>Nests</b>: every enemy patrol comes from one, and the nests near a vein send its drilling waves — destroy them (they fight back) for <b>Dat Crystal</b>. <b>Mega nests</b> glow crimson through the fog: hive veins ringed by brood mounds that pour out its waves — break the mounds, then drain the hive for Hive-tier rewards and salvage. When the contract vein stirs, great mounds rise around it too. <b>Dat Crystal</b>: drive the Bastion or a unit over the Dat a nest drops (or an enemy's shard) to scoop it up — your <b>repair drones</b> fly out on their own and spend it patching up Stabilizers, turrets, relays and the Bastion · <kbd>E</kbd> fire a Stabilizer from the Bastion (3 free, then Dat each; aim at a vein's drifting hotspot and lead it — a hit pins it, buys the vein 15s before it collapses, widens the strike bands and steadies the needle; with all 3 pinned, drag the weight on the steering pad to push the needle — the wider their triangle, the further it goes, but the one you lean on draws the enemy) — turrets and relays land anywhere inside the Bastion's ring (or a relay's)<br>
   <b>Tether:</b> wireless works freely on the Rim; past it, units need a live cable back to the Bastion or a Relay, or they go dark — chain Relays to push your reach further out. A dark unit still takes orders, but its Sanity drains; reconnect in time to recover it, or it defects into a hostile Corrupted enemy<br>
   <kbd>T</kbd> recon probe: click a direction and it flies straight out on its fiber line, lifting the fog along a narrow strip for 20s and permanently finding veins it passes (3 charges, one back every 20s) · <kbd>V</kbd> follow Bastion (escorts it as it moves, until given another order) · <kbd>Esc</kbd> cancel, or pause the whole game if nothing's open · <kbd>`</kbd> reveal map (debug)
 </div>
@@ -776,6 +777,95 @@ function payDat(cost,what){
 const DRONE_COUNT=4, DRONE_SPEED=170, DRONE_RANGE=760, DRONE_HPS=9, DRONE_DAT_PER_SEC=0.4, DRONE_WORK_R=18;
 // Dat Crystal deposits are pickups now: the Bastion or any unit that rolls over one scoops up the lot.
 const DAT_PICKUP_R=26;
+// v4: the derelict RIG — a rare find on the Dense Field stops. A mining rig (a long-bodied walker, not a
+// Bastion you can command) sits on a vein stranded on an island in the rift, three Stabilizers already
+// pinned to it. Link it to your Bastion with a Relay (within RIG_LINK_R of it, itself connected back)
+// and spend RIG_DAT Dat to bring it online: then 'Begin Drilling' works on its vein from anywhere —
+// the Bastion locks in place while the rig drills. It's guarded by a big crowd and a couple of nests.
+const RIG_CHANCE=0.7, RIG_DAT=200, RIG_LINK_R=BUILD_R, RIG_ISLAND_R=190, RIG_GUARDS=[20,26];
+function rigLinked(){const r=S.rig;return !!r&&S.relays.some(x=>x.built&&x.hp>0&&x.tetherOk&&x.state!=='cut'&&dist(x,r)<=RIG_LINK_R)}
+function pickRigSite(starts){
+  if(STOP_BAND!=='dense'||!S.breachSite||rand()>RIG_CHANCE)return null;
+  const xmax=W*BARRIER_X-BARRIER_HALF-250;
+  const pool=S.sites.filter(st=>st.band==='dense'&&!starts.some(q=>q.site===st)&&!S.hiveSites.includes(st)&&st.x<xmax&&dist(st,S.base)>1200&&Math.min(st.x,st.y,W-st.x,H-st.y)>=NEST_DENSE_EDGE);
+  if(!pool.length)return null;
+  const st=pool[Math.floor(rand()*pool.length)];
+  S.sites.splice(S.sites.indexOf(st),1);
+  st.richness=Math.round(st.richness*1.4);
+  return st;
+}
+function pinStabAt(v,h){
+  const st={x:h.x,y:h.y,hp:STAB_HP,maxHp:STAB_HP,kind:'stabilizer',r:12,built:true,buildT:STAB_BUILD_T,buildTotal:STAB_BUILD_T,builder:null,repairer:null,vein:v,hot:h,cracks:mkCracks(6,4,30,0.45)};
+  h.stab=st;S.stabs.push(st);return st;
+}
+function makeRig(site){
+  const v=emergeVein(site,{rig:true,guards:false,ripeT:ripeStart(2)});
+  updateHotspots(v);v.hot.forEach(h=>pinStabAt(v,h));v.surveyed=true;
+  const r=S.rig={x:v.mine.x,y:v.mine.y,ang:rnd(0,Math.PI*2),vein:v,online:false,seen:false,uiT:0};
+  const n=Math.round(rnd(RIG_GUARDS[0],RIG_GUARDS[1]));
+  for(let i=0;i<n;i++){const a=rnd(0,Math.PI*2),rr=rnd(30,RIG_ISLAND_R*0.9),p=nearestPlain(r.x+Math.cos(a)*rr,r.y+Math.sin(a)*rr);spawnEnemy(p.x,p.y,'roam')}
+  // two nests dug in around it, out in the rift
+  for(let i=0;i<2;i++){const a=r.ang+Math.PI*i+rnd(-0.5,0.5),rr=rnd(480,640),m=NEST_DENSE_EDGE;
+    const q=nearestPlain(Math.max(m,Math.min(W-m,r.x+Math.cos(a)*rr)),Math.max(m,Math.min(H-m,r.y+Math.sin(a)*rr)));makeNest(q.x,q.y,i?'small':'medium')}
+  return r;
+}
+function tryCaptureRig(){
+  const r=S.rig;if(!r||r.online||!r.seen||S.over||S.paused)return;
+  if(!rigLinked()){msg(`The rig has no link — land Relays out from the Bastion until a connected one stands within ${RIG_LINK_R} of it.`);return}
+  if(S.dat<RIG_DAT){msg(`Bringing the rig online costs ${RIG_DAT} Dat — you have ${Math.floor(S.dat)}.`);return}
+  S.dat-=RIG_DAT;r.online=true;floatText(r.x,r.y-60,`-${RIG_DAT} Dat`,C.dat);burst(r.x,r.y,C.accent,28,170,0.8);shakeScreen(3,0.2);sfx.build();
+  msg('The rig is online. Press F (Begin Drilling) to drill its vein from here — the Bastion locks in place while it does, and the drill pauses if the rig loses its Relay link.');
+  updateBuildBar();
+}
+function updateRig(dt){
+  const r=S.rig;if(!r)return;
+  const v=r.vein;
+  if(!r.seen&&visible(r)){r.seen=true;v.seen=true;v.mine.found=true;msg(`A derelict mining rig, stranded in the rift with its Stabilizers still pinned. Link it with a Relay and spend ${RIG_DAT} Dat to bring it online (button, or G) — then its vein can be drilled.`);updateBuildBar()}
+  if(S.activeVein===v){
+    if(!rigLinked()){if(!v.paused){v.paused=true;v.rigCut=true;msg('The rig has lost its Relay link — drilling is paused until it is reconnected.')}}
+    else if(v.rigCut){v.paused=false;v.rigCut=false;msg('Rig link restored — drilling resumes.')}
+  }
+  r.uiT-=dt;if(r.uiT<=0){r.uiT=0.5;if(r.seen&&!r.online&&!v.done)updateBuildBar()}
+}
+// a longer, walker-style body than the Bastion's: a hull with a cab at one end, a drill housing, and
+// three jointed legs down each side
+function drawRig(){
+  const r=S.rig;if(!r||!(r.seen||debugNoFog))return;
+  const t=S.t,v=r.vein,on=r.online&&!v.done,spent=v.done;
+  ctx.save();ctx.translate(r.x,r.y);ctx.rotate(r.ang);
+  ctx.fillStyle='rgba(0,0,0,0.35)';ctx.beginPath();ctx.ellipse(5,8,58,26,0,0,Math.PI*2);ctx.fill();
+  const body=spent?'#2f343a':on?'#9aa7b4':'#566069', leg=spent?'#262a2f':on?'#7d8996':'#3f464d';
+  ctx.lineCap='round';ctx.lineJoin='round';
+  for(const sd of [-1,1])for(let i=0;i<3;i++){
+    const hx=-26+i*26, sway=on&&v===S.activeVein?Math.sin(t*2+i*2.1+(sd>0?1.7:0))*2.5:0;
+    const kx=hx+(i-1)*7, ky=sd*(24+sway), fx=hx+(i-1)*16, fy=sd*(42+sway*0.5);
+    ctx.strokeStyle='#14171b';ctx.lineWidth=7;ctx.beginPath();ctx.moveTo(hx,sd*10);ctx.lineTo(kx,ky);ctx.lineTo(fx,fy);ctx.stroke();
+    ctx.strokeStyle=leg;ctx.lineWidth=4.2;ctx.beginPath();ctx.moveTo(hx,sd*10);ctx.lineTo(kx,ky);ctx.lineTo(fx,fy);ctx.stroke();
+    ctx.fillStyle='#14171b';ctx.beginPath();ctx.arc(fx,fy,4.4,0,Math.PI*2);ctx.fill();ctx.fillStyle=leg;ctx.beginPath();ctx.arc(fx,fy,2.8,0,Math.PI*2);ctx.fill();
+  }
+  // hull
+  ctx.fillStyle=body;ctx.strokeStyle='#14171b';ctx.lineWidth=2.5;
+  ctx.beginPath();ctx.moveTo(-46,-12);ctx.lineTo(30,-14);ctx.lineTo(48,-6);ctx.lineTo(48,6);ctx.lineTo(30,14);ctx.lineTo(-46,12);ctx.closePath();ctx.fill();ctx.stroke();
+  // panel seams and a dorsal spine
+  ctx.strokeStyle='rgba(0,0,0,0.35)';ctx.lineWidth=1.4;ctx.beginPath();ctx.moveTo(-14,-12);ctx.lineTo(-14,12);ctx.moveTo(14,-13);ctx.lineTo(14,13);ctx.stroke();
+  ctx.fillStyle=spent?'#262a2f':on?'#c6d0da':'#454c54';ctx.fillRect(-40,-3,62,6);
+  // cab and its window
+  ctx.fillStyle=spent?'#2a2e33':on?'#7d8996':'#3c434a';ctx.beginPath();ctx.moveTo(22,-9);ctx.lineTo(42,-5);ctx.lineTo(42,5);ctx.lineTo(22,9);ctx.closePath();ctx.fill();ctx.stroke();
+  ctx.fillStyle=on?C.accent:spent?'#1c1f23':(Math.sin(t*3)>0.4?'#a33a2a':'#4a2520');ctx.fillRect(32,-3.2,8,6.4);
+  // drill housing at the stern, with a glowing head when it's running
+  ctx.fillStyle=spent?'#2a2e33':'#3c434a';ctx.beginPath();ctx.arc(-34,0,9,0,Math.PI*2);ctx.fill();ctx.stroke();
+  const drilling=on&&v===S.activeVein&&!v.paused;
+  ctx.fillStyle=drilling?C.accent:on?'#8a7536':'#23272c';ctx.beginPath();ctx.arc(-34,0,4.6+(drilling?Math.sin(t*14)*0.8:0),0,Math.PI*2);ctx.fill();
+  ctx.restore();
+  if(!spent){
+    ctx.save();ctx.font='11px monospace';ctx.textAlign='center';
+    const linked=rigLinked();
+    if(!r.online){ctx.fillStyle=linked&&S.dat>=RIG_DAT?C.accent:'#c9857a';
+      ctx.fillText(`DERELICT RIG · ${linked?'linked':'no relay link'} · ${RIG_DAT} Dat`,r.x,r.y+68)}
+    else{ctx.fillStyle=linked?C.ally:'#c9857a';ctx.fillText(linked?'RIG ONLINE':'RIG LINK LOST',r.x,r.y+68)}
+    ctx.restore();
+  }
+}
 // v4: a drone with nothing to repair flies out to scoop up dropped Dat Crystal (shards and nest drops)
 // within DRONE_SCAVENGE_R of the Bastion — 150% of the repair range
 const DRONE_SCAVENGE_R=DRONE_RANGE*1.5;
@@ -1075,7 +1165,7 @@ function ripePeakT(v){return ripeStart(veinLadder(v).length-1)}
 function ripeTier(v){return veinLadder(v)[ripeIdx(v)]}
 // 0 while still ripening; climbs 0→1 across the unstable phase at the peak.
 // (never unstable: the contract vein, and every vein in the tutorial — those just hold at their peak)
-function holdsAtPeak(v){return v.contract||v.hive||v.breach||(tutorialMap&&!v.tutDemo)}
+function holdsAtPeak(v){return v.contract||v.hive||v.breach||v.rig||(tutorialMap&&!v.tutDemo)}
 // Stabilizers pinned on a vein stretch its unstable phase (and so its whole life) by STAB_LIFE_BONUS each.
 function unstableDur(v){return UNSTABLE_T+(v.lifeBonus||0)}
 function unstableFrac(v){if(holdsAtPeak(v))return 0;const over=(v.ripeT||0)-ripePeakT(v);return over<0?0:Math.min(1,over/unstableDur(v))}
@@ -1554,7 +1644,7 @@ const VEINS_PER_BAND=2, GONE_T=20, EMERGE_DELAY=[12,28];
 function emergeVein(site,o){
   o=o||{};
   const ang=rnd(0,Math.PI*2), rad=rnd(0,14); // the mining point is the heart of the site's crack knot
-  const v={x:site.x,y:site.y,r:ZONE_R,richness:site.richness,drillProg:0,done:false,contract:!!o.contract,hive:!!o.hive,breach:!!o.breach,band:site.band,waveT:0,
+  const v={x:site.x,y:site.y,r:ZONE_R,richness:site.richness,drillProg:0,done:false,contract:!!o.contract,hive:!!o.hive,breach:!!o.breach,rig:!!o.rig,band:site.band,waveT:0,
     reward:o.contract?{dat:50,living:3}:{dat:Math.round(site.richness*VEIN_DAT_PER_RICH)},
     mine:{x:site.x+Math.cos(ang)*rad,y:site.y+Math.sin(ang)*rad,found:false},
     site,ripeT:o.ripeT||0,crackedT:0,seen:false,collapsed:false,goneT:0,pulsePh:rnd(0,PULSE_PERIOD),
@@ -1563,7 +1653,7 @@ function emergeVein(site,o){
   site.vein=v; S.veins.push(v);
   // index the network around it: its zone (what lights up as the vein) and, for ordinary veins,
   // out to how far its pulses carry
-  v.reach=o.hive||o.breach?HIVE_PULSE_REACH:PULSE_REACH;
+  v.reach=o.hive||o.breach||o.rig?HIVE_PULSE_REACH:PULSE_REACH;
   {const src={x:v.mine.x,y:v.mine.y};indexPulse(src,o.contract?VEIN_GLOW_R:Math.max(v.reach,VEIN_GLOW_R));v.pd=src.pd;v.pi=src.pi}
   // a guard cluster camps every vein, sized by how deep it sits
   if(o.guards!==false){
@@ -1605,7 +1695,7 @@ function updateVeinLife(dt){
   // (the replacement's countdown starts the moment a vein dies, not once it's finished fading)
   S.veins=S.veins.filter(v=>{
     if(veinAlive(v)||v.contract)return true;
-    if(!v.respawnQueued&&!v.hive&&!v.breach){v.respawnQueued=true;S.respawnQ.push({band:v.band,t:rnd(EMERGE_DELAY[0],EMERGE_DELAY[1])})}
+    if(!v.respawnQueued&&!v.hive&&!v.breach&&!v.rig){v.respawnQueued=true;S.respawnQ.push({band:v.band,t:rnd(EMERGE_DELAY[0],EMERGE_DELAY[1])})}
     v.goneT+=dt; if(v.goneT<GONE_T)return true;
     v.site.vein=null;
     return false;
@@ -1961,7 +2051,7 @@ function reset(landing){
   rand=seededRng(mapSeed);
   rollLayout();
   const land=landing||defaultLanding();
-  S={t:0,surveyVein:null,wrecks:[],beacons:[],squadCap:SQUAD_CAP_START,quakes:[],quakeMsg:false,barrier:null,breachSite:null,breachVein:null,dat:tutorialMap?TUTORIAL_START_DAT:60,living:0,condensed:0,over:null,rerollCount:0,
+  S={t:0,surveyVein:null,wrecks:[],beacons:[],squadCap:SQUAD_CAP_START,quakes:[],quakeMsg:false,barrier:null,breachSite:null,breachVein:null,rigSite:null,rig:null,dat:tutorialMap?TUTORIAL_START_DAT:60,living:0,condensed:0,over:null,rerollCount:0,
     base:{x:land.x,y:land.y,hp:450+bastionHpBonus(),maxHp:450+bastionHpBonus(),r:BASE_R,dest:null,locked:false,gunCd:0,bigGunCd:0,pingCd:0},
     troops:[],harvesters:[],builders:[],relays:[],depots:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],shards:[],nades:[],
     veins:[],activeVein:null,throttleMul:1,ambientT:30,
@@ -2037,7 +2127,8 @@ function reset(landing){
   clearDisk(S.base.x,S.base.y,240);
   // v2: Mega nest (hive vein) sites, cleared and connected like the rest
   S.hiveSites=tutorialMap?[]:pickHiveSites(startPicks);
-  const allSites=[...S.sites,S.contractSite,...S.hiveSites,...(S.breachSite?[S.breachSite]:[])];
+  S.rigSite=tutorialMap?null:pickRigSite(startPicks);
+  const allSites=[...S.sites,S.contractSite,...S.hiveSites,...(S.breachSite?[S.breachSite]:[]),...(S.rigSite?[S.rigSite]:[])];
   allSites.forEach(v=>clearDisk(v.x,v.y,ZONE_R+40));
   ensureConnectivity([{x:S.base.x,y:S.base.y},...allSites.map(v=>({x:v.x,y:v.y})),...S.clusters.map(([x,y])=>({x,y})),...riftPockets]);
   closeHoles(S.base.x,S.base.y);
@@ -2061,6 +2152,7 @@ function reset(landing){
   startPicks.forEach(p=>emergeVein(p.site,{ripeT:p.ripeT,haze:p.haze}));
   S.hiveSites.forEach(st=>{const v=emergeVein(st,{hive:true,ripeT:ripeStart(2)});raiseMounds(v,HIVE_MOUNDS,'mound')});
   S.breachVein=S.breachSite?emergeVein(S.breachSite,{breach:true,ripeT:ripeStart(2)}):null;
+  if(S.rigSite)makeRig(S.rigSite);
   // the opening vein: if no starting vein is close to the landing, a fresh one emerges at the
   // nearest Rim site at least LANDING_SITE_CLEAR away
   if(S.sites.some(st=>st.band===(STOP_BAND||'rim'))){const rim=S.sites.filter(st=>st.band===(STOP_BAND||'rim')), clear=rim.filter(st=>dist(st,S.base)>=LANDING_SITE_CLEAR);
@@ -2761,7 +2853,7 @@ function makeNest(x,y,size){
 // mid-run, out of everyone's sight). null if nothing fits.
 const NEST_DENSE_EDGE=520, NEST_DENSE_SITE_GAP=520;
 function placeNest(size,band,hidden){
-  const sites=[...S.sites,S.contractSite,...(S.hiveSites||[])].filter(Boolean), nests=liveNests();
+  const sites=[...S.sites,S.contractSite,...(S.hiveSites||[]),S.rigSite].filter(Boolean), nests=liveNests();
   // v4: on the Dense Field stops nests sit well inland, away from the map's edges
   const edge=STOP_BAND==='dense'&&band==='dense'?NEST_DENSE_EDGE:120;
   for(let t=0;t<(edge>120?160:60);t++){
@@ -2977,7 +3069,7 @@ const POI_GAP=700*MS;
 // a spot in the band the Bastion can actually walk to, clear of the landing, vein sites, nests and
 // other places of interest
 function placePOI(band,reachable){
-  const sites=[...S.sites,S.contractSite,...(S.hiveSites||[])].filter(Boolean), others=[...S.wrecks,...S.beacons];
+  const sites=[...S.sites,S.contractSite,...(S.hiveSites||[]),S.rigSite].filter(Boolean), others=[...S.wrecks,...S.beacons];
   for(let t=0;t<60;t++){
     const q=band==='core'?pointInRing(0,CORE_R-80,150):band==='dense'?pointInRing(CORE_R+80,DENSE_R-80,150):pointInRing(DENSE_R+80,EPI_REACH,150);
     if(!q)continue;
@@ -3295,7 +3387,7 @@ function denseMaze(){
   // winding: a smooth random cost field (coarse random values, bilinearly blended)
   const G=6, gw=Math.ceil(TGX/G)+2, gh=Math.ceil(TGY/G)+2, gv=Array.from({length:gw*gh},()=>rand());
   const cost=new Float32Array(N), costBase=cost;
-  const avoid=[...liveNests(),...S.wrecks,...S.beacons];
+  const avoid=[...liveNests(),...S.wrecks,...S.beacons,...(S.rigSite?[S.rigSite]:[])];
   for(let gy=0;gy<TGY;gy++)for(let gx=0;gx<TGX;gx++){
     const id=gy*TGX+gx; if(B.mask[id]){cost[id]=Infinity;continue}
     const fx=gx/G,fy=gy/G,ix=Math.floor(fx),iy=Math.floor(fy),tx=fx-ix,ty=fy-iy,v=(a,b)=>gv[(iy+b)*gw+ix+a];
@@ -3359,6 +3451,7 @@ function denseMaze(){
   clearDisk(out.x,out.y,120);clearDisk(inn.x,inn.y,120);
   // a small patch of open ground under each nest and wreck — an island in the rift
   avoid.forEach(o=>{if(!B.mask[cc(o.x,o.y)])clearDisk(o.x,o.y,90)});
+  if(S.rigSite)clearDisk(S.rigSite.x,S.rigSite.y,RIG_ISLAND_R); // the derelict rig's island
 }
 function carveLine(x0,y0,x1,y1,w){
   const d=Math.hypot(x1-x0,y1-y0); const steps=Math.max(1,Math.ceil(d/(TCELL*0.5)));
@@ -3991,6 +4084,7 @@ addEventListener('keydown',e=>{
   else if(e.key==='F9'){e.preventDefault();perf.on=!perf.on;if(perf.el)perf.el.hidden=!perf.on}
   else if(e.key.toLowerCase()==='c'){selectAllUnitsOfKind('troops')}
   else if(e.key.toLowerCase()==='h'){cam.x=S.base.x;cam.y=S.base.y}
+  else if(e.key.toLowerCase()==='g'){tryCaptureRig()}
   else if(e.key.toLowerCase()==='f'){if(!e.repeat)tryLockdown()}
   else if(e.key.toLowerCase()==='t'){tryProbe()}
   else if(e.key.toLowerCase()==='v'){followSelected()}
@@ -4026,6 +4120,7 @@ document.querySelectorAll('#buildBar button').forEach(b=>{
 });
 document.getElementById('bLock').onclick=()=>tryLockdown();
 document.getElementById('bPing').onclick=()=>tryProbe();
+document.getElementById('bRig').onclick=()=>tryCaptureRig();
 document.getElementById('bFollow').onclick=followSelected;
 // Shared by the top HUD selector buttons, their mobile equivalents next to the zoom controls, and
 // the T/H/U hotkeys — one selection path for "select every unit of this kind" everywhere it appears.
@@ -4187,9 +4282,13 @@ function updateBuildBar(){
   const lb=document.getElementById('bLock');
   if(lb){
     const preppingNow=S.base.locked&&S.activeVein&&S.activeVein.prepT>0;
-    document.getElementById('bLockLabel')._tc=preppingNow?`Warming Up… (${Math.ceil(S.activeVein.prepT)}s)`:S.base.locked?'Drilling…':'Begin Drilling';
+    document.getElementById('bLockLabel')._tc=preppingNow?`Warming Up… (${Math.ceil(S.activeVein.prepT)}s)`:S.base.locked?'Drilling…':(canLockdown()||{}).rig?'Drill the Rig':'Begin Drilling';
     lb._ds=S.base.locked?true:!canLockdown();
   }
+  {const rb=document.getElementById('bRig'),r=S.rig;
+    rb._hd=!(r&&r.seen&&!r.online&&!r.vein.done);
+    if(!rb.hidden){const ok=rigLinked()&&S.dat>=RIG_DAT;rb.classList.toggle('dry',!ok);
+      document.getElementById('cRig')._tc=`${rigLinked()?'linked':'no link'} · ◆${RIG_DAT}`}}
   const pgb=document.getElementById('bPing');
   if(pgb){
     pgb._ds=S.probeCharges<=0&&!probeMode;pgb.classList.remove('dry');
@@ -4209,7 +4308,11 @@ function clampCam(){cam.x=Math.max(0,Math.min(W,cam.x));cam.y=Math.max(0,Math.mi
 
 function canLockdown(){
   if(S.base.locked)return null;
-  return S.veins.find(v=>veinAlive(v)&&!(v.crackedT>0)&&(!v.contract||v.mine.found)&&dist(S.base,v.mine)<BASE_R+18)||null;
+  const near=S.veins.find(v=>veinAlive(v)&&!(v.crackedT>0)&&(!v.contract||v.mine.found)&&dist(S.base,v.mine)<BASE_R+18);
+  if(near)return near;
+  // v4: an online, linked rig lets you drill its vein from wherever the Bastion is
+  const r=S.rig;if(r&&r.online&&veinAlive(r.vein)&&!(r.vein.crackedT>0)&&rigLinked())return r.vein;
+  return null;
 }
 // the Overdrive Capacitor upgrade makes Fast (index 2) faster still — every other throttle is
 // unaffected.
@@ -5070,7 +5173,7 @@ function update(dt){
   updateQuakes(dt);
   updateNests(dt);
   updateMounds(dt);
-  updatePOIs(dt);
+  updatePOIs(dt);updateRig(dt);
   updateFabShots(dt);
   updateDrones(dt);
   if(!B.locked||S.mods.bastionShootWhileDrilling){
@@ -6317,7 +6420,7 @@ function draw(){
     ctx.globalAlpha=p*0.8*fl;ctx.fillStyle=C.zone;ctx.beginPath();ctx.arc(c.x,c.y,c.r,0,Math.PI*2);ctx.fill();
     ctx.globalAlpha=0.35+0.5*p;ctx.strokeStyle=C.zone;ctx.lineWidth=2;ctx.beginPath();ctx.arc(c.x,c.y,c.r+4+(1-p)*22,0,Math.PI*2);ctx.stroke();
     ctx.globalAlpha=1});
-  drawPOIs();
+  drawPOIs();drawRig();
   // enemies (only visible)
   S.enemies.forEach(e=>{if(e.kind==='nest'){if(debugNoFog||e.seen)drawNest(e);return}
     if(e.kind==='quaker'){if(debugNoFog||visible(e))drawQuaker(e);return}
