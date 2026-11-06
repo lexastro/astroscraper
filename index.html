@@ -4618,7 +4618,13 @@ function guardMove(t,range,speed,dt){
     moveToward(t,waypointFor(t,fx,fy),speed,dt);
   }
 }
+// v4: a right-click move sends a mixed group at the pace of its slowest unit (so Squads don't run on
+// ahead of Brawlers); right-clicking the same spot again straight away lets everyone go at their own pace
+const DBL_RC_MS=450, DBL_RC_R=70; let lastRC={t:-1e9,x:0,y:0};
+function troopBaseSpeed(t){const k=t.kind;return k==='artillery'?ARTY_SPEED:k==='mech'?MECH_SPEED:k==='rocket'?ROCKET_SPEED:k==='brawler'?BRAWL_SPEED:TROOP_SPEED}
 function rightClick(w){
+  const nowT=performance.now(), dblRC=nowT-lastRC.t<DBL_RC_MS&&Math.hypot(w.x-lastRC.x,w.y-lastRC.y)<DBL_RC_R;
+  lastRC={t:nowT,x:w.x,y:w.y};
   if(probeMode){setProbeMode(false);return}
   if(pingMode){setPingMode(false);return}
   if(buildMode){setBuild(null);return}
@@ -4656,7 +4662,7 @@ function rightClick(w){
   selT.forEach((t,i)=>{
     let off=selT.length>1?{x:Math.cos(i*2.1)*14,y:Math.sin(i*2.1)*14}:{x:0,y:0};
     if(wallSlot.size&&!wallSlot.has(t)){off={x:off.x-Math.cos(wallFace)*42,y:off.y-Math.sin(wallFace)*42}}
-    t.following=false;t.guard=null;t.wall=false;
+    t.following=false;t.guard=null;t.wall=false;t.pace=null;
     if(en){t.state='attack';t.target=en;t.dest=null}
     else if(friend){
       if(t===friend){t.state='idle';t.dest=null;t.target=null;t.post={x:t.x,y:t.y};return}
@@ -4668,6 +4674,10 @@ function rightClick(w){
     else if(wallSlot.has(t)){t.state='move';t.dest=wallSlot.get(t);t.target=null;t.wall=true;t.wallAng=wallFace}
     else{t.state='move';t.dest={x:w.x+off.x,y:w.y+off.y};t.target=null}
   });
+  // pace the group: everyone moving keeps to the slowest of them (unless this is the double click)
+  {const mv=selT.filter(t=>t.state==='move'&&t.dest);
+   if(mv.length>1&&!dblRC){const sp=mv.map(troopBaseSpeed), lo=Math.min(...sp), hi=Math.max(...sp);
+     if(lo<hi){mv.forEach(t=>{t.pace=lo});S.paceHint=(S.paceHint||0)+1;if(S.paceHint<=2)msg('Moving together at the pace of the slowest unit — right-click again to let everyone move at their own pace.')}}}
   if(wallSlot.size>1)msg(`${wallSlot.size} Brawlers moving to form a shield wall.`);
   if(guards.length){
     msg(`${guards.length===1?'1 unit is':guards.length+' units are'} now guarding ${guardName(friend)}.`);
@@ -5240,14 +5250,15 @@ function update(dt){
     t.cd-=dt;
     const gren=t.kind==='grenadier', arty=t.kind==='artillery', mech=t.kind==='mech', rock=t.kind==='rocket', brawl=t.kind==='brawler';
     const range=brawl?BRAWL_RANGE:(arty?ARTY_RANGE:gren?GREN_RANGE:mech?MECH_RANGE:rock?ROCKET_RANGE:TROOP_RANGE)*S.mods.squadRangeMult;
-    const speed=arty?ARTY_SPEED:mech?MECH_SPEED:rock?ROCKET_SPEED:brawl?BRAWL_SPEED:TROOP_SPEED;
+    let speed=arty?ARTY_SPEED:mech?MECH_SPEED:rock?ROCKET_SPEED:brawl?BRAWL_SPEED:TROOP_SPEED;
+    if(t.pace&&t.state==='move')speed=Math.min(speed,t.pace); // v4: a group move keeps to its slowest unit's pace
     const factor=roughFactor(t.x,t.y);
     if(t.following){followMove(t,speed,dt);if(mech||brawl)t.post={x:t.x,y:t.y}}
     else if(t.state==='move'&&t.dest){
       if(mech||brawl)t.ang=Math.atan2(t.dest.y-t.y,t.dest.x-t.x);
       const aim=waypointFor(t,t.dest.x,t.dest.y);
       moveToward(t,aim,speed*factor,dt);
-      if(dist(t,t.dest)<4){t.dest=null;t.state='idle';if(mech||brawl)t.post={x:t.x,y:t.y};if(brawl&&t.wall&&t.wallAng!=null)t.ang=t.wallAng}
+      if(dist(t,t.dest)<4){t.dest=null;t.pace=null;t.state='idle';if(mech||brawl)t.post={x:t.x,y:t.y};if(brawl&&t.wall&&t.wallAng!=null)t.ang=t.wallAng}
     }
     else if(t.state==='attack'){
       if(!t.target||t.target.hp<=0){t.target=null;t.state='idle';if(mech||brawl)t.post={x:t.x,y:t.y}}
