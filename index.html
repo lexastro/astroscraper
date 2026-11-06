@@ -2100,7 +2100,7 @@ function reset(landing){
   rand=seededRng(mapSeed);
   rollLayout();
   const land=landing||defaultLanding();
-  S={t:0,surveyVein:null,wrecks:[],beacons:[],squadCap:SQUAD_CAP_START,quakes:[],quakeMsg:false,barrier:null,breachSite:null,breachVein:null,rigSite:null,rig:null,glass:null,dat:tutorialMap?TUTORIAL_START_DAT:pressureOn('lean')?20:60,living:0,condensed:0,over:null,rerollCount:0,
+  S={t:0,surveyVein:null,wrecks:[],beacons:[],squadCap:SQUAD_CAP_START,quakes:[],quakeMsg:false,barrier:null,breachSite:null,breachVein:null,rigSite:null,rig:null,glass:null,glassShards:[],glassB:null,glassCov:null,dat:tutorialMap?TUTORIAL_START_DAT:pressureOn('lean')?20:60,living:0,condensed:0,over:null,rerollCount:0,
     base:{x:land.x,y:land.y,hp:450+bastionHpBonus(),maxHp:450+bastionHpBonus(),r:BASE_R,dest:null,locked:false,gunCd:0,bigGunCd:0,pingCd:0},
     troops:[],harvesters:[],builders:[],relays:[],depots:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],shards:[],nades:[],
     veins:[],activeVein:null,throttleMul:1,ambientT:30,
@@ -3631,13 +3631,16 @@ function closeHoles(sx,sy){
     if(terrain[id]!==2&&!seen[id])terrain[id]=2;
   }
 }
-// v4: purple glass crystal formations growing out of the rift. They're solid (terrain 2, so nothing
-// walks through them, and fire and pathing go around), set in clumps of a few cells inside the rift, never
-// touching open ground, the barrier, or anything placed on the map — so the corridors stay as they are
-// and it's the rift between them that gets trickier to wade through and fight across.
-const GLASS_DENSITY=0.22, GLASS_CLEAR=150;
+// v4: purple glass crystal formations growing out of the rift. Each formation is a clump of faceted
+// shards, and each shard is its own solid — a circle just inside its outline — so units, enemies and
+// structures are kept out of the crystal itself, not out of whole grid squares: a gap you can see
+// between two shards is a gap you can walk through. The grid cells under them stay rift. For route
+// finding, only squares the crystal (almost) fills count as blocked on the main grid; around and between
+// shards a fine grid steers each unit (see waypointFor), searching wider if it gets hung up.
+// Formations never touch open ground, the barrier, or anything placed on the map.
+const GLASS_DENSITY=0.22, GLASS_CLEAR=150, GLASS_PAD=14, GLASS_BLOCK=0.8, GF=8, GF_CLEAR=7, GF_WIN=260;
 function placeGlass(){
-  S.glass=null;
+  S.glass=null;S.glassShards=[];S.glassB=null;S.glassCov=null;S.glassFine=null;
   if(!S.barrier&&!STOP_BAND)return false;
   const N=TGX*TGY, g=new Uint8Array(N), B=S.barrier, bx=B?B.centre:-1e9;
   const pts=[S.base,S.breachSite,S.contractSite,S.rigSite,...S.sites,...(S.hiveSites||[]),...S.wrecks,...S.beacons,...S.enemies,...S.troops].filter(Boolean);
@@ -3655,6 +3658,7 @@ function placeGlass(){
   const cand=[];for(let id=0;id<N;id++)if(terrain[id]===RIFT)cand.push(id);
   if(!cand.length)return false;
   const seeds=Math.round(cand.length*GLASS_DENSITY/3.5);let made=0;
+  const shards=S.glassShards;
   for(let n=0;n<seeds*10&&made<seeds;n++){
     const start=cand[Math.floor(rand()*cand.length)];if(!ok(start))continue;
     const want=2+Math.floor(rand()*6), cl=[start];g[start]=1;
@@ -3662,9 +3666,81 @@ function placeGlass(){
       const b=cl[Math.floor(rand()*cl.length)],dirs=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,-1]],d=dirs[Math.floor(rand()*dirs.length)];
       const nid=b+d[1]*TGX+d[0];if(ok(nid)){g[nid]=1;cl.push(nid)}
     }
-    cl.forEach(id=>{terrain[id]=2});made++;
+    // the shards: a few per square, each a faceted hexagon; some clumps packed tight, some looser
+    const dens=0.6+rand()*0.6;
+    cl.forEach(id=>{
+      const x0=(id%TGX)*TCELL,y0=Math.floor(id/TGX)*TCELL,k=Math.max(2,Math.round((3+rand()*2)*dens));
+      for(let i=0;i<k;i++){
+        const r=12+rand()*14, x=x0+r-8+rand()*Math.max(1,TCELL-2*r+16), y=y0+r-8+rand()*Math.max(1,TCELL-2*r+16), v=[];
+        for(let j=0;j<6;j++)v.push(0.84+rand()*0.16);
+        shards.push({x,y,r,cr:r*0.86,rot:rand()*Math.PI,v,h:266+rand()*38,sa:58+rand()*18,l:34+rand()*22,f:Math.floor(rand()*6)});
+      }
+    });
+    made++;
   }
-  S.glass=g;return made>0;
+  // a bucket per grid square of the shards that could touch something standing in it, and how much of
+  // each square the crystal fills
+  const bk=new Array(N);
+  shards.forEach((sh,i)=>{const e=sh.cr+GLASS_PAD;
+    for(let gy=Math.max(0,Math.floor((sh.y-e)/TCELL));gy<=Math.min(TGY-1,Math.floor((sh.y+e)/TCELL));gy++)
+      for(let gx=Math.max(0,Math.floor((sh.x-e)/TCELL));gx<=Math.min(TGX-1,Math.floor((sh.x+e)/TCELL));gx++){const id=gy*TGX+gx;(bk[id]||(bk[id]=[])).push(sh)}});
+  const cov=new Float32Array(N);
+  for(let id=0;id<N;id++){const L=bk[id];if(!L)continue;const x0=(id%TGX)*TCELL,y0=Math.floor(id/TGX)*TCELL;let hit=0;
+    for(let j=0;j<6;j++)for(let i=0;i<6;i++){const px=x0+(i+0.5)*TCELL/6,py=y0+(j+0.5)*TCELL/6;if(L.some(sh=>Math.hypot(px-sh.x,py-sh.y)<sh.cr))hit++}
+    cov[id]=hit/36}
+  // a fine grid (GF px) of where a small body can't stand, for steering around and between shards
+  const FX=Math.ceil(W/GF),FY=Math.ceil(H/GF),fine=new Uint8Array(FX*FY);
+  shards.forEach(sh=>{const e=sh.cr+GF_CLEAR;
+    for(let fy=Math.max(0,Math.floor((sh.y-e)/GF));fy<=Math.min(FY-1,Math.floor((sh.y+e)/GF));fy++)
+      for(let fx=Math.max(0,Math.floor((sh.x-e)/GF));fx<=Math.min(FX-1,Math.floor((sh.x+e)/GF));fx++)
+        if(Math.hypot((fx+0.5)*GF-sh.x,(fy+0.5)*GF-sh.y)<e)fine[fy*FX+fx]=1});
+  S.glass=g;S.glassB=bk;S.glassCov=cov;S.glassFine={a:fine,FX,FY};return made>0;
+}
+// Local route around the crystal on the fine grid, inside a window around start and goal. Returns
+// waypoints (already straightened), or null if there's no way through in the window.
+function fineBlocked(fx,fy){const F=S.glassFine;if(fx<0||fy<0||fx>=F.FX||fy>=F.FY)return true;if(F.a[fy*F.FX+fx])return true;
+  return terrain[Math.floor(fy*GF/TCELL)*TGX+Math.floor(fx*GF/TCELL)]===2}
+let fineBudget=0, fineFrame=-1;
+function fineAstar(x0,y0,x1,y1,win){
+  const F=S.glassFine;if(!F)return null;const WIN=win||GF_WIN;
+  const wx0=Math.max(0,Math.floor((Math.min(x0,x1)-WIN)/GF)),wy0=Math.max(0,Math.floor((Math.min(y0,y1)-WIN)/GF));
+  const wx1=Math.min(F.FX-1,Math.floor((Math.max(x0,x1)+WIN)/GF)),wy1=Math.min(F.FY-1,Math.floor((Math.max(y0,y1)+WIN)/GF));
+  const ww=wx1-wx0+1,wh=wy1-wy0+1,n=ww*wh;
+  let sx=Math.floor(x0/GF)-wx0,sy=Math.floor(y0/GF)-wy0,gx=Math.floor(x1/GF)-wx0,gy=Math.floor(y1/GF)-wy0;
+  const blk=(x,y)=>x<0||y<0||x>=ww||y>=wh||fineBlocked(x+wx0,y+wy0);
+  // a goal (or start) inside the crystal moves to the nearest open fine cell
+  const nearOpen=(x,y)=>{if(!blk(x,y))return [x,y];for(let r=1;r<10;r++)for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){if(Math.max(Math.abs(dx),Math.abs(dy))!==r)continue;if(!blk(x+dx,y+dy))return [x+dx,y+dy]}return null};
+  const s0=nearOpen(sx,sy),g0=nearOpen(gx,gy);if(!s0||!g0)return null;[sx,sy]=s0;[gx,gy]=g0;
+  const gS=new Float32Array(n).fill(Infinity),came=new Int32Array(n).fill(-1),closed=new Uint8Array(n),h=new MinHeap();
+  const st=sy*ww+sx,goal=gy*ww+gx;gS[st]=0;h.push(st,0);let it=0;
+  while(!h.empty()&&it++<(win?80000:20000)){const c=h.pop();if(closed[c])continue;closed[c]=1;if(c===goal)break;const cx=c%ww,cy=(c-cx)/ww;
+    for(const [dx,dy,base] of NBR){const nx=cx+dx,ny=cy+dy;if(blk(nx,ny))continue;if(dx&&dy&&(blk(cx+dx,cy)||blk(cx,cy+dy)))continue;
+      const id=ny*ww+nx;if(closed[id])continue;const ng=gS[c]+base;if(ng<gS[id]){gS[id]=ng;came[id]=c;h.push(id,ng+octileXY(nx,ny,gx,gy))}}}
+  if(came[goal]===-1&&goal!==st)return null;
+  const raw=[];for(let c=goal;c!==-1&&c!==st;c=came[c]){const cx=c%ww,cy=(c-cx)/ww;raw.push({x:(cx+wx0+0.5)*GF,y:(cy+wy0+0.5)*GF})}
+  raw.reverse();raw.push({x:x1,y:y1});
+  // straighten: from each point jump to the farthest one in clear sight
+  const out=[];let from={x:x0,y:y0},i=0;
+  while(i<raw.length){let j=raw.length-1;while(j>i&&!fineLineClear(from.x,from.y,raw[j].x,raw[j].y))j--;out.push(raw[j]);from=raw[j];i=j+1}
+  return out;
+}
+function glassNear(x0,y0,x1,y1){const d=Math.hypot(x1-x0,y1-y0),n=Math.max(1,Math.ceil(d/(TCELL*0.5)));
+  for(let i=0;i<=n;i++){const t=i/n,cx=Math.floor((x0+(x1-x0)*t)/TCELL),cy=Math.floor((y0+(y1-y0)*t)/TCELL);if(cx>=0&&cy>=0&&cx<TGX&&cy<TGY&&S.glassB[cy*TGX+cx])return true}return false}
+function localClear(u,wp){let x1=wp.x,y1=wp.y;const d=Math.hypot(x1-u.x,y1-u.y);if(d>200){x1=u.x+(x1-u.x)*200/d;y1=u.y+(y1-u.y)*200/d}
+  return !glassNear(u.x,u.y,x1,y1)||fineLineClear(u.x,u.y,x1,y1)}
+function fineLineClear(x0,y0,x1,y1){const d=Math.hypot(x1-x0,y1-y0),n=Math.max(1,Math.ceil(d/(GF*0.6)));
+  for(let i=1;i<n;i++){const t=i/n;if(fineBlocked(Math.floor((x0+(x1-x0)*t)/GF),Math.floor((y0+(y1-y0)*t)/GF)))return false}return true}
+// the shard (if any) that a point — padded by `pad` — sits inside
+function glassHit(x,y,pad){
+  const b=S&&S.glassB;if(!b)return null;const cx=Math.floor(x/TCELL),cy=Math.floor(y/TCELL);if(cx<0||cy<0||cx>=TGX||cy>=TGY)return null;
+  const L=b[cy*TGX+cx];if(!L)return null;for(const sh of L){if(Math.hypot(x-sh.x,y-sh.y)<sh.cr+(pad||0))return sh}return null;
+}
+// pushes a body of radius rad out of any shard it has walked into (it slides around the crystal)
+function glassPush(o,rad){
+  const b=S.glassB;if(!b)return;const cx=Math.floor(o.x/TCELL),cy=Math.floor(o.y/TCELL);if(cx<0||cy<0||cx>=TGX||cy>=TGY)return;
+  const L=b[cy*TGX+cx];if(!L)return;
+  for(const sh of L){let dx=o.x-sh.x,dy=o.y-sh.y,d=Math.hypot(dx,dy);const m=sh.cr+rad;
+    if(d<m){if(d<0.01){dx=1;dy=0;d=1}o.x=sh.x+dx/d*m;o.y=sh.y+dy/d*m}}
 }
 function buildTerrainCanvas(){
   const cv2=document.createElement('canvas'); cv2.width=W;cv2.height=H; const x2=cv2.getContext('2d');
@@ -3696,38 +3772,20 @@ function buildTerrainCanvas(){
       const x=gx*TCELL,y=gy*TCELL,h=Math.imul(gx,73856093)^Math.imul(gy,19349663),u=h>>>0;
       x2.fillStyle=`hsl(${188+(u%34)},${55+(u>>5)%25}%,${30+(u>>9)%22}%)`;x2.fillRect(x,y,TCELL,TCELL);
       x2.fillStyle='rgba(225,250,255,0.32)';x2.beginPath();x2.moveTo(x+(u%TCELL),y);x2.lineTo(x+TCELL,y+((u>>3)%TCELL));x2.lineTo(x+((u>>6)%TCELL),y+TCELL);x2.closePath();x2.fill()}}
-  // v4: the purple glass formations. What you see is exactly what blocks: every glass cell is filled
-  // right out to its edges (with a bright rim only along the sides that face open ground), and the
-  // faceted shards sit wholly inside their own cell, so the visible gaps are real gaps.
-  if(S&&S.glass){
-    const gl=(gx,gy)=>gx>=0&&gy>=0&&gx<TGX&&gy<TGY&&S.glass[gy*TGX+gx];
-    for(let gy=0;gy<TGY;gy++)for(let gx=0;gx<TGX;gx++){
-      if(!gl(gx,gy))continue;
-      const x=gx*TCELL,y=gy*TCELL,g=x2.createLinearGradient(x,y,x+TCELL,y+TCELL);
-      g.addColorStop(0,'#40206b');g.addColorStop(1,'#2a1249');
-      x2.fillStyle=g;x2.fillRect(x-0.5,y-0.5,TCELL+1,TCELL+1);
-    }
-    for(let gy=0;gy<TGY;gy++)for(let gx=0;gx<TGX;gx++){
-      if(!gl(gx,gy))continue;
-      const x=gx*TCELL,y=gy*TCELL;
-      for(let k=0;k<4;k++){
-        const R=rnd(13,21),px=x+rnd(R,TCELL-R),py=y+rnd(R,TCELL-R),pts=[];
-        for(let i=0;i<6;i++){const a=i*Math.PI/3+rnd(-0.25,0.25),rr=R*rnd(0.78,1.0);pts.push([px+Math.cos(a)*rr,py+Math.sin(a)*rr])}
-        x2.fillStyle=`hsl(${266+rnd(0,38)},${58+rnd(0,18)}%,${34+rnd(0,22)}%)`;x2.strokeStyle='rgba(18,0,38,0.7)';x2.lineWidth=1.4;
-        x2.beginPath();pts.forEach((q,i)=>i?x2.lineTo(q[0],q[1]):x2.moveTo(q[0],q[1]));x2.closePath();x2.fill();x2.stroke();
-        const f=Math.floor(rnd(0,6));
-        x2.fillStyle='rgba(238,220,255,0.30)';x2.beginPath();x2.moveTo(px,py);x2.lineTo(pts[f][0],pts[f][1]);x2.lineTo(pts[(f+1)%6][0],pts[(f+1)%6][1]);x2.closePath();x2.fill();
-        x2.fillStyle='rgba(20,0,40,0.28)';x2.beginPath();x2.moveTo(px,py);x2.lineTo(pts[(f+3)%6][0],pts[(f+3)%6][1]);x2.lineTo(pts[(f+4)%6][0],pts[(f+4)%6][1]);x2.closePath();x2.fill();
-        x2.strokeStyle='rgba(255,245,255,0.5)';x2.lineWidth=1.1;x2.beginPath();x2.moveTo(pts[f][0],pts[f][1]);x2.lineTo(px,py);x2.stroke();
-      }
-      // the rim: a bright edge on each side that faces open ground, so the outline of the block is clear
-      x2.strokeStyle='rgba(214,170,255,0.75)';x2.lineWidth=2.5;x2.beginPath();
-      if(!gl(gx,gy-1)){x2.moveTo(x,y+1);x2.lineTo(x+TCELL,y+1)}
-      if(!gl(gx,gy+1)){x2.moveTo(x,y+TCELL-1);x2.lineTo(x+TCELL,y+TCELL-1)}
-      if(!gl(gx-1,gy)){x2.moveTo(x+1,y);x2.lineTo(x+1,y+TCELL)}
-      if(!gl(gx+1,gy)){x2.moveTo(x+TCELL-1,y);x2.lineTo(x+TCELL-1,y+TCELL)}
-      x2.stroke();
-    }
+  // v4: the purple glass shards, drawn from the same shapes that block movement
+  if(S&&S.glassShards&&S.glassShards.length){
+    const list=[...S.glassShards].sort((p,q)=>p.y-q.y);
+    const poly=sh=>{const P=[];for(let i=0;i<6;i++){const a=sh.rot+i*Math.PI/3,rr=sh.r*sh.v[i];P.push([sh.x+Math.cos(a)*rr,sh.y+Math.sin(a)*rr])}return P};
+    x2.fillStyle='rgba(8,0,18,0.45)';
+    list.forEach(sh=>{x2.beginPath();x2.ellipse(sh.x+3,sh.y+5,sh.r*0.95,sh.r*0.8,0,0,Math.PI*2);x2.fill()});
+    list.forEach(sh=>{
+      const P=poly(sh),f=sh.f;
+      x2.fillStyle=`hsl(${sh.h},${sh.sa}%,${sh.l}%)`;x2.strokeStyle='rgba(18,0,38,0.75)';x2.lineWidth=1.5;
+      x2.beginPath();P.forEach((q,i)=>i?x2.lineTo(q[0],q[1]):x2.moveTo(q[0],q[1]));x2.closePath();x2.fill();x2.stroke();
+      x2.fillStyle='rgba(238,220,255,0.30)';x2.beginPath();x2.moveTo(sh.x,sh.y);x2.lineTo(P[f][0],P[f][1]);x2.lineTo(P[(f+1)%6][0],P[(f+1)%6][1]);x2.closePath();x2.fill();
+      x2.fillStyle='rgba(20,0,40,0.3)';x2.beginPath();x2.moveTo(sh.x,sh.y);x2.lineTo(P[(f+3)%6][0],P[(f+3)%6][1]);x2.lineTo(P[(f+4)%6][0],P[(f+4)%6][1]);x2.closePath();x2.fill();
+      x2.strokeStyle='rgba(255,245,255,0.55)';x2.lineWidth=1.2;x2.beginPath();x2.moveTo(P[f][0],P[f][1]);x2.lineTo(sh.x,sh.y);x2.stroke();
+    });
   }
   // v4: a stop is one zone — tint the whole map by it instead of in rings
   if(STOP_BAND){const c={rim:null,dense:'rgba(178,100,255,0.24)',core:'rgba(255,90,40,0.36)'}[STOP_BAND];
@@ -3764,6 +3822,7 @@ function tcost(cx,cy,forBastion,forEnemy){
   if(cx<0||cy<0||cx>=TGX||cy>=TGY)return Infinity;
   const v=terrain[cy*TGX+cx];
   if(v===2||(forBastion&&v===RIFT))return Infinity;
+  if(S.glassCov){const c=S.glassCov[cy*TGX+cx];if(c>=GLASS_BLOCK)return Infinity;if(c>0)return (v===1||(v===RIFT&&!forEnemy)?2.4:1)*(1+c*2)}
   return (v===1||(v===RIFT&&!forEnemy))?2.4:1;
 }
 function nearestPlain(x,y){
@@ -3870,11 +3929,42 @@ function enemyApproachPoint(e,tgt){
   // Re-checked a few times a second rather than every frame — a couple of line tests per enemy.
   if(e._flChk===undefined||S.t-e._flChk>FLANK_RECHECK||e._flTgt!==tgt){
     e._flChk=S.t; e._flTgt=tgt;
-    e._flOk=inMap(p.x,p.y,20)&&lineClear(e.x,e.y,p.x,p.y,false)&&lineClear(p.x,p.y,tgt.x,tgt.y,false);
+    e._flOk=inMap(p.x,p.y,20)&&lineClear(e.x,e.y,p.x,p.y,false)&&lineClear(p.x,p.y,tgt.x,tgt.y,false)&&(!S.glassFine||fineLineClear(e.x,e.y,p.x,p.y)&&fineLineClear(p.x,p.y,tgt.x,tgt.y));
   }
   return e._flOk?p:waypointFor(e,tgt.x,tgt.y);
 }
+function glassLineHit(x0,y0,x1,y1){const d=Math.hypot(x1-x0,y1-y0),n=Math.max(1,Math.ceil(d/12));for(let i=1;i<n;i++){const t=i/n;if(glassHit(x0+(x1-x0)*t,y0+(y1-y0)*t,6))return true}return false}
 function waypointFor(u,tx,ty){
+  if(!S.glassFine||u===S.base)return coarseWaypoint(u,tx,ty);
+  // hung up (barely moved for a moment while still short of the goal)? search wider, straight to the goal
+  if(!u._enemy&&(!u._sk||S.t-u._sk.t>0.8)){
+    u._nearDone=!!(u._sk&&Math.hypot(u.x-u._sk.x,u.y-u._sk.y)<5&&Math.hypot(u.x-tx,u.y-ty)<44); // pressed up against crystal right by the spot: close enough
+    if(u._sk&&Math.hypot(u.x-u._sk.x,u.y-u._sk.y)<5&&Math.hypot(u.x-tx,u.y-ty)>26&&!(u._fwFail&&Math.hypot(u._fwFail.x-tx,u._fwFail.y-ty)<30)){u._wideT=S.t+8;u._fw=null}
+    u._sk={x:u.x,y:u.y,t:S.t};
+  }
+  if(u._wideT>S.t){
+    if(!u._fw||Math.hypot(u._fwG.x-tx,u._fwG.y-ty)>30){u._fw=fineAstar(u.x,u.y,tx,ty,700)||[];u._fwG={x:tx,y:ty};u._fwI=0;if(!u._fw.length){u._fwFail={x:tx,y:ty};u._wideT=0}} // no way through at all: stop searching for this spot
+    while(u._fwI<u._fw.length&&Math.hypot(u.x-u._fw[u._fwI].x,u.y-u._fw[u._fwI].y)<10)u._fwI++;
+    if(u._fwI<u._fw.length)return u._fw[u._fwI];
+  }
+  const wp=coarseWaypoint(u,tx,ty);
+  // a detour already planned toward (about) this point: follow it
+  if(u._fp&&u._fpG&&Math.hypot(u._fpG.x-wp.x,u._fpG.y-wp.y)<30){
+    while(u._fpI<u._fp.length&&Math.hypot(u.x-u._fp[u._fpI].x,u.y-u._fp[u._fpI].y)<10)u._fpI++;
+    if(u._fpI<u._fp.length)return u._fp[u._fpI];
+    u._fp=null;return wp;
+  }
+  u._fp=null;
+  if(localClear(u,wp))return wp;
+  // a frame budget, and each mover re-plans at most a few times a second
+  if(fineFrame!==S.t){fineFrame=S.t;fineBudget=6}
+  if(fineBudget<=0||(u._fpT&&S.t-u._fpT<0.4))return wp;
+  fineBudget--;u._fpT=S.t;
+  const r=fineAstar(u.x,u.y,wp.x,wp.y);
+  if(r&&r.length){u._fp=r;u._fpG={x:wp.x,y:wp.y};u._fpI=0;return r[0]}
+  return wp;
+}
+function coarseWaypoint(u,tx,ty){
   const forBastion=u===S.base;
   const goal={x:tx,y:ty};
   if(!u._pg||Math.hypot(u._pg.x-goal.x,u._pg.y-goal.y)>40){
@@ -4806,7 +4896,8 @@ function rightClick(w){
   // v4: ordering units off the edge of the map sends them to the nearest point on it — so once the way
   // is open you can just send everyone off to the right to move on to the next zone
   if(w.x<0||w.x>W||w.y<0||w.y>H)w={x:Math.max(40,Math.min(W-40,w.x)),y:Math.max(40,Math.min(H-40,w.y))};
-  if(terrainAt(w.x,w.y)===2)w=nearestPlain(w.x,w.y); // ordered into solid crystal: go to the nearest open spot beside it
+  if(terrainAt(w.x,w.y)===2)w=nearestPlain(w.x,w.y);
+  if(glassHit(w.x,w.y,10)){const q={x:w.x,y:w.y};glassPush(q,12);w=q} // ordered onto a crystal: go to the open spot just beside it
   if(probeMode){setProbeMode(false);return}
   if(pingMode){setPingMode(false);return}
   if(buildMode){setBuild(null);return}
@@ -4860,6 +4951,7 @@ function rightClick(w){
   {const mv=selT.filter(t=>t.state==='move'&&t.dest);
    if(mv.length>1&&!dblRC){const sp=mv.map(troopBaseSpeed), lo=Math.min(...sp), hi=Math.max(...sp);
      if(lo<hi){mv.forEach(t=>{t.pace=lo});S.paceHint=(S.paceHint||0)+1;if(S.paceHint<=2)msg('Moving together at the pace of the slowest unit — right-click again to let everyone move at their own pace.')}}}
+  if(S.glassB)selT.forEach(t=>{if(t.dest)glassPush(t.dest,(t.r||7)+4)}); // a spot hard against crystal moves just clear of it
   if(wallSlot.size>1)msg(`${wallSlot.size} Brawlers moving to form a shield wall.`);
   if(guards.length){
     msg(`${guards.length===1?'1 unit is':guards.length+' units are'} now guarding ${guardName(friend)}.`);
@@ -4943,6 +5035,7 @@ function tryBuild(w){
   if(buildMode!=='turret'&&buildMode!=='relay')return;
   if(!inBuildRange(w)){msg("Launch inside the Bastion's dashed ring (or a Relay's).");return}
   if(terrainAt(w.x,w.y)===2){msg('Cannot land a structure on solid rock.');return}
+  if(glassHit(w.x,w.y,12)){msg('Cannot land a structure on crystal.');return}
   const gap=buildMode==='relay'?40:26;
   if(dist(w,S.base)<BASE_R+14||S.turrets.some(t=>dist(t,w)<26)||S.relays.some(r=>dist(r,w)<gap)||S.fabShots.some(sh=>dist({x:sh.tx,y:sh.ty},w)<26))return;
   if(!useFab(buildMode))return;
@@ -5444,7 +5537,7 @@ function update(dt){
       if(mech||brawl)t.ang=Math.atan2(t.dest.y-t.y,t.dest.x-t.x);
       const aim=waypointFor(t,t.dest.x,t.dest.y);
       moveToward(t,aim,speed*factor,dt);
-      if(dist(t,t.dest)<4){t.dest=null;t.pace=null;t.state='idle';if(mech||brawl)t.post={x:t.x,y:t.y};if(brawl&&t.wall&&t.wallAng!=null)t.ang=t.wallAng}
+      if(dist(t,t.dest)<4||(t._nearDone&&dist(t,t.dest)<44)){t._nearDone=false;t.dest=null;t.pace=null;t.state='idle';if(mech||brawl)t.post={x:t.x,y:t.y};if(brawl&&t.wall&&t.wallAng!=null)t.ang=t.wallAng}
     }
     else if(t.state==='attack'){
       if(!t.target||t.target.hp<=0){t.target=null;t.state='idle';if(mech||brawl)t.post={x:t.x,y:t.y}}
@@ -5851,6 +5944,9 @@ function update(dt){
       return !got;
     });
   }
+  // v4: nothing walks through glass crystal — push anything that's stepped into a shard back out
+  if(S.glassB){S.troops.forEach(u=>glassPush(u,u.r*0.8));S.harvesters.forEach(u=>glassPush(u,u.r*0.8));S.builders.forEach(u=>glassPush(u,u.r*0.8));
+    S.enemies.forEach(e=>{if(e.kind!=='nest'&&!(e.air>0))glassPush(e,(e.r||8)*0.8)})}
   S.tracers=S.tracers.filter(t=>(t.t-=dt)>0);
   S.nades=S.nades.filter(n=>{n.t+=dt;const pt=Math.min(1,n.t/n.dur);n.x=n.x0+(n.tx-n.x0)*pt;n.y=n.y0+(n.ty-n.y0)*pt;if(pt>=1){explodeNade(n);return false}return true});
   if(B.hp<=0){S.over='lose';sfx.lose();shakeScreen(10,0.6);burst(B.x,B.y,C.enemy,30,160,0.9);showOverlay('Bastion destroyed','The crew and the crystal are lost to the zone. Try fortifying before you push deeper.',0.5)}
