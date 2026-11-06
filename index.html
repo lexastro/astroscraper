@@ -2919,6 +2919,11 @@ const NEST_BAND_MULT={rim:1,dense:1.5,core:2}; // brood/patrol/guard counts scal
 const NEST_START={rim:{n:6,mix:[0.7,0.3]},dense:{n:6,mix:[0.3,0.5]},core:{n:4,mix:[0,0.4]}}; // mix: small, medium share (rest large)
 const NEST_FEED_R=1600, NEST_STRAGGLERS=0.75, NEST_GAP=550*MS, NEST_BASE_CLEAR=900*MS;
 const NEST_SPROUT_T=140, NEST_CAP=22, NEST_DEFEND_CD=7, NEST_GROW_QUIET=15, NEST_PATROL_REACH=[450,900];
+// v4: the Dense Field's nests sit out in the rift, far from the corridors — so there they patrol more
+// often and further, and most of their patrols go looking for you: they head for somewhere near the
+// Bastion or one of your units (if it's within NEST_HUNT_RANGE) instead of a random point. A nest whose
+// brood is already all out sends one of its idle packs off on a new patrol instead of standing pat.
+const PATROL_TUNE={dense:{every:0.5,reach:[700,1500],hunt:0.6,range:2600,aggro:340}};
 const nestScaled=(n,k)=>Math.max(1,Math.round(k*NEST_BAND_MULT[n.band]));
 const liveNests=()=>S.enemies.filter(e=>e.kind==='nest'&&e.hp>0);
 function nestBrood(n){let c=0;for(const e of S.enemies)if(e.nest===n&&e.hp>0)c++;return c}
@@ -2961,6 +2966,18 @@ function placeNest(size,band,hidden){
   }
   return null;
 }
+// where a patrol walks to: usually (in a tuned band) somewhere near the Bastion or one of your units,
+// otherwise a random point out to the band's patrol reach
+function patrolPoint(n,PT){
+  const reach=PT?PT.reach:NEST_PATROL_REACH;
+  if(PT&&rand()<PT.hunt){
+    const marks=[S.base,...S.troops.filter(t=>t.hp>0)].filter(o=>dist(o,n)<PT.range);
+    if(marks.length){const o=marks[Math.floor(rand()*marks.length)],a=rnd(0,Math.PI*2),r=rnd(80,320);
+      return {x:Math.max(150,Math.min(W-150,o.x+Math.cos(a)*r)),y:Math.max(150,Math.min(H-150,o.y+Math.sin(a)*r))}}
+  }
+  const a=rnd(0,Math.PI*2),L=rnd(reach[0],reach[1]);
+  return {x:Math.max(150,Math.min(W-150,n.x+Math.cos(a)*L)),y:Math.max(150,Math.min(H-150,n.y+Math.sin(a)*L))};
+}
 function updateNests(dt){
   if(tutorialMap)return;
   liveNests().forEach(n=>{
@@ -2976,13 +2993,16 @@ function updateNests(dt){
     n.defendCd-=dt; n.lastHp=n.hp;
     // patrols: a pack walks out to a point and back, for as long as it lives
     n.patrolT-=dt;
-    if(n.patrolT<=0){n.patrolT=N.patrolT*rnd(0.8,1.2);
-      const room=nestScaled(n,N.brood)-nestBrood(n);
+    if(n.patrolT<=0){const PT=PATROL_TUNE[n.band]&&STOP_BAND===n.band?PATROL_TUNE[n.band]:null;
+      n.patrolT=N.patrolT*rnd(0.8,1.2)*(PT?PT.every:1);
+      const b=patrolPoint(n,PT), room=nestScaled(n,N.brood)-nestBrood(n);
       if(room>0){
-        const a=rnd(0,Math.PI*2),L=rnd(NEST_PATROL_REACH[0],NEST_PATROL_REACH[1]);
-        const b={x:Math.max(150,Math.min(W-150,n.x+Math.cos(a)*L)),y:Math.max(150,Math.min(H-150,n.y+Math.sin(a)*L))};
         const patrol={a:{x:n.x,y:n.y},b,dir:1};
-        nestSpawn(n,Math.min(room,nestScaled(n,Math.round(rnd(N.patrolN[0],N.patrolN[1])))),'roam').forEach(e=>{e.nest=n;e.patrol=patrol});
+        nestSpawn(n,Math.min(room,nestScaled(n,Math.round(rnd(N.patrolN[0],N.patrolN[1])))),'roam').forEach(e=>{e.nest=n;e.patrol=patrol;if(PT)e.aggro=PT.aggro});
+      }else if(PT){
+        // brood all out: send an idle pack (one not chasing anything) off on this patrol instead
+        const pack=S.enemies.find(e=>e.nest===n&&e.patrol&&e.hp>0&&!e.target&&e.patrol.dir<0);
+        if(pack){pack.patrol.b=b;pack.patrol.dir=1;S.enemies.forEach(e=>{if(e.patrol===pack.patrol)e.aggro=Math.max(e.aggro,PT.aggro)})}
       }}
     // growth: left alone (not hit lately) a nest grows a size
     if(N.growT&&S.t-n.hitT>NEST_GROW_QUIET){n.growT-=dt;
