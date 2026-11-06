@@ -127,6 +127,9 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   width:min(460px,calc(100vw - 32px));background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px 10px 9px;
   box-shadow:0 4px 16px rgba(0,0,0,.5);font-size:12px}
 .drillMeter[hidden]{display:none}
+.drillMeter.alarm{border-color:var(--enemy);animation:meterAlarm .6s ease-in-out infinite}
+@keyframes meterAlarm{50%{box-shadow:0 0 0 2px rgba(255,92,77,.65),0 0 26px rgba(255,92,77,.55)}}
+@media (prefers-reduced-motion:reduce){.drillMeter.alarm{animation:none;box-shadow:0 0 0 2px rgba(255,92,77,.65)}}
 /* v4: the drill meter is the mining ship's control console */
 .drillMeter{background:linear-gradient(#141a21,#0e1318);border:1px solid #2c3742;border-top:2px solid var(--accent);
   box-shadow:0 6px 22px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.04)}
@@ -1094,7 +1097,7 @@ function stabHold(v){return veinStabs(v).reduce((a,st)=>a+st.hp/st.maxHp,0)}
 // glows hot, cracks the ground, and draws enemies to it from STRAIN_AGGRO_R; a damaged one's corner
 // pulls in toward the vein, shrinking the triangle and shoving the weight; and losing a strained
 // one jerks the needle hard the other way (STRAIN_KICK). Leaning also loosens the needle's hold.
-const STEER_LAG=2.5, STEER_MAX=0.85, STEER_REF_R=0.55, STEER_WOBBLE=0.4, STRAIN_AGGRO_R=520, STRAIN_KICK=0.6;
+const RED_GRACE=4, RED_RECOVER=1, STEER_LAG=2.5, STEER_MAX=0.85, STEER_REF_R=0.55, STEER_WOBBLE=0.4, STRAIN_AGGRO_R=520, STRAIN_KICK=0.6;
 function steerShape(v){
   const cs=veinStabs(v).map(st=>{const k=0.3+0.7*st.hp/st.maxHp;return {st,x:(st.x-v.x)*k,y:(st.y-v.y)*k}});
   if(cs.length<3)return {cs,area:0,auth:0,cx:0,cy:0};
@@ -1204,7 +1207,18 @@ function updateMeter(v,dt){
   m.aim+=(sv.target-m.aim)*Math.min(1,dt/STEER_LAG);
   m.x+=-K*(m.x-m.aim)*dt+sig*Math.sqrt(dt)*gauss();
   const here=stripAt(m.strip,m.anchor+m.x*ZOOM_HALF);
-  if(here.red){ruptureVein(v,'The drill needle slipped into the red — the vein ruptured!');return}
+  // v4: slipping into the red no longer ruptures on the spot — an alarm sounds and the danger builds
+  // for RED_GRACE seconds; get the needle out in time and it drains away again (RED_RECOVER × as
+  // fast). No yield is earned while the needle sits in the red.
+  if(here.red){
+    if(!m.inRed){m.inRed=true;msg('ALARM — the drill needle is in the red! Steer it back out before the vein ruptures.')}
+    m.redT=(m.redT||0)+dt;
+    m.alarmT=(m.alarmT||0)-dt;if(m.alarmT<=0){m.alarmT=0.3;m.alarmHi=!m.alarmHi;tone(m.alarmHi?980:740,0.13,'square',0.07)}
+    if(m.redT>=RED_GRACE){ruptureVein(v,'The drill needle stayed in the red too long — the vein ruptured!');return}
+    return;
+  }
+  if(m.inRed){m.inRed=false;msg('Needle back out of the red — hold it steady.')}
+  if(m.redT>0)m.redT=Math.max(0,m.redT-dt*RED_RECOVER);
   // time-share of each tier over the last few seconds; the biggest share is the yield
   const k=Math.min(1,dt/METER_AVG_T);let best=null,bs=-1;
   m.share[here.tier]=m.share[here.tier]||0;
@@ -1298,12 +1312,14 @@ function updateMeterUI(){
   const m=v.meter, title=document.getElementById('dmTitle'), yieldEl=document.getElementById('dmYield'), hint=document.getElementById('dmHint');
   document.getElementById('dmStrike').hidden=m.phase!=='strike';
   const nStab=veinStabs(v).length;
-  if(m.phase==='strike'){
+  el.classList.toggle('alarm',!!m.inRed);
+  if(m.phase==='strike'){title.style.color='';
     title.textContent=m.t<1.5?'STRIKE!':`STRIKE! — bands shrinking: ${Math.round(100*Math.max(STRIKE_SHRINK_MIN,1-m.t/STRIKE_SHRINK_T))}% wide`;
     const h=stripAt(m.strip,m.p);yieldEl.textContent=h.red?'RUPTURE':h.tier;yieldEl.style.color=h.red?C.enemy:CARD_TIER_COLOR[h.tier];
     hint.textContent='Stop the needle on a good band — the thin sliver is a tier above the vein, red ruptures it.';
   }else{
-    title.textContent=m.phase==='zoom'?'Struck — locking in…':v.stalled?'Drilling — STALLED':v.paused?'Drilling — PAUSED':'Drilling';
+    title.textContent=m.phase==='zoom'?'Struck — locking in…':m.inRed?`⚠ RUPTURE IN ${Math.max(0,RED_GRACE-m.redT).toFixed(1)}s — steer out of the red!`:m.redT>0?`Drilling — danger easing (${Math.round(100*m.redT/RED_GRACE)}%)`:v.stalled?'Drilling — STALLED':v.paused?'Drilling — PAUSED':'Drilling';
+    title.style.color=m.inRed||m.redT>0?C.enemy:'';
     yieldEl.textContent=`Yield: ${m.yieldTier}`;yieldEl.style.color=CARD_TIER_COLOR[m.yieldTier];
     const hold=nStab?Math.round(100*stabHold(v)/nStab):0;
     hint.textContent=nStab>=3?`Drag the weight to steer — east pushes the needle right. The Stabilizer you lean on draws the enemy. (${hold}%)`
