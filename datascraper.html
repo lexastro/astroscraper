@@ -772,6 +772,10 @@ const DAT_PICKUP_R=26;
 // v4: a drone with nothing to repair flies out to scoop up dropped Dat Crystal (shards and nest drops)
 // within DRONE_SCAVENGE_R of the Bastion — 150% of the repair range
 const DRONE_SCAVENGE_R=DRONE_RANGE*1.5;
+// v4: no endless loops — a Relay, Turret or the Bastion the swarm has put DRONE_STUCK_T drone-seconds
+// into (a Relay being cut again and again, a turret under constant fire) is left alone for
+// DRONE_SKIP_T seconds so the drones move on to other jobs. Stabilizers are exempt and always first.
+const DRONE_STUCK_T=24, DRONE_SKIP_T=30;
 // Persistent meta-progression: saved to localStorage, carried across runs and page reloads —
 // not cookies, since this never needs to leave the browser or ride along with a server request,
 // and localStorage holds far more than a cookie's ~4KB.
@@ -1017,6 +1021,7 @@ const UPGRADES={
     {id:'drones1',name:'Spare Drones',desc:'+2 repair drones join the swarm.',apply:()=>{addDrones(2)}},
   ],
   Rare:[
+    {id:'swarm2',name:'Second Swarm',desc:'A whole second repair swarm: +4 repair drones.',apply:()=>{addDrones(4)}},
     {id:'dmg2',name:'Battle Drills II',desc:'Squad damage +20%.',apply:()=>{S.mods.troopDmgMult*=1.2}},
     {id:'grenrate2',name:'Lubed Tubes II',desc:'Grenadier fire rate +20%.',apply:()=>{S.mods.grenFireRateMult*=1.2}},
     {id:'grensplash2',name:'Blast Power II',desc:'Explosive blast radius +20%.',apply:()=>{S.mods.grenSplashMult*=1.2}},
@@ -4771,7 +4776,7 @@ function findRepairTarget(bu){
 // then Relays (network reach — a cut Relay counts even at full HP), Turrets, and the Bastion.
 function droneJobs(){
   const B=S.base, jobs=[];
-  const add=(o,pri)=>{if(dist(o,B)<=DRONE_RANGE)jobs.push({o,pri})};
+  const add=(o,pri)=>{if(dist(o,B)<=DRONE_RANGE&&!(pri>0&&(o.droneSkipUntil||0)>S.t))jobs.push({o,pri})};
   S.stabs.forEach(st=>{if(st.built&&st.hp>0&&st.hp<st.maxHp)add(st,0)});
   S.relays.forEach(r=>{if(r.built&&needsRepair(r))add(r,1)});
   S.turrets.forEach(t=>{if(t.built&&t.hp<t.maxHp)add(t,2)});
@@ -4779,6 +4784,7 @@ function droneJobs(){
   return jobs;
 }
 function droneJobAlive(o){
+  if(!S.stabs.includes(o)&&(o.droneSkipUntil||0)>S.t)return false;
   if(o===S.base)return S.base.hp<S.base.maxHp;
   if(S.stabs.includes(o))return o.hp>0&&o.hp<o.maxHp&&dist(o,S.base)<=DRONE_RANGE;
   if(S.relays.includes(o)||S.turrets.includes(o))return needsRepair(o)&&dist(o,S.base)<=DRONE_RANGE;
@@ -4793,7 +4799,7 @@ function updateDrones(dt){
   S.drones.forEach(d=>{
     if(!d.target&&jobs.length){
       let best=null,bs=Infinity;
-      jobs.forEach(j=>{const sc=j.pri*600+(load.get(j.o)||0)*450+dist(d,j.o);if(sc<bs){bs=sc;best=j.o}});
+      jobs.forEach(j=>{const sc=j.pri*1e5+(load.get(j.o)||0)*450+dist(d,j.o);if(sc<bs){bs=sc;best=j.o}});
       d.target=best;d.state='fly';d.workAng=rnd(0,Math.PI*2);load.set(best,(load.get(best)||0)+1);
     }
     // nothing to repair: go and fetch a dropped Dat Crystal that no other drone is already after
@@ -4813,6 +4819,7 @@ function updateDrones(dt){
     else{d.orbit+=dt*1.4;gx=B.x+Math.cos(d.orbit)*d.orbitR;gy=B.y+Math.sin(d.orbit)*d.orbitR}
     const dx=gx-d.x,dy=gy-d.y,L=Math.hypot(dx,dy);
     if(L>0.5){d.ang=Math.atan2(dy,dx);const st=Math.min(L,DRONE_SPEED*dt);d.x+=dx/L*st;d.y+=dy/L*st}
+    if(d.target&&!needsRepair(d.target))d.target.droneWorkT=0;
     d.state=d.target?(L<10?'repair':'fly'):d.loot?'fly':'dock';
     if(d.loot&&L<12){const o=d.loot,amt=o.amt;
       if(S.shards.includes(o))S.shards=S.shards.filter(x=>x!==o);else o.amt=0;
@@ -4822,6 +4829,8 @@ function updateDrones(dt){
       if(o.hp<o.maxHp){S.dat=Math.max(0,S.dat-DRONE_DAT_PER_SEC*dt);o.hp=Math.min(o.maxHp,o.hp+DRONE_HPS*dt)}
       if(o.kind==='relay'&&o.state==='cut'){o.reconnectT+=dt;if(o.reconnectT>=RELAY_RECONNECT_T){o.state=null;o.reconnectT=0;msg('Relay tether spliced — reconnecting to the network.')}}
       d.beamT+=dt;
+      if(!S.stabs.includes(o)){o.droneWorkT=(o.droneWorkT||0)+dt;
+        if(o.droneWorkT>DRONE_STUCK_T){o.droneWorkT=0;o.droneSkipUntil=S.t+DRONE_SKIP_T}}
     }
   });
 }
