@@ -4663,6 +4663,9 @@ function troopBaseSpeed(t){const k=t.kind;return k==='artillery'?ARTY_SPEED:k===
 function rightClick(w){
   const nowT=performance.now(), dblRC=nowT-lastRC.t<DBL_RC_MS&&Math.hypot(w.x-lastRC.x,w.y-lastRC.y)<DBL_RC_R;
   lastRC={t:nowT,x:w.x,y:w.y};
+  // v4: ordering units off the edge of the map sends them to the nearest point on it — so once the way
+  // is open you can just send everyone off to the right to move on to the next zone
+  if(w.x<0||w.x>W||w.y<0||w.y>H)w={x:Math.max(40,Math.min(W-40,w.x)),y:Math.max(40,Math.min(H-40,w.y))};
   if(probeMode){setProbeMode(false);return}
   if(pingMode){setPingMode(false);return}
   if(buildMode){setBuild(null);return}
