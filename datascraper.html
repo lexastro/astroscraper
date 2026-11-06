@@ -6250,8 +6250,8 @@ function draw(){
     ctx.fillStyle=t.flashT>0?'#fff':gren?C.accent:arty?C.condensed:mech?C.mech:rock?ROCKET_COLOR:C.ally;
     if(gren){const r=t.r+2;ctx.beginPath();ctx.moveTo(t.x,t.y-r);ctx.lineTo(t.x+r,t.y);ctx.lineTo(t.x,t.y+r);ctx.lineTo(t.x-r,t.y);ctx.closePath();ctx.fill()}
     else if(rock){ctx.beginPath();ctx.arc(t.x,t.y,t.r,0,Math.PI*2);ctx.fill();
-      // a long launcher tube over the shoulder, pointing where it last fired
-      ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang);ctx.fillStyle=t.flashT>0?'#fff':'#5a2f1a';ctx.fillRect(-t.r*0.9,-2.2,t.r*2.6,4.4);ctx.fillStyle=ROCKET_COLOR;ctx.fillRect(t.r*1.5,-2.8,3,5.6);ctx.restore()}
+      // a long launcher tube resting on its right shoulder, pointing where it last fired
+      ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang);ctx.translate(0,t.r*0.75);ctx.fillStyle=t.flashT>0?'#fff':'#5a2f1a';ctx.fillRect(-t.r*0.9,-2.2,t.r*2.6,4.4);ctx.fillStyle=ROCKET_COLOR;ctx.fillRect(t.r*1.5,-2.8,3,5.6);ctx.restore()}
     else if(arty){const r=t.r;ctx.fillRect(t.x-r,t.y-r*0.6,r*2,r*1.2);ctx.strokeStyle=ctx.fillStyle;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(t.x,t.y);ctx.lineTo(t.x+r*1.7,t.y-r*0.9);ctx.stroke()}
     else if(mech){
       // two side "tread" rectangles flanking a shorter body rectangle, matching the reference
