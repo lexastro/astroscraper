@@ -411,14 +411,14 @@ body.inMenu :is(#game,#fogGrain,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMet
        cost. Structures (data-mode) are aimed and launched; units (data-unit) deploy at once. -->
   <div class="build" id="buildBar">
     <button id="bTurret" data-mode="turret"><span class="icon">⌖</span><span>Turret</span><span class="cost" id="cf_turret">●●</span><span class="key">Q</span></button>
-    <button id="bRelay" data-mode="relay"><span class="icon">⟐</span><span>Relay</span><span class="cost" id="cf_relay">●●●</span><span class="key">2</span></button>
-    <button id="bFabTroop" data-unit="troop"><span class="icon">▲</span><span>Squad</span><span class="cost" id="cf_troop">●●</span><span class="key">3</span></button>
-    <button id="bFabBrawler" data-unit="brawler"><span class="icon">⛊</span><span>Brawler</span><span class="cost" id="cf_brawler">●●●●○○○○</span><span class="key">8</span></button>
-    <button id="bFabGrenadier" data-unit="grenadier" hidden><span class="icon">✺</span><span>Grenadier</span><span class="cost" id="cf_grenadier">●●</span><span class="key">4</span></button>
+    <button id="bRelay" data-mode="relay"><span class="icon">⟐</span><span>Relay</span><span class="cost" id="cf_relay">●●●</span><span class="key">R</span></button>
+    <button id="bFabTroop" data-unit="troop"><span class="icon">▲</span><span>Squad</span><span class="cost" id="cf_troop">●●</span></button>
+    <button id="bFabBrawler" data-unit="brawler"><span class="icon">⛊</span><span>Brawler</span><span class="cost" id="cf_brawler">●●●●○○○○</span></button>
+    <button id="bFabGrenadier" data-unit="grenadier" hidden><span class="icon">✺</span><span>Grenadier</span><span class="cost" id="cf_grenadier">●●</span></button>
     <button id="bStab" data-mode="stabilizer"><span class="icon">◈</span><span>Stabilizer</span><span class="cost" id="cStab">●●●</span><span class="key">E</span></button>
-    <button id="bFabArtillery" data-unit="artillery" hidden><span class="icon">☄</span><span>Artillery</span><span class="cost" id="cf_artillery">●</span><span class="key">6</span></button>
-    <button id="bFabRocket" data-unit="rocket" hidden><span class="icon">➶</span><span>Rocketeer</span><span class="cost" id="cf_rocket">●●</span><span class="key">5</span></button>
-    <button id="bFabMech" data-unit="mech" hidden><span class="icon">◫</span><span>Mech</span><span class="cost" id="cf_mech">●</span><span class="key">7</span></button>
+    <button id="bFabArtillery" data-unit="artillery" hidden><span class="icon">☄</span><span>Artillery</span><span class="cost" id="cf_artillery">●</span></button>
+    <button id="bFabRocket" data-unit="rocket" hidden><span class="icon">➶</span><span>Rocketeer</span><span class="cost" id="cf_rocket">●●</span></button>
+    <button id="bFabMech" data-unit="mech" hidden><span class="icon">◫</span><span>Mech</span><span class="cost" id="cf_mech">●</span></button>
     <button id="bLock"><span class="icon">⛏</span><span id="bLockLabel">Begin Drilling</span><span class="key">F</span></button>
     <button id="bRig" hidden><span class="icon">⛭</span><span id="bRigLabel">Power the Rig</span><span class="cost" id="cRig"></span><span class="key">G</span></button>
     <button id="bPing"><span class="icon">◬</span><span id="bPingLabel">Probe</span><span class="cost" id="cProbe">●●●</span><span class="key">T</span></button>
@@ -454,11 +454,11 @@ body.inMenu :is(#game,#fogGrain,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMet
 <div class="help" id="help" hidden>
   <button id="helpClose" aria-label="Close">×</button>
   <b>The run:</b> six stops, each one map in a single zone and each deeper and tougher than the last — Rim, Rim, Dense Field, Dense Field, Core, and the Core's heart where the contract vein waits. A barrier (rift on the Rim, a crystal wall deeper in) cuts every map: drain the <b>breach vein</b> in front of it to break through, then walk the Bastion off the eastern edge. Everything you have carries on to the next stop.<br>
-<b>Unit limits:</b> up to 5 Grenadiers, 4 Rocketeers (rockets that hit nests and Quakers 4× as hard) and 3 Mechs at once (the button shows how many you have). <b>Stock &amp; squads:</b> nothing refills on its own any more — every fabricator, Stabilizer and Probe has a free stock, and once it's empty each use costs Dat (the price shows on the button). You have 6 Squad slots (3 filled for free at the start — the button shows how many you have against the limit) and 8 Brawler slots (4 free to start, key <kbd>8</kbd>); each new Squad or Brawler costs Dat, and right-clicking any build button buys another charge of it (or switch <b>Auto-buy</b> on to buy automatically when a stock runs out). Salvage from Large nests and Mega nests can raise the limit. <b>Wrecks</b> (derelict scrapers) lie hidden on every map, some beyond the barrier — park the Bastion on one for 8s (or send units to stand on it — slower) to salvage it (it draws an ambush): Dat, refilled stocks, drones, a barracks module (+1 Squad limit) or a new fabricator for the run. <b>Quakers</b> — big stone blocks — lumber in while you drill, keep their distance and slam the ground to jolt the drill needle and shake your Stabilizers: send units out to kill them.<br>
+<b>Unit limits:</b> up to 5 Grenadiers, 4 Rocketeers (rockets that hit nests and Quakers 4× as hard) and 3 Mechs at once (the button shows how many you have). <b>Stock &amp; squads:</b> nothing refills on its own any more — every fabricator, Stabilizer and Probe has a free stock, and once it's empty each use costs Dat (the price shows on the button). You have 6 Squad slots (3 filled for free at the start — the button shows how many you have against the limit) and 8 Brawler slots (4 free to start); each new Squad or Brawler costs Dat, and right-clicking any build button buys another charge of it (or switch <b>Auto-buy</b> on to buy automatically when a stock runs out). Salvage from Large nests and Mega nests can raise the limit. <b>Wrecks</b> (derelict scrapers) lie hidden on every map, some beyond the barrier — park the Bastion on one for 8s (or send units to stand on it — slower) to salvage it (it draws an ambush): Dat, refilled stocks, drones, a barracks module (+1 Squad limit) or a new fabricator for the run. <b>Quakers</b> — big stone blocks — lumber in while you drill, keep their distance and slam the ground to jolt the drill needle and shake your Stabilizers: send units out to kill them.<br>
 <b>Goal:</b> the ground is cracked all over: <b>follow the pulses of energy</b> running through the cracks back to their source to find a vein, then park the Bastion on its glowing centre and press <kbd>F</kbd> to lock on. Veins <b>emerge, ripen</b> a tier at a time, then go unstable and <b>collapse</b> — and new ones emerge elsewhere. Glowing <b>stray pockets</b> give a bearing toward the nearest vein when a unit reaches one; two bearings from different angles triangulate it. Locking on starts the <b>strike</b> at once: press <kbd>Space</kbd> to stop the needle on a good band of the strip (the thin sliver is a tier above the vein; red ruptures it) — the meter zooms in on where you hit and the drill starts; the first wave arrives about 20s later. While it drills, the needle drifts; Stabilizers hold it steady, and the tier you're paid is where it spends most of its time. If it drifts into the red, the vein ruptures and damages the Bastion. Drain veins for rewards — after 3, the contract vein stirs: it gives off no pulses, so triangulate it with bearings from stray pockets, then drain it to win.<br>
   <b>Controls:</b> drag to select · right-click to move/attack · right-click a friendly unit or building with combat units selected to <b>guard</b> it (escort it, fight off anything that comes near, then fall back) · <kbd>C</kbd> select all your units · <kbd>F</kbd> lock on to a vein / strike · <kbd>H</kbd> jump the camera to the Bastion · <kbd>WASD</kbd> or middle-drag to pan, scroll to zoom<br>
   <b>Touch:</b> tap to select · tap empty ground/an enemy/a resource to move/attack/harvest · drag to pan · hold still then drag to box-select · pinch to zoom · double-tap to select all of a kind<br>
-  <b>Fabricators:</b> every button holds a free stock; once it's empty each use costs Dat (shown on the button). <kbd>Q</kbd> launch a turret · <kbd>2</kbd> launch a relay · <kbd>3</kbd> deploy a squad · <kbd>G</kbd> power up a derelict rig · <kbd>4</kbd> grenadier · <kbd>5</kbd> rocketeer · <kbd>8</kbd> brawler (cheap melee wall) ·  <kbd>7</kbd> mech (once unlocked) · <b>Nests</b>: every enemy patrol comes from one, and the nests near a vein send its drilling waves — destroy them (they fight back) for <b>Dat Crystal</b>. <b>Mega nests</b> glow crimson through the fog: hive veins ringed by brood mounds that pour out its waves — break the mounds, then drain the hive for Hive-tier rewards and salvage. When the contract vein stirs, great mounds rise around it too. <b>Dat Crystal</b>: drive the Bastion or a unit over the Dat a nest drops (or an enemy's shard) to scoop it up — your <b>repair drones</b> fly out on their own and spend it patching up Stabilizers, turrets, relays and the Bastion · <kbd>E</kbd> fire a Stabilizer from the Bastion (3 free, then Dat each; aim at a vein's drifting hotspot and lead it — a hit pins it, buys the vein 15s before it collapses, widens the strike bands and steadies the needle; with all 3 pinned, drag the weight on the steering pad to push the needle — the wider their triangle, the further it goes, but the one you lean on draws the enemy) — turrets and relays land anywhere inside the Bastion's ring (or a relay's)<br>
+  <b>Fabricators:</b> Turrets and Relays hold a free stock; once it's empty each use costs Dat (shown on the button). Unit buttons (Squad, Brawler, Grenadier, Rocketeer, Mech) show how many you can field against how many you have, and the price of the next one — just click to deploy. <kbd>Q</kbd> launch a turret · <kbd>R</kbd> launch a relay · <kbd>G</kbd> power up a derelict rig ·  <b>Nests</b>: every enemy patrol comes from one, and the nests near a vein send its drilling waves — destroy them (they fight back) for <b>Dat Crystal</b>. <b>Mega nests</b> glow crimson through the fog: hive veins ringed by brood mounds that pour out its waves — break the mounds, then drain the hive for Hive-tier rewards and salvage. When the contract vein stirs, great mounds rise around it too. <b>Dat Crystal</b>: drive the Bastion or a unit over the Dat a nest drops (or an enemy's shard) to scoop it up — your <b>repair drones</b> fly out on their own and spend it patching up Stabilizers, turrets, relays and the Bastion · <kbd>E</kbd> fire a Stabilizer from the Bastion (3 free, then Dat each; aim at a vein's drifting hotspot and lead it — a hit pins it, buys the vein 15s before it collapses, widens the strike bands and steadies the needle; with all 3 pinned, drag the weight on the steering pad to push the needle — the wider their triangle, the further it goes, but the one you lean on draws the enemy) — turrets and relays land anywhere inside the Bastion's ring (or a relay's)<br>
   <b>Tether:</b> wireless works freely on the Rim; past it, units need a live cable back to the Bastion or a Relay, or they go dark — chain Relays to push your reach further out. A dark unit still takes orders, but its Sanity drains; reconnect in time to recover it, or it defects into a hostile Corrupted enemy<br>
   <kbd>T</kbd> recon probe: click a direction and it flies straight out on its fiber line, lifting the fog along a narrow strip for 20s and permanently finding veins it passes (3 charges, one back every 20s) · <kbd>V</kbd> follow Bastion (escorts it as it moves, until given another order) · <kbd>Esc</kbd> cancel, or pause the whole game if nothing's open · <kbd>`</kbd> reveal map (debug)
 </div>
@@ -750,11 +750,11 @@ const FABS={
   turret:{name:'Turret',charges:2,t:45,kind:'structure'},
   relay:{name:'Relay',charges:3,t:20,kind:'structure'},
   troop:{name:'Squad',charges:2,t:40,kind:'unit'},
-  brawler:{name:'Brawler',charges:0,t:35,kind:'unit',squadLike:true}, // v4: cheap melee wall — fielded up to BRAWL_CAP like Squads, paid for with Dat (no stock)
-  grenadier:{name:'Grenadier',charges:2,t:50,kind:'unit',unlock:'unlockGrenadier',cap:5}, // v4: at most 5 alive at once
+  brawler:{name:'Brawler',charges:0,t:35,kind:'unit',cap:8,squadLike:true}, // v4: cheap melee wall — fielded up to 8 like Squads, paid for with Dat (no stock)
+  grenadier:{name:'Grenadier',charges:0,t:50,kind:'unit',unlock:'unlockGrenadier',cap:5,squadLike:true}, // v4: at most 5 alive at once, each paid for with Dat
   artillery:{name:'Artillery',charges:1,t:90,kind:'unit',unlock:'unlockArtillery',disabled:true}, // v4: Artillery is out
-  rocket:{name:'Rocketeer',charges:2,t:60,kind:'unit',unlock:'unlockRocket',cap:4}, // v4: at most 4 alive at once
-  mech:{name:'Mech',charges:1,t:70,kind:'unit',unlock:'unlockMech',cap:3}, // v4: at most 3 alive at once
+  rocket:{name:'Rocketeer',charges:0,t:60,kind:'unit',unlock:'unlockRocket',cap:4,squadLike:true}, // v4: at most 4 alive at once, each paid for with Dat
+  mech:{name:'Mech',charges:0,t:70,kind:'unit',unlock:'unlockMech',cap:3,squadLike:true}, // v4: at most 3 alive at once
 };
 const FAB_FLIGHT_SPEED=380;
 // v4: fabricator, Stabilizer and Probe stocks no longer refill over time. While a stock lasts each
@@ -768,6 +768,12 @@ const SQUAD_CAP_START=6, SQUAD_CAP_MAX=12, SQUAD_START_N=3, SQUAD_DAT=40;
 // v4: Brawlers work the same way: up to BRAWL_CAP at once, BRAWL_START_N of them free at the start, each new one BRAWL_DAT
 const BRAWL_CAP=8, BRAWL_START_N=4, BRAWL_DAT=30;
 function brawlerCount(){return S.troops.filter(t=>t.kind==='brawler').length}
+// v4: every unit button works the same way — the dots show how many you may field and how many you
+// have, and the number is what the next one costs
+const isSquadLike=k=>k==='troop'||!!(FABS[k]&&FABS[k].squadLike);
+const unitPrice=k=>k==='troop'?SQUAD_DAT:k==='brawler'?BRAWL_DAT:FAB_DAT[k];
+const unitLimit=k=>k==='troop'?S.squadCap:FABS[k].cap;
+const unitHave=k=>k==='troop'?squadCount():unitAlive(k);
 function squadCount(){return S.troops.filter(t=>(t.kind||'troop')==='troop').length}
 function raiseSquadCap(){if(S.squadCap>=SQUAD_CAP_MAX)return false;S.squadCap++;updateBuildBar();return true}
 // pay for one use of an empty stock; false (with a message) if there isn't the Dat
@@ -2542,7 +2548,7 @@ const TUTORIAL_STEPS=[
   {title:'The price of steering',
    text:()=>`Leaning on the weight <b>loads</b> the Stabilizers you lean toward — watch its card in the console turn LOADED, then STRAINED, and see the <b>rings of light</b> running in to it on the map. That's where the enemy goes: part of every wave and the saboteurs head straight for the Stabilizer you lean on hardest. Lose it and the needle jerks the other way. Cover it, and don't lean harder than you need.`},
   {title:'Hold the line',
-   text:()=>`Waves pour out of the nests around the vein. Keep your Squads near the Bastion — press <kbd>3</kbd> to deploy another (Squads cost Dat). If the needle slips into the red an alarm sounds: steer it back out within a few seconds or the vein ruptures. Hold out until the vein is drained.`,
+   text:()=>`Waves pour out of the nests around the vein. Keep your Squads near the Bastion — click the Squad button to deploy another (Squads cost Dat). If the needle slips into the red an alarm sounds: steer it back out within a few seconds or the vein ruptures. Hold out until the vein is drained.`,
    done:()=>tutVein().done},
   {title:'Pick a reward',
    text:()=>`Vein drained! Every drained vein lets you pick one upgrade card for the rest of the run — or sell it for Dat. Choose one now.`,
@@ -2571,7 +2577,7 @@ const TUTORIAL_STEPS=[
    target:()=>{const d=tutorial.deep;return d?{x:d.wreck.x,y:d.wreck.y,r:60}:null},
    done:()=>S.troops.some(t=>t.cableMaxed)||(tutorial.deep&&tutorial.deep.wreck.done)},
   {title:'Relays carry the line',
-   text:()=>`A <b>Relay</b> is a new anchor out in the field. Press <kbd>2</kbd> and launch one <b>toward the wreck, near the edge of the Bastion's ring</b>. It runs its own cable back to the Bastion, and every unit re-runs its cable from whichever anchor is nearest — so your Squads can push on from there.`,
+   text:()=>`A <b>Relay</b> is a new anchor out in the field. Press <kbd>R</kbd> and launch one <b>toward the wreck, near the edge of the Bastion's ring</b>. It runs its own cable back to the Bastion, and every unit re-runs its cable from whichever anchor is nearest — so your Squads can push on from there.`,
    target:()=>({x:S.base.x,y:S.base.y,r:BUILD_R}),
    done:()=>S.relays.some(r=>r.built&&r.tetherOk&&dist(r,S.base)>140)||(tutorial.deep&&tutorial.deep.wreck.done)},
   {title:'Chain them out',
@@ -4091,7 +4097,7 @@ cv.addEventListener('dblclick',e=>{
 cv.addEventListener('wheel',e=>{e.preventDefault();const w0=toWorld(e.clientX,e.clientY);cam.z=Math.min(2.2,Math.max(0.35,cam.z*(e.deltaY>0?0.9:1.1)));const w1=toWorld(e.clientX,e.clientY);cam.x+=w0.x-w1.x;cam.y+=w0.y-w1.y;clampCam()},{passive:false});
 addEventListener('keydown',e=>{
   if(menuOpen||e.target.tagName==='INPUT')return; keys[e.key.toLowerCase()]=true; keys[e.key]=true;
-  if(e.key.toLowerCase()==='q')setBuild(buildMode==='turret'?null:'turret'); else if(e.key==='2')setBuild(buildMode==='relay'?null:'relay'); else if(e.key==='3')fabUnit('troop'); else if(e.key==='4')fabUnit('grenadier'); else if(e.key.toLowerCase()==='e')setBuild(buildMode==='stabilizer'?null:'stabilizer'); else if(e.key==='5')fabUnit('rocket'); else if(e.key==='8')fabUnit('brawler'); else if(e.key==='6')fabUnit('artillery'); else if(e.key==='7')fabUnit('mech');
+  if(e.key.toLowerCase()==='q')setBuild(buildMode==='turret'?null:'turret'); else if(e.key.toLowerCase()==='r')setBuild(buildMode==='relay'?null:'relay'); else if(e.key.toLowerCase()==='e')setBuild(buildMode==='stabilizer'?null:'stabilizer');
   else if(e.key==='Escape'){if(!document.getElementById('drillSelectOverlay').hidden){closeDrillSelect()}else if(probeMode){setProbeMode(false)}else if(pingMode){setPingMode(false)}else if(buildMode||prodMenuOpen){setBuild(null);closeProdMenu()}else togglePause()} else if(e.key.toLowerCase()==='b'){S.sel.troops.clear();S.sel.harv.clear();S.sel.bu.clear();S.sel.base=true}
   // v4: keys follow v3 — Q turret, E Stabilizer, T probe, C all units, F drill (lock on / strike)
   else if(e.key==='F8'){e.preventDefault();setLowGfx(!lowGfx)}
@@ -4116,7 +4122,7 @@ document.getElementById('bAutoBuy').onclick=()=>{autoBuy=!autoBuy;try{localStora
 refreshAutoBuy();
 function buyCharge(k){
   if(!S||S.over||menuOpen)return;
-  if(k==='troop'||k==='brawler'){fabUnit(k);return}
+  if(isSquadLike(k)){fabUnit(k);return}
   const isStab=k==='stabilizer', isProbe=k==='probe';
   const name=isStab?'Stabilizer':isProbe?'Probe':FABS[k].name, cost=isStab?STAB_DAT:isProbe?PROBE_DAT:FAB_DAT[k];
   const have=isStab?S.stabCharges:isProbe?S.probeCharges:S.fab[k].n, max=isStab?STAB_CHARGES:isProbe?PROBE_CHARGES:FABS[k].charges;
@@ -4129,8 +4135,8 @@ function buyCharge(k){
 document.querySelectorAll('#buildBar button').forEach(b=>{
   const k=b.dataset.mode||b.dataset.unit;if(!k)return; // (probes recharge on their own — nothing to buy)
   b.addEventListener('contextmenu',e=>{e.preventDefault();buyCharge(k)});
-  const cost=k==='stabilizer'?STAB_DAT:k==='probe'?PROBE_DAT:k==='troop'?SQUAD_DAT:k==='brawler'?BRAWL_DAT:FAB_DAT[k];
-  b.title=k==='troop'||k==='brawler'?`Deploy a ${k==='troop'?'Squad':'Brawler'} (${cost} Dat) — right-click works too`:`Right-click to buy another charge for ${cost} Dat`;
+  const cost=k==='stabilizer'?STAB_DAT:k==='probe'?PROBE_DAT:isSquadLike(k)?unitPrice(k):FAB_DAT[k];
+  b.title=isSquadLike(k)?`Deploy a ${k==='troop'?'Squad':FABS[k].name} (${cost} Dat) — right-click works too`:`Right-click to buy another charge for ${cost} Dat`;
 });
 document.getElementById('bLock').onclick=()=>tryLockdown();
 document.getElementById('bPing').onclick=()=>tryProbe();
@@ -4174,7 +4180,7 @@ function closeProdMenu(){prodMenuOpen=false}
 function unitAlive(k){return S.troops.filter(t=>(t.kind||'troop')===k&&t.hp>0).length}
 function fabUnlocked(k){const f=FABS[k];if(f.disabled)return false;return !f.unlock||!!meta[f.unlock]||!!(S&&S.runUnlock&&S.runUnlock[k])}
 function fabPips(k){const f=FABS[k],st=S.fab[k],n=Math.max(0,Math.min(f.charges,st.n));return '●'.repeat(n)+'○'.repeat(f.charges-n)+(st.n<=0?` ◆${FAB_DAT[k]}`:'')+(f.cap?` · ${unitAlive(k)}/${f.cap}`:'')}
-function brawlerPips(){const n=brawlerCount(),c=BRAWL_CAP;return '●'.repeat(Math.min(n,c))+'○'.repeat(Math.max(0,c-n))+(n<c?` ◆${BRAWL_DAT}`:'')}
+function unitPips(k){const n=unitHave(k),c=unitLimit(k);return '●'.repeat(Math.min(n,c))+'○'.repeat(Math.max(0,c-n))+(n<c?` ◆${unitPrice(k)}`:'')}
 function squadPips(){const n=squadCount(),c=S.squadCap;return '●'.repeat(Math.min(n,c))+'○'.repeat(Math.max(0,c-n))+(n<c?` ◆${SQUAD_DAT}`:'')}
 // Spend one charge of fabricator k; false (with a message) if it's empty.
 function useFab(k){
@@ -4190,9 +4196,9 @@ function fabUnit(k){
   if(k==='troop'){ // squads: up to the cap, each one bought with Dat
     if(squadCount()>=S.squadCap){msg(`Squad limit reached (${squadCount()}/${S.squadCap}). Salvage from Large nests and Mega nests can raise it.`);return}
     if(!payDat(SQUAD_DAT,'Squad'))return;
-  }else if(k==='brawler'){
-    if(brawlerCount()>=BRAWL_CAP){msg(`Brawler limit reached (${brawlerCount()}/${BRAWL_CAP}).`);return}
-    if(!payDat(BRAWL_DAT,'Brawler'))return;
+  }else if(isSquadLike(k)){
+    if(unitHave(k)>=unitLimit(k)){msg(`${FABS[k].name} limit reached (${unitHave(k)}/${unitLimit(k)}).`);return}
+    if(!payDat(unitPrice(k),FABS[k].name))return;
   }else{
     const cap=FABS[k].cap;
     if(cap&&unitAlive(k)>=cap){msg(`${FABS[k].name} limit reached — you can field ${cap} at once.`);return}
@@ -4294,7 +4300,7 @@ function updateBuildBar(){
     const k=b.dataset.unit;
     b._hd=!fabUnlocked(k);
     if(k==='troop'){b._ds=squadCount()>=S.squadCap;b.classList.toggle('dry',S.dat<SQUAD_DAT);document.getElementById('cf_'+k)._tc=squadPips();return}
-    if(k==='brawler'){b._ds=brawlerCount()>=BRAWL_CAP;b.classList.toggle('dry',S.dat<BRAWL_DAT);document.getElementById('cf_'+k)._tc=brawlerPips();return}
+    if(isSquadLike(k)){b._ds=unitHave(k)>=unitLimit(k);b.classList.toggle('dry',S.dat<unitPrice(k));document.getElementById('cf_'+k)._tc=unitPips(k);return}
     b._ds=false;b.classList.toggle('dry',S.fab[k].n<=0);
     document.getElementById('cf_'+k)._tc=fabPips(k);
   });
@@ -5218,7 +5224,7 @@ function update(dt){
   updateNests(dt);
   updateMounds(dt);
   updatePOIs(dt);updateRig(dt);
-  {const sig=squadCount()+','+brawlerCount();if(sig!==S.unitSig){S.unitSig=sig;updateBuildBar()}} // the Squad / Brawler counts on their buttons follow deaths and deployments
+  {const sig=['troop','brawler','grenadier','rocket','mech'].map(unitHave).join(',');if(sig!==S.unitSig){S.unitSig=sig;updateBuildBar()}} // the Squad / Brawler counts on their buttons follow deaths and deployments
   updateFabShots(dt);
   updateDrones(dt);
   if(!B.locked||S.mods.bastionShootWhileDrilling){
