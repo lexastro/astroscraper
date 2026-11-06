@@ -1,5 +1,5 @@
 <!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
-<title>Datascraper</title>
+<title>Astroscraper</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <!-- Playtest session recording (PostHog) — captures full session replays for anyone who opens
      this page, so playtests can be watched back after sharing the link. See Settings → Session
@@ -494,7 +494,7 @@ body.inMenu :is(#game,#fogGrain,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMet
 </div>
 
 <div class="overlay" id="mainMenuOverlay">
-  <h1>Datascraper</h1>
+  <h1>Astroscraper</h1>
   <button id="playBtn">Play</button>
   <div class="menuMeta">
     <div class="metaRow"><span class="crystalIcon living">❖</span><span class="v" id="metaLiving">0</span><span class="crystalIcon condensed">⬢</span><span class="v" id="metaCondensed">0</span></div>
@@ -2374,7 +2374,7 @@ function compass(dx,dy){
 }
 function tutVein(){return tutorial?tutorial.vein:null}
 const TUTORIAL_STEPS=[
-  {topic:'The basics',title:'Welcome to Datascraper',
+  {topic:'The basics',title:'Welcome to Astroscraper',
    text:()=>`You command the <b>Bastion</b> — a mobile drilling rig — and its crew. The goal of every run: drill crystal veins across the zone, growing stronger with each one, until you can crack the hidden contract vein near the Black Flame at the map's heart. This tutorial walks you through your first vein.`},
   {title:'Look around',
    text:()=>`Pan the camera with <kbd>WASD</kbd> or the arrow keys (or middle-mouse drag), and scroll to zoom. Press <kbd>H</kbd> any time to snap back to the Bastion.`,
@@ -4963,7 +4963,7 @@ function update(dt){
       if(datEarned){burst(v.x,v.y,C.dat,30,190,0.9);floatText(v.x,v.y-16,'+'+datEarned+' Dat',C.dat);sfx.gather()}
       if(livingEarned)floatText(v.x,v.y-34,'+'+livingEarned+' Living',C.living);
       floatText(v.x,v.y+(datEarned||livingEarned?2:-16),'+'+condensedEarned+' Condensed',C.condensed);
-      if(v.contract){S.over='win';sfx.win();shakeScreen(6,0.5);showOverlay('Living Crystal Extracted',`The contract vein is drained at ${tier} tier. Datascraper crew, mission complete. +${condensedEarned} Condensed Crystal.`)}
+      if(v.contract){S.over='win';sfx.win();shakeScreen(6,0.5);showOverlay('Living Crystal Extracted',`The contract vein is drained at ${tier} tier. Astroscraper crew, mission complete. +${condensedEarned} Condensed Crystal.`)}
       else{
         S.drained++;
         if(v.breach)openBreach(v);
