@@ -127,6 +127,27 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   width:min(460px,calc(100vw - 32px));background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px 10px 9px;
   box-shadow:0 4px 16px rgba(0,0,0,.5);font-size:12px}
 .drillMeter[hidden]{display:none}
+/* v4: the drill meter is the mining ship's control console */
+.drillMeter{background:linear-gradient(#141a21,#0e1318);border:1px solid #2c3742;border-top:2px solid var(--accent);
+  box-shadow:0 6px 22px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.04)}
+.dmProg{display:flex;align-items:center;gap:8px;margin:0 0 7px;font-family:var(--mono);font-size:11px}
+.dmProg .k{color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.dmProg .v{color:var(--fg);min-width:96px;text-align:right}
+.dmProgBar{flex:1;height:12px;background:#080b0f;border:1px solid #26303a;border-radius:3px;overflow:hidden;position:relative}
+.dmProgBar i{position:absolute;inset:0 auto 0 0;display:block;background:linear-gradient(90deg,#b8862a,var(--accent));box-shadow:0 0 8px rgba(242,182,60,.5)}
+.dmStabs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:7px}
+.dmStab{background:#0a0e13;border:1px solid #26303a;border-radius:4px;padding:5px 7px;text-align:left;color:var(--fg);font:inherit;font-size:11px;cursor:pointer;display:flex;flex-direction:column;gap:4px}
+.dmStab:hover{border-color:#3d4c5a}
+.dmStab.empty{opacity:.55;cursor:default}
+.dmStab.targeted{border-color:#ff6a3d;box-shadow:0 0 0 1px rgba(255,106,61,.4),0 0 10px rgba(255,106,61,.35);animation:stabAlarm 1s ease-in-out infinite}
+@keyframes stabAlarm{50%{box-shadow:0 0 0 1px rgba(255,106,61,.2),0 0 3px rgba(255,106,61,.15)}}
+.dmStab .sTop{display:flex;justify-content:space-between;font-family:var(--mono);letter-spacing:.04em}
+.dmStab .sName{color:var(--muted)}
+.dmStab .sState{font-weight:700}
+.dmStab .sBar{height:6px;background:#1c232c;border-radius:2px;overflow:hidden;display:block}
+.dmStab .sBar i{display:block;height:100%}
+.dmStab .sSub{color:var(--muted);font-size:10px}
+@media (prefers-reduced-motion:reduce){.dmStab.targeted{animation:none}}
 /* v4: the vein survey — the first Stabilizer on a vein reads it. Floats where the drill meter sits;
    while drilling it docks beside the steering pad inside the meter. */
 .veinSurvey{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(96px + env(safe-area-inset-bottom,0px));z-index:6;width:210px;
@@ -400,7 +421,13 @@ body.inMenu :is(#game,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMeter,.mini,.
 </div>
 <div class="drillMeter" id="drillMeter" hidden>
   <div class="dmHead"><span id="dmTitle">Drill meter</span><span id="dmYield"></span></div>
+  <div class="dmProg" id="dmProg"><span class="k">Extraction</span><div class="dmProgBar"><i id="dmProgFill"></i></div><span class="v" id="dmProgTxt">0%</span></div>
   <div class="dmBody"><canvas id="dmCanvas" width="440" height="44"></canvas><canvas id="dmPad" width="132" height="132" hidden title="Drag the weight to steer the drill needle"></canvas></div>
+  <div class="dmStabs" id="dmStabs">
+    <button class="dmStab" data-i="0"><span class="sTop"><span class="sName">STAB 1</span><span class="sState"></span></span><span class="sBar"><i></i></span><span class="sSub"></span></button>
+    <button class="dmStab" data-i="1"><span class="sTop"><span class="sName">STAB 2</span><span class="sState"></span></span><span class="sBar"><i></i></span><span class="sSub"></span></button>
+    <button class="dmStab" data-i="2"><span class="sTop"><span class="sName">STAB 3</span><span class="sState"></span></span><span class="sBar"><i></i></span><span class="sSub"></span></button>
+  </div>
   <div class="dmFoot"><span id="dmHint"></span><button id="dmStrike" hidden>Strike <span class="key">Space</span></button></div>
 </div>
 
@@ -1228,6 +1255,26 @@ function updateSurveyUI(){
   else line=`<span class="warn">Unstable</span> at its peak — collapses in <span class="warn">${fmtT(ripePeakT(v)+unstableDur(v)-(v.ripeT||0))}</span>.`;
   document.getElementById('vsLine').innerHTML=line;
 }
+// v4: one console card per Stabilizer slot on the vein being drilled — its health, how steady it
+// is, how much of the steering weight it's carrying, and a warning when the enemy is coming for it.
+// Click a card to look at that Stabilizer.
+function updateStabBay(v){
+  const tg=targetedStabs();
+  document.querySelectorAll('#dmStabs .dmStab').forEach(b=>{
+    const h=v.hot&&v.hot[+b.dataset.i], st=h&&h.stab&&h.stab.built&&h.stab.hp>0?h.stab:null;
+    const state=b.querySelector('.sState'), bar=b.querySelector('.sBar i'), sub=b.querySelector('.sSub');
+    b.classList.toggle('empty',!st);b.classList.toggle('targeted',!!st&&tg.has(st));
+    if(!st){state.textContent='EMPTY';state.style.color='var(--muted)';bar.style.width='0%';sub.textContent='Fire one with E';return}
+    const hp=st.hp/st.maxHp, sn=st.strain||0, targeted=tg.has(st);
+    const [label,col]=targeted?['TARGETED','#ff6a3d']:hp<0.35?['FAILING',C.enemy]:sn>0.6?['STRAINED','#ffb36b']:sn>0.2?['LOADED','#e8c46a']:['STEADY','#7fd88a'];
+    state.textContent=label;state.style.color=col;
+    bar.style.width=Math.round(100*hp)+'%';bar.style.background=hp<0.35?C.enemy:hp<0.65?'#e8c46a':'#7fd88a';
+    sub.textContent=`HP ${Math.ceil(st.hp)}/${st.maxHp} · load ${Math.round(100*sn)}%`;
+  });
+}
+{document.querySelectorAll('#dmStabs .dmStab').forEach(b=>b.addEventListener('click',()=>{
+  const v=S.activeVein, h=v&&v.hot&&v.hot[+b.dataset.i], st=h&&h.stab;
+  if(st&&st.hp>0){cam.x=st.x;cam.y=st.y;hitFlash(st);sfx.click()}}))}
 function updateMeterUI(){
   const el=document.getElementById('drillMeter'), v=S.activeVein;
   const show=!!(S.base.locked&&v&&!v.done&&v.meter&&!menuOpen);
@@ -1246,6 +1293,11 @@ function updateMeterUI(){
     hint.textContent=nStab>=3?`Drag the weight to steer — east pushes the needle right. The Stabilizer you lean on draws the enemy. (${hold}%)`
       :nStab?`${nStab} Stabilizer${nStab===1?'':'s'} holding at ${hold}% — pin all 3 to steer the needle.`:'No Stabilizers — the needle is drifting freely.';
   }
+  // extraction progress, and how long the drill has left at its current rate
+  {const f=Math.min(1,v.drillProg/v.richness), left=(v.richness-v.drillProg)/(DRILL_RATE*S.mods.drillRateMult);
+   document.getElementById('dmProgFill').style.width=(100*f).toFixed(1)+'%';
+   document.getElementById('dmProgTxt').textContent=m.phase==='drill'?`${Math.floor(100*f)}% · ${fmtT(left)} left`:'—'}
+  updateStabBay(v);
   const cvm=document.getElementById('dmCanvas'), dpr=devicePixelRatio||1, Wc=Math.max(1,Math.round(cvm.clientWidth*dpr)), Hc=Math.round(44*dpr);
   if(cvm.width!==Wc||cvm.height!==Hc){cvm.width=Wc;cvm.height=Hc}
   const g=cvm.getContext('2d'), vw=meterView(m), X=p=>(p-(vw.c-vw.h))/(2*vw.h)*Wc, barY=Hc*0.3, barH=Hc*0.5;
