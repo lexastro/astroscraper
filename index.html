@@ -769,6 +769,9 @@ function payDat(cost,what){
 const DRONE_COUNT=4, DRONE_SPEED=170, DRONE_RANGE=760, DRONE_HPS=9, DRONE_DAT_PER_SEC=0.4, DRONE_WORK_R=18;
 // Dat Crystal deposits are pickups now: the Bastion or any unit that rolls over one scoops up the lot.
 const DAT_PICKUP_R=26;
+// v4: a drone with nothing to repair flies out to scoop up dropped Dat Crystal (shards and nest drops)
+// within DRONE_SCAVENGE_R of the Bastion — 150% of the repair range
+const DRONE_SCAVENGE_R=DRONE_RANGE*1.5;
 // Persistent meta-progression: saved to localStorage, carried across runs and page reloads —
 // not cookies, since this never needs to leave the browser or ride along with a server request,
 // and localStorage holds far more than a cookie's ~4KB.
@@ -4793,12 +4796,27 @@ function updateDrones(dt){
       jobs.forEach(j=>{const sc=j.pri*600+(load.get(j.o)||0)*450+dist(d,j.o);if(sc<bs){bs=sc;best=j.o}});
       d.target=best;d.state='fly';d.workAng=rnd(0,Math.PI*2);load.set(best,(load.get(best)||0)+1);
     }
+    // nothing to repair: go and fetch a dropped Dat Crystal that no other drone is already after
+    if(!d.target){
+      if(d.loot&&!(d.loot.amt>0)&&!S.shards.includes(d.loot))d.loot=null;
+      if(d.loot&&dist(d.loot,B)>DRONE_SCAVENGE_R)d.loot=null;
+      if(!d.loot){
+        const claimed=new Set(S.drones.map(o=>o.loot).filter(Boolean));let best=null,bs=Infinity;
+        const look=o=>{if(claimed.has(o))return;if(dist(o,B)>DRONE_SCAVENGE_R)return;const dd=dist(d,o);if(dd<bs){bs=dd;best=o}};
+        S.shards.forEach(look);S.nodes.forEach(n=>{if(n.found&&n.amt>0)look(n)});
+        d.loot=best;
+      }
+    }else d.loot=null;
     let gx,gy;
-    if(d.target){const r=(d.target.r||12)+DRONE_WORK_R;d.workAng+=dt*0.8;gx=d.target.x+Math.cos(d.workAng)*r;gy=d.target.y+Math.sin(d.workAng)*r}
+    if(d.loot){gx=d.loot.x;gy=d.loot.y}
+    else if(d.target){const r=(d.target.r||12)+DRONE_WORK_R;d.workAng+=dt*0.8;gx=d.target.x+Math.cos(d.workAng)*r;gy=d.target.y+Math.sin(d.workAng)*r}
     else{d.orbit+=dt*1.4;gx=B.x+Math.cos(d.orbit)*d.orbitR;gy=B.y+Math.sin(d.orbit)*d.orbitR}
     const dx=gx-d.x,dy=gy-d.y,L=Math.hypot(dx,dy);
     if(L>0.5){d.ang=Math.atan2(dy,dx);const st=Math.min(L,DRONE_SPEED*dt);d.x+=dx/L*st;d.y+=dy/L*st}
-    d.state=d.target?(L<10?'repair':'fly'):'dock';
+    d.state=d.target?(L<10?'repair':'fly'):d.loot?'fly':'dock';
+    if(d.loot&&L<12){const o=d.loot,amt=o.amt;
+      if(S.shards.includes(o))S.shards=S.shards.filter(x=>x!==o);else o.amt=0;
+      S.dat+=amt;floatText(o.x,o.y-10,'+'+amt,C.dat);sfx.gather();spark(o.x,o.y,C.dat,3);updateBuildBar();d.loot=null}
     if(d.state==='repair'&&S.dat>0){
       const o=d.target;
       if(o.hp<o.maxHp){S.dat=Math.max(0,S.dat-DRONE_DAT_PER_SEC*dt);o.hp=Math.min(o.maxHp,o.hp+DRONE_HPS*dt)}
