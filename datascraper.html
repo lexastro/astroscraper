@@ -590,7 +590,7 @@ const STOP_HP=[1,1.2,1.1,1.3,1.15,1.35];          // enemy toughness per stop, o
 const STOP_DEPTH=[0,0.1,0.45,0.55,0.9,1];          // how deep each stop counts as, for depth-scaled pressure
 const STOP_NESTS={rim:Math.round(10*MS*1.1),dense:Math.round(11*MS*1.1),core:Math.round(10*MS*1.1)}, STOP_RICH={rim:[20,30],dense:[40,58],core:[75,95]};
 const STOP_GUARDS=[['small','medium','small'],['medium','medium','small'],['medium','large','medium'],['large','large','medium'],['large','large','large']];
-const BARRIER_X=0.64, BARRIER_HALF=150, BREACH_GAP=170, LAND_X=420; let EXIT_X=W-200;
+const BARRIER_X=0.64, BARRIER_HALF=150, BREACH_GAP=170, LAND_X=420, BREACH_LAND_MIN=0.45; let EXIT_X=W-200;
 let RUN=null, STOP_BAND=null;
 // Epicenter layouts. `pos` places the epicenter for a given roll; `core`/`dense` are the band
 // radii. A centred epicenter gets tighter bands so a Rim ring still fits in the corners.
@@ -1807,7 +1807,12 @@ function canLandAt(x,y){return inMap(x,y,LANDING_MARGIN)&&epiDist(x,y)>=DENSE_R+
 const SPAWN_VEIN_NEAR=750, SPAWN_VEIN_FAR=1100, SPAWN_TRIES=600;
 function pickSpawn(){
   // a stop: land on the west edge, somewhere along its middle
-  if(STOP_BAND){for(let i=0;i<120;i++){const x=rnd(300,650),y=rnd(H*0.25,H*0.75);if(terrainAt(x,y)===0)return{x,y}}return{x:LAND_X,y:H/2}}
+  // v4: a stop: land on the west edge, well away from the breach vein (at least BREACH_LAND_MIN of
+  // the map's width) so it takes some finding — usually in the opposite half to it
+  if(STOP_BAND){const bs=S.breachSite;let best=null,bd=-1;
+    for(let i=0;i<200;i++){const x=rnd(300,650),y=rnd(H*0.15,H*0.85);if(terrainAt(x,y)!==0)continue;
+      const d=bs?dist({x,y},bs):Infinity;if(d>=BREACH_LAND_MIN*W)return{x,y};if(d>bd){bd=d;best={x,y}}}
+    return best||{x:LAND_X,y:H/2}}
   const live=S.veins.filter(v=>!v.contract&&veinAlive(v));
   const tryPick=targets=>{
     for(let i=0;i<SPAWN_TRIES;i++){
@@ -2079,9 +2084,10 @@ function reset(landing){
 function stopInfo(){return RUN?RUN_STOPS[RUN.stop]:null}
 function stopName(band){return band==='rim'?'the Rim':band==='dense'?'the Dense Field':'the Core'}
 function stopHpMult(){return RUN?STOP_HP[RUN.stop]:1}
-// the breach vein's site: on the near side of the barrier, somewhere along its middle stretch
+// the breach vein's site: on the near side of the barrier, anywhere along most of its length
+// (v4: it used to sit in the middle third, right in front of the landing)
 function pickBreachSite(){
-  const bx=W*BARRIER_X, x=bx-BARRIER_HALF-rnd(380,520), y=rnd(H*0.3,H*0.7);
+  const bx=W*BARRIER_X, x=bx-BARRIER_HALF-rnd(380,620), y=rnd(H*0.15,H*0.85);
   const r=STOP_RICH[STOP_BAND];
   return {x,y,band:STOP_BAND,richness:Math.round(rnd(r[0],r[1])*1.3),vein:null};
 }
