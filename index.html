@@ -127,6 +127,20 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   width:min(460px,calc(100vw - 32px));background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px 10px 9px;
   box-shadow:0 4px 16px rgba(0,0,0,.5);font-size:12px}
 .drillMeter[hidden]{display:none}
+/* v4: the vein survey — the first Stabilizer on a vein reads it. Floats where the drill meter sits;
+   while drilling it docks beside the steering pad inside the meter. */
+.veinSurvey{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(96px + env(safe-area-inset-bottom,0px));z-index:6;width:210px;
+  background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px 10px 9px;box-shadow:0 4px 16px rgba(0,0,0,.5);font-size:12px}
+.veinSurvey.inMeter{position:static;transform:none;width:150px;flex:none;box-shadow:none;background:#0b0f14;padding:6px 8px}
+.veinSurvey[hidden]{display:none}
+.drillMeter:has(.veinSurvey.inMeter:not([hidden])){width:min(660px,calc(100vw - 32px))}
+.vsHead{display:flex;justify-content:space-between;align-items:baseline;font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+.vsHead #vsTier{font-weight:600}
+.vsLadder{display:flex;gap:3px;margin-bottom:6px}
+.vsLadder i{flex:1;height:7px;border-radius:2px;background:#1c232c;position:relative;overflow:hidden}
+.vsLadder i b{position:absolute;inset:0 auto 0 0;display:block}
+.vsLine{color:var(--fg);line-height:1.35}
+.vsLine .warn{color:var(--enemy);font-weight:600}
 .dmHead{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
 #dmYield{font-weight:700;font-size:12px}
 #dmCanvas{display:block;flex:1;min-width:0;height:44px;border-radius:3px}
@@ -379,6 +393,11 @@ body.inMenu :is(#game,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMeter,.mini,.
 
 <!-- Drill meter: shown while the Bastion is locked onto a vein — previews the bands during the
      warm-up, sweeps for the strike, then tracks the drifting needle and settled yield. -->
+<div class="veinSurvey" id="veinSurvey" hidden>
+  <div class="vsHead"><span>Vein survey</span><span id="vsTier"></span></div>
+  <div class="vsLadder" id="vsLadder"></div>
+  <div class="vsLine" id="vsLine"></div>
+</div>
 <div class="drillMeter" id="drillMeter" hidden>
   <div class="dmHead"><span id="dmTitle">Drill meter</span><span id="dmYield"></span></div>
   <div class="dmBody"><canvas id="dmCanvas" width="440" height="44"></canvas><canvas id="dmPad" width="132" height="132" hidden title="Drag the weight to steer the drill needle"></canvas></div>
@@ -1182,6 +1201,33 @@ function meterView(m){
   const e=m.phase==='zoom'?1-Math.pow(1-Math.min(1,m.t/ZOOM_T),3):1;
   return {c:0.5+(m.anchor-0.5)*e,h:0.5+(ZOOM_HALF-0.5)*e};
 }
+// v4: the vein survey panel — the vein you're drilling, else the last one you surveyed if it's
+// still alive. Tier, a bar per rung of its ladder, and how long until it ripens a tier, goes
+// unstable or collapses (frozen while the Bastion is locked onto it).
+function fmtT(t){t=Math.max(0,Math.ceil(t));return t>=60?`${Math.floor(t/60)}:${String(t%60).padStart(2,'0')}`:`${t}s`}
+function updateSurveyUI(){
+  const el=document.getElementById('veinSurvey');
+  let v=S.activeVein&&S.activeVein.surveyed?S.activeVein:S.surveyVein;
+  if(v&&(!veinAlive(v)||v.done))v=S.surveyVein=null;
+  const meter=document.getElementById('drillMeter'), body=meter.querySelector('.dmBody'), docked=!meter.hidden&&S.activeVein===v;
+  // the meter's up for another vein: keep out of its way
+  if(!v||menuOpen||S.over||(!meter.hidden&&!docked)){el.hidden=true;return}
+  el.hidden=false;
+  if(docked&&el.parentNode!==body){body.appendChild(el);el.classList.add('inMeter')}
+  else if(!docked&&el.parentNode===body){meter.parentNode.insertBefore(el,meter);el.classList.remove('inMeter')}
+  const L=veinLadder(v), locked=S.activeVein===v&&S.base.locked, tier=locked&&v.meter&&v.meter.phase==='drill'?v.meter.yieldTier:ripeTier(v);
+  const tEl=document.getElementById('vsTier');tEl.textContent=tier;tEl.style.color=CARD_TIER_COLOR[tier]||'';
+  // ladder: each rung fills as the vein ripens through it; the unstable stretch shows red on the last
+  const idx=ripeIdx(v), within=Math.min(1,((v.ripeT||0)-idx*RIPEN_STEP_T)/RIPEN_STEP_T), u=unstableFrac(v);
+  document.getElementById('vsLadder').innerHTML=L.map((t,i)=>{const f=i<idx?1:i===idx?(i===L.length-1?1:within):0;
+    return `<i title="${t}"><b style="width:${Math.round(f*100)}%;background:${i===L.length-1&&u>0?C.enemy:CARD_TIER_COLOR[t]}"></b></i>`}).join('');
+  let line;
+  if(locked)line=`Locked on at ${ripeTier(v)} — ripening is frozen while you drill.`;
+  else if(holdsAtPeak(v))line=idx<L.length-1?`Ripens to ${L[idx+1]} in ${fmtT((idx+1)*RIPEN_STEP_T-(v.ripeT||0))}. Holds at its peak — it never collapses.`:'At its peak — it never collapses.';
+  else if(idx<L.length-1)line=`Ripens to ${L[idx+1]} in ${fmtT((idx+1)*RIPEN_STEP_T-(v.ripeT||0))} · collapses in ${fmtT(ripePeakT(v)+unstableDur(v)-(v.ripeT||0))}.`;
+  else line=`<span class="warn">Unstable</span> at its peak — collapses in <span class="warn">${fmtT(ripePeakT(v)+unstableDur(v)-(v.ripeT||0))}</span>.`;
+  document.getElementById('vsLine').innerHTML=line;
+}
 function updateMeterUI(){
   const el=document.getElementById('drillMeter'), v=S.activeVein;
   const show=!!(S.base.locked&&v&&!v.done&&v.meter&&!menuOpen);
@@ -1766,7 +1812,7 @@ function reset(landing){
   rand=seededRng(mapSeed);
   rollLayout();
   const land=landing||defaultLanding();
-  S={t:0,wrecks:[],beacons:[],squadCap:SQUAD_CAP_START,quakes:[],quakeMsg:false,barrier:null,breachSite:null,breachVein:null,dat:tutorialMap?TUTORIAL_START_DAT:60,living:0,condensed:0,over:null,rerollCount:0,
+  S={t:0,surveyVein:null,wrecks:[],beacons:[],squadCap:SQUAD_CAP_START,quakes:[],quakeMsg:false,barrier:null,breachSite:null,breachVein:null,dat:tutorialMap?TUTORIAL_START_DAT:60,living:0,condensed:0,over:null,rerollCount:0,
     base:{x:land.x,y:land.y,hp:450+bastionHpBonus(),maxHp:450+bastionHpBonus(),r:BASE_R,dest:null,locked:false,gunCd:0,bigGunCd:0,pingCd:0},
     troops:[],harvesters:[],builders:[],relays:[],depots:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],shards:[],nades:[],
     veins:[],activeVein:null,throttleMul:1,ambientT:30,
@@ -4133,6 +4179,8 @@ function landStabilizer(sh){
   const st={x:h.x,y:h.y,hp:STAB_HP,maxHp:STAB_HP,kind:'stabilizer',r:12,built:true,buildT:STAB_BUILD_T,buildTotal:STAB_BUILD_T,builder:null,repairer:null,vein:v,hot:h,
     cracks:mkCracks(6,4,30,0.45)};
   h.stab=st; S.stabs.push(st);
+  if(!v.surveyed){v.surveyed=true;S.surveyVein=v;msg(`Vein surveyed — ${ripeTier(v)} tier. The survey panel shows when it ripens next or how long until it collapses.`)}
+  else S.surveyVein=v;
   const before=v.lifeBonus||0; v.lifeBonus=Math.min(STAB_LIFE_BONUS*HOTSPOTS_PER_VEIN,before+STAB_LIFE_BONUS);
   burst(h.x,h.y,veinEnergy(v).col,16,140,0.5); shakeScreen(2,0.15); sfx.build();
   msg(v.lifeBonus>before?`Stabilizer pinned — the vein holds ${STAB_LIFE_BONUS}s longer.`:'Stabilizer pinned.');
@@ -5885,6 +5933,7 @@ function hud(){
     }
   }
   updateMeterUI();
+  updateSurveyUI();
   $('cntTroops2').textContent=S.troops.length;
   document.getElementById('selBaseBtn2').classList.toggle('sel',S.sel.base);
   document.getElementById('selTroopsBtn2').classList.toggle('sel',S.sel.troops.size>0);
