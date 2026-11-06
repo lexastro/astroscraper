@@ -831,7 +831,7 @@ function pinStabAt(v,h){
 function makeRig(site){
   const v=emergeVein(site,{rig:true,guards:false,ripeT:ripeStart(2)});
   updateHotspots(v);v.hot.forEach(h=>pinStabAt(v,h));v.surveyed=true;
-  const r=S.rig={x:v.mine.x,y:v.mine.y,ang:rnd(0,Math.PI*2),vein:v,online:false,seen:false,uiT:0};
+  const r=S.rig={x:v.mine.x,y:v.mine.y,ang:rnd(0,Math.PI*2),vein:v,online:false,seen:false,uiT:0,pingT:25,pingFlash:-99,fuzz:{x:rnd(-220,220),y:rnd(-220,220)}};
   const n=Math.round(rnd(RIG_GUARDS[0],RIG_GUARDS[1]));
   for(let i=0;i<n;i++){const a=rnd(0,Math.PI*2),rr=rnd(30,RIG_ISLAND_R*0.9),p=nearestPlain(r.x+Math.cos(a)*rr,r.y+Math.sin(a)*rr);spawnEnemy(p.x,p.y,'roam')}
   // two nests dug in around it, out in the rift
@@ -854,6 +854,14 @@ function updateRig(dt){
   if(S.activeVein===v){
     if(!rigLinked()){if(!v.paused){v.paused=true;v.rigCut=true;msg('The rig has lost its Relay link — drilling is paused until it is reconnected.')}}
     else if(v.rigCut){v.paused=false;v.rigCut=false;msg('Rig link restored — drilling resumes.')}
+  }
+  // its distress signal: every so often, until someone has found it, a ping and a bearing — and a pulsing
+  // ring on the minimap around where it is (give or take a couple of hundred)
+  if(!r.seen&&!r.online&&!v.done&&S.t>=r.pingT){
+    r.pingT=S.t+rnd(38,52);r.pingFlash=S.t;
+    const dir=compassName(Math.atan2(r.y-S.base.y,r.x-S.base.x));
+    msg(`Distress signal — a derelict rig is calling for help${dir?`, somewhere ${dir} of the Bastion`:' from close by'}. It's marked on the minimap.`);
+    sfx.distress();
   }
   r.uiT-=dt;if(r.uiT<=0){r.uiT=0.5;if(r.seen&&!r.online&&!v.done)updateBuildBar()}
 }
@@ -4955,7 +4963,10 @@ function tone(freq,dur,type,gain,delay,slideTo){
   osc.connect(g); g.connect(ac.destination);
   osc.start(t0); osc.stop(t0+dur+0.03);
 }
+// v4: a derelict rig's distress call — a rising two-pulse sonar ping and a falling tail
+function distressPing(){tone(1175,0.16,'sine',0.07);tone(1175,0.16,'sine',0.07,0.26);tone(880,0.55,'sine',0.065,0.54,640)}
 const sfx={
+  distress:()=>distressPing(),
   click(){tone(520,0.05,'square',0.05)},
   gather(){if(!sfxReady('gather',0.12))return;tone(660,0.06,'sine',0.08);tone(880,0.08,'sine',0.06,0.05)},
   kill(){if(!sfxReady('kill',0.04))return;tone(200,0.09,'sawtooth',0.07,0,70)},
@@ -6688,6 +6699,11 @@ function drawMini(){const s=mini.width/W;mctx.fillStyle='#10151b';mctx.fillRect(
   (S.wrecks||[]).forEach(w=>{if(!(w.seen||debugNoFog))return;mctx.fillStyle=w.done?'#4b5159':C.accent;mctx.fillRect(w.x*s-2.5,w.y*s-2.5,5,5)});
   S.nodes.forEach(n=>{if((n.found||debugNoFog)&&n.amt>0){mctx.fillStyle=C.dat;mctx.fillRect(n.x*s-1.5,n.y*s-1.5,3,3)}});
   S.relays.forEach(r=>{if(r.built){mctx.fillStyle=C.cable;mctx.fillRect(r.x*s-2,r.y*s-2,4,4)}});
+  {const g=S.rig;if(g&&!g.seen&&!g.online&&!g.vein.done&&S.t>=24){ // the rig's distress ring (only roughly where it is)
+    const since=S.t-g.pingFlash,ph=(S.t*0.7)%1,boost=since<8?1:0.45;
+    mctx.strokeStyle=C.accent;mctx.lineWidth=1.5;
+    mctx.globalAlpha=boost*(1-ph);mctx.beginPath();mctx.arc((g.x+g.fuzz.x)*s,(g.y+g.fuzz.y)*s,(260+ph*340)*s,0,Math.PI*2);mctx.stroke();
+    mctx.globalAlpha=boost;mctx.beginPath();mctx.arc((g.x+g.fuzz.x)*s,(g.y+g.fuzz.y)*s,3,0,Math.PI*2);mctx.fillStyle=C.accent;mctx.fill();mctx.globalAlpha=1}}
   S.depots.forEach(de=>{if(de.built){mctx.fillStyle=de.hp>0?C.dat:C.enemy;mctx.fillRect(de.x*s-2,de.y*s-2,4,4)}});
   S.enemies.forEach(e=>{if(e.kind==='nest'){if(debugNoFog||e.seen){const q=e.size==='small'?2.5:e.size==='large'||e.size==='great'?4.5:3.5;mctx.fillStyle='#8a2c22';mctx.beginPath();mctx.arc(e.x*s,e.y*s,q+1,0,Math.PI*2);mctx.fill();mctx.fillStyle=C.enemy;mctx.beginPath();mctx.arc(e.x*s,e.y*s,q*0.55,0,Math.PI*2);mctx.fill()}return}
     if(debugNoFog||visible(e)){mctx.fillStyle=C.enemy;mctx.fillRect(e.x*s-1,e.y*s-1,2,2)}});
