@@ -1257,8 +1257,13 @@ function updateSurveyUI(){
   const tEl=document.getElementById('vsTier');tEl.textContent=tier;tEl.style.color=CARD_TIER_COLOR[tier]||'';
   // ladder: each rung fills as the vein ripens through it; the unstable stretch shows red on the last
   const idx=ripeIdx(v), within=idx<L.length-1?Math.min(1,((v.ripeT||0)-ripeStart(idx))/RIPEN_DWELL[Math.min(idx,RIPEN_DWELL.length-1)]):1, u=unstableFrac(v);
-  document.getElementById('vsLadder').innerHTML=L.map((t,i)=>{const f=i<idx?1:i===idx?(i===L.length-1?1:within):0;
-    return `<i title="${t}"><b style="width:${Math.round(f*100)}%;background:${i===L.length-1&&u>0?C.enemy:CARD_TIER_COLOR[t]}"></b></i>`}).join('');
+  // each rung is as wide as that tier lasts (the peak: its unstable window, Stabilizer bonus and all),
+  // so the bar is a true timeline; the peak rung fills as that window burns down, reddening as it goes
+  const last=L.length-1, hold=holdsAtPeak(v);
+  const dur=i=>i<last?RIPEN_DWELL[Math.min(i,RIPEN_DWELL.length-1)]:(hold?RIPEN_DWELL[RIPEN_DWELL.length-1]:unstableDur(v));
+  document.getElementById('vsLadder').innerHTML=L.map((t,i)=>{
+    const f=i<idx?1:i===idx?(i===last?(hold?1:u):within):0, col=i===last&&u>0?mixCol(CARD_TIER_COLOR[t],C.enemy,Math.min(1,u*1.2)):CARD_TIER_COLOR[t];
+    return `<i title="${t} — ${i===last&&hold?'holds':Math.round(dur(i))+'s'}" style="flex:${dur(i)} 1 0"><b style="width:${(f*100).toFixed(1)}%;background:${col}"></b></i>`}).join('');
   let line;
   if(locked)line=`Locked on at ${ripeTier(v)} — ripening is frozen while you drill.`;
   else if(holdsAtPeak(v))line=idx<L.length-1?`Ripens to ${L[idx+1]} in ${fmtT(ripeStart(idx+1)-(v.ripeT||0))}. Holds at its peak — it never collapses.`:'At its peak — it never collapses.';
