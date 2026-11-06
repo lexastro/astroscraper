@@ -57,6 +57,7 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 .build button{background:var(--panel);border:1px solid var(--line);color:var(--fg);font:inherit;padding:8px 10px;border-radius:4px;cursor:pointer;display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:86px}
 .build button:hover{background:var(--panel2)} .build button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .build button.on{border-color:var(--accent);background:var(--panel2)}
+.build button.dry{opacity:.55} .build button.dry:hover{opacity:.8}
 .build button .key{font-family:var(--mono);font-size:10px;color:var(--muted)}
 .build button .cost{font-family:var(--mono);font-size:11px;color:var(--dat)}
 .build button:disabled{opacity:.45;cursor:default}
@@ -412,6 +413,7 @@ body.inMenu :is(#game,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMeter,.mini,.
     <button id="bFabMech" data-unit="mech" hidden><span class="icon">◫</span><span>Mech</span><span class="cost" id="cf_mech">●</span><span class="key">7</span></button>
     <button id="bLock"><span class="icon">⛏</span><span id="bLockLabel">Begin Drilling</span><span class="key">F</span></button>
     <button id="bPing"><span class="icon">◬</span><span id="bPingLabel">Probe</span><span class="cost" id="cProbe">●●●</span><span class="key">T</span></button>
+    <button id="bAutoBuy" title="When on, using an empty stock buys the charge with Dat automatically"><span class="icon">⟳</span><span id="bAutoBuyLabel">Auto-buy: off</span></button>
   </div>
 </div>
 
@@ -443,7 +445,7 @@ body.inMenu :is(#game,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMeter,.mini,.
 <div class="help" id="help" hidden>
   <button id="helpClose" aria-label="Close">×</button>
   <b>The run:</b> six stops, each one map in a single zone and each deeper and tougher than the last — Rim, Rim, Dense Field, Dense Field, Core, and the Core's heart where the contract vein waits. A barrier (rift on the Rim, a crystal wall deeper in) cuts every map: drain the <b>breach vein</b> in front of it to break through, then walk the Bastion off the eastern edge. Everything you have carries on to the next stop.<br>
-<b>Stock &amp; squads:</b> nothing refills on its own any more — every fabricator, Stabilizer and Probe has a free stock, and once it's empty each use costs Dat (the price shows on the button). You have 8 Squad slots (4 filled for free at the start — the button shows how many you have against the limit); each new Squad costs Dat, and right-clicking any build button buys another charge of it. Salvage from Large nests and Mega nests can raise the limit. <b>Wrecks</b> (derelict scrapers) lie hidden on every map, some beyond the barrier — park the Bastion on one for 8s to salvage it (it draws an ambush): Dat, refilled stocks, drones, a barracks module (+1 Squad limit) or a new fabricator for the run. <b>Quakers</b> — big stone blocks — lumber in while you drill, keep their distance and slam the ground to jolt the drill needle and shake your Stabilizers: send units out to kill them.<br>
+<b>Stock &amp; squads:</b> nothing refills on its own any more — every fabricator, Stabilizer and Probe has a free stock, and once it's empty each use costs Dat (the price shows on the button). You have 8 Squad slots (4 filled for free at the start — the button shows how many you have against the limit); each new Squad costs Dat, and right-clicking any build button buys another charge of it (or switch <b>Auto-buy</b> on to buy automatically when a stock runs out). Salvage from Large nests and Mega nests can raise the limit. <b>Wrecks</b> (derelict scrapers) lie hidden on every map, some beyond the barrier — park the Bastion on one for 8s to salvage it (it draws an ambush): Dat, refilled stocks, drones, a barracks module (+1 Squad limit) or a new fabricator for the run. <b>Quakers</b> — big stone blocks — lumber in while you drill, keep their distance and slam the ground to jolt the drill needle and shake your Stabilizers: send units out to kill them.<br>
 <b>Goal:</b> the ground is cracked all over: <b>follow the pulses of energy</b> running through the cracks back to their source to find a vein, then park the Bastion on its glowing centre and press <kbd>F</kbd> to lock on. Veins <b>emerge, ripen</b> a tier at a time, then go unstable and <b>collapse</b> — and new ones emerge elsewhere. Glowing <b>stray pockets</b> give a bearing toward the nearest vein when a unit reaches one; two bearings from different angles triangulate it. Locking on starts the <b>strike</b> at once: press <kbd>Space</kbd> to stop the needle on a good band of the strip (the thin sliver is a tier above the vein; red ruptures it) — the meter zooms in on where you hit and the drill starts; the first wave arrives about 20s later. While it drills, the needle drifts; Stabilizers hold it steady, and the tier you're paid is where it spends most of its time. If it drifts into the red, the vein ruptures and damages the Bastion. Drain veins for rewards — after 3, the contract vein stirs: it gives off no pulses, so triangulate it with bearings from stray pockets, then drain it to win.<br>
   <b>Controls:</b> drag to select · right-click to move/attack · right-click a friendly unit or building with combat units selected to <b>guard</b> it (escort it, fight off anything that comes near, then fall back) · <kbd>C</kbd> select all your units · <kbd>F</kbd> lock on to a vein / strike · <kbd>H</kbd> jump the camera to the Bastion · <kbd>WASD</kbd> or middle-drag to pan, scroll to zoom<br>
   <b>Touch:</b> tap to select · tap empty ground/an enemy/a resource to move/attack/harvest · drag to pan · hold still then drag to box-select · pinch to zoom · double-tap to select all of a kind<br>
@@ -728,6 +730,11 @@ const SQUAD_CAP_START=8, SQUAD_CAP_MAX=12, SQUAD_START_N=4, SQUAD_DAT=20;
 function squadCount(){return S.troops.filter(t=>(t.kind||'troop')==='troop').length}
 function raiseSquadCap(){if(S.squadCap>=SQUAD_CAP_MAX)return false;S.squadCap++;updateBuildBar();return true}
 // pay for one use of an empty stock; false (with a message) if there isn't the Dat
+// an empty stock: buy the charge only if Auto-buy is on; otherwise say how to get one
+function takeStock(cost,what){
+  if(!autoBuy){msg(`${what} stock is empty — right-click its button to buy one for ${cost} Dat (or switch Auto-buy on).`);return false}
+  return payDat(cost,what);
+}
 function payDat(cost,what){
   if(S.dat<cost){msg(`${what} is out of stock — another costs ${cost} Dat (you have ${Math.floor(S.dat)}).`);return false}
   S.dat-=cost;floatText(S.base.x,S.base.y-46,`-${cost} Dat`,C.dat);return true;
@@ -748,6 +755,10 @@ const DAT_PICKUP_R=26;
 // never touch the main game's unlocks.
 const GAME_BRANCH='v4', SAVE_SUFFIX=GAME_BRANCH==='master'?'':'_'+GAME_BRANCH;
 const META_KEY='datascraper_meta_v1'+SAVE_SUFFIX;
+// v4: Auto-buy — off by default: an empty stock stays empty until you right-click its button to buy
+// a charge. On: using an empty stock buys the charge with Dat automatically. Remembered per browser.
+const AUTOBUY_KEY='datascraper_autobuy'+SAVE_SUFFIX;
+let autoBuy=false;try{autoBuy=localStorage.getItem(AUTOBUY_KEY)==='1'}catch(e){}
 // Unlocks are now priced in Living Crystal, not Condensed — it's the rarer of the two (only a
 // handful of veins ever yield any), so even these small costs mean something.
 const ARTY_UNLOCK_COST=2, GREN_UNLOCK_COST=1, MECH_UNLOCK_COST=1;
@@ -3724,6 +3735,10 @@ document.querySelectorAll('#buildBar button[data-mode]').forEach(b=>b.addEventLi
 document.querySelectorAll('#buildBar button[data-unit]').forEach(b=>b.addEventListener('click',()=>fabUnit(b.dataset.unit)));
 // v4: right-click any build button to buy one more charge of it with Dat (a Squad button buys a
 // Squad outright). Stocks top out at their usual size.
+function refreshAutoBuy(){const b=document.getElementById('bAutoBuy');b.classList.toggle('on',autoBuy);document.getElementById('bAutoBuyLabel').textContent=`Auto-buy: ${autoBuy?'on':'off'}`}
+document.getElementById('bAutoBuy').onclick=()=>{autoBuy=!autoBuy;try{localStorage.setItem(AUTOBUY_KEY,autoBuy?'1':'0')}catch(e){}refreshAutoBuy();sfx.click();
+  msg(autoBuy?'Auto-buy on — using an empty stock buys the charge with Dat.':'Auto-buy off — right-click a button to buy charges.')};
+refreshAutoBuy();
 function buyCharge(k){
   if(!S||S.over||menuOpen)return;
   if(k==='troop'){fabUnit('troop');return}
@@ -3786,7 +3801,7 @@ function squadPips(){const n=squadCount(),c=S.squadCap;return '●'.repeat(Math.
 // Spend one charge of fabricator k; false (with a message) if it's empty.
 function useFab(k){
   const f=FABS[k],st=S.fab[k];
-  if(st.n<=0){if(!payDat(FAB_DAT[k],f.name))return false;updateBuildBar();return true}
+  if(st.n<=0){if(!takeStock(FAB_DAT[k],f.name))return false;updateBuildBar();return true}
   st.n--;updateBuildBar();return true;
 }
 function updateFabs(dt){} // v4: no timed refills (see FAB_DAT)
@@ -3881,20 +3896,20 @@ function updateBuildBar(){
   document.querySelectorAll('#buildBar button[data-mode]').forEach(b=>{
     b.classList.toggle('on',b.dataset.mode===buildMode);
     if(b.dataset.mode==='stabilizer'){
-      b.disabled=S.stabCharges<=0&&S.dat<STAB_DAT&&buildMode!=='stabilizer';
+      b.disabled=false;b.classList.toggle('dry',S.stabCharges<=0);
       const c=document.getElementById('cStab');
       if(c)c.textContent='●'.repeat(S.stabCharges)+'○'.repeat(STAB_CHARGES-S.stabCharges)+(S.stabCharges<=0?` ◆${STAB_DAT}`:'');
       return;
     }
     const k=b.dataset.mode;
-    b.disabled=S.fab[k].n<=0&&S.dat<FAB_DAT[k]&&buildMode!==k;
+    b.disabled=false;b.classList.toggle('dry',S.fab[k].n<=0);
     document.getElementById('cf_'+k).textContent=fabPips(k);
   });
   document.querySelectorAll('#buildBar button[data-unit]').forEach(b=>{
     const k=b.dataset.unit;
     b.hidden=!fabUnlocked(k);
-    if(k==='troop'){b.disabled=squadCount()>=S.squadCap||S.dat<SQUAD_DAT;document.getElementById('cf_'+k).textContent=squadPips();return}
-    b.disabled=S.fab[k].n<=0&&S.dat<FAB_DAT[k];
+    if(k==='troop'){b.disabled=squadCount()>=S.squadCap;b.classList.toggle('dry',S.dat<SQUAD_DAT);document.getElementById('cf_'+k).textContent=squadPips();return}
+    b.disabled=false;b.classList.toggle('dry',S.fab[k].n<=0);
     document.getElementById('cf_'+k).textContent=fabPips(k);
   });
   const lb=document.getElementById('bLock');
@@ -3905,7 +3920,7 @@ function updateBuildBar(){
   }
   const pgb=document.getElementById('bPing');
   if(pgb){
-    pgb.disabled=S.probeCharges<=0&&S.dat<PROBE_DAT&&!probeMode;
+    pgb.disabled=false;pgb.classList.toggle('dry',S.probeCharges<=0&&!probeMode);
     pgb.classList.toggle('on',probeMode);
     document.getElementById('bPingLabel').textContent=probeMode?'Aim…':'Probe';
     document.getElementById('cProbe').textContent='●'.repeat(S.probeCharges)+'○'.repeat(PROBE_CHARGES-S.probeCharges)+(S.probeCharges<=0?` ◆${PROBE_DAT}`:'');
@@ -4070,7 +4085,7 @@ function probeRange(){return PROBE_RANGE*pingRangeMult()}
 function setProbeMode(on){probeMode=on;updateBuildBar()}
 function tryProbe(){
   if(probeMode){setProbeMode(false);return}
-  if(S.probeCharges<=0&&S.dat<PROBE_DAT){msg(`Out of probes — another costs ${PROBE_DAT} Dat (you have ${Math.floor(S.dat)}).`);return}
+  if(S.probeCharges<=0&&(!autoBuy||S.dat<PROBE_DAT)){msg(autoBuy?`Out of probes — another costs ${PROBE_DAT} Dat (you have ${Math.floor(S.dat)}).`:`Probe stock is empty — right-click its button to buy one for ${PROBE_DAT} Dat (or switch Auto-buy on).`);return}
   setBuild(null); setProbeMode(true);
   msg(`Probe armed — click a direction to launch it. It flies straight and can't turn. Right-click or Esc to cancel.`);
   sfx.click();
@@ -4079,7 +4094,7 @@ function fireProbe(w){
   const dx=w.x-S.base.x, dy=w.y-S.base.y, L=Math.hypot(dx,dy);
   if(L<5)return false;
   S.probes.push({x0:S.base.x,y0:S.base.y,x:S.base.x,y:S.base.y,ux:dx/L,uy:dy/L,d:0,lastDrop:-PROBE_DROP,max:probeRange(),done:false,fade:1});
-  if(S.probeCharges>0)S.probeCharges--;else if(!payDat(PROBE_DAT,'Probe'))return false;
+  if(S.probeCharges>0)S.probeCharges--;else if(!takeStock(PROBE_DAT,'Probe'))return false;
   setProbeMode(false);
   tone(520,0.08,'square',0.05);tone(880,0.25,'sine',0.05,0.05,1400);
   return true;
@@ -4302,7 +4317,7 @@ function inHarvestRange(p){
 function fireStabilizer(w){
   const d=dist(w,S.base);
   if(d>STAB_RANGE){msg('Out of Stabilizer range — get the Bastion closer.');return}
-  if(S.stabCharges<=0&&!payDat(STAB_DAT,'Stabilizer'))return;
+  if(S.stabCharges<=0&&!takeStock(STAB_DAT,'Stabilizer'))return;
   S.stabShots.push({x0:S.base.x,y0:S.base.y,tx:w.x,ty:w.y,t:0,dur:Math.max(0.45,d/STAB_FLIGHT_SPEED),spin:rnd(2,4)*(rnd(0,1)<0.5?-1:1)});
   if(S.stabCharges>0)S.stabCharges--;
   tone(240,0.12,'square',0.06,0,520);
