@@ -445,7 +445,7 @@ body.inMenu :is(#game,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMeter,.mini,.
 <div class="help" id="help" hidden>
   <button id="helpClose" aria-label="Close">×</button>
   <b>The run:</b> six stops, each one map in a single zone and each deeper and tougher than the last — Rim, Rim, Dense Field, Dense Field, Core, and the Core's heart where the contract vein waits. A barrier (rift on the Rim, a crystal wall deeper in) cuts every map: drain the <b>breach vein</b> in front of it to break through, then walk the Bastion off the eastern edge. Everything you have carries on to the next stop.<br>
-<b>Stock &amp; squads:</b> nothing refills on its own any more — every fabricator, Stabilizer and Probe has a free stock, and once it's empty each use costs Dat (the price shows on the button). You have 8 Squad slots (4 filled for free at the start — the button shows how many you have against the limit); each new Squad costs Dat, and right-clicking any build button buys another charge of it (or switch <b>Auto-buy</b> on to buy automatically when a stock runs out). Salvage from Large nests and Mega nests can raise the limit. <b>Wrecks</b> (derelict scrapers) lie hidden on every map, some beyond the barrier — park the Bastion on one for 8s to salvage it (it draws an ambush): Dat, refilled stocks, drones, a barracks module (+1 Squad limit) or a new fabricator for the run. <b>Quakers</b> — big stone blocks — lumber in while you drill, keep their distance and slam the ground to jolt the drill needle and shake your Stabilizers: send units out to kill them.<br>
+<b>Stock &amp; squads:</b> nothing refills on its own any more — every fabricator, Stabilizer and Probe has a free stock, and once it's empty each use costs Dat (the price shows on the button). You have 8 Squad slots (4 filled for free at the start — the button shows how many you have against the limit); each new Squad costs Dat, and right-clicking any build button buys another charge of it (or switch <b>Auto-buy</b> on to buy automatically when a stock runs out). Salvage from Large nests and Mega nests can raise the limit. <b>Wrecks</b> (derelict scrapers) lie hidden on every map, some beyond the barrier — park the Bastion on one for 8s (or send units to stand on it — slower) to salvage it (it draws an ambush): Dat, refilled stocks, drones, a barracks module (+1 Squad limit) or a new fabricator for the run. <b>Quakers</b> — big stone blocks — lumber in while you drill, keep their distance and slam the ground to jolt the drill needle and shake your Stabilizers: send units out to kill them.<br>
 <b>Goal:</b> the ground is cracked all over: <b>follow the pulses of energy</b> running through the cracks back to their source to find a vein, then park the Bastion on its glowing centre and press <kbd>F</kbd> to lock on. Veins <b>emerge, ripen</b> a tier at a time, then go unstable and <b>collapse</b> — and new ones emerge elsewhere. Glowing <b>stray pockets</b> give a bearing toward the nearest vein when a unit reaches one; two bearings from different angles triangulate it. Locking on starts the <b>strike</b> at once: press <kbd>Space</kbd> to stop the needle on a good band of the strip (the thin sliver is a tier above the vein; red ruptures it) — the meter zooms in on where you hit and the drill starts; the first wave arrives about 20s later. While it drills, the needle drifts; Stabilizers hold it steady, and the tier you're paid is where it spends most of its time. If it drifts into the red, the vein ruptures and damages the Bastion. Drain veins for rewards — after 3, the contract vein stirs: it gives off no pulses, so triangulate it with bearings from stray pockets, then drain it to win.<br>
   <b>Controls:</b> drag to select · right-click to move/attack · right-click a friendly unit or building with combat units selected to <b>guard</b> it (escort it, fight off anything that comes near, then fall back) · <kbd>C</kbd> select all your units · <kbd>F</kbd> lock on to a vein / strike · <kbd>H</kbd> jump the camera to the Bastion · <kbd>WASD</kbd> or middle-drag to pan, scroll to zoom<br>
   <b>Touch:</b> tap to select · tap empty ground/an enemy/a resource to move/attack/harvest · drag to pan · hold still then drag to box-select · pinch to zoom · double-tap to select all of a kind<br>
@@ -2790,7 +2790,7 @@ function drawMotes(x0,y0,x1,y1){
 // BEACONS are old survey masts. Any unit (or the Bastion) standing at one for BEACON_T seconds
 // powers it up once: it sweeps BEACON_R around itself and marks every live vein and nest in that
 // radius on your map for good.
-const WRECK_T=8, WRECK_R=44, WRECK_REACH=80, WRECK_N={rim:2,dense:2,core:2}, WRECK_STOP_N=4, WRECK_AMBUSH={rim:3,dense:5,core:8}, WRECK_AMBUSH_D=480;
+const WRECK_UNIT_RATE=0.6, WRECK_T=8, WRECK_R=44, WRECK_REACH=80, WRECK_N={rim:2,dense:2,core:2}, WRECK_STOP_N=4, WRECK_AMBUSH={rim:3,dense:5,core:8}, WRECK_AMBUSH_D=480;
 const WRECK_DAT={rim:45,dense:75,core:120};
 const WRECK_LOOT={rim:{dat:0.35,refill:0.25,drones:0.1,squad:0.2,fab:0.1},dense:{dat:0.25,refill:0.25,drones:0.1,squad:0.2,fab:0.2},core:{dat:0.2,refill:0.2,drones:0.1,squad:0.2,fab:0.3}};
 const BEACON_T=3, BEACON_REACH=60, BEACON_R=1500, BEACON_N={rim:0,dense:0,core:0}; // v4: wrecks only for now
@@ -2840,16 +2840,17 @@ function updatePOIs(dt){
   if(!S.wrecks)return;
   const B=S.base;
   S.wrecks.forEach(w=>{
-    if(!w.seen&&visible(w)){w.seen=true;msg('A derelict scraper wreck — park the Bastion on it to salvage it.')}
+    if(!w.seen&&visible(w)){w.seen=true;msg('A derelict scraper wreck — park the Bastion on it, or send units to stand on it, to salvage it.')}
     if(w.done)return;
-    const on=!B.locked&&dist(B,w)<WRECK_REACH;
-    if(!on)return;
+    // v4: the Bastion parked on it salvages at full speed; units on their own at WRECK_UNIT_RATE
+    const bOn=!B.locked&&dist(B,w)<WRECK_REACH, uOn=S.troops.some(t=>t.hp>0&&dist(t,w)<WRECK_REACH*0.85);
+    if(!bOn&&!uOn)return;
     if(!w.ambushed){w.ambushed=true;
       const n=WRECK_AMBUSH[w.band], a=rnd(0,Math.PI*2);
       for(let i=0;i<n;i++){const p=nearestPlain(Math.max(40,Math.min(W-40,w.x+Math.cos(a)*WRECK_AMBUSH_D+rnd(-80,80))),Math.max(40,Math.min(H-40,w.y+Math.sin(a)*WRECK_AMBUSH_D+rnd(-80,80))));spawnEnemy(p.x,p.y,'wave')}
-      msg(`Salvaging — hold position ${WRECK_T}s. The racket is drawing something in from the ${compassName(a)||'dark'}…`);sfx.wave();
+      msg(`Salvaging — hold position${bOn?` ${WRECK_T}s`:` (units salvage slower than the Bastion)`}. The racket is drawing something in from the ${compassName(a)||'dark'}…`);sfx.wave();
     }
-    w.prog=Math.min(1,w.prog+dt/WRECK_T);
+    w.prog=Math.min(1,w.prog+dt/WRECK_T*(bOn?1:WRECK_UNIT_RATE));
     if(w.prog>=1)salvageWreck(w);
   });
   S.beacons.forEach(b=>{
