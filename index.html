@@ -35,6 +35,9 @@ html,body{height:100%;margin:0;overflow:hidden}
 body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:13px;position:relative;
   padding-left:max(0px,env(safe-area-inset-left,0px));padding-right:max(0px,env(safe-area-inset-right,0px))}
 canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:none}
+/* v4: the anti-banding grain is a static CSS layer over the canvas, composited by the browser for free,
+   instead of a full-screen canvas pass every frame */
+#fogGrain{position:absolute;inset:0;pointer-events:none;background-repeat:repeat;opacity:.035}
 .hud{position:absolute;top:env(safe-area-inset-top,0px);left:0;right:0;display:flex;gap:10px;align-items:stretch;
   padding:8px max(16px,env(safe-area-inset-right,0px)) 0 max(16px,env(safe-area-inset-left,0px));pointer-events:none;flex-wrap:wrap}
 .stat{background:var(--panel);border:1px solid var(--line);padding:6px 10px;border-radius:4px;display:flex;flex-direction:column;gap:2px;min-width:92px}
@@ -373,12 +376,13 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
   .help.open{inset:6% 6%;max-height:88vh}
 }
 /* While the menus are up, the world behind them stays hidden — nothing about the next map shows. */
-body.inMenu :is(#game,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMeter,.mini,.unitSelCtrl,.help,.tutPanel){visibility:hidden}
+body.inMenu :is(#game,#fogGrain,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMeter,.mini,.unitSelCtrl,.help,.tutPanel){visibility:hidden}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}.overlay{animation:none}.bar i.hp.low{animation:none}.overlay button.rewardCard.legendary{animation:none}}
 </style>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;600&display=swap">
 
 <canvas id="game"></canvas>
+<div id="fogGrain" aria-hidden="true"></div>
 
 <div class="hud">
   <div class="stat currencies">
@@ -1708,8 +1712,7 @@ function drawStrayPockets(vx0,vy0,vx1,vy1){
     ctx.save();ctx.globalAlpha=1;
     const p=0.5+0.5*Math.sin(S.t*2.2+k), Rg=58+8*p;
     const g=ctx.createRadialGradient(st.x,st.y,0,st.x,st.y,Rg);g.addColorStop(0,STRAY_COL);g.addColorStop(1,'rgba(191,239,255,0)');
-    ctx.globalCompositeOperation='overlay';ctx.globalAlpha=(0.5+0.15*p)*sight;ctx.fillStyle=g;ctx.beginPath();ctx.arc(st.x,st.y,Rg,0,Math.PI*2);ctx.fill();
-    ctx.globalCompositeOperation='screen';ctx.globalAlpha=(0.16+0.06*p)*sight;ctx.fillStyle=g;ctx.beginPath();ctx.arc(st.x,st.y,Rg,0,Math.PI*2);ctx.fill();
+    ctx.globalCompositeOperation='screen';ctx.globalAlpha=(0.26+0.08*p)*sight; // v4: no 'overlay' passctx.fillStyle=g;ctx.beginPath();ctx.arc(st.x,st.y,Rg,0,Math.PI*2);ctx.fill();
     const c=ctx.createRadialGradient(st.x,st.y,0,st.x,st.y,Rg*0.45);c.addColorStop(0,STRAY_COL);c.addColorStop(1,'rgba(0,0,0,0)');
     ctx.globalCompositeOperation='lighter';ctx.globalAlpha=(0.1+0.06*p)*sight;ctx.fillStyle=c;ctx.beginPath();ctx.arc(st.x,st.y,Rg*0.45,0,Math.PI*2);ctx.fill();
     ctx.restore();
@@ -1998,6 +2001,7 @@ function reset(landing){
     knitBarrierSides(S.breachSite,pts.filter(q=>q.x<bx-BARRIER_HALF),pts.filter(q=>q.x>bx+BARRIER_HALF))}
   // the ground texture rolls from its own fixed stream so it doesn't change with the landing spot
   {const landingRand=rand;rand=seededRng(mapSeed*131+17);terrainCv=buildTerrainCanvas();rand=landingRand}
+  buildTerrainBlur();
 
   // v2: no loose Dat deposits on the map - Dat comes from nests, vein payouts and enemy drops.
 
@@ -2092,6 +2096,7 @@ function openBreach(v){
   const gy0=Math.floor((B.y-BREACH_GAP)/TCELL), gy1=Math.ceil((B.y+BREACH_GAP)/TCELL);
   for(let gy=Math.max(0,gy0);gy<=Math.min(TGY-1,gy1);gy++)for(let gx=0;gx<TGX;gx++){const id=gy*TGX+gx;if(B.mask[id]){terrain[id]=0;B.mask[id]=0}}
   {const keep=rand;rand=seededRng(mapSeed*131+17);terrainCv=buildTerrainCanvas();rand=keep}
+  buildTerrainBlur();
   [S.base,...S.troops,...S.enemies].forEach(u=>{u._pg=null;u._path=null;u._blocked=false});
   const cx=B.centre, cols=B.type===RIFT?['#b28cff','#8fe3ff']:['#9fe8ff','#e8fbff'];
   for(let i=0;i<14;i++){const y=B.y+rnd(-BREACH_GAP,BREACH_GAP);burst(cx+rnd(-BARRIER_HALF,BARRIER_HALF),y,cols[i%2],18,220,0.9)}
@@ -5317,17 +5322,31 @@ let fogMaskSoftC=document.createElement('canvas'), fogMaskSoftX=fogMaskSoftC.get
 // blurMaskC: where the out-of-sight ground blur applies — full strength over unexplored ground,
 // FOG_EXPLORED_BLUR over ground you've already seen, nothing where you can see now.
 let blurMaskC=document.createElement('canvas'), blurMaskX=blurMaskC.getContext('2d');
+// v4: softening by shrink-and-stretch instead of canvas blur filters (which Firefox runs on the
+// CPU every frame): halve twice with smoothing, then stretch back up in two steps — the same soft
+// edge for a fraction of the cost.
+const softT1=document.createElement('canvas'), softT1X=softT1.getContext('2d'), softT2=document.createElement('canvas'), softT2X=softT2.getContext('2d');
+function softBlur(dstX,src,w,h){
+  const w2=Math.max(1,w>>1),h2=Math.max(1,h>>1),w4=Math.max(1,w>>2),h4=Math.max(1,h>>2);
+  if(softT1.width!==w2||softT1.height!==h2){softT1.width=w2;softT1.height=h2}
+  if(softT2.width!==w4||softT2.height!==h4){softT2.width=w4;softT2.height=h4}
+  softT1X.imageSmoothingEnabled=softT2X.imageSmoothingEnabled=dstX.imageSmoothingEnabled=true;
+  softT1X.clearRect(0,0,w2,h2);softT1X.drawImage(src,0,0,w2,h2);
+  softT2X.clearRect(0,0,w4,h4);softT2X.drawImage(softT1,0,0,w4,h4);
+  softT1X.clearRect(0,0,w2,h2);softT1X.drawImage(softT2,0,0,w2,h2);
+  dstX.drawImage(softT1,0,0,w,h);
+}
 function softenFogLayers(){
   [[dimSoftC,dimSoftX,dimC],[fogMaskSoftC,fogMaskSoftX,fogMaskC]].forEach(([c,x,src])=>{
     if(c.width!==src.width||c.height!==src.height){c.width=src.width;c.height=src.height}
     x.setTransform(1,0,0,1,0,0);x.globalCompositeOperation='source-over';x.clearRect(0,0,c.width,c.height);
-    x.filter=`blur(${FOG_EDGE_BLUR}px)`;x.drawImage(src,0,0);x.filter='none';
+    softBlur(x,src,c.width,c.height);
   });
   const c=blurMaskC,x=blurMaskX;
   if(c.width!==fogMaskSoftC.width||c.height!==fogMaskSoftC.height){c.width=fogMaskSoftC.width;c.height=fogMaskSoftC.height}
   x.globalCompositeOperation='source-over';x.globalAlpha=1;x.clearRect(0,0,c.width,c.height);
   x.globalAlpha=FOG_EXPLORED_BLUR;x.drawImage(fogMaskSoftC,0,0);x.globalAlpha=1;
-  x.filter=`blur(${FOG_EDGE_BLUR}px)`;x.drawImage(fogC,0,0,c.width,c.height);x.filter='none';
+  softBlur(x,fogC,c.width,c.height);
   x.globalCompositeOperation='destination-in';x.drawImage(fogMaskSoftC,0,0);x.globalCompositeOperation='source-over';
 }
 // Called exactly once per run, right as it ends (win or lose) — banks whatever Condensed and
@@ -5687,30 +5706,40 @@ function drawVeinCracks(v,target){
 // A small tile of random grey, made once, tiled across the screen pixel-for-pixel with an overlay
 // blend at low strength: it nudges every pixel up or down by a few percent of its own brightness —
 // invisible as grain on its own, but enough to break the dark fog gradient's banding apart.
-let ditherPat=null;
-function ditherFog(){
-  if(!ditherPat){
-    const c=document.createElement('canvas');c.width=c.height=128;const x=c.getContext('2d'),id=x.createImageData(128,128);
-    for(let i=0;i<id.data.length;i+=4){const v=Math.floor(Math.random()*256);id.data[i]=id.data[i+1]=id.data[i+2]=v;id.data[i+3]=255}
-    x.putImageData(id,0,0);ditherPat=ctx.createPattern(c,'repeat');
-  }
-  ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.globalCompositeOperation='overlay';ctx.globalAlpha=FOG_DITHER;
-  ctx.fillStyle=ditherPat;ctx.fillRect(0,0,cv.width,cv.height);ctx.restore();
+// v4: the banding-breaking grain is now a CSS layer (#fogGrain) holding a 128px tile of pure white
+// and black specks at random strength — one device pixel each — so drawing a frame costs nothing for it.
+function setupFogGrain(){
+  const c=document.createElement('canvas');c.width=c.height=128;const x=c.getContext('2d'),id=x.createImageData(128,128);
+  for(let i=0;i<id.data.length;i+=4){const v=Math.random()<0.5?0:255;id.data[i]=id.data[i+1]=id.data[i+2]=v;id.data[i+3]=Math.floor(Math.random()*256)}
+  x.putImageData(id,0,0);
+  const el=document.getElementById('fogGrain');el.style.backgroundImage=`url(${c.toDataURL()})`;
+  const fit=()=>{el.style.backgroundSize=`${128/(devicePixelRatio||1)}px ${128/(devicePixelRatio||1)}px`};fit();addEventListener('resize',fit);
 }
+setupFogGrain();
 // Fog blur: what's under the fog shouldn't read crisply. Before the dark veil goes on, the frame so
 // far is copied at 1/FOG_BLUR_DOWN size with a gaussian blur (the downscale itself softens it
 // further), the vision mask then keeps that blurred copy only where nothing can currently see, and
 // it's laid back over the frame — sharp inside sight, smeared shapes out in the fog.
-const FOG_BLUR_DOWN=4, FOG_BLUR_PX=3;
+const FOG_BLUR_DOWN=4, FOG_BLUR_PX=3, TERRAIN_BLUR_DOWN=8;
 let fogBlurC=document.createElement('canvas'), fogBlurX=fogBlurC.getContext('2d');
+// v4: the smeared ground shown under the fog is the terrain itself, shrunk and blurred ONCE when the
+// map's terrain is built (and again if a breach changes it) — no per-frame blur or copy of the frame.
+let terrainBlurC=document.createElement('canvas');
+function buildTerrainBlur(){
+  const w=Math.max(1,Math.round(W/TERRAIN_BLUR_DOWN)),h=Math.max(1,Math.round(H/TERRAIN_BLUR_DOWN));
+  const a=document.createElement('canvas');a.width=Math.round(W/2);a.height=Math.round(H/2);const ax=a.getContext('2d');ax.imageSmoothingEnabled=true;ax.drawImage(terrainCv,0,0,a.width,a.height);
+  const b=document.createElement('canvas');b.width=Math.round(W/4);b.height=Math.round(H/4);const bx=b.getContext('2d');bx.imageSmoothingEnabled=true;bx.drawImage(a,0,0,b.width,b.height);
+  terrainBlurC.width=w;terrainBlurC.height=h;const tx=terrainBlurC.getContext('2d');tx.imageSmoothingEnabled=true;
+  tx.filter=`blur(${FOG_BLUR_PX*0.6}px)`;tx.drawImage(b,0,0,w,h);tx.filter='none'; // one blur, at build time only
+}
 function blurFogged(vw,vh,shkx,shky){
   const w=Math.max(1,Math.round(cv.width/FOG_BLUR_DOWN)), h=Math.max(1,Math.round(cv.height/FOG_BLUR_DOWN));
   if(fogBlurC.width!==w||fogBlurC.height!==h){fogBlurC.width=w;fogBlurC.height=h}
   const X=fogBlurX, dpr=devicePixelRatio;
   X.setTransform(1,0,0,1,0,0);X.globalCompositeOperation='source-over';X.globalAlpha=1;X.clearRect(0,0,w,h);
-  X.filter=`blur(${FOG_BLUR_PX}px)`;X.imageSmoothingEnabled=true;X.drawImage(cv,0,0,w,h);X.filter='none';
-  X.globalCompositeOperation='destination-in';
   X.setTransform(dpr/FOG_BLUR_DOWN,0,0,dpr/FOG_BLUR_DOWN,0,0);X.translate(vw/2+shkx,vh/2+shky);X.scale(cam.z,cam.z);X.translate(-cam.x,-cam.y);
+  X.imageSmoothingEnabled=true;X.drawImage(terrainBlurC,0,0,W,H);
+  X.globalCompositeOperation='destination-in';
   X.drawImage(blurMaskC,0,0,W,H); // v4: full blur in the unknown, a little over explored ground
   X.setTransform(1,0,0,1,0,0);X.globalCompositeOperation='source-over';
   ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.imageSmoothingEnabled=true;ctx.drawImage(fogBlurC,0,0,cv.width,cv.height);ctx.restore();
@@ -6070,7 +6099,7 @@ function draw(){
   // particles (impact sparks, kill/vein/destruction bursts)
   S.particles.forEach(p=>{ctx.globalAlpha=Math.max(0,1-p.t/p.life);ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);ctx.fill()});ctx.globalAlpha=1;
   // fog
-  if(!debugNoFog){blurFogged(vw,vh,shkx,shky);ctx.imageSmoothingEnabled=true;ctx.drawImage(dimSoftC,0,0,W,H);ditherFog()}
+  if(!debugNoFog){blurFogged(vw,vh,shkx,shky);ctx.imageSmoothingEnabled=true;ctx.drawImage(dimSoftC,0,0,W,H)}
   drawExit();
   // energy pulses through the crack network (only where something can see) and bearing beams
   drawExplorationLight(x0-40,y0-40,x1+40,y1+40,vw,vh,shkx,shky);
