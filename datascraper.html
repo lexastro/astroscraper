@@ -790,6 +790,9 @@ const SANITY_MAX=100, SANITY_DRAIN=100/16, SANITY_REGEN=100/7;
 // runs out of line — it just stops there until a closer anchor is built or it walks back in.
 const MAX_CABLE_LEN=400;
 const DRILL_RATE=0.5, THROTTLES=[0.5,1,1.8];
+// v4: Dat Crystal paid out by a drained vein, per point of richness (then × its tier) — with stocks
+// bought in Dat, a good drill is how you restock.
+const VEIN_DAT_PER_RICH=3;
 // The drill doesn't bite in immediately on lockdown — it spends PREP_TIME warming up first, with
 // no progress, no Dat burn, and no wave/saboteur clocks running, same as being paused. Throttle
 // is still locked in up front; it just doesn't start spending/spawning until prep finishes.
@@ -1472,7 +1475,7 @@ function emergeVein(site,o){
   o=o||{};
   const ang=rnd(0,Math.PI*2), rad=rnd(0,14); // the mining point is the heart of the site's crack knot
   const v={x:site.x,y:site.y,r:ZONE_R,richness:site.richness,drillProg:0,done:false,contract:!!o.contract,hive:!!o.hive,breach:!!o.breach,band:site.band,waveT:0,
-    reward:o.contract?{dat:50,living:3}:{dat:Math.round(site.richness*1.2)},
+    reward:o.contract?{dat:50,living:3}:{dat:Math.round(site.richness*VEIN_DAT_PER_RICH)},
     mine:{x:site.x+Math.cos(ang)*rad,y:site.y+Math.sin(ang)*rad,found:false},
     site,ripeT:o.ripeT||0,crackedT:0,seen:false,collapsed:false,goneT:0,pulsePh:rnd(0,PULSE_PERIOD),
     haze:o.haze||rollHaze(),opening:!!o.opening};
@@ -4638,7 +4641,7 @@ function update(dt){
       const livingEarned=Math.round((v.reward.living||0)*tierMult*S.mods.livingMult);
       S.dat+=datEarned; S.living+=livingEarned; S.condensed+=condensedEarned;
       burst(v.x,v.y,TIER_COLOR[tier],24,140,0.7);
-      if(datEarned)floatText(v.x,v.y-16,'+'+datEarned+' Dat',C.dat);
+      if(datEarned){burst(v.x,v.y,C.dat,30,190,0.9);floatText(v.x,v.y-16,'+'+datEarned+' Dat',C.dat);sfx.gather()}
       if(livingEarned)floatText(v.x,v.y-34,'+'+livingEarned+' Living',C.living);
       floatText(v.x,v.y+(datEarned||livingEarned?2:-16),'+'+condensedEarned+' Condensed',C.condensed);
       if(v.contract){S.over='win';sfx.win();shakeScreen(6,0.5);showOverlay('Living Crystal Extracted',`The contract vein is drained at ${tier} tier. Datascraper crew, mission complete. +${condensedEarned} Condensed Crystal.`)}
@@ -4653,7 +4656,7 @@ function update(dt){
           tail=' The contract vein has stirred deep in the zone — it gives off no pulses, so take bearings from stray energy pockets to triangulate it.';
         }
         if(v.hive)tail=` The Mega nest is broken.${salvageFab()}`+tail;
-        msg(`${v.hive?'Hive vein':'Vein'} drained at ${tier} tier — +${condensedEarned} Condensed Crystal.${tail}`);
+        msg(`${v.hive?'Hive vein':'Vein'} drained at ${tier} tier — +${datEarned} Dat Crystal and +${condensedEarned} Condensed Crystal.${tail}`);
         shakeScreen(4,0.3);showRewardChoice(tier);
       }
     }
