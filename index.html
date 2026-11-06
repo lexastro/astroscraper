@@ -3696,21 +3696,37 @@ function buildTerrainCanvas(){
       const x=gx*TCELL,y=gy*TCELL,h=Math.imul(gx,73856093)^Math.imul(gy,19349663),u=h>>>0;
       x2.fillStyle=`hsl(${188+(u%34)},${55+(u>>5)%25}%,${30+(u>>9)%22}%)`;x2.fillRect(x,y,TCELL,TCELL);
       x2.fillStyle='rgba(225,250,255,0.32)';x2.beginPath();x2.moveTo(x+(u%TCELL),y);x2.lineTo(x+TCELL,y+((u>>3)%TCELL));x2.lineTo(x+((u>>6)%TCELL),y+TCELL);x2.closePath();x2.fill()}}
-  // v4: the purple glass formations — faceted clumps of crystal, a few to a cell
+  // v4: the purple glass formations. What you see is exactly what blocks: every glass cell is filled
+  // right out to its edges (with a bright rim only along the sides that face open ground), and the
+  // faceted shards sit wholly inside their own cell, so the visible gaps are real gaps.
   if(S&&S.glass){
+    const gl=(gx,gy)=>gx>=0&&gy>=0&&gx<TGX&&gy<TGY&&S.glass[gy*TGX+gx];
     for(let gy=0;gy<TGY;gy++)for(let gx=0;gx<TGX;gx++){
-      if(!S.glass[gy*TGX+gx])continue;
+      if(!gl(gx,gy))continue;
+      const x=gx*TCELL,y=gy*TCELL,g=x2.createLinearGradient(x,y,x+TCELL,y+TCELL);
+      g.addColorStop(0,'#40206b');g.addColorStop(1,'#2a1249');
+      x2.fillStyle=g;x2.fillRect(x-0.5,y-0.5,TCELL+1,TCELL+1);
+    }
+    for(let gy=0;gy<TGY;gy++)for(let gx=0;gx<TGX;gx++){
+      if(!gl(gx,gy))continue;
       const x=gx*TCELL,y=gy*TCELL;
-      for(let k=0;k<3;k++){
-        const px=x+rnd(8,TCELL-8),py=y+rnd(8,TCELL-8),R=rnd(15,30),pts=[];
-        for(let i=0;i<6;i++){const a=i*Math.PI/3+rnd(-0.3,0.3),rr=R*rnd(0.72,1.1);pts.push([px+Math.cos(a)*rr,py+Math.sin(a)*rr])}
-        x2.fillStyle=`hsl(${266+rnd(0,38)},${58+rnd(0,18)}%,${36+rnd(0,20)}%)`;x2.strokeStyle='rgba(18,0,38,0.75)';x2.lineWidth=1.6;
+      for(let k=0;k<4;k++){
+        const R=rnd(13,21),px=x+rnd(R,TCELL-R),py=y+rnd(R,TCELL-R),pts=[];
+        for(let i=0;i<6;i++){const a=i*Math.PI/3+rnd(-0.25,0.25),rr=R*rnd(0.78,1.0);pts.push([px+Math.cos(a)*rr,py+Math.sin(a)*rr])}
+        x2.fillStyle=`hsl(${266+rnd(0,38)},${58+rnd(0,18)}%,${34+rnd(0,22)}%)`;x2.strokeStyle='rgba(18,0,38,0.7)';x2.lineWidth=1.4;
         x2.beginPath();pts.forEach((q,i)=>i?x2.lineTo(q[0],q[1]):x2.moveTo(q[0],q[1]));x2.closePath();x2.fill();x2.stroke();
         const f=Math.floor(rnd(0,6));
         x2.fillStyle='rgba(238,220,255,0.30)';x2.beginPath();x2.moveTo(px,py);x2.lineTo(pts[f][0],pts[f][1]);x2.lineTo(pts[(f+1)%6][0],pts[(f+1)%6][1]);x2.closePath();x2.fill();
         x2.fillStyle='rgba(20,0,40,0.28)';x2.beginPath();x2.moveTo(px,py);x2.lineTo(pts[(f+3)%6][0],pts[(f+3)%6][1]);x2.lineTo(pts[(f+4)%6][0],pts[(f+4)%6][1]);x2.closePath();x2.fill();
-        x2.strokeStyle='rgba(255,245,255,0.55)';x2.lineWidth=1.2;x2.beginPath();x2.moveTo(pts[f][0],pts[f][1]);x2.lineTo(px,py);x2.stroke();
+        x2.strokeStyle='rgba(255,245,255,0.5)';x2.lineWidth=1.1;x2.beginPath();x2.moveTo(pts[f][0],pts[f][1]);x2.lineTo(px,py);x2.stroke();
       }
+      // the rim: a bright edge on each side that faces open ground, so the outline of the block is clear
+      x2.strokeStyle='rgba(214,170,255,0.75)';x2.lineWidth=2.5;x2.beginPath();
+      if(!gl(gx,gy-1)){x2.moveTo(x,y+1);x2.lineTo(x+TCELL,y+1)}
+      if(!gl(gx,gy+1)){x2.moveTo(x,y+TCELL-1);x2.lineTo(x+TCELL,y+TCELL-1)}
+      if(!gl(gx-1,gy)){x2.moveTo(x+1,y);x2.lineTo(x+1,y+TCELL)}
+      if(!gl(gx+1,gy)){x2.moveTo(x+TCELL-1,y);x2.lineTo(x+TCELL-1,y+TCELL)}
+      x2.stroke();
     }
   }
   // v4: a stop is one zone — tint the whole map by it instead of in rings
@@ -4790,6 +4806,7 @@ function rightClick(w){
   // v4: ordering units off the edge of the map sends them to the nearest point on it — so once the way
   // is open you can just send everyone off to the right to move on to the next zone
   if(w.x<0||w.x>W||w.y<0||w.y>H)w={x:Math.max(40,Math.min(W-40,w.x)),y:Math.max(40,Math.min(H-40,w.y))};
+  if(terrainAt(w.x,w.y)===2)w=nearestPlain(w.x,w.y); // ordered into solid crystal: go to the nearest open spot beside it
   if(probeMode){setProbeMode(false);return}
   if(pingMode){setPingMode(false);return}
   if(buildMode){setBuild(null);return}
