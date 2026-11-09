@@ -462,7 +462,7 @@ body.inMenu :is(#game,#fogGrain,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMet
   <b>Touch:</b> tap to select · tap empty ground/an enemy/a resource to move/attack/harvest · drag to pan · hold still then drag to box-select · pinch to zoom · double-tap to select all of a kind<br>
   <b>Fabricators:</b> Turrets and Relays hold a free stock; once it's empty each use costs Dat (shown on the button). Unit buttons (Squad, Brawler, Grenadier, Rocketeer, Mech) show how many you can field against how many you have, and the price of the next one — just click to deploy. <kbd>Q</kbd> launch a turret · <kbd>Ctrl</kbd>+<kbd>1</kbd>–<kbd>9</kbd> save the selected units as a control group, <kbd>1</kbd>–<kbd>9</kbd> select it (twice to look at it) · <kbd>R</kbd> launch a relay · <kbd>G</kbd> power up a derelict rig ·  <b>Nests</b>: every enemy patrol comes from one, and the nests near a vein send its drilling waves — destroy them (they fight back) for <b>Dat Crystal</b>. <b>Mega nests</b> glow crimson through the fog: hive veins ringed by brood mounds that pour out its waves — break the mounds, then drain the hive for Hive-tier rewards and salvage. When the contract vein stirs, great mounds rise around it too. <b>Dat Crystal</b>: drive the Bastion or a unit over the Dat a nest drops (or an enemy's shard) to scoop it up — your <b>repair drones</b> fly out on their own and spend it patching up Stabilizers, turrets, relays and the Bastion · <kbd>E</kbd> fire a Stabilizer from the Bastion (3 free, then Dat each; aim at a vein's drifting hotspot and lead it — a hit pins it, buys the vein 15s before it collapses, widens the strike bands and steadies the needle; with all 3 pinned, drag the weight on the steering pad to push the needle — the wider their triangle, the further it goes, but the one you lean on draws the enemy) — turrets and relays land anywhere inside the Bastion's ring (or a relay's)<br>
   <b>Tether:</b> wireless works freely on the Rim; past it, units need a live cable back to the Bastion or a Relay, or they go dark — chain Relays to push your reach further out. A dark unit still takes orders, but its Sanity drains; reconnect in time to recover it, or it defects into a hostile Corrupted enemy<br>
-  <kbd>T</kbd> recon probe: click a direction and it flies straight out on its fiber line, lifting the fog along a narrow strip for 20s and permanently finding veins it passes (3 charges, one back every 20s) · <kbd>V</kbd> follow Bastion (escorts it as it moves, until given another order) · right-drag with units selected: line them up along the drag, facing square to it (drag longer to spread them wider) · <kbd>B</kbd> wall: click and drag to lay a line of wall (drag from the end of another to join them) · right-click a wall with units selected to man it (they line up behind it and take 25% less damage) · <kbd>X</kbd> hold position (held units side by side fire up to 30% faster) · <kbd>Esc</kbd> cancel, or pause the whole game if nothing's open · <kbd>`</kbd> reveal map (debug)
+  <kbd>T</kbd> recon probe: click a direction and it flies straight out on its fiber line, lifting the fog along a narrow strip for 20s and permanently finding veins it passes (3 charges, one back every 20s) · <kbd>V</kbd> follow Bastion (escorts it as it moves, until given another order) · right-drag with units selected: line them up along the drag, facing square to it (drag longer to spread them wider) · <kbd>B</kbd> wall: click and drag to lay a line of wall (drag from the end of another to join them) · right-click a wall with units selected to man it (one rank behind it, as many as fit; they take 25% less damage) · <kbd>X</kbd> hold position (held units side by side fire up to 30% faster) · <kbd>Esc</kbd> cancel, or pause the whole game if nothing's open · <kbd>`</kbd> reveal map (debug)
 </div>
 
 <!-- Guided tutorial: one instruction at a time, advancing on its own as the player does each thing. -->
@@ -787,9 +787,9 @@ const WALL_HP=220;
 // A new line's ends snap to an existing line's end within WALL_SNAP. Only enemies are stopped by
 // walls; your own units pass through them.
 // Man the walls: right-click a wall with units selected and they line up along it on the Bastion's
-// side, MAN_OFFSET behind it, facing out (Brawlers at the wall, Squads behind). Once in place, a unit
+// side in a single rank, MAN_OFFSET behind it, facing out, up to manCap(wall) of them. Once in place, a unit
 // manning a wall that's still standing takes MAN_DMG_RED less damage.
-const MAN_OFFSET=14, MAN_DMG_RED=0.25, MAN_PICK_R=16; // (close enough that a Brawler at the wall reaches what's chewing on it)
+const MAN_OFFSET=14, MAN_DMG_RED=0.25, MAN_PICK_R=16, MAN_GAP=22, MAN_END_PAD=24; // one rank only: a wall holds as many as fit MAN_GAP apart, keeping MAN_END_PAD clear at each end // (close enough that a Brawler at the wall reaches what's chewing on it)
 const WALL_SLAT=18, WALL_THICK=8, WALL_SLAT_HP=160, WALL_MIN_LEN=30, WALL_MAX_LEN=420, WALL_SNAP=22, WALL_DAT_BASE=4, WALL_DAT_PER_SLAT=2, WALL_RAISE_STEP=0.07, WALL_RAISE_T=0.25;
 const COST={wall:5,turret:75,relay:15,depot:150,stabilizer:20,harvester:75,troop:30,builder:20,grenadier:45,artillery:140,mech:90,rocket:70,brawler:25};
 // v2 fabricators: nothing is bought with Dat any more. Each kind of thing the Bastion can make has
@@ -1024,7 +1024,7 @@ const VEIN_DAT_PER_RICH=3;
 // no progress, no Dat burn, and no wave/saboteur clocks running, same as being paused. Throttle
 // is still locked in up front; it just doesn't start spending/spawning until prep finishes.
 const PREP_TIME=60;
-const BASE_SPAWN_INTERVAL={rim:15,dense:12,core:7}; // v4: Rim/Dense waves come much sooner
+const BASE_SPAWN_INTERVAL={rim:21,dense:17,core:10}; // v4: Rim/Dense waves come much sooner (stretched to leave room for the longer wave warning)
 const AMBIENT_INTERVAL={rim:45,dense:22,core:7};
 // Off-zone mining pressure: parking harvesters on an open Dat Crystal cluster instead of locking
 // the Bastion down on a vein skips drilling's wave/saboteur spawns entirely — nothing stops the
@@ -1051,7 +1051,7 @@ const WAVE_SPAWN_DIST=820,WAVE_BASE_N={rim:8,dense:12,core:22};
 const HORDE_MULT={rim:4,dense:5,core:5}, HORDE_CAP=320, HORDE_BIG_EVERY=4, HORDE_BIG_MULT=2.2, HORDE_HP=8, HORDE_SHARD_P=0.06, HORDE_DMG=1, HORDE_STOMP_DPS=14;
 // (a horde swarmer pressed up against the Bastion is trampled by its legs at HORDE_STOMP_DPS — each one
 // gets a bite or two in before it's crushed, so it's the flow of them that wears the Bastion down)
-const WAVE_WARN_T=6, WAVE_WARN_BIG_T=10;
+const WAVE_WARN_T=11, WAVE_WARN_BIG_T=16;
 // v2: the vein's tier sets the threat on top of the zone. It follows the drill meter's live yield
 // (the tier the needle has mostly sat in over the last few seconds), so holding a rich band draws
 // a bigger, faster swarm, and easing down a tier eases off. n = wave size, rate = how much sooner
@@ -4758,7 +4758,7 @@ function renderDrillCards(v){
 // the moment it's set. The breathing room moves to the first wave instead — it's sent at lock-on
 // and takes about FIRST_WAVE_DELAY plus its walk in (~20s in all) to arrive. Ripeness freezes the
 // moment the Bastion locks on; the strike strip is built from it.
-const FIRST_WAVE_DELAY=11;
+const FIRST_WAVE_DELAY=17;
 function tryLockdown(){
   if(S.over||S.rewardChoice||S.paused)return;
   if(S.base.locked){if(strikeReady())doStrike();return}
@@ -5048,15 +5048,27 @@ function wallLineAt(w){
   (S.wallLines||[]).forEach(L=>{if(L.raiseT0==null)return;L.slats.forEach(sl=>{if(sl.dead)return;const d=dist(sl,w);if(d<bd){bd=d;best=L}})});
   return best;
 }
-// The selected units line up along the wall on the Bastion's side, facing out over it.
+// how many units a wall holds: one rank, MAN_GAP apart, clear of MAN_END_PAD at each end
+function manCap(L){const len=Math.hypot(L.x1-L.x0,L.y1-L.y0)-2*MAN_END_PAD;return len<0?1:Math.floor(len/MAN_GAP)+1}
+function manners(L){return S.troops.filter(t=>t.manning===L)}
+// The selected units join the wall's single rank on the Bastion's side, facing out over it. Those
+// already on it keep their place in the line; if it's full, the rest stay where they are.
 function manWall(L,units){
   const mx=(L.x0+L.x1)/2,my=(L.y0+L.y1)/2;let nx=-L.uy,ny=L.ux;
   if((S.base.x-mx)*nx+(S.base.y-my)*ny<0){nx=-nx;ny=-ny} // n: toward the Bastion's side
-  const ox=-nx,oy=-ny,ux=-oy,uy=ox; // face out; formationSlots faces (uy,-ux) of the drag direction
-  const len=Math.hypot(L.x1-L.x0,L.y1-L.y0),bx=mx+nx*MAN_OFFSET,by=my+ny*MAN_OFFSET,h=Math.max(0,len/2-6);
-  units.forEach(t=>{t.following=false;t.guard=null;t.hold=false;t.pace=null});
-  orderFormation({x0:bx-ux*h,y0:by-uy*h,x1:bx+ux*h,y1:by+uy*h},L);
-  msg(`${units.length===1?'1 unit is':units.length+' units are'} manning the wall — they take ${Math.round(MAN_DMG_RED*100)}% less damage behind it.`);
+  const face=Math.atan2(-ny,-nx),cap=manCap(L);
+  const keep=manners(L).filter(t=>!units.includes(t)),room=Math.max(0,cap-keep.length);
+  const mid={x:mx,y:my},join=units.slice().sort((a,b)=>dist(a,mid)-dist(b,mid)).slice(0,room);
+  const left=units.length-join.length;
+  if(!join.length){msg(`That wall is fully manned (${keep.length}/${cap}).`);return}
+  const all=keep.concat(join),len=Math.hypot(L.x1-L.x0,L.y1-L.y0),span=Math.max(0,len-2*MAN_END_PAD),n=all.length;
+  // spread the rank evenly over the padded stretch, units taking the slots in the order they stand along it
+  const ux=L.ux,uy=L.uy,ord=all.slice().sort((a,b)=>(a.x*ux+a.y*uy)-(b.x*ux+b.y*uy));
+  ord.forEach((t,k)=>{const o=n>1?-span/2+span*k/(n-1):0;
+    t.following=false;t.guard=null;t.hold=false;t.pace=null;t.target=null;t.state='move';
+    t.dest={x:mx+ux*o+nx*MAN_OFFSET,y:my+uy*o+ny*MAN_OFFSET};t.formAng=face;t.manning=L;t.wall=t.kind==='brawler';t.wallAng=face});
+  sfx.click();
+  msg(`${join.length===1?'1 unit':join.length+' units'} manning the wall (${n}/${cap}) — ${Math.round(MAN_DMG_RED*100)}% less damage behind it.${left?` ${left} didn't fit.`:''}`);
 }
 // damage an enemy deals to one of your units: less if it's manning a standing wall
 function allyHit(t,d){return t.manning&&!t.dest&&S.wallLines&&S.wallLines.includes(t.manning)?d*(1-MAN_DMG_RED):d}
@@ -5065,7 +5077,7 @@ function drawManHover(){
   const L=wallLineAt({x:mouse.wx,y:mouse.wy});if(!L)return;
   ctx.save();ctx.strokeStyle=C.accent;ctx.globalAlpha=0.55+0.25*Math.sin(S.t*6);ctx.lineWidth=WALL_THICK+6;ctx.lineCap='round';
   ctx.beginPath();ctx.moveTo(L.x0,L.y0);ctx.lineTo(L.x1,L.y1);ctx.stroke();
-  const f=12/cam.z;ctx.globalAlpha=1;ctx.font=`700 ${f}px ${css('--mono')}`;ctx.fillStyle=C.accent;ctx.textAlign='left';ctx.fillText('Man the wall',mouse.wx+14/cam.z,mouse.wy-12/cam.z);
+  const f=12/cam.z;ctx.globalAlpha=1;ctx.font=`700 ${f}px ${css('--mono')}`;ctx.fillStyle=C.accent;ctx.textAlign='left';const nm=manners(L).length,cap=manCap(L);ctx.fillStyle=nm>=cap?C.enemy:C.accent;ctx.fillText(`Man the wall  ${nm}/${cap}`,mouse.wx+14/cam.z,mouse.wy-12/cam.z);
   ctx.restore();
 }
 function drawFormationPreview(){
@@ -5777,7 +5789,7 @@ function update(dt){
     v.drillProg+=DRILL_RATE*S.mods.drillRateMult*dt;
     }
     v.waveT-=dt;
-    if(!v.warnSent&&v.waveT<=Math.min(nextWaveBig(v)?WAVE_WARN_BIG_T:WAVE_WARN_T,veinWaveInterval(v)*0.7)){v.warnSent=true;startWaveWarn(v,v.waveT)}
+    if(!v.warnSent&&v.waveT<=Math.min(nextWaveBig(v)?WAVE_WARN_BIG_T:WAVE_WARN_T,veinWaveInterval(v)*0.8)){v.warnSent=true;startWaveWarn(v,v.waveT)}
     if(v.waveT<=0){
       spawnVeinWave(v);
       v.waveT=veinWaveInterval(v);
