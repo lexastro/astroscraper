@@ -453,7 +453,7 @@ body.inMenu :is(#game,#fogGrain,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMet
 
 <div class="help" id="help" hidden>
   <button id="helpClose" aria-label="Close">×</button>
-  <b>The run:</b> six stops, each one map in a single zone and each deeper and tougher than the last — Rim, Rim, Dense Field, Dense Field, Core, and the Core's heart where the contract vein waits. A barrier (rift on the Rim, a crystal wall deeper in) cuts every map: drain the <b>breach vein</b> in front of it to break through, then walk the Bastion off the eastern edge. Everything you have carries on to the next stop.<br>
+  <b>The run:</b> six stops, each one map in a single zone and each deeper and tougher than the last — Rim, Rim, Dense Field, Dense Field, Core, and the Core's heart where the contract vein waits. A barrier (rift on the Rim, a crystal wall deeper in) cuts every map: drain the <b>breach vein</b> in front of it to break through, then walk the Bastion off the far edge — which side that is changes from map to map, and you arrive on the opposite one. Everything you have carries on to the next stop.<br>
 <b>Healing:</b> units inside the Bastion's dashed ring slowly regain health (Relays don't heal anyone). <b>Unit limits:</b> up to 5 Grenadiers, 4 Rocketeers (rockets that hit nests and Quakers 4× as hard) and 3 Mechs at once (the button shows how many you have). <b>Stock &amp; squads:</b> nothing refills on its own any more — every fabricator, Stabilizer and Probe has a free stock, and once it's empty each use costs Dat (the price shows on the button). You have 6 Squad slots (3 filled for free at the start — the button shows how many you have against the limit) and 8 Brawler slots (4 free to start); each new Squad or Brawler costs Dat, and right-clicking any build button buys another charge of it (or switch <b>Auto-buy</b> on to buy automatically when a stock runs out). Salvage from Large nests and Mega nests can raise the limit. <b>Wrecks</b> (derelict scrapers) lie hidden on every map, some beyond the barrier — park the Bastion on one for 8s (or send units to stand on it — slower) to salvage it (it draws an ambush): Dat, refilled stocks, drones, a barracks module (+1 Squad limit) or a new fabricator for the run. <b>Quakers</b> — big stone blocks — lumber in while you drill, keep their distance and slam the ground to jolt the drill needle and shake your Stabilizers: send units out to kill them.<br>
 <b>Goal:</b> the ground is cracked all over: <b>follow the pulses of energy</b> running through the cracks back to their source to find a vein, then park the Bastion on its glowing centre and press <kbd>F</kbd> to lock on. Veins <b>emerge, ripen</b> a tier at a time, then go unstable and <b>collapse</b> — and new ones emerge elsewhere. Glowing <b>stray pockets</b> give a bearing toward the nearest vein when a unit reaches one; two bearings from different angles triangulate it. Locking on starts the <b>strike</b> at once: press <kbd>Space</kbd> to stop the needle on a good band of the strip (the thin sliver is a tier above the vein; red ruptures it) — the meter zooms in on where you hit and the drill starts; the first wave arrives about 20s later. While it drills, the needle drifts; Stabilizers hold it steady, and the tier you're paid is where it spends most of its time. If it drifts into the red, the vein ruptures and damages the Bastion. Drain veins for rewards — after 3, the contract vein stirs: it gives off no pulses, so triangulate it with bearings from stray pockets, then drain it to win.<br>
   <b>Controls:</b> drag to select · right-click to move/attack · right-click a friendly unit or building with combat units selected to <b>guard</b> it (escort it, fight off anything that comes near, then fall back) · <kbd>C</kbd> select all your units · <kbd>F</kbd> lock on to a vein / strike · <kbd>H</kbd> jump the camera to the Bastion · <kbd>WASD</kbd> or middle-drag to pan, scroll to zoom<br>
@@ -606,6 +606,21 @@ const STOP_DEPTH=[0,0.1,0.45,0.55,0.9,1];          // how deep each stop counts 
 const STOP_NESTS={rim:Math.round(10*MS*1.1),dense:Math.round(11*MS*1.1),core:Math.round(10*MS*1.1)}, STOP_RICH={rim:[20,30],dense:[40,58],core:[75,95]};
 const STOP_GUARDS=[['small','medium','small'],['medium','medium','small'],['medium','large','medium'],['large','large','medium'],['large','large','large']];
 const BARRIER_X=0.64, BARRIER_HALF=150, BREACH_GAP=170, LAND_X=420, BREACH_LAND_MIN=0.45; let EXIT_X=W-200;
+// v4: which way a stop runs. Every stop is laid out as if you entered at the back and left across the far
+// side (a runs toward the exit, b runs across); EXIT_DIR (N/E/S/W) says which real edge the exit is on,
+// and ENTRY_EDGE which edge you arrive on (the opposite of the last stop's exit) — so the way on isn't
+// always east, and the landing sits where you'd have come from.
+let EXIT_DIR='E', ENTRY_EDGE='W';
+const EDGE_OPP={E:'W',W:'E',N:'S',S:'N'}, EDGE_WORD={E:'east',W:'west',N:'north',S:'south'};
+function frameXY(a,b){switch(EXIT_DIR){case 'S':return{x:W-b,y:a};case 'W':return{x:W-a,y:H-b};case 'N':return{x:b,y:H-a};default:return{x:a,y:b}}}
+function frameAB(x,y){switch(EXIT_DIR){case 'S':return{a:y,b:W-x};case 'W':return{a:W-x,b:H-y};case 'N':return{a:H-y,b:x};default:return{a:x,b:y}}}
+// where you came in, in the stop's own frame: straight behind you, or off to the left / right
+function canEntry(){const m={E:[W,H/2],W:[0,H/2],N:[W/2,0],S:[W/2,H]}[ENTRY_EDGE],c=frameAB(m[0],m[1]);return c.a<W*0.25?'back':c.b<H/2?'left':'right'}
+function pickStopDirs(){
+  ENTRY_EDGE=RUN.stop===0||!RUN.exit?['W','N','E','S'][Math.floor(Math.random()*4)]:EDGE_OPP[RUN.exit];
+  const opp=EDGE_OPP[ENTRY_EDGE], turns=['N','E','S','W'].filter(d=>d!==ENTRY_EDGE&&d!==opp), r=Math.random();
+  EXIT_DIR=r<0.5?opp:turns[r<0.75?0:1];RUN.exit=EXIT_DIR;
+}
 let RUN=null, STOP_BAND=null;
 // Epicenter layouts. `pos` places the epicenter for a given roll; `core`/`dense` are the band
 // radii. A centred epicenter gets tighter bands so a Rim ring still fits in the corners.
@@ -817,7 +832,7 @@ function rigLinked(){const r=S.rig;return !!r&&S.relays.some(x=>x.built&&x.hp>0&
 function pickRigSite(starts){
   if(STOP_BAND!=='dense'||!S.breachSite||rand()>RIG_CHANCE)return null;
   const xmax=W*BARRIER_X-BARRIER_HALF-250;
-  const pool=S.sites.filter(st=>st.band==='dense'&&!starts.some(q=>q.site===st)&&!S.hiveSites.includes(st)&&st.x<xmax&&dist(st,S.base)>1200&&Math.min(st.x,st.y,W-st.x,H-st.y)>=NEST_DENSE_EDGE);
+  const pool=S.sites.filter(st=>st.band==='dense'&&!starts.some(q=>q.site===st)&&!S.hiveSites.includes(st)&&frameAB(st.x,st.y).a<xmax&&dist(st,S.base)>1200&&Math.min(st.x,st.y,W-st.x,H-st.y)>=NEST_DENSE_EDGE);
   if(!pool.length)return null;
   const st=pool[Math.floor(rand()*pool.length)];
   S.sites.splice(S.sites.indexOf(st),1);
@@ -1962,10 +1977,13 @@ function pickSpawn(){
   // a stop: land on the west edge, somewhere along its middle
   // v4: a stop: land on the west edge, well away from the breach vein (at least BREACH_LAND_MIN of
   // the map's width) so it takes some finding — usually in the opposite half to it
-  if(STOP_BAND){const bs=S.breachSite;let best=null,bd=-1;
-    for(let i=0;i<200;i++){const x=rnd(300,650),y=rnd(H*0.15,H*0.85);if(terrainAt(x,y)!==0)continue;
-      const d=bs?dist({x,y},bs):Infinity;if(d>=BREACH_LAND_MIN*W)return{x,y};if(d>bd){bd=d;best={x,y}}}
-    return best||{x:LAND_X,y:H/2}}
+  // v4: on the edge you came in by (ENTRY_EDGE) — straight behind you, or off to one side when the exit turns
+  if(STOP_BAND){const bs=S.breachSite,side=canEntry();let best=null,bd=-1;
+    for(let i=0;i<200;i++){let a,b;
+      if(side==='back'){a=rnd(300,650);b=rnd(H*0.15,H*0.85)}else{a=rnd(W*0.08,W*0.34);b=side==='left'?rnd(300,650):H-rnd(300,650)}
+      const q=frameXY(a,b);if(terrainAt(q.x,q.y)!==0)continue;
+      const d=bs?dist(q,bs):Infinity;if(d>=BREACH_LAND_MIN*W)return q;if(d>bd){bd=d;best=q}}
+    return best||defaultLanding()}
   const live=S.veins.filter(v=>!v.contract&&veinAlive(v));
   const tryPick=targets=>{
     for(let i=0;i<SPAWN_TRIES;i++){
@@ -1985,7 +2003,7 @@ function pickSpawn(){
 }
 // The fallback spawn: the deepest-Rim corner, pulled in.
 function defaultLanding(){
-  if(STOP_BAND)return {x:LAND_X,y:H/2};
+  if(STOP_BAND){const side=canEntry();return side==='back'?frameXY(LAND_X,H/2):frameXY(W*0.2,side==='left'?LAND_X:H-LAND_X)}
   const cs=[[500,500],[W-500,500],[500,H-500],[W-500,H-500]];
   let best=cs[0];cs.forEach(c=>{if(epiDist(c[0],c[1])>epiDist(best[0],best[1]))best=c});
   return{x:best[0],y:best[1]};
@@ -2134,9 +2152,9 @@ function reset(landing){
   if(STOP_BAND){const st=stopInfo(), r=STOP_RICH[STOP_BAND];
     S.sites.forEach(t=>{t.band=STOP_BAND;t.richness=Math.round(rnd(r[0],r[1]))});
     S.contractSite.band=STOP_BAND;
-    if(st.final){S.contractSite.x=rnd(W*0.72,W-450);S.contractSite.y=rnd(H*0.25,H*0.75);S.sites=S.sites.filter(t=>dist(t,S.contractSite)>900)}
+    if(st.final){const cp=frameXY(rnd(W*0.72,W-450),rnd(H*0.25,H*0.75));S.contractSite.x=cp.x;S.contractSite.y=cp.y;S.sites=S.sites.filter(t=>dist(t,S.contractSite)>900)}
     else{const bs=S.breachSite=pickBreachSite(), bx=W*BARRIER_X, f=MAP_SIZE_BY_BAND[STOP_BAND]||1, want=S.sites.length;
-      const ok=(t,gap)=>dist(t,bs)>1100*f&&Math.abs(t.x-bx)>ZONE_R+BARRIER_HALF+200&&!S.sites.some(o=>o!==t&&dist(o,t)<gap);
+      const ok=(t,gap)=>dist(t,bs)>1100*f&&Math.abs(frameAB(t.x,t.y).a-bx)>ZONE_R+BARRIER_HALF+200&&!S.sites.some(o=>o!==t&&dist(o,t)<gap);
       S.sites=S.sites.filter(t=>ok(t,0));
       // v4: on a smaller map more sites fall foul of the breach and the wall — top them back up to
       // the same number, spaced out as well as the room allows
@@ -2186,7 +2204,7 @@ function reset(landing){
   // v4: the barrier goes down last, then each side of it is knitted together on its own
   if(S.breachSite){paintBarrier(S.breachSite);const bx=S.barrier.centre;
     const pts=[...S.sites,...S.hiveSites,S.contractSite].map(v=>({x:v.x,y:v.y}));
-    knitBarrierSides(S.breachSite,pts.filter(q=>q.x<bx-BARRIER_HALF),pts.filter(q=>q.x>bx+BARRIER_HALF))}
+    knitBarrierSides(S.breachSite,pts.filter(q=>frameAB(q.x,q.y).a<bx-BARRIER_HALF),pts.filter(q=>frameAB(q.x,q.y).a>bx+BARRIER_HALF))}
   // the ground texture rolls from its own fixed stream so it doesn't change with the landing spot
   {const landingRand=rand;rand=seededRng(mapSeed*131+17);terrainCv=buildTerrainCanvas();rand=landingRand}
   buildTerrainBlur();
@@ -2215,8 +2233,10 @@ function reset(landing){
 
   // v4: nests dug in around the breach, between it and where you land
   if(S.breachSite&&!tutorialMap){const g=STOP_GUARDS[Math.min(RUN.stop,STOP_GUARDS.length-1)],bs=S.breachSite;
+    const bc=frameAB(bs.x,bs.y); // (laid out in the stop's own frame: back toward where you land)
     g.forEach((size,i)=>{const a=Math.PI+(i-(g.length-1)/2)*0.9+rnd(-0.2,0.2), rr=rnd(450,700);
-      const m=STOP_BAND==='dense'?NEST_DENSE_EDGE:150;const q=nearestPlain(Math.max(m,Math.min(W-m,bs.x+Math.cos(a)*rr)),Math.max(m,Math.min(H-m,bs.y+Math.sin(a)*rr)));makeNest(q.x,q.y,size)})}
+      const m=STOP_BAND==='dense'?NEST_DENSE_EDGE:150;const w=frameXY(Math.max(m,Math.min(W-m,bc.a+Math.cos(a)*rr)),Math.max(m,Math.min(H-m,bc.b+Math.sin(a)*rr)));
+      const q=nearestPlain(w.x,w.y);makeNest(q.x,q.y,size)})}
   // v4: the last stop — the contract vein is awake from the start, ringed by its great mounds
   placePOIs(); // v4: wrecks (ported from v3)
   {const maze=STOP_BAND==='dense'&&S.barrier;if(maze)denseMaze();
@@ -2247,7 +2267,9 @@ function stopHpMult(){return RUN?STOP_HP[RUN.stop]:1}
 // the breach vein's site: on the near side of the barrier, anywhere along most of its length
 // (v4: it used to sit in the middle third, right in front of the landing)
 function pickBreachSite(){
-  const bx=W*BARRIER_X, x=bx-BARRIER_HALF-rnd(380,620), y=rnd(H*0.15,H*0.85);
+  // (when the exit turns off to the side the breach sits across the stop from where you land)
+  const bx=W*BARRIER_X, a=bx-BARRIER_HALF-rnd(380,620), side=canEntry();
+  const b=side==='left'?rnd(H*0.45,H*0.85):side==='right'?rnd(H*0.15,H*0.55):rnd(H*0.15,H*0.85), q=frameXY(a,b), x=q.x, y=q.y;
   const r=STOP_RICH[STOP_BAND];
   return {x,y,band:STOP_BAND,richness:Math.round(rnd(r[0],r[1])*1.3),vein:null};
 }
@@ -2255,12 +2277,14 @@ function pickBreachSite(){
 function paintBarrier(breach){
   const type=STOP_BAND==='rim'?RIFT:2, bx=W*BARRIER_X, p1=rnd(0,6), p2=rnd(0,6);
   const mask=new Uint8Array(TGX*TGY);
-  const centre=gy=>bx+Math.sin(gy*0.045+p1)*70+Math.sin(gy*0.13+p2)*30;
-  for(let gy=0;gy<TGY;gy++){
-    const c=centre(gy), half=BARRIER_HALF+Math.sin(gy*0.29+p2)*22;
-    for(let gx=0;gx<TGX;gx++){const x=gx*TCELL+TCELL/2;if(Math.abs(x-c)<=half){const id=gy*TGX+gx;terrain[id]=type;mask[id]=1}}
+  // the band runs across the stop (b) and wanders in a (toward the exit); B.y and B.centre are in that frame
+  const centre=gb=>bx+Math.sin(gb*0.045+p1)*70+Math.sin(gb*0.13+p2)*30;
+  for(let gy=0;gy<TGY;gy++)for(let gx=0;gx<TGX;gx++){
+    const c=frameAB(gx*TCELL+TCELL/2,gy*TCELL+TCELL/2), gb=Math.floor(c.b/TCELL), half=BARRIER_HALF+Math.sin(gb*0.29+p2)*22;
+    if(Math.abs(c.a-centre(gb))<=half){const id=gy*TGX+gx;terrain[id]=type;mask[id]=1}
   }
-  S.barrier={type,open:false,mask,y:breach.y,centre:centre(Math.floor(breach.y/TCELL))};
+  const bb=frameAB(breach.x,breach.y).b;
+  S.barrier={type,open:false,mask,y:bb,centre:centre(Math.floor(bb/TCELL))};
 }
 // Each side of the barrier must hang together on its own: everything west reachable from the
 // landing, everything east reachable from where the breach comes out, both on foot and for the
@@ -2269,13 +2293,13 @@ function bastionAccessFrom(src,points){
   const b={x:S.base.x,y:S.base.y};S.base.x=src.x;S.base.y=src.y;ensureBastionAccess(points);S.base.x=b.x;S.base.y=b.y;
 }
 function knitBarrierSides(breach,west,east){
-  const bx=S.barrier.centre, out={x:bx+BARRIER_HALF+160,y:breach.y}, exitPt={x:W-300,y:Math.max(300,Math.min(H-300,breach.y+rnd(-600,600)))};
+  const bx=S.barrier.centre, bb=S.barrier.y, out=frameXY(bx+BARRIER_HALF+160,bb), exitPt=frameXY(W-300,Math.max(300,Math.min(H-300,bb+rnd(-600,600))));
   // both mouths of the breach get open ground the Bastion can reach, and the stretch of the breach
   // line between them is cleared of rift and rock on each side (not the barrier itself)
-  const inn={x:bx-BARRIER_HALF-160,y:breach.y};
+  const inn=frameXY(bx-BARRIER_HALF-160,bb);
   clearDisk(out.x,out.y,120);clearDisk(exitPt.x,exitPt.y,160);clearDisk(inn.x,inn.y,120);
-  for(let x=breach.x;x<=W-200;x+=TCELL/2)for(let dy=-2;dy<=2;dy++){const gx=Math.floor(x/TCELL),gy=Math.floor(breach.y/TCELL)+dy,id=gy*TGX+gx;
-    if(gx>=0&&gy>=0&&gx<TGX&&gy<TGY&&!S.barrier.mask[id]&&(Math.abs(x-bx)<BARRIER_HALF+260))terrain[id]=0}
+  for(let a=frameAB(breach.x,breach.y).a;a<=W-200;a+=TCELL/2)for(let dy=-2;dy<=2;dy++){const q=frameXY(a,bb+dy*TCELL),gx=Math.floor(q.x/TCELL),gy=Math.floor(q.y/TCELL),id=gy*TGX+gx;
+    if(gx>=0&&gy>=0&&gx<TGX&&gy<TGY&&!S.barrier.mask[id]&&(Math.abs(a-bx)<BARRIER_HALF+260))terrain[id]=0}
   ensureConnectivity([{x:S.base.x,y:S.base.y},{x:breach.x,y:breach.y},inn,...west]);
   ensureBastionAccess([{x:breach.x,y:breach.y},inn,...west]);
   ensureConnectivity([out,exitPt,...east]);
@@ -2286,16 +2310,16 @@ function knitBarrierSides(breach,west,east){
 function openBreach(v){
   const B=S.barrier;if(!B||B.open)return;
   B.open=true;
-  const gy0=Math.floor((B.y-BREACH_GAP)/TCELL), gy1=Math.ceil((B.y+BREACH_GAP)/TCELL);
-  for(let gy=Math.max(0,gy0);gy<=Math.min(TGY-1,gy1);gy++)for(let gx=0;gx<TGX;gx++){const id=gy*TGX+gx;if(B.mask[id]){terrain[id]=0;B.mask[id]=0}}
+  for(let gy=0;gy<TGY;gy++)for(let gx=0;gx<TGX;gx++){const id=gy*TGX+gx;
+    if(B.mask[id]&&Math.abs(frameAB(gx*TCELL+TCELL/2,gy*TCELL+TCELL/2).b-B.y)<=BREACH_GAP+TCELL/2){terrain[id]=0;B.mask[id]=0}}
   {const keep=rand;rand=seededRng(mapSeed*131+17);terrainCv=buildTerrainCanvas();rand=keep}
   buildTerrainBlur();
   [S.base,...S.troops,...S.enemies].forEach(u=>{u._pg=null;u._path=null;u._blocked=false});
   const cx=B.centre, cols=B.type===RIFT?['#b28cff','#8fe3ff']:['#9fe8ff','#e8fbff'];
-  for(let i=0;i<14;i++){const y=B.y+rnd(-BREACH_GAP,BREACH_GAP);burst(cx+rnd(-BARRIER_HALF,BARRIER_HALF),y,cols[i%2],18,220,0.9)}
+  for(let i=0;i<14;i++){const q=frameXY(cx+rnd(-BARRIER_HALF,BARRIER_HALF),B.y+rnd(-BREACH_GAP,BREACH_GAP));burst(q.x,q.y,cols[i%2],18,220,0.9)}
   shakeScreen(9,0.7);sfx.win();
-  msg(B.type===RIFT?'The breach vein poured into the rift and hardened a crossing — the way east is open. Walk the Bastion off the eastern edge to move on.':
-    'The breach vein shattered the crystal wall — the way east is open. Walk the Bastion off the eastern edge to move on.');
+  msg(B.type===RIFT?`The breach vein poured into the rift and hardened a crossing — the way ${EDGE_WORD[EXIT_DIR]} is open. Walk the Bastion off the ${EDGE_WORD[EXIT_DIR]} edge to move on.`:
+    `The breach vein shattered the crystal wall — the way ${EDGE_WORD[EXIT_DIR]} is open. Walk the Bastion off the ${EDGE_WORD[EXIT_DIR]} edge to move on.`);
 }
 // what carries from one stop to the next
 function captureCarry(){
@@ -2315,6 +2339,7 @@ function applyCarry(c){
 function pressureNote(){return RUN&&RUN.pressure&&RUN.pressure.ids.length?` Pressure on: ${RUN.pressure.ids.map(id=>PRESSURE.find(p=>p.id===id).name).join(', ')} (+${Math.round(RUN.pressure.bonus*100)}% rewards).`:''}
 function buildStop(carry){
   STOP_BAND=RUN_STOPS[RUN.stop].band;
+  pickStopDirs();
   mapSeed=newMapSeed();
   reset();
   const spawn=pickSpawn();
@@ -2323,7 +2348,7 @@ function buildStop(carry){
   const st=stopInfo();
   if(RUN.stop===0&&pressureNote())setTimeout(()=>msg(pressureNote().trim()),50);
   msg(st.final?`Stop ${RUN.stop+1} of ${RUN_STOPS.length} — the heart of the Core. The contract vein is here and already stirring: take bearings from stray energy to triangulate it, then drain it.`:
-    `Stop ${RUN.stop+1} of ${RUN_STOPS.length} — ${stopName(STOP_BAND)}. A ${S.barrier&&S.barrier.type===RIFT?'band of rift':'wall of crystal'} cuts the way east: find the breach vein in front of it and drain it to break through.`);
+    `Stop ${RUN.stop+1} of ${RUN_STOPS.length} — ${stopName(STOP_BAND)}. You've landed on the ${EDGE_WORD[ENTRY_EDGE]} edge. A ${S.barrier&&S.barrier.type===RIFT?'band of rift':'wall of crystal'} cuts the way ${EDGE_WORD[EXIT_DIR]}: find the breach vein in front of it and drain it to break through.`);
 }
 // walked off the east edge with the way open
 function finishStop(){
@@ -2331,7 +2356,7 @@ function finishStop(){
   RUN.carry=captureCarry();S.paused=true;
   const next=RUN_STOPS[RUN.stop+1];
   document.getElementById('stopTitle')._tc=`Stop ${RUN.stop+1} cleared`;
-  document.getElementById('stopText')._tc=`Next: stop ${RUN.stop+2} of ${RUN_STOPS.length} — ${stopName(next.band)}${next.final?', where the contract vein waits':''}. Everything you have comes with you; enemies there are tougher.`;
+  document.getElementById('stopText')._tc=`Next: stop ${RUN.stop+2} of ${RUN_STOPS.length} — ${stopName(next.band)}${next.final?', where the contract vein waits':''}. You'll arrive on its ${EDGE_WORD[EDGE_OPP[EXIT_DIR]]} edge. Everything you have comes with you; enemies there are tougher.`;
   document.getElementById('stopOverlay')._hd=false;
 }
 function advanceStop(){
@@ -2351,11 +2376,13 @@ document.body.appendChild(dbgSkip);
 function drawExit(){
   if(!S.barrier||!S.barrier.open)return;
   const t=S.t, x0=EXIT_X;
+  ctx.save();
+  const M={E:[1,0,0,1,0,0],S:[0,1,-1,0,W,0],W:[-1,0,0,-1,W,H],N:[0,-1,1,0,0,H]}[EXIT_DIR];ctx.transform(M[0],M[1],M[2],M[3],M[4],M[5]);
   const g=ctx.createLinearGradient(x0-120,0,W,0);g.addColorStop(0,'rgba(242,182,60,0)');g.addColorStop(1,'rgba(242,182,60,0.22)');
   ctx.fillStyle=g;ctx.fillRect(x0-120,0,W-x0+120,H);
   ctx.strokeStyle=C.accent;ctx.lineWidth=4;ctx.globalAlpha=0.55;
   for(let y=(t*60)%160;y<H;y+=160){const xx=x0+40+((t*40)%60);ctx.beginPath();ctx.moveTo(xx,y-26);ctx.lineTo(xx+26,y);ctx.lineTo(xx,y+26);ctx.stroke()}
-  ctx.globalAlpha=1;
+  ctx.globalAlpha=1;ctx.restore();
 }
 // ---------- starting a run ----------
 // Play rolls a fresh map and drops the Bastion at a semi-random Rim spot (pickSpawn) — no landing
@@ -3532,11 +3559,11 @@ function denseMaze(){
     for(let id=0;id<N;id++){if(B.mask[id])terrain[id]=2;else if(terrain[id]===0&&!net[id]){net[id]=1;costBase[id]=Math.min(costBase[id],0.3)}}
     return true;
   };
-  const bx=B.centre, out=B.out, exitPt=B.exitPt, inn={x:bx-BARRIER_HALF-160,y:B.y};
+  const bx=B.centre, out=B.out, exitPt=B.exitPt, inn=frameXY(bx-BARRIER_HALF-160,B.y), can=q=>frameAB(q.x,q.y).a;
   const pts=[...S.sites,...S.hiveSites,S.contractSite].filter(v=>v&&dist(v,S.base)>1&&v.x>60&&v.x<W-60).map(v=>({x:v.x,y:v.y,r:MAZE_ROOM}));
   const sides=[
-    {start:{x:S.base.x,y:S.base.y,r:240},pts:[...pts.filter(q=>q.x<bx-BARRIER_HALF),{x:S.breachSite.x,y:S.breachSite.y,r:MAZE_ROOM},{...inn,r:120}]},
-    {start:{...out,r:120},pts:[...pts.filter(q=>q.x>bx+BARRIER_HALF),{...exitPt,r:160}]}];
+    {start:{x:S.base.x,y:S.base.y,r:240},pts:[...pts.filter(q=>can(q)<bx-BARRIER_HALF),{x:S.breachSite.x,y:S.breachSite.y,r:MAZE_ROOM},{...inn,r:120}]},
+    {start:{...out,r:120},pts:[...pts.filter(q=>can(q)>bx+BARRIER_HALF),{...exitPt,r:160}]}];
   sides.forEach(sd=>{
     room(sd.start,sd.start.r);const joined=[sd.start],left=[...sd.pts];
     while(left.length){
@@ -3559,6 +3586,10 @@ function denseMaze(){
   });
   // the breach line itself: from the breach vein to the wall's mouths, clear on both sides
   carveLine(S.breachSite.x,S.breachSite.y,inn.x,inn.y,MAZE_W);
+  // each mouth runs right up to the wall (a touch into it — the wall is put back just below), so the gap
+  // the breach opens always joins the open ground on both sides
+  {const m1=frameXY(bx-BARRIER_HALF+40,B.y),m2=frameXY(bx+BARRIER_HALF-40,B.y);carveLine(inn.x,inn.y,m1.x,m1.y,MAZE_W);carveLine(out.x,out.y,m2.x,m2.y,MAZE_W);
+   const ex=frameAB(exitPt.x,exitPt.y),m3=frameXY(W-60,ex.b);carveLine(exitPt.x,exitPt.y,m3.x,m3.y,MAZE_W)} // and the way out runs right to the edge
   for(let id=0;id<N;id++)if(B.mask[id])terrain[id]=2;
   clearDisk(out.x,out.y,120);clearDisk(inn.x,inn.y,120);
   // a small patch of open ground under each nest and wreck — an island in the rift
@@ -3668,8 +3699,8 @@ function placeGlass(){
   const ok=id=>{
     const gx=id%TGX,gy=(id-gx)/TGX;
     if(gx<2||gy<2||gx>=TGX-2||gy>=TGY-2||terrain[id]!==RIFT||g[id])return false;
-    if(B&&(B.mask[id]||Math.abs(cx(id)-bx)<BARRIER_HALF+240))return false;
-    if(EXIT_X&&cx(id)>EXIT_X-260)return false;
+    if(B&&(B.mask[id]||Math.abs(frameAB(cx(id),cy(id)).a-bx)<BARRIER_HALF+240))return false;
+    if(frameAB(cx(id),cy(id)).a>EXIT_X-260)return false;
     for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const t=terrain[(gy+dy)*TGX+gx+dx];if(t===0||t===1)return false}
     const x=cx(id),y=cy(id);
     for(const o of pts){const d=GLASS_CLEAR+(o===S.base?200:0);if(Math.abs(o.x-x)<d&&Math.abs(o.y-y)<d&&Math.hypot(o.x-x,o.y-y)<d)return false}
@@ -5491,7 +5522,7 @@ function update(dt){
   // v4: walking off the east edge once the barrier is open moves on to the next stop
   if(S.breachVein&&!S.breachVein.introduced&&S.breachVein.seen){S.breachVein.introduced=true;
     msg('The breach vein — drain it to break through the barrier. Its nests will answer the drill.')}
-  if(RUN&&S.barrier&&S.barrier.open&&B.x>EXIT_X&&!S.over){finishStop();return}
+  if(RUN&&S.barrier&&S.barrier.open&&frameAB(B.x,B.y).a>W-250&&!S.over){finishStop();return}
   if(!S.enemies.some(e=>dist(e,B)<400))B.hp=Math.min(B.maxHp,B.hp+2*dt);
   // bastion gun — only while mobile by default; it goes quiet once locked down and leans on built
   // defenses instead, unless the Targeting Computer upgrade keeps it live through drilling too
@@ -6920,7 +6951,7 @@ function hud(){
     const cv=S.veins.find(v=>v.contract);
     if(RUN&&!stopInfo().final){
       $('hObjK')._tc=`Stop ${RUN.stop+1}/${RUN_STOPS.length} · ${STOP_BAND==='rim'?'Rim':STOP_BAND==='dense'?'Dense':'Core'}`;
-      $('hObj')._tc=ready?'ready to drill — press F':S.barrier&&S.barrier.open?'way open — head east':S.breachVein&&S.breachVein.seen?'drain the breach vein':'find the breach vein';
+      $('hObj')._tc=ready?'ready to drill — press F':S.barrier&&S.barrier.open?`way open — head ${EDGE_WORD[EXIT_DIR]}`:S.breachVein&&S.breachVein.seen?'drain the breach vein':'find the breach vein';
       $('hObjBar')._sw=(100*RUN.stop/(RUN_STOPS.length-1))+'%';
     }else{
     $('hObjK')._tc=S.contractAwake?(RUN?`Stop ${RUN.stop+1}/${RUN_STOPS.length} · Contract`:'Contract vein'):'Veins';
