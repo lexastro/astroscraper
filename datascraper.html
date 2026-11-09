@@ -1041,14 +1041,14 @@ const WAVE_FRONT_HALF=260; // half-width of the line a wave spawns along, across
 // WAVE_SPAWN_DIST, so it arrives as drilling starts.
 const FIRST_WAVE_LEAD=9;
 const STAB_HUNTER_FRAC=0.35; // share of each drilling wave sent after the Stabilizers
-const WAVE_SPAWN_DIST=820,WAVE_BASE_N={rim:8,dense:12,core:22};
+const WAVE_SPAWN_DIST=820,WAVE_BASE_N={rim:11,dense:17,core:31}; // ~1.4x, in step with the longer gaps between waves
 // v4 horde: every drilling wave brings a flood of swarmlings with it — HORDE_MULT times the wave's
 // own size, each one trivial on its own (a shot or two) but dangerous in a mass. They move as a
 // crowd on one shared flow field toward the Bastion instead of each planning its own path, so they
 // pour around rock, clog at gaps and pile up against walls. Every HORDE_BIG_EVERY-th wave is a
 // great wave. Each wave is announced WAVE_WARN_T ahead: a rumble, and red markers at the screen
 // edge on the side it's coming from.
-const HORDE_MULT={rim:4,dense:5,core:5}, HORDE_CAP=320, HORDE_BIG_EVERY=4, HORDE_BIG_MULT=2.2, HORDE_HP=8, HORDE_SHARD_P=0.06, HORDE_DMG=1, HORDE_STOMP_DPS=14;
+const HORDE_MULT={rim:4,dense:5,core:5}, HORDE_CAP=420, HORDE_BIG_EVERY=4, HORDE_BIG_MULT=2.2, HORDE_HP=8, HORDE_SHARD_P=0.06, HORDE_DMG=1, HORDE_STOMP_DPS=14;
 // (a horde swarmer pressed up against the Bastion is trampled by its legs at HORDE_STOMP_DPS — each one
 // gets a bite or two in before it's crushed, so it's the flow of them that wears the Bastion down)
 const WAVE_WARN_T=11, WAVE_WARN_BIG_T=16;
