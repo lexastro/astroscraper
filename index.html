@@ -35,6 +35,9 @@ html,body{height:100%;margin:0;overflow:hidden}
 body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:13px;position:relative;
   padding-left:max(0px,env(safe-area-inset-left,0px));padding-right:max(0px,env(safe-area-inset-right,0px))}
 canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:none}
+/* v5: the 3D view sits under the (then invisible) 2D canvas, which still takes all the input */
+canvas#game3d{position:absolute;inset:0;width:100%;height:100%;display:none;pointer-events:none}
+body.view3d canvas#game3d{display:block}body.view3d canvas#game{opacity:0}
 /* v4: the anti-banding grain is a static CSS layer over the canvas, composited by the browser for free,
    instead of a full-screen canvas pass every frame */
 #fogGrain{position:absolute;inset:0;pointer-events:none;background-repeat:repeat;opacity:.035}
@@ -378,12 +381,13 @@ body.lowGfx #fogGrain{display:none}
   .help.open{inset:6% 6%;max-height:88vh}
 }
 /* While the menus are up, the world behind them stays hidden — nothing about the next map shows. */
-body.inMenu :is(#game,#fogGrain,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMeter,.mini,.unitSelCtrl,.help,.tutPanel){visibility:hidden}
+body.inMenu :is(#game,#game3d,#fogGrain,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMeter,.mini,.unitSelCtrl,.help,.tutPanel){visibility:hidden}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}.overlay{animation:none}.bar i.hp.low{animation:none}.overlay button.rewardCard.legendary{animation:none}}
 </style>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;600&display=swap">
 
-<canvas id="game"></canvas>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"}}</script>
+<canvas id="game3d"></canvas><canvas id="game"></canvas>
 <div id="fogGrain" aria-hidden="true"></div>
 
 <div class="hud">
@@ -456,7 +460,7 @@ body.inMenu :is(#game,#fogGrain,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMet
   <b>The run:</b> six stops, each one map in a single zone and each deeper and tougher than the last — Rim, Rim, Dense Field, Dense Field, Core, and the Core's heart where the contract vein waits. A barrier (rift on the Rim, a crystal wall deeper in) cuts every map: drain the <b>breach vein</b> in front of it to break through, then walk the Bastion off the far edge — which side that is changes from map to map, and you arrive on the opposite one. Everything you have carries on to the next stop.<br>
 <b>Healing:</b> units inside the Bastion's dashed ring slowly regain health (Relays don't heal anyone). <b>Unit limits:</b> up to 5 Grenadiers, 4 Rocketeers (rockets that hit nests and Quakers 4× as hard) and 3 Mechs at once (the button shows how many you have). <b>Stock &amp; squads:</b> nothing refills on its own any more — every fabricator, Stabilizer and Probe has a free stock, and once it's empty each use costs Dat (the price shows on the button). You have 6 Squad slots (3 filled for free at the start — the button shows how many you have against the limit) and 8 Brawler slots (4 free to start); each new Squad or Brawler costs Dat, and right-clicking any build button buys another charge of it (or switch <b>Auto-buy</b> on to buy automatically when a stock runs out). Salvage from Large nests and Mega nests can raise the limit. <b>Wrecks</b> (derelict scrapers) lie hidden on every map, some beyond the barrier — park the Bastion on one for 8s (or send units to stand on it — slower) to salvage it (it draws an ambush): Dat, refilled stocks, drones, a barracks module (+1 Squad limit) or a new fabricator for the run. <b>Quakers</b> — big stone blocks — lumber in while you drill, keep their distance and slam the ground to jolt the drill needle and shake your Stabilizers: send units out to kill them.<br>
 <b>Goal:</b> the ground is cracked all over: <b>follow the pulses of energy</b> running through the cracks back to their source to find a vein, then park the Bastion on its glowing centre and press <kbd>F</kbd> to lock on. Veins <b>emerge, ripen</b> a tier at a time, then go unstable and <b>collapse</b> — and new ones emerge elsewhere. Glowing <b>stray pockets</b> give a bearing toward the nearest vein when a unit reaches one; two bearings from different angles triangulate it. Locking on starts the <b>strike</b> at once: press <kbd>Space</kbd> to stop the needle on a good band of the strip (the thin sliver is a tier above the vein; red ruptures it) — the meter zooms in on where you hit and the drill starts; the first wave arrives about 20s later. While it drills, the needle drifts; Stabilizers hold it steady, and the tier you're paid is where it spends most of its time. If it drifts into the red, the vein ruptures and damages the Bastion. Drain veins for rewards — after 3, the contract vein stirs: it gives off no pulses, so triangulate it with bearings from stray pockets, then drain it to win.<br>
-  <b>Controls:</b> drag to select · right-click to move/attack · right-click a friendly unit or building with combat units selected to <b>guard</b> it (escort it, fight off anything that comes near, then fall back) · <kbd>C</kbd> select all your units · <kbd>F</kbd> lock on to a vein / strike · <kbd>H</kbd> jump the camera to the Bastion · <kbd>WASD</kbd> or middle-drag to pan, scroll to zoom<br>
+  <b>Controls:</b> drag to select · right-click to move/attack · right-click a friendly unit or building with combat units selected to <b>guard</b> it (escort it, fight off anything that comes near, then fall back) · <kbd>C</kbd> select all your units · <kbd>F</kbd> lock on to a vein / strike · <kbd>H</kbd> jump the camera to the Bastion · <kbd>WASD</kbd> or middle-drag to pan, scroll to zoom · <kbd>M</kbd> switch between the 3D and 2D view<br>
   <b>Touch:</b> tap to select · tap empty ground/an enemy/a resource to move/attack/harvest · drag to pan · hold still then drag to box-select · pinch to zoom · double-tap to select all of a kind<br>
   <b>Fabricators:</b> Turrets and Relays hold a free stock; once it's empty each use costs Dat (shown on the button). Unit buttons (Squad, Brawler, Grenadier, Rocketeer, Mech) show how many you can field against how many you have, and the price of the next one — just click to deploy. <kbd>Q</kbd> launch a turret · <kbd>Ctrl</kbd>+<kbd>1</kbd>–<kbd>9</kbd> save the selected units as a control group, <kbd>1</kbd>–<kbd>9</kbd> select it (twice to look at it) · <kbd>R</kbd> launch a relay · <kbd>G</kbd> power up a derelict rig ·  <b>Nests</b>: every enemy patrol comes from one, and the nests near a vein send its drilling waves — destroy them (they fight back) for <b>Dat Crystal</b>. <b>Mega nests</b> glow crimson through the fog: hive veins ringed by brood mounds that pour out its waves — break the mounds, then drain the hive for Hive-tier rewards and salvage. When the contract vein stirs, great mounds rise around it too. <b>Dat Crystal</b>: drive the Bastion or a unit over the Dat a nest drops (or an enemy's shard) to scoop it up — your <b>repair drones</b> fly out on their own and spend it patching up Stabilizers, turrets, relays and the Bastion · <kbd>E</kbd> fire a Stabilizer from the Bastion (3 free, then Dat each; aim at a vein's drifting hotspot and lead it — a hit pins it, buys the vein 15s before it collapses, widens the strike bands and steadies the needle; with all 3 pinned, drag the weight on the steering pad to push the needle — the wider their triangle, the further it goes, but the one you lean on draws the enemy) — turrets and relays land anywhere inside the Bastion's ring (or a relay's)<br>
   <b>Tether:</b> wireless works freely on the Rim; past it, units need a live cable back to the Bastion or a Relay, or they go dark — chain Relays to push your reach further out. A dark unit still takes orders, but its Sanity drains; reconnect in time to recover it, or it defects into a hostile Corrupted enemy<br>
@@ -933,7 +937,7 @@ const DRONE_STUCK_T=24, DRONE_SKIP_T=30;
 // the site root); any other branch is an experimental version served at /<branch>/ (see
 // .github/workflows/pages.yml). A branch build keeps its own save and changelog, so experiments
 // never touch the main game's unlocks.
-const GAME_BRANCH='v4', SAVE_SUFFIX=GAME_BRANCH==='master'?'':'_'+GAME_BRANCH;
+const GAME_BRANCH='v5', SAVE_SUFFIX=GAME_BRANCH==='master'?'':'_'+GAME_BRANCH;
 const META_KEY='datascraper_meta_v1'+SAVE_SUFFIX;
 // v4: Auto-buy — off by default: an empty stock stays empty until you right-click its button to buy
 // a charge. On: using an empty stock buys the charge with Dat automatically. Remembered per browser.
@@ -1951,6 +1955,7 @@ function drawExplorationLight(vx0,vy0,vx1,vy1,vw,vh,shkx,shky){
 
 // ---------- state ----------
 let S, cam, mouse={x:0,y:0,wx:0,wy:0,down:false,drag:null,panning:false,touchStart:null,wallDragging:false,wallPlacedTouch:false}, keys={}, buildMode=null, lastT=0, msgT=0, terrain, terrainCv, prodMenuOpen=false;
+let V3=null; // v5: the 3D view, once three.js has loaded (see initView3D)
 // touch input state: multi-touch pinch-zoom, long-press-then-drag box select, tap-to-command, manual double-tap
 let touchPts=new Map(), pinch=null, longPressTimer=null, lastTap=null;
 // ---------- main menu / spawn ----------
@@ -4231,7 +4236,7 @@ function gDpr(){return lowGfx?Math.min(1,devicePixelRatio||1)*0.6:(devicePixelRa
 function resize(){const d=gDpr();cv.width=Math.round(cv.clientWidth*d);cv.height=Math.round(cv.clientHeight*d);document.body.classList.toggle('lowGfx',lowGfx)}
 function setLowGfx(on){lowGfx=on;try{localStorage.setItem(LOWGFX_KEY,on?'1':'0')}catch(e){}resize();msg(on?'Low graphics ON — lower resolution, no grain (F8 to turn off).':'Low graphics OFF (F8).')}
 addEventListener('resize',resize);resize();
-function toWorld(sx,sy){const r=cv.getBoundingClientRect();return{x:(sx-r.left-r.width/2)/cam.z+cam.x,y:(sy-r.top-r.height/2)/cam.z+cam.y}}
+function toWorld(sx,sy){if(V3&&V3.on)return V3.toWorld(sx,sy);const r=cv.getBoundingClientRect();return{x:(sx-r.left-r.width/2)/cam.z+cam.x,y:(sy-r.top-r.height/2)/cam.z+cam.y}}
 cv.addEventListener('contextmenu',e=>e.preventDefault());
 // squads vs other combat units (e.g. grenadiers) are distinct "select all of kind" groups, even
 // though they share one "Squads" selection button/hotkey (T) and one production category.
@@ -4392,6 +4397,7 @@ addEventListener('keydown',e=>{
   else if(e.key.toLowerCase()==='f'){if(!e.repeat)tryLockdown()}
   else if(e.key.toLowerCase()==='t'){tryProbe()}
   else if(e.key.toLowerCase()==='v'){followSelected()}
+  else if(e.key.toLowerCase()==='m'){if(V3){V3.setOn(!V3.on);msg(V3.on?'3D view (M for 2D)':'2D view (M for 3D)')}}
   else if(e.key==='`'){debugNoFog=!debugNoFog;dbgSkip.hidden=!debugNoFog;msg(debugNoFog?'Debug: fog of war disabled':'Debug: fog of war re-enabled')}
   if(e.key===' '){e.preventDefault();if(!e.repeat&&strikeReady())doStrike()}
 });
@@ -6613,20 +6619,31 @@ function drawRiftSmoke(x0,y0,x1,y1){
   }
   ctx.restore();
 }
+// v5: in the 3D view the 2D frame is drawn onto a clear canvas, framed to cover the whole patch of
+// ground the 3D camera can see, and becomes the decal over the terrain (the units it would have drawn
+// are meshes instead). cam is only borrowed for that framing and put back after.
 function draw(){
+  const D3=!!(V3&&V3.on), camReal={x:cam.x,y:cam.y,z:cam.z}, shk0=S.shake.t>0?S.shake.mag*(S.shake.t/S.shake.dur):0;
+  try{draw2D(D3)}finally{cam.x=camReal.x;cam.y=camReal.y;cam.z=camReal.z}
+  if(D3)V3.render(shk0);
+  drawMini();hud();
+}
+function draw2D(D3){
   const B=S.base,dpr=gDpr(),vw=cv.width/dpr,vh=cv.height/dpr;
-  ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle='#0b0e12';ctx.fillRect(0,0,vw,vh);
-  const shk=S.shake.t>0?S.shake.mag*(S.shake.t/S.shake.dur):0;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  if(D3){ctx.clearRect(0,0,vw,vh);const f=V3.footprint(vw,vh);cam.x=f.x;cam.y=f.y;cam.z=f.z;V3.setRect(f.x,f.y,f.z,vw,vh)}
+  else{ctx.fillStyle='#0b0e12';ctx.fillRect(0,0,vw,vh)}
+  const shk=!D3&&S.shake.t>0?S.shake.mag*(S.shake.t/S.shake.dur):0;
   const shkx=shk?rnd(-shk,shk):0, shky=shk?rnd(-shk,shk):0;
   ctx.translate(vw/2+shkx,vh/2+shky);ctx.scale(cam.z,cam.z);ctx.translate(-cam.x,-cam.y);
   const x0=cam.x-vw/2/cam.z,y0=cam.y-vh/2/cam.z,x1=cam.x+vw/2/cam.z,y1=cam.y+vh/2/cam.z;
   // ground (terrain + depth-band tint) + grid
-  ctx.drawImage(terrainCv,0,0,W,H);
+  if(!D3)ctx.drawImage(terrainCv,0,0,W,H);
   drawCrackNet(vw,vh,shkx,shky,x0,y0,x1,y1);
-  ctx.strokeStyle='rgba(255,255,255,0.035)';ctx.lineWidth=1/cam.z;ctx.beginPath();
+  if(!D3){ctx.strokeStyle='rgba(255,255,255,0.035)';ctx.lineWidth=1/cam.z;ctx.beginPath();
   for(let gx=Math.floor(Math.max(0,x0)/120)*120;gx<Math.min(W,x1);gx+=120){ctx.moveTo(gx,Math.max(0,y0));ctx.lineTo(gx,Math.min(H,y1))}
   for(let gy=Math.floor(Math.max(0,y0)/120)*120;gy<Math.min(H,y1);gy+=120){ctx.moveTo(Math.max(0,x0),gy);ctx.lineTo(Math.min(W,x1),gy)}
-  ctx.stroke();
+  ctx.stroke()}
   // veins: their glow and hotspots go into a vision-masked light layer (so only the part of a vein
   // your units can currently see shows); the drill ring, warm-up text and wave arrow stay on top
   const VL=beginVeinLight(vw,vh,shkx,shky);
@@ -6656,7 +6673,7 @@ function draw(){
   endVeinLight();
   drawStrayPockets(x0,y0,x1,y1);
   // Dat Crystal deposits
-  S.nodes.forEach(n=>{if((!n.found&&!debugNoFog)||n.amt<=0)return;const s=8+8*n.amt/n.max;ctx.fillStyle=C.dat;ctx.beginPath();for(let k=0;k<6;k++){const a=k*Math.PI/3;ctx.lineTo(n.x+Math.cos(a)*s,n.y+Math.sin(a)*s)}ctx.closePath();ctx.globalAlpha=0.85;ctx.fill();ctx.globalAlpha=1;
+  S.nodes.forEach(n=>{if(D3||(!n.found&&!debugNoFog)||n.amt<=0)return;const s=8+8*n.amt/n.max;ctx.fillStyle=C.dat;ctx.beginPath();for(let k=0;k<6;k++){const a=k*Math.PI/3;ctx.lineTo(n.x+Math.cos(a)*s,n.y+Math.sin(a)*s)}ctx.closePath();ctx.globalAlpha=0.85;ctx.fill();ctx.globalAlpha=1;
     ctx.fillStyle='#0b0e12';ctx.font='500 9px '+css('--mono');ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(n.amt,n.x,n.y)});
   // Dat Crystal shards — scattered fragments dropped by dead enemies, each a tiny triangle at a
   // fixed random rotation so a pile of them reads as scattered debris, not identical icons.
@@ -6745,7 +6762,7 @@ function draw(){
     if(de.hp<de.maxHp)hpbar(de.x,de.y-20,22,de.hp/de.maxHp);
   });
   // base: the quad walker
-  drawWalker(B);hpbar(B.x,B.y-B.r*2.2-8,B.r*2,B.hp/B.maxHp);
+  if(D3)updateWalker(B);else drawWalker(B);hpbar(B.x,B.y-B.r*2.2-8,B.r*2,B.hp/B.maxHp);
   if(WIRELESS_ENABLED){
     const bwt=0.5+0.5*Math.sin(S.t*2.2);
     ctx.strokeStyle=C.cable;ctx.globalAlpha=0.2*bwt;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(B.x,B.y,WIRELESS_TOL_DENSE*S.mods.relayTolMult,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;
@@ -6764,7 +6781,7 @@ function draw(){
   S.builders.forEach(bu=>drawCable(bu,C.cable));
   // troops
   S.troops.forEach(t=>{const sel=S.sel.troops.has(t.id),gren=t.kind==='grenadier',arty=t.kind==='artillery',mech=t.kind==='mech',rock=t.kind==='rocket',brawl=t.kind==='brawler';if(sel){ctx.strokeStyle=C.ally;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(t.x,t.y,t.r+5,0,Math.PI*2);ctx.stroke()}
-    ctx.fillStyle=t.flashT>0?'#fff':gren?C.accent:arty?C.condensed:mech?C.mech:rock?ROCKET_COLOR:brawl?BRAWL_COLOR:C.ally;
+    if(!D3){ctx.fillStyle=t.flashT>0?'#fff':gren?C.accent:arty?C.condensed:mech?C.mech:rock?ROCKET_COLOR:brawl?BRAWL_COLOR:C.ally;
     if(gren){const r=t.r+2;ctx.beginPath();ctx.moveTo(t.x,t.y-r);ctx.lineTo(t.x+r,t.y);ctx.lineTo(t.x,t.y+r);ctx.lineTo(t.x-r,t.y);ctx.closePath();ctx.fill()}
     else if(brawl){ctx.beginPath();ctx.arc(t.x,t.y,t.r,0,Math.PI*2);ctx.fill();
       // a big slab of a shield on its front, and a stout club arm
@@ -6787,7 +6804,7 @@ function draw(){
       ctx.fillRect(-bodyW/2,legH/2-bodyH,bodyW,bodyH); // bottom-aligned with the legs, not centered
       ctx.restore();
     }
-    else{ctx.beginPath();ctx.arc(t.x,t.y,t.r,0,Math.PI*2);ctx.fill()}
+    else{ctx.beginPath();ctx.arc(t.x,t.y,t.r,0,Math.PI*2);ctx.fill()}}
     if(t.hp<t.maxHp)hpbar(t.x,t.y-14,16,t.hp/t.maxHp);
     if(sel&&t.grp!=null){ctx.fillStyle='#bfe6ff';ctx.font='bold 9px monospace';ctx.textAlign='center';ctx.fillText(t.grp,t.x,t.y-20);ctx.textAlign='start'}
     if(t.sanity<SANITY_MAX)sanityBar(t.x,t.y-10,16,t.sanity/SANITY_MAX);
@@ -6812,16 +6829,16 @@ function draw(){
   });
   // harvesters
   S.harvesters.forEach(h=>{const sel=S.sel.harv.has(h.id);if(sel){ctx.strokeStyle=C.harv;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(h.x,h.y,h.r+5,0,Math.PI*2);ctx.stroke()}
-    ctx.fillStyle=h.flashT>0?'#fff':C.harv;ctx.fillRect(h.x-h.r,h.y-h.r,h.r*2,h.r*2);
+    if(!D3){ctx.fillStyle=h.flashT>0?'#fff':C.harv;ctx.fillRect(h.x-h.r,h.y-h.r,h.r*2,h.r*2)}
     if(!h.autoLoop){ctx.strokeStyle='rgba(255,255,255,0.6)';ctx.lineWidth=1;ctx.strokeRect(h.x-h.r,h.y-h.r,h.r*2,h.r*2)}
-    if(h.carry>0){ctx.fillStyle=C.dat;ctx.beginPath();ctx.arc(h.x+6,h.y-6,3+h.carry/6,0,Math.PI*2);ctx.fill()}
+    if(!D3&&h.carry>0){ctx.fillStyle=C.dat;ctx.beginPath();ctx.arc(h.x+6,h.y-6,3+h.carry/6,0,Math.PI*2);ctx.fill()}
     if(h.hp<h.maxHp)hpbar(h.x,h.y-14,16,h.hp/h.maxHp);
     if(h.sanity<SANITY_MAX)sanityBar(h.x,h.y-10,16,h.sanity/SANITY_MAX);
     if(!h.tetherOk)drawCutGlyph(h.x,h.y); if(h.following)drawFollowGlyph(h.x,h.y);
     if(sel&&h.dest){ctx.strokeStyle='rgba(232,147,92,0.35)';ctx.beginPath();ctx.moveTo(h.x,h.y);ctx.lineTo(h.dest.x,h.dest.y);ctx.stroke()}});
   // builders
   S.builders.forEach(bu=>{const sel=S.sel.bu.has(bu.id);if(sel){ctx.strokeStyle=C.builder;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(bu.x,bu.y,bu.r+5,0,Math.PI*2);ctx.stroke()}
-    ctx.fillStyle=bu.flashT>0?'#fff':C.builder;ctx.beginPath();ctx.moveTo(bu.x,bu.y-bu.r);ctx.lineTo(bu.x+bu.r,bu.y+bu.r*0.7);ctx.lineTo(bu.x-bu.r,bu.y+bu.r*0.7);ctx.closePath();ctx.fill();
+    if(!D3){ctx.fillStyle=bu.flashT>0?'#fff':C.builder;ctx.beginPath();ctx.moveTo(bu.x,bu.y-bu.r);ctx.lineTo(bu.x+bu.r,bu.y+bu.r*0.7);ctx.lineTo(bu.x-bu.r,bu.y+bu.r*0.7);ctx.closePath();ctx.fill()}
     if(bu.state==='repair'){ctx.strokeStyle='#fff';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(bu.x-4,bu.y+2);ctx.lineTo(bu.x+4,bu.y+2);ctx.moveTo(bu.x,bu.y-2);ctx.lineTo(bu.x,bu.y+6);ctx.stroke()}
     if(bu.hp<bu.maxHp)hpbar(bu.x,bu.y-14,16,bu.hp/bu.maxHp);
     if(bu.sanity<SANITY_MAX)sanityBar(bu.x,bu.y-10,16,bu.sanity/SANITY_MAX);
@@ -6836,9 +6853,10 @@ function draw(){
     ctx.globalAlpha=1});
   drawPOIs();drawRig();
   // enemies (only visible)
-  S.enemies.forEach(e=>{if(e.kind==='nest'){if(debugNoFog||e.seen)drawNest(e);return}
-    if(e.kind==='quaker'){if(debugNoFog||visible(e))drawQuaker(e);return}
-    if(!debugNoFog&&!visible(e))return;const a=e.ang,brute=e.kind==='brute';ctx.fillStyle=e.flashT>0?'#fff':(e.core?'#0a0a0a':(e.kind==='roam'?'#d9775f':e.kind==='saboteur'?C.cable:e.kind==='corrupted'?C.zone:C.enemy));ctx.beginPath();
+  S.enemies.forEach(e=>{if(e.kind==='nest'){if(debugNoFog||e.seen){if(!D3)drawNest(e);else if(e.hp<e.maxHp)hpbar(e.x,e.y-e.r-10,e.r*2+8,e.hp/e.maxHp)}return}
+    if(e.kind==='quaker'){if(debugNoFog||visible(e)){if(!D3)drawQuaker(e);else if(e.hp<e.maxHp)hpbar(e.x,e.y-e.r-10,e.r*2+6,e.hp/e.maxHp)}return}
+    if(!debugNoFog&&!visible(e))return;
+    if(D3){if(e.hp<e.maxHp)hpbar(e.x,e.y-e.r-8,e.r*2+4,e.hp/e.maxHp);return}const a=e.ang,brute=e.kind==='brute';ctx.fillStyle=e.flashT>0?'#fff':(e.core?'#0a0a0a':(e.kind==='roam'?'#d9775f':e.kind==='saboteur'?C.cable:e.kind==='corrupted'?C.zone:C.enemy));ctx.beginPath();
     ctx.moveTo(e.x+Math.cos(a)*e.r*1.3,e.y+Math.sin(a)*e.r*1.3);ctx.lineTo(e.x+Math.cos(a+2.5)*e.r,e.y+Math.sin(a+2.5)*e.r);ctx.lineTo(e.x+Math.cos(a-2.5)*e.r,e.y+Math.sin(a-2.5)*e.r);ctx.closePath();ctx.fill();
     if(e.core){ctx.strokeStyle=e.flashT>0?'#fff':'#ff2a2a';ctx.lineWidth=brute?3:1.5;ctx.stroke()}
     if(brute){ctx.globalAlpha=0.45;ctx.strokeStyle='#ff2a2a';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(e.x,e.y,e.r+7,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1}
@@ -6900,8 +6918,7 @@ function draw(){
     ctx.globalAlpha=1}
   // selection box
   if(mouse.drag&&mouse.drag.moved){const d=mouse.drag;ctx.strokeStyle=C.ally;ctx.fillStyle='rgba(94,200,255,0.1)';ctx.lineWidth=1/cam.z;ctx.fillRect(d.x0,d.y0,d.x1-d.x0,d.y1-d.y0);ctx.strokeRect(d.x0,d.y0,d.x1-d.x0,d.y1-d.y0)}
-  ctx.setTransform(dpr,0,0,dpr,0,0);drawTutorialArrow(vw,vh);
-  drawMini();hud();
+  ctx.setTransform(dpr,0,0,dpr,0,0);if(!D3)drawTutorialArrow(vw,vh);
 }
 function hpbar(x,y,w,f){ctx.fillStyle='rgba(0,0,0,0.6)';ctx.fillRect(x-w/2,y,w,3);ctx.fillStyle=f>0.5?C.dat:f>0.25?C.accent:C.enemy;ctx.fillRect(x-w/2,y,w*Math.max(0,f),3)}
 // Sanity meter — only shown once a unit has taken any damage to it, fading from the zone-purple
@@ -6981,6 +6998,249 @@ function perfTick(ts,gap,up,dr){
   }
   perf.n=0;perf.t0=ts;perf.worst=0;perf.up=0;perf.dr=0;
 }
+// ---------- v5: the 3D view ----------
+// The game itself doesn't change: every rule still runs on the flat 2D map. This layer only draws it.
+// The terrain grid becomes a lit heightfield (rock rises, mud and rift sink), and the Bastion, units,
+// enemies, nests and crystal are real meshes standing on it. Everything else the 2D renderer draws —
+// fog, veins, cracks, rings, health bars, the exit, floating text — is still drawn by the 2D code, into
+// the (now hidden) game canvas, which is then draped over the terrain like a decal. M toggles 2D/3D.
+const V3_KEY='datascraper_view3d'+SAVE_SUFFIX;
+function initView3D(T,EC,RP,BP,OP){
+  const cv3=document.getElementById('game3d');
+  const R=new T.WebGLRenderer({canvas:cv3,antialias:true,powerPreference:'high-performance'});
+  R.outputColorSpace=T.SRGBColorSpace;R.toneMapping=T.ACESFilmicToneMapping;R.toneMappingExposure=1.1;
+  R.shadowMap.enabled=true;R.shadowMap.type=T.PCFSoftShadowMap;
+  const scene=new T.Scene();scene.background=new T.Color('#07090c');scene.fog=new T.Fog('#07090c',1500,4000);
+  const camera=new T.PerspectiveCamera(40,1,10,30000);
+  const PITCH=56*Math.PI/180, FOVT=Math.tan(40/2*Math.PI/180);
+  scene.add(new T.HemisphereLight('#9fb4d8','#1a1410',0.9));
+  const sun=new T.DirectionalLight('#dfe8ff',2.2);sun.castShadow=true;
+  sun.shadow.mapSize.set(2048,2048);sun.shadow.bias=-0.0006;sun.shadow.normalBias=1.5;
+  const sc=sun.shadow.camera;sc.near=10;sc.far=4000;sc.left=sc.bottom=-900;sc.right=sc.top=900;
+  scene.add(sun,sun.target);
+  // composer: scene → bloom (only the bright, emissive bits clear the threshold) → tone map/sRGB
+  const comp=new EC(R), bloom=new BP(new T.Vector2(256,256),0.6,0.5,0.92);
+  comp.addPass(new RP(scene,camera));comp.addPass(bloom);comp.addPass(new OP());
+  const V={on:false,frame:0,map:new WeakMap(),root:new T.Group(),terrainOf:null,shardsOf:null};
+  scene.add(V.root);
+  // the fog veil, map-wide (dimSoftC: alpha = how dark), so tall things out in the fog darken with it
+  const fogU={uFogTex:{value:null},uMap:{value:new T.Vector2(W,H)}};
+  // a texture can't change size once it's on the GPU, so one whose canvas is resized is replaced
+  function liveTex(c,srgb){let t=null,w=0,h=0;return()=>{if(!t||c.width!==w||c.height!==h){if(t)t.dispose();w=c.width;h=c.height;
+    t=new T.CanvasTexture(c);t.minFilter=t.magFilter=T.LinearFilter;t.generateMipmaps=false;if(srgb)t.colorSpace=T.SRGBColorSpace}else t.needsUpdate=true;return t}}
+  const fogTexOf=liveTex(dimSoftC,false), decalTexOf=liveTex(cv,true);
+  function fogify(m){m.onBeforeCompile=sh=>{Object.assign(sh.uniforms,fogU);
+    sh.vertexShader='varying vec2 vFogUv;\nuniform vec2 uMap;\n'+sh.vertexShader.replace('#include <project_vertex>',
+      '#include <project_vertex>\nvec4 fw=vec4(transformed,1.0);\n#ifdef USE_INSTANCING\nfw=instanceMatrix*fw;\n#endif\nfw=modelMatrix*fw;vFogUv=vec2(fw.x/uMap.x,1.0-fw.z/uMap.y);');
+    sh.fragmentShader='varying vec2 vFogUv;\nuniform sampler2D uFogTex;\n'+sh.fragmentShader.replace('#include <dithering_fragment>',
+      '#include <dithering_fragment>\ngl_FragColor.rgb*=1.0-texture2D(uFogTex,vFogUv).a;')};return m}
+  // ----- materials (shared, so a hundred drones cost one material each) -----
+  const matCache=new Map();
+  function mat(col,o={}){const k=col+JSON.stringify(o);let m=matCache.get(k);
+    if(!m){const {fog:fg,...rest}=o;m=new T.MeshStandardMaterial(Object.assign({color:col,roughness:0.7,metalness:0.15,flatShading:true},rest));if(fg)fogify(m);matCache.set(k,m)}return m}
+  const glow=(col,i=2.5)=>mat(col,{emissive:col,emissiveIntensity:i,roughness:0.4});
+  const FLASH=mat('#ffffff',{emissive:'#ffffff',emissiveIntensity:1});
+  // ----- terrain -----
+  const STEP=15; let NX=2, NY=2; // the map's size changes from stop to stop, so the grid is sized per build
+  let HT=new Float32Array(NX*NY), terrMesh=null, decal=null, rimMesh=null, wallInst=null, shardInst=null;
+  const hash=(x,y)=>{let h=Math.imul(x|0,374761393)+Math.imul(y|0,668265263);h=Math.imul(h^(h>>>13),1274126177);return((h^(h>>>16))>>>0)/4294967296};
+  function cellH(gx,gy){gx=Math.max(0,Math.min(TGX-1,gx));gy=Math.max(0,Math.min(TGY-1,gy));const id=gy*TGX+gx,v=terrain[id];
+    if(v===2){if(S.barrier&&S.barrier.type===2&&S.barrier.mask[id])return 4;return 44+hash(gx,gy)*18}
+    return v===1?-4:v===RIFT?-11:0}
+  function hAt(x,y){const fx=Math.max(0,Math.min(NX-1.001,x/STEP)),fy=Math.max(0,Math.min(NY-1.001,y/STEP)),ix=fx|0,iy=fy|0,tx=fx-ix,ty=fy-iy,i=iy*NX+ix;
+    return (HT[i]*(1-tx)+HT[i+1]*tx)*(1-ty)+(HT[i+NX]*(1-tx)+HT[i+NX+1]*tx)*ty}
+  V.hAt=hAt;
+  function buildTerrain(){
+    NX=Math.ceil(W/STEP)+1;NY=Math.ceil(H/STEP)+1;fogU.uMap.value.set(W,H);
+    HT=new Float32Array(NX*NY);
+    for(let j=0;j<NY;j++)for(let i=0;i<NX;i++){
+      const x=i*STEP,y=j*STEP,fx=x/TCELL-0.5,fy=y/TCELL-0.5,gx=Math.floor(fx),gy=Math.floor(fy),tx=fx-gx,ty=fy-gy;
+      // smoothstep between cell centres: flat tops and floors, short slopes between them
+      const sx=tx*tx*(3-2*tx),sy=ty*ty*(3-2*ty);
+      let h=(cellH(gx,gy)*(1-sx)+cellH(gx+1,gy)*sx)*(1-sy)+(cellH(gx,gy+1)*(1-sx)+cellH(gx+1,gy+1)*sx)*sy;
+      if(h>8)h+=(hash(i,j)-0.5)*7; // broken rock tops
+      HT[j*NX+i]=h}
+    const pos=new Float32Array(NX*NY*3),uv=new Float32Array(NX*NY*2),idx=[];
+    for(let j=0;j<NY;j++)for(let i=0;i<NX;i++){const k=j*NX+i,x=Math.min(W,i*STEP),y=Math.min(H,j*STEP);
+      pos[k*3]=x;pos[k*3+1]=HT[k];pos[k*3+2]=y;uv[k*2]=x/W;uv[k*2+1]=1-y/H}
+    for(let j=0;j<NY-1;j++)for(let i=0;i<NX-1;i++){const a=j*NX+i,b=a+1,c=a+NX,d=c+1;idx.push(a,c,b,b,c,d)}
+    const g=new T.BufferGeometry();g.setAttribute('position',new T.BufferAttribute(pos,3));g.setAttribute('uv',new T.BufferAttribute(uv,2));
+    g.setIndex(idx);g.computeVertexNormals();
+    // rift glow: a tiny one-texel-per-cell map, smoothed by the GPU into soft violet pools
+    const gc=document.createElement('canvas');gc.width=TGX;gc.height=TGY;const gx2=gc.getContext('2d'),id=gx2.createImageData(TGX,TGY);
+    for(let n=0;n<TGX*TGY;n++){const r=terrain[n]===RIFT;id.data[n*4]=r?120:0;id.data[n*4+1]=r?40:0;id.data[n*4+2]=r?220:0;id.data[n*4+3]=255}
+    gx2.putImageData(id,0,0);const glowTex=new T.CanvasTexture(gc);glowTex.colorSpace=T.SRGBColorSpace;glowTex.minFilter=glowTex.magFilter=T.LinearFilter;
+    const tex=new T.CanvasTexture(terrainCv);tex.colorSpace=T.SRGBColorSpace;tex.anisotropy=8;
+    if(terrMesh){V.terrainGroup.remove(terrMesh,decal);terrMesh.geometry.dispose();terrMesh.material.map.dispose();terrMesh.material.emissiveMap.dispose()}
+    if(!V.terrainGroup){V.terrainGroup=new T.Group();scene.add(V.terrainGroup)}
+    terrMesh=new T.Mesh(g,new T.MeshStandardMaterial({map:tex,emissiveMap:glowTex,emissive:'#ffffff',emissiveIntensity:0.07,roughness:0.92,metalness:0.05}));
+    terrMesh.receiveShadow=true;terrMesh.castShadow=true;
+    // the decal: the same surface, textured with the 2D frame (whatever rect of the map it covers)
+    decal=new T.Mesh(g,decalMat);decal.renderOrder=5;
+    V.terrainGroup.add(terrMesh,decal);
+    if(!rimMesh){ // the world past the map's edge: a dark plain a little below it
+      rimMesh=new T.Mesh(new T.PlaneGeometry(40000,40000).rotateX(-Math.PI/2),new T.MeshStandardMaterial({color:'#0c0f13',roughness:1}));
+      rimMesh.position.set(W/2,-30,H/2);rimMesh.receiveShadow=true;scene.add(rimMesh)}
+    buildCrystalWall();
+  }
+  const decalU={uTex:{value:null},uRect:{value:new T.Vector4(0,0,1,1)}};
+  const decalMat=new T.ShaderMaterial({uniforms:decalU,transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-8,
+    vertexShader:'varying vec2 vW;void main(){vec4 w=modelMatrix*vec4(position,1.0);vW=w.xz;gl_Position=projectionMatrix*viewMatrix*w;}',
+    fragmentShader:'uniform sampler2D uTex;uniform vec4 uRect;varying vec2 vW;void main(){vec2 uv=(vW-uRect.xy)/uRect.zw;if(uv.x<0.0||uv.y<0.0||uv.x>1.0||uv.y>1.0)discard;uv.y=1.0-uv.y;gl_FragColor=texture2D(uTex,uv);\n#include <colorspace_fragment>\n}'});
+  // the v4 crystal wall: tall cyan crystal standing in every wall square (it shatters with the breach)
+  const prism=new T.CylinderGeometry(1,1,1,6);prism.translate(0,0.5,0);
+  const spike=new T.CylinderGeometry(0.12,1,1,6);spike.translate(0,0.5,0);
+  function buildCrystalWall(){
+    if(wallInst){scene.remove(wallInst);wallInst.dispose();wallInst=null}
+    const B=S.barrier;if(!B||B.type!==2)return;const cells=[];
+    for(let id=0;id<TGX*TGY;id++)if(B.mask[id]&&terrain[id]===2)cells.push(id);
+    if(!cells.length)return;
+    wallInst=new T.InstancedMesh(spike,mat('#ffffff',{emissive:'#1fb4e6',emissiveIntensity:1.1,roughness:0.08,metalness:0.2,fog:1}),cells.length*4);
+    const m=new T.Matrix4(),q=new T.Quaternion(),e=new T.Euler(),c=new T.Color();let n=0;
+    cells.forEach(id=>{const gx=id%TGX,gy=(id-gx)/TGX;for(let k=0;k<4;k++){const u=hash(gx*7+k,gy*13-k),v=hash(gy*5+k,gx*3+k);
+      const x=gx*TCELL+10+u*40,y=gy*TCELL+10+v*40,r=7+hash(k,id)*8,h=60+hash(id,k*3)*90;
+      e.set((u-0.5)*0.5,u*6,(v-0.5)*0.5);q.setFromEuler(e);m.compose(new T.Vector3(x,hAt(x,y)-4,y),q,new T.Vector3(r,h,r));
+      wallInst.setMatrixAt(n,m);c.setHSL((185+u*30)/360,0.75,0.6+v*0.2);wallInst.setColorAt(n,c);n++}});
+    wallInst.castShadow=true;wallInst.receiveShadow=true;scene.add(wallInst);
+  }
+  // the purple glass of the Dense Field: one instanced prism per shard, from the very shapes that block movement
+  function buildShards(){
+    if(shardInst){scene.remove(shardInst);shardInst.dispose();shardInst=null}
+    const L=S.glassShards;if(!L||!L.length)return;
+    shardInst=new T.InstancedMesh(prism,mat('#ffffff',{emissive:'#7a2cff',emissiveIntensity:0.85,roughness:0.08,metalness:0.1,fog:1}),L.length);
+    const m=new T.Matrix4(),q=new T.Quaternion(),e=new T.Euler(),c=new T.Color();
+    L.forEach((sh,i)=>{const h=sh.r*(1.6+((sh.v[0]-0.84)/0.16)*2.2),tilt=(sh.v[1]-0.92)*3;
+      e.set(tilt*0.5,sh.rot,tilt*0.35);q.setFromEuler(e);m.compose(new T.Vector3(sh.x,hAt(sh.x,sh.y)-3,sh.y),q,new T.Vector3(sh.cr,h,sh.cr));
+      shardInst.setMatrixAt(i,m);c.setHSL(sh.h/360,Math.min(1,sh.sa/100+0.15),Math.min(0.78,sh.l/100+0.25));shardInst.setColorAt(i,c)});
+    shardInst.castShadow=true;shardInst.receiveShadow=true;scene.add(shardInst);
+  }
+  // ----- unit/enemy meshes -----
+  const G={
+    box:new T.BoxGeometry(1,1,1), cyl6:new T.CylinderGeometry(1,1,1,6), cyl8:new T.CylinderGeometry(1,1.12,1,8),
+    oct:new T.OctahedronGeometry(1), sph:new T.SphereGeometry(1,10,8), ico:new T.IcosahedronGeometry(1,0), dodec:new T.DodecahedronGeometry(1,0),
+    cone:new T.ConeGeometry(1,1,5), tet:new T.TetrahedronGeometry(1)};
+  const part=(geo,m,sx,sy,sz,x=0,y=0,z=0)=>{const o=new T.Mesh(geo,m);o.scale.set(sx,sy,sz);o.position.set(x,y,z);o.castShadow=true;o.userData.m=m;return o};
+  const setFlash=(g,on)=>g.traverse(o=>{if(o.isMesh&&o.userData.m&&!o.userData.keep)o.material=on?FLASH:o.userData.m});
+  const place=(g,x,y,ang,lift=0)=>{g.position.set(x,hAt(x,y)+lift,y);if(ang!=null)g.rotation.y=-ang};
+  function syncList(list,make,upd){list.forEach(e=>{let g=V.map.get(e);if(!g){g=make(e);V.map.set(e,g)}if(g.parent!==V.root)V.root.add(g);g.userData.f=V.frame;upd(e,g)})}
+  const TROOP_COL=t=>t.kind==='grenadier'?C.accent:t.kind==='artillery'?C.condensed:t.kind==='mech'?C.mech:t.kind==='rocket'?ROCKET_COLOR:t.kind==='brawler'?BRAWL_COLOR:C.ally;
+  function makeTroop(t){const g=new T.Group(),r=t.r,col=TROOP_COL(t),m=mat(col),dark=mat('#2a3340');
+    if(t.kind==='mech'){g.add(part(G.box,dark,r*1.8,r*0.7,r*0.45,0,r*0.35,-r*1.05),part(G.box,dark,r*1.8,r*0.7,r*0.45,0,r*0.35,r*1.05),part(G.box,m,r*1.5,r*0.9,r*1.6,-r*0.1,r*0.95,0),part(G.box,dark,r*1.3,r*0.25,r*0.3,r*0.9,r*1.1,0))}
+    else if(t.kind==='artillery'){g.add(part(G.box,m,r*2,r*0.9,r*1.3,0,r*0.45,0));const b=part(G.cyl6,dark,r*0.28,r*2.2,r*0.28,r*0.7,r*1.3,0);b.rotation.z=-1.0;g.add(b)}
+    else if(t.kind==='grenadier'){g.add(part(G.oct,m,r*1.1,r*1.5,r*1.1,0,r*1.5,0))}
+    else{g.add(part(G.cyl8,m,r*0.85,r*1.5,r*0.85,0,r*0.75,0),part(G.sph,m,r*0.62,r*0.62,r*0.62,0,r*1.75,0),part(G.box,glow('#bfefff',1.1),r*0.2,r*0.18,r*0.6,r*0.55,r*1.8,0));
+      if(t.kind==='brawler')g.add(part(G.box,mat('#5d7088'),r*0.35,r*2.0,r*2.2,r*1.15,r*1.0,0));
+      if(t.kind==='rocket'){const b=part(G.cyl6,mat('#5a2f1a'),r*0.32,r*2.6,r*0.32,r*0.2,r*1.6,r*0.75);b.rotation.z=-Math.PI/2;g.add(b)}}
+    return g}
+  function makeHarv(h){const g=new T.Group(),r=h.r,m=mat(C.harv);g.add(part(G.box,m,r*2,r*1.1,r*1.7,0,r*0.75,0),part(G.box,mat('#3a2a20'),r*0.9,r*0.5,r*1.9,r*0.8,r*0.35,0));
+    const load=part(G.oct,glow(C.dat,2.2),r*0.6,r*0.8,r*0.6,-r*0.3,r*1.9,0);load.userData.keep=true;load.name='load';g.add(load);return g}
+  function makeBuilder(b){const g=new T.Group(),r=b.r;g.add(part(G.tet,mat(C.builder),r*1.3,r*1.3,r*1.3,0,r*1.0,0));g.children[0].rotation.set(0.6,0,0.8);return g}
+  function makeEnemy(e){const g=new T.Group(),r=e.r,brute=e.kind==='brute';
+    const col=e.core?'#121214':e.kind==='roam'?'#d9775f':e.kind==='saboteur'?C.cable:e.kind==='corrupted'?C.zone:C.enemy;
+    const body=part(G.cone,mat(col,{roughness:0.5}),r*0.95,r*2.4,r*0.8,0,r*0.7,0);body.rotation.z=-Math.PI/2;g.add(body);
+    g.add(part(G.ico,mat('#1a0d10'),r*0.7,r*0.55,r*0.7,-r*0.4,r*0.75,0));
+    const eye=part(G.sph,glow(e.core?'#ff2a2a':'#ff6a3a',3.5),r*0.18,r*0.18,r*0.18,r*0.75,r*0.95,0);eye.userData.keep=true;g.add(eye);
+    if(brute){g.add(part(G.cone,mat('#2a1012'),r*0.25,r*0.9,r*0.25,r*0.1,r*1.3,-r*0.5),part(G.cone,mat('#2a1012'),r*0.25,r*0.9,r*0.25,r*0.1,r*1.3,r*0.5))}
+    return g}
+  function makeQuaker(e){const g=new T.Group(),r=e.r;g.add(part(G.box,mat(e.core?'#1d1d22':'#3d4148'),r*2,r*1.6,r*2,0,r*0.8,0));
+    const c=part(G.box,glow(e.core?'#ff2a2a':'#e0873a',2),r*2.05,r*0.15,r*2.05,0,r*1.0,0);c.userData.keep=true;g.add(c);return g}
+  // nests: a dark, lumpy mound with a pulsing core and black flame licking up out of it
+  const FLAME_DARK=new T.MeshBasicMaterial({color:'#0a0008',transparent:true,opacity:0.55,depthWrite:false});
+  function makeNest(n){const g=new T.Group(),R=n.r;
+    const mound=part(G.dodec,mat('#3a1714',{roughness:0.95,fog:1}),R*1.05,R*0.5,R*1.05,0,R*0.1,0);g.add(mound);
+    const core=part(G.sph,mat('#ff5a3a',{emissive:'#ff3a1a',emissiveIntensity:3,fog:1}),R*0.3,R*0.3,R*0.3,0,R*0.45,0);core.userData.keep=true;core.name='core';g.add(core);
+    const fl=new T.Group();fl.name='flames';
+    const vents=n.size==='small'?3:n.size==='large'?6:n.size==='great'?7:n.size==='mound'?5:4;
+    for(let k=0;k<vents+2;k++){const a=k/(vents+2)*Math.PI*2+n.ph,d=k<2?R*0.12:R*0.5,hh=R*(k<2?2.4:1.4);
+      const f=new T.Mesh(G.cone,FLAME_DARK);f.scale.set(R*0.22,hh,R*0.22);f.position.set(Math.cos(a)*d,R*0.3+hh/2,Math.sin(a)*d);f.userData.h=hh;f.userData.ph=k*1.7+n.ph;
+      const inner=new T.Mesh(G.cone,mat('#ff3070',{emissive:'#d01050',emissiveIntensity:3.2,fog:1}));inner.scale.set(0.55,0.8,0.55);inner.position.y=-0.1;f.add(inner);fl.add(f)}
+    g.add(fl);return g}
+  // the Dat crystal deposits: a cluster of glowing hex prisms that shrinks as it's mined
+  function makeNode(n){const g=new T.Group(),m=mat(C.dat,{emissive:C.dat,emissiveIntensity:1.6,roughness:0.2,fog:1});
+    for(let k=0;k<5;k++){const a=k*1.3+n.x,d=k?7:0,p=part(prism,m,4+k%2*2,14+(5-k)*4,4+k%2*2,Math.cos(a)*d,0,Math.sin(a)*d);p.rotation.set(Math.sin(a)*0.35,a,Math.cos(a)*0.35);g.add(p)}
+    return g}
+  // ----- the Bastion -----
+  const W0=mat('#c3c8ce',{metalness:0.45,roughness:0.45}), W1=mat('#8d949c',{metalness:0.5,roughness:0.5}), W2=mat('#3a4048',{metalness:0.4});
+  const walker=new T.Group(),hull=new T.Group(),turret=new T.Group(),legs=[];
+  {const r=BASE_R;
+    hull.add(part(G.cyl8,W1,r*0.8,r*0.45,r*0.8,0,0,0),part(G.cyl8,W0,r*0.62,r*0.25,r*0.62,0,r*0.32,0));
+    turret.add(part(G.box,W0,r*1.1,r*0.42,r*0.95,0,0,0),part(G.box,W2,r*0.6,r*0.2,r*0.7,-r*0.2,r*0.3,0));
+    const bar=part(G.cyl6,W2,r*0.13,r*1.3,r*0.13,r*0.95,0.05*r,-r*0.2);bar.rotation.z=-Math.PI/2;
+    const bar2=part(G.cyl6,W2,r*0.13,r*1.3,r*0.13,r*0.95,0.05*r,r*0.2);bar2.rotation.z=-Math.PI/2;
+    const lamp=part(G.sph,glow(C.ally,3),r*0.12,r*0.12,r*0.12,r*0.3,r*0.32,0);lamp.userData.keep=true;lamp.name='lamp';
+    turret.add(bar,bar2,lamp);turret.position.y=r*0.48;hull.add(turret);walker.add(hull);
+    for(let k=0;k<4;k++){const up=part(G.box,W1,1,r*0.18,r*0.2),lo=part(G.box,W0,1,r*0.15,r*0.16),plate=part(G.cyl8,W2,r*0.32,r*0.1,r*0.32),knee=part(G.sph,W2,r*0.14,r*0.14,r*0.14);
+      walker.add(up,lo,plate,knee);legs.push({up,lo,plate,knee})}}
+  scene.add(walker);
+  const v3a=new T.Vector3(),v3b=new T.Vector3(),v3c=new T.Vector3();
+  function seg(o,a,b,thick){o.position.copy(a).add(b).multiplyScalar(0.5);o.scale.x=a.distanceTo(b);o.lookAt(b);o.rotateY(Math.PI/2)}
+  function syncWalker(B){
+    const r=BASE_R, bob=Math.sin(S.t*6)*(B.dest?1.2:0.3), hy=hAt(B.x,B.y)+r*0.95+bob-(B.plant||0)*6;
+    walker.position.set(0,0,0);hull.position.set(B.x,hy,B.y);hull.rotation.y=-B.heading;
+    turret.rotation.y=-(B.turret-B.heading);
+    walker.visible=B.hp>0;setFlash(walker,B.flashT>0);
+    turret.getObjectByName('lamp').material=glow(B.locked?C.accent:C.ally,3);
+    B.feet.forEach((f,k)=>{const L=legs[k],dx=f.x-B.x,dy=f.y-B.y,d=Math.hypot(dx,dy)||1,ux=dx/d,uy=dy/d;
+      const hip=v3a.set(B.x+ux*r*0.55,hy-r*0.05,B.y+uy*r*0.55), foot=v3b.set(f.x,hAt(f.x,f.y)+(f.lift||0)*16+2,f.y);
+      const span=hip.distanceTo(foot),seg1=Math.max(span/2+3,r*1.05),rise=Math.sqrt(Math.max(0,seg1*seg1-span*span/4));
+      const knee=v3c.copy(hip).lerp(foot,0.42);knee.y+=rise*0.9;knee.x+=ux*rise*0.25;knee.z+=uy*rise*0.25;
+      seg(L.up,hip,knee);seg(L.lo,knee,foot);L.knee.position.copy(knee);L.plate.position.set(foot.x,foot.y-1,foot.z)});
+  }
+  // ----- camera -----
+  function syncCamera(vw,vh,shx=0,shy=0){
+    const dist=(vh/cam.z)/(2*FOVT)*0.95;
+    camera.aspect=vw/vh;camera.position.set(cam.x+shx,dist*Math.sin(PITCH),cam.y+dist*Math.cos(PITCH)+shy);
+    camera.lookAt(cam.x+shx,0,cam.y+shy);camera.updateProjectionMatrix();camera.updateMatrixWorld();return dist}
+  const ray=new T.Raycaster(),ndc=new T.Vector2(),plane=new T.Plane(new T.Vector3(0,1,0),0),hit=new T.Vector3();
+  function groundAt(nx,ny,lvl=0){ndc.set(nx,ny);ray.setFromCamera(ndc,camera);plane.constant=-lvl;
+    if(!ray.ray.intersectPlane(plane,hit)){const d=ray.ray.direction;return{x:camera.position.x+d.x*8000,y:camera.position.z+d.z*8000}}return{x:hit.x,y:hit.z}}
+  V.toWorld=(sx,sy)=>{const r=cv.getBoundingClientRect();syncCamera(r.width,r.height);return groundAt((sx-r.left)/r.width*2-1,-((sy-r.top)/r.height*2-1))};
+  // the rect of map the 2D frame must cover so the decal fills the whole 3D view
+  V.footprint=(vw,vh)=>{syncCamera(vw,vh);let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+    [[-1,-1],[1,-1],[1,1],[-1,1],[0,1],[0,-1]].forEach(([a,b])=>[0,50].forEach(l=>{const p=groundAt(a,b,l);x0=Math.min(x0,p.x);x1=Math.max(x1,p.x);y0=Math.min(y0,p.y);y1=Math.max(y1,p.y)}));
+    x0=Math.max(-300,x0-60);y0=Math.max(-300,y0-60);x1=Math.min(W+300,x1+60);y1=Math.min(H+300,y1+60);
+    const bw=Math.max(50,x1-x0),bh=Math.max(50,y1-y0),z=Math.min(vw/bw,vh/bh);return{x:(x0+x1)/2,y:(y0+y1)/2,z}};
+  V.setRect=(x,y,z,vw,vh)=>{decalU.uRect.value.set(x-vw/2/z,y-vh/2/z,vw/z,vh/z)};
+  // ----- each frame -----
+  let lastW=0,lastH=0,lastLow=null;
+  V.render=(shk)=>{
+    const w=cv3.clientWidth,h=cv3.clientHeight;if(!w||!h)return;const dpr=Math.min(gDpr(),2);
+    if(w!==lastW||h!==lastH||lowGfx!==lastLow){lastW=w;lastH=h;lastLow=lowGfx;R.setPixelRatio(dpr);R.setSize(w,h,false);comp.setPixelRatio(dpr);comp.setSize(w,h);
+      bloom.enabled=!lowGfx;R.shadowMap.enabled=!lowGfx;matCache.forEach(m=>m.needsUpdate=true)}
+    if(V.terrainOf!==terrainCv){V.terrainOf=terrainCv;buildTerrain();buildShards();V.shardsOf=S.glassShards}
+    else if(V.shardsOf!==S.glassShards){V.shardsOf=S.glassShards;buildShards()}
+    V.frame++;
+    const B=S.base;syncWalker(B);
+    syncList(S.troops,makeTroop,(t,g)=>{place(g,t.x,t.y,t.ang||0);setFlash(g,t.flashT>0)});
+    syncList(S.harvesters,makeHarv,(u,g)=>{const d=g.userData,mx=u.x-(d.px??u.x),my=u.y-(d.py??u.y);if(mx*mx+my*my>0.04)d.a=Math.atan2(my,mx);d.px=u.x;d.py=u.y;place(g,u.x,u.y,d.a||0);setFlash(g,u.flashT>0);g.getObjectByName('load').visible=u.carry>0});
+    syncList(S.builders,makeBuilder,(u,g)=>{place(g,u.x,u.y,null);g.rotation.y=S.t*0.8;setFlash(g,u.flashT>0)});
+    const fogged=e=>!debugNoFog&&!visible(e);
+    syncList(S.enemies.filter(e=>e.kind==='nest'?(debugNoFog||e.seen):!fogged(e)),e=>e.kind==='nest'?makeNest(e):e.kind==='quaker'?makeQuaker(e):makeEnemy(e),(e,g)=>{
+      if(e.kind==='nest'){place(g,e.x,e.y,null);const pul=0.5+0.5*Math.sin(S.t*2.2+e.ph);const c=g.getObjectByName('core');c.scale.setScalar(e.r*(0.26+0.08*pul));
+        g.getObjectByName('flames').children.forEach(f=>{const s=0.75+0.35*Math.sin(S.t*7+f.userData.ph)+0.15*Math.sin(S.t*13.3+f.userData.ph*2);f.scale.y=f.userData.h*s;f.rotation.z=0.12*Math.sin(S.t*3+f.userData.ph)});setFlash(g,e.flashT>0);return}
+      if(e.kind==='quaker'){const k=e.air>0?1-e.air/e.airT:0;place(g,e.x,e.y,(e.ang||0)*0.15,e.air>0?Math.sin(Math.PI*k)*70:0);setFlash(g,e.flashT>0);return}
+      place(g,e.x,e.y,e.ang||0,Math.abs(Math.sin(S.t*14+e.x*0.1))*1.5);setFlash(g,e.flashT>0)});
+    syncList(S.nodes.filter(n=>(n.found||debugNoFog)&&n.amt>0),makeNode,(n,g)=>{place(g,n.x,n.y,null);g.scale.setScalar(0.55+0.65*n.amt/n.max)});
+    for(let i=V.root.children.length-1;i>=0;i--){const g=V.root.children[i];if(g.userData.f!==V.frame)V.root.remove(g)}
+    // the world
+    const sx=shk?rnd(-shk,shk):0,sy=shk?rnd(-shk,shk):0,dist=syncCamera(w,h,sx,sy);
+    scene.fog.near=dist*1.1;scene.fog.far=dist*3.2;
+    sun.target.position.set(cam.x,0,cam.y);sun.position.set(cam.x-700,1100,cam.y-500);
+    const ext=Math.min(1600,Math.max(500,dist*0.9));sc.left=sc.bottom=-ext;sc.right=sc.top=ext;sc.updateProjectionMatrix();
+    terrMesh.material.emissiveIntensity=0.035+0.02*Math.sin(S.t*1.3);
+    fogU.uFogTex.value=fogTexOf();decalU.uTex.value=decalTexOf();
+    if(lowGfx)R.render(scene,camera);else comp.render();
+  };
+  V.setOn=on=>{V.on=on;document.body.classList.toggle('view3d',on);try{localStorage.setItem(V3_KEY,on?'1':'0')}catch(e){}};
+  return V;
+}
+// Load three.js only once the 2D game is already running: if it can't load (offline, old browser),
+// the game simply stays in 2D.
+Promise.all([import('three'),import('three/addons/postprocessing/EffectComposer.js'),import('three/addons/postprocessing/RenderPass.js'),
+  import('three/addons/postprocessing/UnrealBloomPass.js'),import('three/addons/postprocessing/OutputPass.js')])
+  .then(([T,ec,rp,bp,op])=>{V3=initView3D(T,ec.EffectComposer,rp.RenderPass,bp.UnrealBloomPass,op.OutputPass);
+    let pref='1';try{pref=localStorage.getItem(V3_KEY)??'1'}catch(e){}V3.setOn(pref!=='0')})
+  .catch(err=>console.warn('3D view unavailable, staying in 2D:',err));
 function frame(ts){requestAnimationFrame(frame); // asked for first, so one bad frame can't stop the game for good
   const gap=ts-lastT,dt=Math.min(0.05,gap/1000||0);lastT=ts;document.body.classList.toggle('inMenu',menuOpen);
   const a=performance.now();update(dt);tutTick();const b=performance.now();if(cv.width>0&&cv.height>0)draw();perfTick(ts,gap||0,b-a,performance.now()-b)}
