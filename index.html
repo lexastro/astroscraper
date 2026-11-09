@@ -412,6 +412,7 @@ body.inMenu :is(#game,#fogGrain,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMet
        cost. Structures (data-mode) are aimed and launched; units (data-unit) deploy at once. -->
   <div class="build" id="buildBar">
     <button id="bTurret" data-mode="turret"><span class="icon">⌖</span><span>Turret</span><span class="cost" id="cf_turret">●●</span><span class="key">Q</span></button>
+    <button id="bWall" data-mode="wall"><span class="icon">▤</span><span>Wall</span><span class="cost" id="cWall">◆2/slat</span><span class="key">B</span></button>
     <button id="bRelay" data-mode="relay"><span class="icon">⟐</span><span>Relay</span><span class="cost" id="cf_relay">●●●</span><span class="key">R</span></button>
     <button id="bFabTroop" data-unit="troop"><span class="icon">▲</span><span>Squad</span><span class="cost" id="cf_troop">●●</span></button>
     <button id="bFabBrawler" data-unit="brawler"><span class="icon">⛊</span><span>Brawler</span><span class="cost" id="cf_brawler">●●●●○○○○</span></button>
@@ -461,7 +462,7 @@ body.inMenu :is(#game,#fogGrain,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMet
   <b>Touch:</b> tap to select · tap empty ground/an enemy/a resource to move/attack/harvest · drag to pan · hold still then drag to box-select · pinch to zoom · double-tap to select all of a kind<br>
   <b>Fabricators:</b> Turrets and Relays hold a free stock; once it's empty each use costs Dat (shown on the button). Unit buttons (Squad, Brawler, Grenadier, Rocketeer, Mech) show how many you can field against how many you have, and the price of the next one — just click to deploy. <kbd>Q</kbd> launch a turret · <kbd>Ctrl</kbd>+<kbd>1</kbd>–<kbd>9</kbd> save the selected units as a control group, <kbd>1</kbd>–<kbd>9</kbd> select it (twice to look at it) · <kbd>R</kbd> launch a relay · <kbd>G</kbd> power up a derelict rig ·  <b>Nests</b>: every enemy patrol comes from one, and the nests near a vein send its drilling waves — destroy them (they fight back) for <b>Dat Crystal</b>. <b>Mega nests</b> glow crimson through the fog: hive veins ringed by brood mounds that pour out its waves — break the mounds, then drain the hive for Hive-tier rewards and salvage. When the contract vein stirs, great mounds rise around it too. <b>Dat Crystal</b>: drive the Bastion or a unit over the Dat a nest drops (or an enemy's shard) to scoop it up — your <b>repair drones</b> fly out on their own and spend it patching up Stabilizers, turrets, relays and the Bastion · <kbd>E</kbd> fire a Stabilizer from the Bastion (3 free, then Dat each; aim at a vein's drifting hotspot and lead it — a hit pins it, buys the vein 15s before it collapses, widens the strike bands and steadies the needle; with all 3 pinned, drag the weight on the steering pad to push the needle — the wider their triangle, the further it goes, but the one you lean on draws the enemy) — turrets and relays land anywhere inside the Bastion's ring (or a relay's)<br>
   <b>Tether:</b> wireless works freely on the Rim; past it, units need a live cable back to the Bastion or a Relay, or they go dark — chain Relays to push your reach further out. A dark unit still takes orders, but its Sanity drains; reconnect in time to recover it, or it defects into a hostile Corrupted enemy<br>
-  <kbd>T</kbd> recon probe: click a direction and it flies straight out on its fiber line, lifting the fog along a narrow strip for 20s and permanently finding veins it passes (3 charges, one back every 20s) · <kbd>V</kbd> follow Bastion (escorts it as it moves, until given another order) · right-drag with units selected: line them up along the drag, facing square to it (drag longer to spread them wider) · <kbd>X</kbd> hold position (held units side by side fire up to 30% faster) · <kbd>Esc</kbd> cancel, or pause the whole game if nothing's open · <kbd>`</kbd> reveal map (debug)
+  <kbd>T</kbd> recon probe: click a direction and it flies straight out on its fiber line, lifting the fog along a narrow strip for 20s and permanently finding veins it passes (3 charges, one back every 20s) · <kbd>V</kbd> follow Bastion (escorts it as it moves, until given another order) · right-drag with units selected: line them up along the drag, facing square to it (drag longer to spread them wider) · <kbd>B</kbd> wall: click and drag to lay a line of wall (drag from the end of another to join them) · <kbd>X</kbd> hold position (held units side by side fire up to 30% faster) · <kbd>Esc</kbd> cancel, or pause the whole game if nothing's open · <kbd>`</kbd> reveal map (debug)
 </div>
 
 <!-- Guided tutorial: one instruction at a time, advancing on its own as the player does each thing. -->
@@ -779,6 +780,13 @@ const BASE_GUN_RANGE=260, BASE_GUN_DMG=18, BASE_GUN_CD=0.5;
 //  - lifts the fog over that circle and shows the enemies in it for PING_ENEMY_T seconds only.
 const PING_REACH=2400, PING_REVEAL_R=450, PING_ENEMY_T=20, PING_CD=60;
 const WALL_HP=220;
+// v4 wall lines: click and drag (B) to lay a line; its two end posts are launched from the Bastion
+// and, once both land, slats rise one after another from the ends toward the middle. Free of the
+// map grid: a line is any length (WALL_MIN_LEN..WALL_MAX_LEN) at any angle, cut into slats about
+// WALL_SLAT long, each with its own WALL_SLAT_HP. Cost is WALL_DAT_BASE plus WALL_DAT_PER_SLAT a slat.
+// A new line's ends snap to an existing line's end within WALL_SNAP. Only enemies are stopped by
+// walls; your own units pass through them.
+const WALL_SLAT=18, WALL_THICK=8, WALL_SLAT_HP=160, WALL_MIN_LEN=30, WALL_MAX_LEN=420, WALL_SNAP=22, WALL_DAT_BASE=4, WALL_DAT_PER_SLAT=2, WALL_RAISE_STEP=0.07, WALL_RAISE_T=0.25;
 const COST={wall:5,turret:75,relay:15,depot:150,stabilizer:20,harvester:75,troop:30,builder:20,grenadier:45,artillery:140,mech:90,rocket:70,brawler:25};
 // v2 fabricators: nothing is bought with Dat any more. Each kind of thing the Bastion can make has
 // its own fabricator holding `charges`; a spent charge comes back after `t` seconds (one at a time,
@@ -4276,6 +4284,7 @@ cv.addEventListener('pointerdown',e=>{
     }
     if(probeMode){fireProbe(w);return}
     if(pingMode){firePing(w);return}
+    if(buildMode==='wall'){startWallDraw(w);return}
     if(buildMode){
       const placed=tryBuild(w);
       if(buildMode==='wall'){mouse.wallDragging=true;mouse.wallPlacedTouch=placed}
@@ -4303,7 +4312,8 @@ cv.addEventListener('pointerdown',e=>{
   if(e.button===0){
     if(probeMode){fireProbe(w);return}
     if(pingMode){firePing(w);return}
-    if(buildMode){tryBuild(w);if(buildMode==='wall')mouse.wallDragging=true;return}
+    if(buildMode==='wall'){startWallDraw(w);return}
+    if(buildMode){tryBuild(w);return}
     mouse.down=true;mouse.drag={x0:w.x,y0:w.y,x1:w.x,y1:w.y,moved:false};
   }
 });
@@ -4311,7 +4321,7 @@ cv.addEventListener('pointermove',e=>{
   const w=toWorld(e.clientX,e.clientY);mouse.wx=w.x;mouse.wy=w.y;
   // click-and-drag wall building: each new grid cell the pointer crosses while held down gets its
   // own wall queued — tryBuild already no-ops quietly on a cell that's taken, out of range, etc.
-  if(mouse.wallDragging){if(buildMode==='wall'){if(tryBuild(w))mouse.wallPlacedTouch=true}return}
+  if(mouse.wallDraw){moveWallDraw(w);if(e.pointerType==='touch'&&touchPts.has(e.pointerId))touchPts.set(e.pointerId,{x:e.clientX,y:e.clientY});return}
   if(e.pointerType==='touch'&&touchPts.has(e.pointerId))touchPts.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(pinch&&touchPts.size>=2){
     const ids=[...touchPts.keys()];const a=touchPts.get(ids[0]),b=touchPts.get(ids[1]);
@@ -4335,6 +4345,7 @@ cv.addEventListener('pointermove',e=>{
   if(mouse.drag){mouse.drag.x1=w.x;mouse.drag.y1=w.y;if(Math.abs(w.x-mouse.drag.x0)+Math.abs(w.y-mouse.drag.y0)>6)mouse.drag.moved=true}
 });
 cv.addEventListener('pointerup',e=>{
+  if(mouse.wallDraw){finishWallDraw();if(e.pointerType==='touch')touchPts.delete(e.pointerId);return}
   if(mouse.form){const f=mouse.form;mouse.form=null;if(f.moved)orderFormation(f);else rightClick({x:f.x0,y:f.y0});return}
   if(mouse.wallDragging){
     mouse.wallDragging=false;
@@ -4421,6 +4432,7 @@ addEventListener('keydown',e=>{
   else if(e.key.toLowerCase()==='t'){tryProbe()}
   else if(e.key.toLowerCase()==='v'){followSelected()}
   else if(e.key.toLowerCase()==='x'){holdSelected()}
+  else if(e.key.toLowerCase()==='b'){setBuild(buildMode==='wall'?null:'wall')}
   else if(e.key==='`'){debugNoFog=!debugNoFog;dbgSkip.hidden=!debugNoFog;msg(debugNoFog?'Debug: fog of war disabled':'Debug: fog of war re-enabled')}
   if(e.key===' '){e.preventDefault();if(!e.repeat&&strikeReady())doStrike()}
 });
@@ -4436,6 +4448,7 @@ refreshAutoBuy();
 function buyCharge(k){
   if(!S||S.over||menuOpen)return;
   if(isSquadLike(k)){fabUnit(k);return}
+  if(k==='wall')return;
   const isStab=k==='stabilizer', isProbe=k==='probe';
   const name=isStab?'Stabilizer':isProbe?'Probe':FABS[k].name, cost=isStab?STAB_DAT:isProbe?PROBE_DAT:FAB_DAT[k];
   const have=isStab?S.stabCharges:isProbe?S.probeCharges:S.fab[k].n, max=isStab?STAB_CHARGES:isProbe?PROBE_CHARGES:FABS[k].charges;
@@ -4546,6 +4559,8 @@ function fabUnit(k){
 // Structures are lobbed from the Bastion and stand up the moment they land.
 function landFabShot(sh){
   const w={x:sh.tx,y:sh.ty};
+  if(sh.k==='wallpost'){const L=sh.line;L.posts[sh.end]=true;burst(w.x,w.y,'#8d9aa8',8,100,0.35);shakeScreen(1.5,0.1);sfx.build();
+    if(L.posts[0]&&L.posts[1]&&L.raiseT0==null)L.raiseT0=S.t;return}
   if(sh.k==='turret'){
     S.turrets.push({x:w.x,y:w.y,hp:TURRET_HP,maxHp:TURRET_HP,cd:0,ang:0,kind:'turret',built:true,buildT:TURRET_BUILD_T,buildTotal:TURRET_BUILD_T,builder:null,repairer:null});
     msg('Turret deployed.');
@@ -4562,7 +4577,7 @@ function updateFabShots(dt){
 function drawFabShots(){
   S.fabShots.forEach(sh=>{const p=sh.t/sh.dur, x=sh.x0+(sh.tx-sh.x0)*p, y=sh.y0+(sh.ty-sh.y0)*p, lift=Math.sin(p*Math.PI)*Math.min(90,sh.dur*60);
     ctx.fillStyle='rgba(0,0,0,0.35)';ctx.beginPath();ctx.ellipse(x,y,6,3,0,0,Math.PI*2);ctx.fill();
-    ctx.save();ctx.translate(x,y-lift);ctx.rotate(sh.t*6);ctx.fillStyle=sh.k==='turret'?C.accent:C.cable;ctx.strokeStyle='#000';ctx.lineWidth=1;
+    ctx.save();ctx.translate(x,y-lift);ctx.rotate(sh.t*6);ctx.fillStyle=sh.k==='turret'?C.accent:sh.k==='wallpost'?'#8d9aa8':C.cable;ctx.strokeStyle='#000';ctx.lineWidth=1;
     ctx.fillRect(-6,-6,12,12);ctx.strokeRect(-6,-6,12,12);ctx.restore();
     ctx.strokeStyle=C.builder;ctx.globalAlpha=0.35;ctx.setLineDash([4,6]);ctx.beginPath();ctx.arc(sh.tx,sh.ty,14,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1});
 }
@@ -4625,10 +4640,11 @@ function toggleRepairMode(){
   sfx.click();
   updateBuildBar();
 }
-function setBuild(m){buildMode=m;if(m){pingMode=false;probeMode=false}closeProdMenu();updateBuildBar()}
+function setBuild(m){buildMode=m;mouse.wallDraw=null;if(m){pingMode=false;probeMode=false}closeProdMenu();updateBuildBar()}
 function updateBuildBar(){
   document.querySelectorAll('#buildBar button[data-mode]').forEach(b=>{
     b.classList.toggle('on',b.dataset.mode===buildMode);
+    if(b.dataset.mode==='wall'){b._ds=false;b.classList.toggle('dry',S.dat<WALL_DAT_BASE+WALL_DAT_PER_SLAT*2);const c=document.getElementById('cWall');if(c)c._tc=`◆${WALL_DAT_PER_SLAT}/slat`;return}
     if(b.dataset.mode==='stabilizer'){
       b._ds=false;b.classList.toggle('dry',S.stabCharges<=0);
       const c=document.getElementById('cStab');
@@ -5179,6 +5195,78 @@ function updateStabilizerShots(dt){
 
   S.stabShots=S.stabShots.filter(sh=>{sh.t+=dt;if(sh.t<sh.dur)return true;landStabilizer(sh);return false});
 }
+// ---------- wall lines ----------
+function wallEnds(){const out=[];(S.wallLines||[]).forEach(L=>{out.push({x:L.x0,y:L.y0},{x:L.x1,y:L.y1})});return out}
+function wallSnap(w){let best=null,bd=WALL_SNAP/Math.min(1,cam.z);wallEnds().forEach(p=>{const d=dist(p,w);if(d<bd){bd=d;best=p}});return best?{x:best.x,y:best.y,snapped:true}:{x:w.x,y:w.y,snapped:false}}
+// the line being drawn: clamped to WALL_MAX_LEN, with its slat count, cost and whether it can be placed
+function wallPlan(d){
+  let x1=d.x1,y1=d.y1,L=Math.hypot(x1-d.x0,y1-d.y0);
+  if(L>WALL_MAX_LEN){const k=WALL_MAX_LEN/L;x1=d.x0+(x1-d.x0)*k;y1=d.y0+(y1-d.y0)*k;L=WALL_MAX_LEN}
+  const n=Math.max(1,Math.round(L/WALL_SLAT)),cost=WALL_DAT_BASE+n*WALL_DAT_PER_SLAT;
+  const a={x:d.x0,y:d.y0},b={x:x1,y:y1};let why='';
+  if(L<WALL_MIN_LEN)why='Drag out a longer wall.';
+  else if(!inBuildRange(a)||!inBuildRange(b))why="Both ends must be inside the Bastion's dashed ring (or a Relay's).";
+  else if(terrainAt(a.x,a.y)===2||terrainAt(b.x,b.y)===2)why='A wall post cannot land on solid rock.';
+  else if(S.dat<cost)why=`Not enough Dat — this wall costs ${cost}, you have ${Math.floor(S.dat)}.`;
+  return {x0:d.x0,y0:d.y0,x1,y1,L,n,cost,ok:!why,why};
+}
+function startWallDraw(w){const p=wallSnap(w);mouse.wallDraw={x0:p.x,y0:p.y,x1:p.x,y1:p.y,s0:p.snapped,s1:false}}
+function moveWallDraw(w){const d=mouse.wallDraw,p=wallSnap(w);d.x1=p.x;d.y1=p.y;d.s1=p.snapped&&(p.x!==d.x0||p.y!==d.y0)}
+function finishWallDraw(){
+  const d=mouse.wallDraw;mouse.wallDraw=null;if(!d)return;
+  const P=wallPlan(d);
+  if(P.L<WALL_MIN_LEN)return; // just a click
+  if(!P.ok){msg(P.why);return}
+  if(!payDat(P.cost,'A wall'))return;
+  const L=P.L,ux=(P.x1-P.x0)/L,uy=(P.y1-P.y0)/L,seg=L/P.n,line={x0:P.x0,y0:P.y0,x1:P.x1,y1:P.y1,ux,uy,ang:Math.atan2(uy,ux),posts:[false,false],raiseT0:null,slats:[]};
+  for(let i=0;i<P.n;i++){const c=(i+0.5)*seg,x=P.x0+ux*c,y=P.y0+uy*c;
+    if(terrainAt(x,y)===2)continue; // rock already blocks there
+    line.slats.push({x,y,half:seg/2,hp:WALL_SLAT_HP,maxHp:WALL_SLAT_HP,up:0,order:Math.min(i,P.n-1-i),line,kind:'wallslat'})}
+  (S.wallLines||(S.wallLines=[])).push(line);S.wallDirty=true;
+  [[P.x0,P.y0],[P.x1,P.y1]].forEach(([tx,ty],i)=>{const dd=Math.hypot(tx-S.base.x,ty-S.base.y);S.fabShots.push({k:'wallpost',line,end:i,x0:S.base.x,y0:S.base.y,tx,ty,t:0,dur:Math.max(0.4,dd/FAB_FLIGHT_SPEED)})});
+  tone(200,0.12,'square',0.06,0,420);
+}
+function updateWallLines(dt){
+  if(!S.wallLines)return;
+  S.wallLines.forEach(L=>{
+    L.slats.forEach(sl=>{if(sl.flashT>0)sl.flashT=Math.max(0,sl.flashT-dt)});
+    if(L.raiseT0==null)return;const el=S.t-L.raiseT0;
+    L.slats.forEach(sl=>{const was=sl.up;sl.up=Math.max(0,Math.min(1,(el-sl.order*WALL_RAISE_STEP)/WALL_RAISE_T));if(was<0.6&&sl.up>=0.6){S.wallDirty=true;if(sfxReady('slat',0.05))tone(150+Math.random()*60,0.05,'square',0.03)}});
+  });
+  // a line with every slat broken is gone, posts and all
+  S.wallLines=S.wallLines.filter(L=>L.raiseT0==null||L.slats.some(sl=>!sl.dead));
+}
+function drawWallLines(){
+  (S.wallLines||[]).forEach(L=>{
+    L.slats.forEach(sl=>{if(sl.dead||sl.up<=0)return;
+      const h=sl.half*0.82,t=WALL_THICK*(0.35+0.65*sl.up);
+      ctx.save();ctx.translate(sl.x,sl.y);ctx.rotate(L.ang);ctx.scale(1,sl.up<1?0.4+0.6*sl.up:1);
+      ctx.fillStyle='rgba(0,0,0,0.35)';ctx.fillRect(-h+2,-t/2+3,h*2,t);
+      ctx.fillStyle=sl.flashT>0?'#fff':'#8d9aa8';ctx.strokeStyle='#2a323b';ctx.lineWidth=1;ctx.fillRect(-h,-t/2,h*2,t);ctx.strokeRect(-h,-t/2,h*2,t);
+      ctx.fillStyle=sl.flashT>0?'#fff':'#5d6a77';ctx.fillRect(-h+2,-1,h*2-4,2);
+      if(sl.hp<sl.maxHp){ctx.fillStyle='rgba(255,92,77,0.7)';ctx.fillRect(-h,t/2-2,h*2*(1-sl.hp/sl.maxHp),2)}
+      ctx.restore()});
+    [[L.x0,L.y0,0],[L.x1,L.y1,1]].forEach(([x,y,i])=>{if(!L.posts[i])return;
+      ctx.fillStyle='#3b4652';ctx.strokeStyle=C.accent;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(x,y,5.5,0,Math.PI*2);ctx.fill();ctx.stroke()});
+  });
+}
+function drawWallPreview(){
+  if(buildMode!=='wall')return;
+  const d=mouse.wallDraw;
+  if(!d){const p=wallSnap({x:mouse.wx,y:mouse.wy});ctx.save();ctx.strokeStyle=p.snapped?C.accent:'#8d9aa8';ctx.lineWidth=1.5/cam.z;ctx.globalAlpha=0.8;ctx.beginPath();ctx.arc(p.x,p.y,p.snapped?9:5,0,Math.PI*2);ctx.stroke();ctx.restore();return}
+  const P=wallPlan(d),col=P.ok?'#8d9aa8':C.enemy;
+  ctx.save();
+  if(P.L>=1){const ux=(P.x1-P.x0)/P.L,uy=(P.y1-P.y0)/P.L,seg=P.L/P.n,ang=Math.atan2(uy,ux);ctx.globalAlpha=0.55;ctx.fillStyle=col;
+    for(let i=0;i<P.n;i++){const c=(i+0.5)*seg;ctx.save();ctx.translate(P.x0+ux*c,P.y0+uy*c);ctx.rotate(ang);ctx.fillRect(-seg/2*0.82,-WALL_THICK/2,seg*0.82,WALL_THICK);ctx.restore()}}
+  ctx.globalAlpha=0.9;ctx.strokeStyle=P.ok?C.accent:C.enemy;ctx.lineWidth=1.5/cam.z;
+  [[P.x0,P.y0,d.s0],[P.x1,P.y1,d.s1]].forEach(([x,y,sn])=>{ctx.beginPath();ctx.arc(x,y,sn?9:6,0,Math.PI*2);ctx.stroke()});
+  // the price, next to the cursor
+  const f=13/cam.z;ctx.font=`700 ${f}px ${css('--mono')}`;ctx.textAlign='left';ctx.textBaseline='middle';
+  const txt=`◆ ${P.cost}`,tx=mouse.wx+14/cam.z,ty=mouse.wy-14/cam.z,tw=ctx.measureText(txt).width;
+  ctx.globalAlpha=0.85;ctx.fillStyle='rgba(11,14,18,0.85)';ctx.fillRect(tx-4/cam.z,ty-f*0.75,tw+8/cam.z,f*1.5);
+  ctx.globalAlpha=1;ctx.fillStyle=P.ok?C.dat:C.enemy;ctx.fillText(txt,tx,ty);
+  ctx.restore();
+}
 function tryBuild(w){
   if(buildMode==='stabilizer')return fireStabilizer(w);
   if(buildMode!=='turret'&&buildMode!=='relay')return;
@@ -5301,10 +5389,21 @@ const sfx={
 };
 // Only a FINISHED wall is a solid obstacle — a queued/under-construction site is just a ghost preview.
 function wallAt(x,y){
-  const direct=S.walls.get(key(Math.floor(x/CELL),Math.floor(y/CELL)));
-  if(direct&&direct.built)return direct;
-  return cornerSealed(x,y);
+  if(!S.wallLines||!S.wallLines.length)return undefined;
+  if(S.wallDirty||!S.wallGrid)rebuildWallGrid();
+  const b=S.wallGrid.get(key(Math.floor(x/WALL_GRID),Math.floor(y/WALL_GRID)));if(!b)return undefined;
+  for(const sl of b){if(sl.dead||sl.up<0.6)continue;const L=sl.line,rx=x-sl.x,ry=y-sl.y,al=rx*L.ux+ry*L.uy,pp=rx*-L.uy+ry*L.ux;
+    if(Math.abs(al)<=sl.half+2&&Math.abs(pp)<=WALL_THICK/2+3)return sl}
+  return undefined;
 }
+// slats bucketed on a coarse grid (each into every cell its footprint touches) so wallAt stays cheap
+const WALL_GRID=40;
+function rebuildWallGrid(){
+  const g=new Map();S.wallDirty=false;S.wallGrid=g;
+  (S.wallLines||[]).forEach(L=>L.slats.forEach(sl=>{if(sl.dead)return;const r=sl.half+WALL_THICK;
+    for(let gx=Math.floor((sl.x-r)/WALL_GRID);gx<=Math.floor((sl.x+r)/WALL_GRID);gx++)for(let gy=Math.floor((sl.y-r)/WALL_GRID);gy<=Math.floor((sl.y+r)/WALL_GRID);gy++){const k=key(gx,gy);if(!g.has(k))g.set(k,[]);g.get(k).push(sl)}}));
+}
+function damageWall(w,dmg){w.hp-=dmg;hitFlash(w);if(w.hp<=0&&!w.dead){w.dead=true;S.wallDirty=true;burst(w.x,w.y,'#8d9aa8',6,90,0.35)}}
 // Two walls touching only at a shared corner (with the other two cells at that corner empty) should
 // seal that corner like a solid wall — otherwise enemies squeeze through the diagonal gap between them.
 function cornerSealed(x,y){
@@ -5317,7 +5416,7 @@ function cornerSealed(x,y){
   if(c&&d&&!a&&!b)return c;
   return undefined;
 }
-function wallBetween(a,b){const d=dist(a,b);const steps=Math.max(1,Math.ceil(d/(CELL*0.6)));
+function wallBetween(a,b){if(!S.wallLines||!S.wallLines.length)return false;const d=dist(a,b);const steps=Math.max(1,Math.ceil(d/8));
   for(let s=0;s<=steps;s++){const t=s/steps;if(wallAt(a.x+(b.x-a.x)*t,a.y+(b.y-a.y)*t))return true}
   return false}
 // A wall/turret/relay site can be destroyed by enemies mid-build; confirm it's still the live
@@ -5546,7 +5645,7 @@ function hordeStep(e,tgt,dt){
   if(f){ux=f.x;uy=f.y}else{ux=(tgt.x-e.x)/(d||1);uy=(tgt.y-e.y)/(d||1)}
   const wv=Math.sin(S.t*2.3+e.seed)*0.4*Math.min(1,d/200),c=Math.cos(wv),s=Math.sin(wv);[ux,uy]=[ux*c-uy*s,ux*s+uy*c];
   const w=wallAt(e.x+ux*(e.r+6),e.y+uy*(e.r+6));
-  if(w){if(e.cd<=0){w.hp-=e.dmg*1.5;hitFlash(w);spark(w.x,w.y,C.enemy,1);e.cd=0.8;if(w.hp<=0)S.walls.delete(key(w.gx,w.gy))}return}
+  if(w){if(e.cd<=0){damageWall(w,e.dmg*1.5);spark(w.x,w.y,C.enemy,1);e.cd=0.8}return}
   const sp=e.speed*enemyRoughFactor(e.x,e.y)*dt,nx=e.x+ux*sp,ny=e.y+uy*sp;
   if(!hordeBlocked(nx,ny)){e.x=nx;e.y=ny}else if(!hordeBlocked(nx,e.y))e.x=nx;else if(!hordeBlocked(e.x,ny))e.y=ny;
   e.ang=Math.atan2(uy,ux);
@@ -6139,7 +6238,7 @@ function update(dt){
     const dx=aim.x-e.x,dy=aim.y-e.y,L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L,look=e.r+6,perp=e.r*0.6;
     const probes=[{x:e.x+ux*look,y:e.y+uy*look},{x:e.x+ux*look-uy*perp,y:e.y+uy*look+ux*perp},{x:e.x+ux*look+uy*perp,y:e.y+uy*look-ux*perp}];
     let w=null; for(const pt of probes){w=wallAt(pt.x,pt.y); if(w)break}
-    if(w){if(e.cd<=0){w.hp-=e.dmg*1.5;hitFlash(w);spark(w.x,w.y,C.enemy,2);e.cd=0.8;if(w.hp<=0)S.walls.delete(key(w.gx,w.gy))}return}
+    if(w){if(e.cd<=0){damageWall(w,e.dmg*1.5);spark(w.x,w.y,C.enemy,2);e.cd=0.8}return}
     const factor=enemyRoughFactor(e.x,e.y);
     moveToward(e,aim,e.speed*factor,dt);
   });
@@ -6234,6 +6333,7 @@ function update(dt){
   if(S.shake.t>0)S.shake.t=Math.max(0,S.shake.t-dt);
   [B,...S.enemies,...S.troops,...S.harvesters,...S.builders,...S.turrets,...S.relays,...S.stabs].forEach(o=>{if(o.flashT>0)o.flashT=Math.max(0,o.flashT-dt)});
   S.walls.forEach(w=>{if(w.flashT>0)w.flashT=Math.max(0,w.flashT-dt)});
+  updateWallLines(dt);
 
   // dim veil, rebuilt fresh every frame: dark over everything, then punched fully clear around
   // current vision sources. v4: with a permanent "explored" memory again (fogC) — ground you've
@@ -6894,6 +6994,7 @@ function draw(){
   ctx.setLineDash([6,10]);ctx.strokeStyle='rgba(242,182,60,0.35)';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(B.x,B.y,BUILD_R,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
   if(buildMode)S.relays.forEach(r=>{if(!r.built)return;ctx.setLineDash([6,10]);ctx.strokeStyle='rgba(242,182,60,0.35)';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(r.x,r.y,BUILD_R,0,Math.PI*2);ctx.stroke();ctx.setLineDash([])});
   // walls
+  drawWallLines();
   S.walls.forEach(w=>{
     if(!w.built){
       const pulse=0.55+0.25*Math.sin(S.t*5);
@@ -7132,10 +7233,11 @@ function draw(){
     ctx.fillStyle=col;ctx.font='600 12px '+css('--mono');ctx.textAlign='center';ctx.fillText(`${Math.max(0.45,d/STAB_FLIGHT_SPEED).toFixed(1)}s`,mouse.wx,mouse.wy-STAB_SNAP-8);
     ctx.restore()}
   else if(buildMode){const ok=inBuildRange({x:mouse.wx,y:mouse.wy})&&terrainAt(mouse.wx,mouse.wy)!==2&&S.fab[buildMode]&&S.fab[buildMode].n>0;ctx.globalAlpha=0.6;
-    if(buildMode==='wall'){const gx=Math.floor(mouse.wx/CELL)*CELL,gy=Math.floor(mouse.wy/CELL)*CELL;ctx.fillStyle=ok?'#8d9aa8':C.enemy;ctx.fillRect(gx+1,gy+1,CELL-2,CELL-2)}
+    if(buildMode==='wall'){}
     else{const rng=buildMode==='turret'?TURRET_RANGE:wirelessTol('dense');ctx.fillStyle=ok?C.accent:C.enemy;ctx.beginPath();ctx.arc(mouse.wx,mouse.wy,11,0,Math.PI*2);ctx.fill();if(rng>0){ctx.strokeStyle=ok?C.accent:C.enemy;ctx.lineWidth=1;ctx.setLineDash([4,6]);ctx.beginPath();ctx.arc(mouse.wx,mouse.wy,rng,0,Math.PI*2);ctx.stroke();ctx.setLineDash([])}}
     ctx.globalAlpha=1}
   drawFormationPreview();
+  drawWallPreview();
   // selection box
   if(mouse.drag&&mouse.drag.moved){const d=mouse.drag;ctx.strokeStyle=C.ally;ctx.fillStyle='rgba(94,200,255,0.1)';ctx.lineWidth=1/cam.z;ctx.fillRect(d.x0,d.y0,d.x1-d.x0,d.y1-d.y0);ctx.strokeRect(d.x0,d.y0,d.x1-d.x0,d.y1-d.y0)}
   ctx.setTransform(dpr,0,0,dpr,0,0);drawWaveWarn(vw,vh);drawTutorialArrow(vw,vh);
