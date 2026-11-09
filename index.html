@@ -4232,7 +4232,11 @@ function cableSeverPass(allUnits,dt){
 // (far fewer pixels to fill each frame), and the film grain is turned off. Remembered per browser.
 const LOWGFX_KEY='datascraper_lowgfx_v4';
 let lowGfx=false;try{lowGfx=localStorage.getItem(LOWGFX_KEY)==='1'}catch(e){}
-function gDpr(){return lowGfx?Math.min(1,devicePixelRatio||1)*0.6:(devicePixelRatio||1)}
+// v5: in the 3D view the 2D canvas is only the decal laid over the ground (mostly soft glows,
+// rings and bars), so it's drawn at DECAL_RES of a CSS pixel, not at full device resolution: a
+// fraction of the pixels to draw and to send to the GPU every frame.
+const DECAL_RES=0.75;
+function gDpr(){const d=lowGfx?Math.min(1,devicePixelRatio||1)*0.6:(devicePixelRatio||1);return V3&&V3.on?Math.min(d,DECAL_RES):d}
 function resize(){const d=gDpr();cv.width=Math.round(cv.clientWidth*d);cv.height=Math.round(cv.clientHeight*d);document.body.classList.toggle('lowGfx',lowGfx)}
 function setLowGfx(on){lowGfx=on;try{localStorage.setItem(LOWGFX_KEY,on?'1':'0')}catch(e){}resize();msg(on?'Low graphics ON — lower resolution, no grain (F8 to turn off).':'Low graphics OFF (F8).')}
 addEventListener('resize',resize);resize();
@@ -6877,7 +6881,7 @@ function draw2D(D3){
   // particles (impact sparks, kill/vein/destruction bursts)
   S.particles.forEach(p=>{ctx.globalAlpha=Math.max(0,1-p.t/p.life);ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);ctx.fill()});ctx.globalAlpha=1;
   // fog
-  if(!debugNoFog){blurFogged(vw,vh,shkx,shky);ctx.imageSmoothingEnabled=true;ctx.drawImage(dimSoftC,0,0,W,H)}
+  if(!debugNoFog&&!D3){blurFogged(vw,vh,shkx,shky);ctx.imageSmoothingEnabled=true;ctx.drawImage(dimSoftC,0,0,W,H)} // (3D: the fog is applied in the shaders)
   drawExit();
   // energy pulses through the crack network (only where something can see) and bearing beams
   drawExplorationLight(x0-40,y0-40,x1+40,y1+40,vw,vh,shkx,shky);
@@ -7015,8 +7019,8 @@ function initView3D(T,EC,RP,BP,OP){
   const PITCH=56*Math.PI/180, FOVT=Math.tan(40/2*Math.PI/180);
   scene.add(new T.HemisphereLight('#9fb4d8','#1a1410',0.9));
   const sun=new T.DirectionalLight('#dfe8ff',2.2);sun.castShadow=true;
-  sun.shadow.mapSize.set(2048,2048);sun.shadow.bias=-0.0006;sun.shadow.normalBias=1.5;
-  const sc=sun.shadow.camera;sc.near=10;sc.far=4000;sc.left=sc.bottom=-900;sc.right=sc.top=900;
+  sun.shadow.mapSize.set(1024,1024);sun.shadow.bias=-0.0006;sun.shadow.normalBias=1.5;
+  const sc=sun.shadow.camera;sc.near=10;sc.far=4000;sc.left=sc.bottom=-900;sc.right=sc.top=900;sc.layers.enable(1); // layer 1: shadow-only stand-ins
   scene.add(sun,sun.target);
   // composer: scene → bloom (only the bright, emissive bits clear the threshold) → tone map/sRGB
   const comp=new EC(R), bloom=new BP(new T.Vector2(256,256),0.6,0.5,0.92);
@@ -7024,7 +7028,7 @@ function initView3D(T,EC,RP,BP,OP){
   const V={on:false,frame:0,map:new WeakMap(),root:new T.Group(),terrainOf:null,shardsOf:null};
   scene.add(V.root);
   // the fog veil, map-wide (dimSoftC: alpha = how dark), so tall things out in the fog darken with it
-  const fogU={uFogTex:{value:null},uMap:{value:new T.Vector2(W,H)}};
+  const fogU={uFogTex:{value:null},uFogOn:{value:1},uMap:{value:new T.Vector2(W,H)}};
   // a texture can't change size once it's on the GPU, so one whose canvas is resized is replaced
   function liveTex(c,srgb){let t=null,w=0,h=0;return()=>{if(!t||c.width!==w||c.height!==h){if(t)t.dispose();w=c.width;h=c.height;
     t=new T.CanvasTexture(c);t.minFilter=t.magFilter=T.LinearFilter;t.generateMipmaps=false;if(srgb)t.colorSpace=T.SRGBColorSpace}else t.needsUpdate=true;return t}}
@@ -7032,8 +7036,8 @@ function initView3D(T,EC,RP,BP,OP){
   function fogify(m){m.onBeforeCompile=sh=>{Object.assign(sh.uniforms,fogU);
     sh.vertexShader='varying vec2 vFogUv;\nuniform vec2 uMap;\n'+sh.vertexShader.replace('#include <project_vertex>',
       '#include <project_vertex>\nvec4 fw=vec4(transformed,1.0);\n#ifdef USE_INSTANCING\nfw=instanceMatrix*fw;\n#endif\nfw=modelMatrix*fw;vFogUv=vec2(fw.x/uMap.x,1.0-fw.z/uMap.y);');
-    sh.fragmentShader='varying vec2 vFogUv;\nuniform sampler2D uFogTex;\n'+sh.fragmentShader.replace('#include <dithering_fragment>',
-      '#include <dithering_fragment>\ngl_FragColor.rgb*=1.0-texture2D(uFogTex,vFogUv).a;')};return m}
+    sh.fragmentShader='varying vec2 vFogUv;\nuniform sampler2D uFogTex;\nuniform float uFogOn;\n'+sh.fragmentShader.replace('#include <dithering_fragment>',
+      '#include <dithering_fragment>\ngl_FragColor.rgb*=1.0-texture2D(uFogTex,vFogUv).a*uFogOn;')};return m}
   // ----- materials (shared, so a hundred drones cost one material each) -----
   const matCache=new Map();
   function mat(col,o={}){const k=col+JSON.stringify(o);let m=matCache.get(k);
@@ -7073,8 +7077,16 @@ function initView3D(T,EC,RP,BP,OP){
     const tex=new T.CanvasTexture(terrainCv);tex.colorSpace=T.SRGBColorSpace;tex.anisotropy=8;
     if(terrMesh){V.terrainGroup.remove(terrMesh,decal);terrMesh.geometry.dispose();terrMesh.material.map.dispose();terrMesh.material.emissiveMap.dispose()}
     if(!V.terrainGroup){V.terrainGroup=new T.Group();scene.add(V.terrainGroup)}
-    terrMesh=new T.Mesh(g,new T.MeshStandardMaterial({map:tex,emissiveMap:glowTex,emissive:'#ffffff',emissiveIntensity:0.07,roughness:0.92,metalness:0.05}));
-    terrMesh.receiveShadow=true;terrMesh.castShadow=true;
+    terrMesh=new T.Mesh(g,fogify(new T.MeshStandardMaterial({map:tex,emissiveMap:glowTex,emissive:'#ffffff',emissiveIntensity:0.07,roughness:0.92,metalness:0.05})));
+    terrMesh.receiveShadow=true;terrMesh.castShadow=false;
+    // the terrain's shadows come from a coarse copy (a vertex every 45px, ~1/9 the triangles) that
+    // only the sun's shadow camera sees (layer 1): the rock still throws its shadow, for far less
+    if(V.caster){V.terrainGroup.remove(V.caster);V.caster.geometry.dispose()}
+    {const st=45,cx=Math.ceil(W/st)+1,cy=Math.ceil(H/st)+1,cp=new Float32Array(cx*cy*3),ci=[];
+      for(let j=0;j<cy;j++)for(let i=0;i<cx;i++){const k=j*cx+i,x=Math.min(W,i*st),y=Math.min(H,j*st);cp[k*3]=x;cp[k*3+1]=Math.max(0,hAt(x,y)-3);cp[k*3+2]=y}
+      for(let j=0;j<cy-1;j++)for(let i=0;i<cx-1;i++){const a=j*cx+i,b=a+1,c=a+cx,d=c+1;ci.push(a,c,b,b,c,d)}
+      const cg=new T.BufferGeometry();cg.setAttribute('position',new T.BufferAttribute(cp,3));cg.setIndex(ci);
+      V.caster=new T.Mesh(cg,new T.MeshBasicMaterial());V.caster.castShadow=true;V.caster.layers.set(1);V.terrainGroup.add(V.caster)}
     // the decal: the same surface, textured with the 2D frame (whatever rect of the map it covers)
     decal=new T.Mesh(g,decalMat);decal.renderOrder=5;
     V.terrainGroup.add(terrMesh,decal);
@@ -7083,10 +7095,10 @@ function initView3D(T,EC,RP,BP,OP){
       rimMesh.position.set(W/2,-30,H/2);rimMesh.receiveShadow=true;scene.add(rimMesh)}
     buildCrystalWall();
   }
-  const decalU={uTex:{value:null},uRect:{value:new T.Vector4(0,0,1,1)}};
+  const decalU=Object.assign({uTex:{value:null},uRect:{value:new T.Vector4(0,0,1,1)}},fogU);
   const decalMat=new T.ShaderMaterial({uniforms:decalU,transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-8,
     vertexShader:'varying vec2 vW;void main(){vec4 w=modelMatrix*vec4(position,1.0);vW=w.xz;gl_Position=projectionMatrix*viewMatrix*w;}',
-    fragmentShader:'uniform sampler2D uTex;uniform vec4 uRect;varying vec2 vW;void main(){vec2 uv=(vW-uRect.xy)/uRect.zw;if(uv.x<0.0||uv.y<0.0||uv.x>1.0||uv.y>1.0)discard;uv.y=1.0-uv.y;gl_FragColor=texture2D(uTex,uv);\n#include <colorspace_fragment>\n}'});
+    fragmentShader:'uniform sampler2D uTex,uFogTex;uniform vec4 uRect;uniform vec2 uMap;uniform float uFogOn;varying vec2 vW;void main(){vec2 uv=(vW-uRect.xy)/uRect.zw;if(uv.x<0.0||uv.y<0.0||uv.x>1.0||uv.y>1.0)discard;uv.y=1.0-uv.y;gl_FragColor=texture2D(uTex,uv);gl_FragColor.rgb*=1.0-texture2D(uFogTex,vec2(vW.x/uMap.x,1.0-vW.y/uMap.y)).a*uFogOn;\n#include <colorspace_fragment>\n}'});
   // the v4 crystal wall: tall cyan crystal standing in every wall square (it shatters with the breach)
   const prism=new T.CylinderGeometry(1,1,1,6);prism.translate(0,0.5,0);
   const spike=new T.CylinderGeometry(0.12,1,1,6);spike.translate(0,0.5,0);
@@ -7123,25 +7135,43 @@ function initView3D(T,EC,RP,BP,OP){
   const setFlash=(g,on)=>g.traverse(o=>{if(o.isMesh&&o.userData.m&&!o.userData.keep)o.material=on?FLASH:o.userData.m});
   const place=(g,x,y,ang,lift=0)=>{g.position.set(x,hAt(x,y)+lift,y);if(ang!=null)g.rotation.y=-ang};
   function syncList(list,make,upd){list.forEach(e=>{let g=V.map.get(e);if(!g){g=make(e);V.map.set(e,g)}if(g.parent!==V.root)V.root.add(g);g.userData.f=V.frame;upd(e,g)})}
+  // Units and enemies are drawn in instanced batches: every body part of every unit of one kind is a
+  // single draw call, however many there are. A model is a list of parts, each sized in units of the
+  // body radius r; per frame each unit just writes its parts' matrices (and colours) into the batch.
   const TROOP_COL=t=>t.kind==='grenadier'?C.accent:t.kind==='artillery'?C.condensed:t.kind==='mech'?C.mech:t.kind==='rocket'?ROCKET_COLOR:t.kind==='brawler'?BRAWL_COLOR:C.ally;
-  function makeTroop(t){const g=new T.Group(),r=t.r,col=TROOP_COL(t),m=mat(col),dark=mat('#2a3340');
-    if(t.kind==='mech'){g.add(part(G.box,dark,r*1.8,r*0.7,r*0.45,0,r*0.35,-r*1.05),part(G.box,dark,r*1.8,r*0.7,r*0.45,0,r*0.35,r*1.05),part(G.box,m,r*1.5,r*0.9,r*1.6,-r*0.1,r*0.95,0),part(G.box,dark,r*1.3,r*0.25,r*0.3,r*0.9,r*1.1,0))}
-    else if(t.kind==='artillery'){g.add(part(G.box,m,r*2,r*0.9,r*1.3,0,r*0.45,0));const b=part(G.cyl6,dark,r*0.28,r*2.2,r*0.28,r*0.7,r*1.3,0);b.rotation.z=-1.0;g.add(b)}
-    else if(t.kind==='grenadier'){g.add(part(G.oct,m,r*1.1,r*1.5,r*1.1,0,r*1.5,0))}
-    else{g.add(part(G.cyl8,m,r*0.85,r*1.5,r*0.85,0,r*0.75,0),part(G.sph,m,r*0.62,r*0.62,r*0.62,0,r*1.75,0),part(G.box,glow('#bfefff',1.1),r*0.2,r*0.18,r*0.6,r*0.55,r*1.8,0));
-      if(t.kind==='brawler')g.add(part(G.box,mat('#5d7088'),r*0.35,r*2.0,r*2.2,r*1.15,r*1.0,0));
-      if(t.kind==='rocket'){const b=part(G.cyl6,mat('#5a2f1a'),r*0.32,r*2.6,r*0.32,r*0.2,r*1.6,r*0.75);b.rotation.z=-Math.PI/2;g.add(b)}}
-    return g}
-  function makeHarv(h){const g=new T.Group(),r=h.r,m=mat(C.harv);g.add(part(G.box,m,r*2,r*1.1,r*1.7,0,r*0.75,0),part(G.box,mat('#3a2a20'),r*0.9,r*0.5,r*1.9,r*0.8,r*0.35,0));
-    const load=part(G.oct,glow(C.dat,2.2),r*0.6,r*0.8,r*0.6,-r*0.3,r*1.9,0);load.userData.keep=true;load.name='load';g.add(load);return g}
-  function makeBuilder(b){const g=new T.Group(),r=b.r;g.add(part(G.tet,mat(C.builder),r*1.3,r*1.3,r*1.3,0,r*1.0,0));g.children[0].rotation.set(0.6,0,0.8);return g}
-  function makeEnemy(e){const g=new T.Group(),r=e.r,brute=e.kind==='brute';
-    const col=e.core?'#121214':e.kind==='roam'?'#d9775f':e.kind==='saboteur'?C.cable:e.kind==='corrupted'?C.zone:C.enemy;
-    const body=part(G.cone,mat(col,{roughness:0.5}),r*0.95,r*2.4,r*0.8,0,r*0.7,0);body.rotation.z=-Math.PI/2;g.add(body);
-    g.add(part(G.ico,mat('#1a0d10'),r*0.7,r*0.55,r*0.7,-r*0.4,r*0.75,0));
-    const eye=part(G.sph,glow(e.core?'#ff2a2a':'#ff6a3a',3.5),r*0.18,r*0.18,r*0.18,r*0.75,r*0.95,0);eye.userData.keep=true;g.add(eye);
-    if(brute){g.add(part(G.cone,mat('#2a1012'),r*0.25,r*0.9,r*0.25,r*0.1,r*1.3,-r*0.5),part(G.cone,mat('#2a1012'),r*0.25,r*0.9,r*0.25,r*0.1,r*1.3,r*0.5))}
-    return g}
+  const WHITE=new T.Color('#ffffff'), tmpC=new T.Color(), tmpM=new T.Matrix4(), entM=new T.Matrix4(), tq=new T.Quaternion(), tv=new T.Vector3(), ts=new T.Vector3(), yAx=new T.Vector3(0,1,0), ZERO=new T.Matrix4().makeScale(0,0,0);
+  // P(geometry, colour or 'tint' (the unit's own colour), size, position, rotation, {glow, name})
+  function P(geo,col,sx,sy,sz,x=0,y=0,z=0,rx=0,ry=0,rz=0,o={}){
+    return {geo,col:col==='tint'?null:new T.Color(col),glow:o.glow,name:o.name,m:new T.Matrix4().compose(new T.Vector3(x,y,z),new T.Quaternion().setFromEuler(new T.Euler(rx,ry,rz)),new T.Vector3(sx,sy,sz))}}
+  const models=[];
+  function Model(parts){const M={parts:parts.map(p=>Object.assign(p,{inst:null,cap:0})),n:0};models.push(M);return M}
+  function modelAdd(M,x,y,ang,r,lift,tint,flash,hide){
+    entM.compose(tv.set(x,hAt(x,y)+lift,y),tq.setFromAxisAngle(yAx,-ang),ts.set(r,r,r));const i=M.n++;
+    M.parts.forEach(p=>{
+      if(i>=p.cap){const cap=Math.max(32,p.cap*2),old=p.inst;
+        p.inst=new T.InstancedMesh(p.geo,p.glow?mat('#ffffff',{emissive:p.glow,emissiveIntensity:2,roughness:0.4}):mat('#ffffff'),cap);
+        p.inst.castShadow=true;p.inst.frustumCulled=false;p.cap=cap;scene.add(p.inst);
+        if(old){for(let k=0;k<i;k++){old.getMatrixAt(k,tmpM);p.inst.setMatrixAt(k,tmpM);old.getColorAt(k,tmpC);p.inst.setColorAt(k,tmpC)}scene.remove(old);old.dispose()}}
+      p.inst.setMatrixAt(i,hide&&hide(p)?ZERO:tmpM.multiplyMatrices(entM,p.m));
+      p.inst.setColorAt(i,flash&&!p.glow?WHITE:(p.col||tint||WHITE))})}
+  function modelsBegin(){models.forEach(M=>M.n=0)}
+  function modelsEnd(){models.forEach(M=>M.parts.forEach(p=>{if(!p.inst)return;p.inst.count=M.n;p.inst.instanceMatrix.needsUpdate=true;if(p.inst.instanceColor)p.inst.instanceColor.needsUpdate=true}))}
+  const DARK='#2a3340', VISOR='#bfefff';
+  const humanoid=extra=>[P(G.cyl8,'tint',0.85,1.5,0.85,0,0.75,0),P(G.sph,'tint',0.62,0.62,0.62,0,1.75,0),P(G.box,VISOR,0.2,0.18,0.6,0.55,1.8,0,0,0,0,{glow:VISOR}),...extra];
+  const TM={
+    squad:Model(humanoid([])),
+    brawler:Model(humanoid([P(G.box,'#5d7088',0.35,2.0,2.2,1.15,1.0,0)])),
+    rocket:Model(humanoid([P(G.cyl6,'#5a2f1a',0.32,2.6,0.32,0.2,1.6,0.75,0,0,-Math.PI/2)])),
+    mech:Model([P(G.box,DARK,1.8,0.7,0.45,0,0.35,-1.05),P(G.box,DARK,1.8,0.7,0.45,0,0.35,1.05),P(G.box,'tint',1.5,0.9,1.6,-0.1,0.95,0),P(G.box,DARK,1.3,0.25,0.3,0.9,1.1,0)]),
+    artillery:Model([P(G.box,'tint',2,0.9,1.3,0,0.45,0),P(G.cyl6,DARK,0.28,2.2,0.28,0.7,1.3,0,0,0,-1.0)]),
+    grenadier:Model([P(G.oct,'tint',1.1,1.5,1.1,0,1.5,0)])};
+  const HM=Model([P(G.box,C.harv,2,1.1,1.7,0,0.75,0),P(G.box,'#3a2a20',0.9,0.5,1.9,0.8,0.35,0),P(G.oct,C.dat,0.6,0.8,0.6,-0.3,1.9,0,0,0,0,{glow:C.dat,name:'load'})]);
+  const BM=Model([P(G.tet,C.builder,1.3,1.3,1.3,0,1.0,0,0.6,0,0.8)]);
+  const crawler=extra=>[P(G.cone,'tint',0.95,2.4,0.8,0,0.7,0,0,0,-Math.PI/2),P(G.ico,'#1a0d10',0.7,0.55,0.7,-0.4,0.75,0),P(G.sph,'#ff6a3a',0.18,0.18,0.18,0.75,0.95,0,0,0,0,{glow:'#ff6a3a'}),...extra];
+  const EM={crawler:Model(crawler([])),brute:Model(crawler([P(G.cone,'#2a1012',0.25,0.9,0.25,0.1,1.3,-0.5),P(G.cone,'#2a1012',0.25,0.9,0.25,0.1,1.3,0.5)]))};
+  const ENEMY_COL=e=>e.core?'#121214':e.kind==='roam'?'#d9775f':e.kind==='saboteur'?C.cable:e.kind==='corrupted'?C.zone:C.enemy;
+  const colOf=new Map(), colFor=c=>{let v=colOf.get(c);if(!v){v=new T.Color(c);colOf.set(c,v)}return v};
+  const hideLoad=p=>p.name==='load';
   function makeQuaker(e){const g=new T.Group(),r=e.r;g.add(part(G.box,mat(e.core?'#1d1d22':'#3d4148'),r*2,r*1.6,r*2,0,r*0.8,0));
     const c=part(G.box,glow(e.core?'#ff2a2a':'#e0873a',2),r*2.05,r*0.15,r*2.05,0,r*1.0,0);c.userData.keep=true;g.add(c);return g}
   // nests: a dark, lumpy mound with a pulsing core and black flame licking up out of it
@@ -7204,22 +7234,26 @@ function initView3D(T,EC,RP,BP,OP){
   // ----- each frame -----
   let lastW=0,lastH=0,lastLow=null;
   V.render=(shk)=>{
-    const w=cv3.clientWidth,h=cv3.clientHeight;if(!w||!h)return;const dpr=Math.min(gDpr(),2);
+    const w=cv3.clientWidth,h=cv3.clientHeight;if(!w||!h)return;const dpr=lowGfx?Math.min(1,devicePixelRatio||1)*0.75:Math.min(devicePixelRatio||1,1.5);
     if(w!==lastW||h!==lastH||lowGfx!==lastLow){lastW=w;lastH=h;lastLow=lowGfx;R.setPixelRatio(dpr);R.setSize(w,h,false);comp.setPixelRatio(dpr);comp.setSize(w,h);
       bloom.enabled=!lowGfx;R.shadowMap.enabled=!lowGfx;matCache.forEach(m=>m.needsUpdate=true)}
     if(V.terrainOf!==terrainCv){V.terrainOf=terrainCv;buildTerrain();buildShards();V.shardsOf=S.glassShards}
     else if(V.shardsOf!==S.glassShards){V.shardsOf=S.glassShards;buildShards()}
-    V.frame++;
+    V.frame++;fogU.uFogTex.value=fogTexOf();
     const B=S.base;syncWalker(B);
-    syncList(S.troops,makeTroop,(t,g)=>{place(g,t.x,t.y,t.ang||0);setFlash(g,t.flashT>0)});
-    syncList(S.harvesters,makeHarv,(u,g)=>{const d=g.userData,mx=u.x-(d.px??u.x),my=u.y-(d.py??u.y);if(mx*mx+my*my>0.04)d.a=Math.atan2(my,mx);d.px=u.x;d.py=u.y;place(g,u.x,u.y,d.a||0);setFlash(g,u.flashT>0);g.getObjectByName('load').visible=u.carry>0});
-    syncList(S.builders,makeBuilder,(u,g)=>{place(g,u.x,u.y,null);g.rotation.y=S.t*0.8;setFlash(g,u.flashT>0)});
+    modelsBegin();
+    S.troops.forEach(t=>modelAdd(TM[t.kind]||TM.squad,t.x,t.y,t.ang||0,t.r,0,colFor(TROOP_COL(t)),t.flashT>0));
+    S.harvesters.forEach(u=>{const mx=u.x-(u._v3x??u.x),my=u.y-(u._v3y??u.y);if(mx*mx+my*my>0.04)u._v3a=Math.atan2(my,mx);u._v3x=u.x;u._v3y=u.y;
+      modelAdd(HM,u.x,u.y,u._v3a||0,u.r,0,null,u.flashT>0,u.carry>0?null:hideLoad)});
+    S.builders.forEach(u=>modelAdd(BM,u.x,u.y,S.t*0.8,u.r,0,null,u.flashT>0));
     const fogged=e=>!debugNoFog&&!visible(e);
-    syncList(S.enemies.filter(e=>e.kind==='nest'?(debugNoFog||e.seen):!fogged(e)),e=>e.kind==='nest'?makeNest(e):e.kind==='quaker'?makeQuaker(e):makeEnemy(e),(e,g)=>{
+    S.enemies.forEach(e=>{if(e.kind==='nest'||e.kind==='quaker'||fogged(e))return;
+      modelAdd(e.kind==='brute'?EM.brute:EM.crawler,e.x,e.y,e.ang||0,e.r,Math.abs(Math.sin(S.t*14+e.x*0.1))*1.5,colFor(ENEMY_COL(e)),e.flashT>0)});
+    modelsEnd();
+    syncList(S.enemies.filter(e=>e.kind==='nest'?(debugNoFog||e.seen):e.kind==='quaker'&&!fogged(e)),e=>e.kind==='nest'?makeNest(e):makeQuaker(e),(e,g)=>{
       if(e.kind==='nest'){place(g,e.x,e.y,null);const pul=0.5+0.5*Math.sin(S.t*2.2+e.ph);const c=g.getObjectByName('core');c.scale.setScalar(e.r*(0.26+0.08*pul));
         g.getObjectByName('flames').children.forEach(f=>{const s=0.75+0.35*Math.sin(S.t*7+f.userData.ph)+0.15*Math.sin(S.t*13.3+f.userData.ph*2);f.scale.y=f.userData.h*s;f.rotation.z=0.12*Math.sin(S.t*3+f.userData.ph)});setFlash(g,e.flashT>0);return}
-      if(e.kind==='quaker'){const k=e.air>0?1-e.air/e.airT:0;place(g,e.x,e.y,(e.ang||0)*0.15,e.air>0?Math.sin(Math.PI*k)*70:0);setFlash(g,e.flashT>0);return}
-      place(g,e.x,e.y,e.ang||0,Math.abs(Math.sin(S.t*14+e.x*0.1))*1.5);setFlash(g,e.flashT>0)});
+      const k=e.air>0?1-e.air/e.airT:0;place(g,e.x,e.y,(e.ang||0)*0.15,e.air>0?Math.sin(Math.PI*k)*70:0);setFlash(g,e.flashT>0)});
     syncList(S.nodes.filter(n=>(n.found||debugNoFog)&&n.amt>0),makeNode,(n,g)=>{place(g,n.x,n.y,null);g.scale.setScalar(0.55+0.65*n.amt/n.max)});
     for(let i=V.root.children.length-1;i>=0;i--){const g=V.root.children[i];if(g.userData.f!==V.frame)V.root.remove(g)}
     // the world
@@ -7228,10 +7262,11 @@ function initView3D(T,EC,RP,BP,OP){
     sun.target.position.set(cam.x,0,cam.y);sun.position.set(cam.x-700,1100,cam.y-500);
     const ext=Math.min(1600,Math.max(500,dist*0.9));sc.left=sc.bottom=-ext;sc.right=sc.top=ext;sc.updateProjectionMatrix();
     terrMesh.material.emissiveIntensity=0.035+0.02*Math.sin(S.t*1.3);
-    fogU.uFogTex.value=fogTexOf();decalU.uTex.value=decalTexOf();
+    fogU.uFogOn.value=debugNoFog?0:1;decalU.uTex.value=decalTexOf();
+    R.shadowMap.autoUpdate=false;if(V.frame%2===0)R.shadowMap.needsUpdate=true; // shadows refresh every other frame
     if(lowGfx)R.render(scene,camera);else comp.render();
   };
-  V.setOn=on=>{V.on=on;document.body.classList.toggle('view3d',on);try{localStorage.setItem(V3_KEY,on?'1':'0')}catch(e){}};
+  V.setOn=on=>{V.on=on;document.body.classList.toggle('view3d',on);resize();try{localStorage.setItem(V3_KEY,on?'1':'0')}catch(e){}};
   return V;
 }
 // Load three.js only once the 2D game is already running: if it can't load (offline, old browser),
