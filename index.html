@@ -701,7 +701,7 @@ const TROOP_R=7, TROOP_SPEED=125, TROOP_VISION=340, TROOP_RANGE=247.5, TROOP_DMG
 // A Squad's round punches through: after its target it carries on along the same line out to its
 // full range and hits up to TROOP_PIERCE more enemies it passes through.
 const TROOP_PIERCE=2;
-// Hold position (X): held units plant where they stand and never move or chase. Held units within
+// Hold position (X): held units plant where they stand and never move or chase on their own (ordered to move, they go and plant again where they arrive). Held units within
 // HOLD_LINK_R of each other back each other up: each neighbour adds HOLD_LINK_BONUS to fire rate, to
 // at most HOLD_LINK_MAX. Swarmers that get right up against a held unit are crushed at HOLD_CRUSH_DPS.
 const HOLD_LINK_R=60, HOLD_LINK_BONUS=0.1, HOLD_LINK_MAX=0.3, HOLD_CRUSH_DPS=10;
@@ -4607,7 +4607,7 @@ function followSelected(){
   const all=[...rawT,...rawH,...rawBu];
   if(all.length===0){msg('Select units to follow the Bastion.');return}
   all.forEach((u,i)=>{
-    u.following=true;u.dest=null;u.target=null;u.state='idle';u.guard=null;u.hold=false;u.manning=null;u.formAng=null;
+    u.following=true;u.dest=null;u.target=null;u.state='idle';u.guard=null;u.hold=false;u.wallHome=null;u.manning=null;u.formAng=null;
     u.followAng=(i/all.length)*Math.PI*2+rnd(-0.15,0.15);
     u.followDist=BASE_FOOTPRINT+rnd(20,60);
   });
@@ -4622,7 +4622,7 @@ function holdSelected(){
   const sel=[...S.sel.troops].map(id=>S.troops.find(t=>t.id===id)).filter(Boolean);
   if(!sel.length){msg('Select Squads or Brawlers to hold position.');return}
   const release=sel.every(t=>t.hold);
-  sel.forEach(t=>{t.hold=!release;t.following=false;t.guard=null;t.dest=null;t.target=null;t.pace=null;t.state='idle';t.post={x:t.x,y:t.y}});
+  sel.forEach(t=>{t.hold=!release;t.wallHome=null;t.following=false;t.guard=null;t.dest=null;t.target=null;t.pace=null;t.state='idle';t.post={x:t.x,y:t.y}});
   msg(release?'Released from hold.':`${sel.length===1?'Unit':sel.length+' units'} holding position. Held units side by side fire faster.`);
   sfx.click();updateBuildBar();
 }
@@ -5055,7 +5055,7 @@ function orderFormation(f,manLine){
   const {face,slots}=formationSlots(f,units);
   slots.forEach(({t,x,y})=>{
     let d={x,y};if(terrainAt(d.x,d.y)===2)d=nearestPlain(d.x,d.y);if(S.glassB&&glassHit(d.x,d.y,10)){const q={x:d.x,y:d.y};glassPush(q,12);d=q}
-    t.following=false;t.guard=null;t.hold=false;t.target=null;t.state='move';t.dest={x:Math.max(10,Math.min(W-10,d.x)),y:Math.max(10,Math.min(H-10,d.y))};
+    t.following=false;t.guard=null;t.target=null;t.wallHome=null;t.state='move';t.dest={x:Math.max(10,Math.min(W-10,d.x)),y:Math.max(10,Math.min(H-10,d.y))};
     t.formAng=face;t.wall=t.kind==='brawler';t.wallAng=face;t.manning=manLine||null;
   });
   // the whole formation keeps to its slowest unit, so it arrives together
@@ -5086,7 +5086,7 @@ function manWall(L,units){
   // spread the rank evenly over the padded stretch, units taking the slots in the order they stand along it
   const ux=L.ux,uy=L.uy,ord=all.slice().sort((a,b)=>(a.x*ux+a.y*uy)-(b.x*ux+b.y*uy));
   ord.forEach((t,k)=>{const o=n>1?-span/2+span*k/(n-1):0;
-    t.following=false;t.guard=null;t.hold=false;t.pace=null;t.target=null;t.state='move';
+    t.following=false;t.guard=null;t.pace=null;t.target=null;t.wallHome=null;t.state='move';
     t.dest={x:mx+ux*o+nx*MAN_OFFSET,y:my+uy*o+ny*MAN_OFFSET};t.formAng=face;t.manning=L;t.wall=t.kind==='brawler';t.wallAng=face});
   sfx.click();
   msg(`${join.length===1?'1 unit':join.length+' units'} manning the wall (${n}/${cap}) — ${Math.round(MAN_DMG_RED*100)}% less damage behind it.${left?` ${left} didn't fit.`:''}`);
@@ -5166,12 +5166,14 @@ function rightClick(w){
   selT.forEach((t,i)=>{
     let off=selT.length>1?{x:Math.cos(i*2.1)*14,y:Math.sin(i*2.1)*14}:{x:0,y:0};
     if(wallSlot.size&&!wallSlot.has(t)){off={x:off.x-Math.cos(wallFace)*42,y:off.y-Math.sin(wallFace)*42}}
-    t.following=false;t.guard=null;t.wall=false;t.pace=null;t.hold=false;t.formAng=null;t.manning=null;
-    if(en){t.state='attack';t.target=en;t.dest=null}
+    // a Brawler standing in (or walking to) a shield wall, ordered onto an enemy, goes back to its place after
+    const home=en&&t.kind==='brawler'&&t.wall&&(t.dest||t.post)?{x:(t.dest||t.post).x,y:(t.dest||t.post).y,ang:t.wallAng,form:t.formAng,man:t.manning}:(en&&t.wallHome)||null;
+    t.following=false;t.guard=null;t.wall=false;t.pace=null;t.formAng=null;t.manning=null;t.wallHome=null;
+    if(en){t.state='attack';t.target=en;t.dest=null;t.wallHome=home}
     else if(friend){
       if(t===friend){t.state='idle';t.dest=null;t.target=null;t.post={x:t.x,y:t.y};return}
       const k=guards.indexOf(t);
-      t.state='guard';t.guard=friend;t.dest=null;t.target=null;
+      t.hold=false;t.state='guard';t.guard=friend;t.dest=null;t.target=null;
       t.guardAng=(k/guards.length)*Math.PI*2+rnd(-0.2,0.2);
       t.guardDist=rnd(22,48);
     }
@@ -5961,7 +5963,7 @@ function update(dt){
   // troops (combat only — resource gathering is the harvesters' job). Severed troops still
   // fight and reveal vision — they just do it unpowered while their Sanity drains.
   // hold links: each held unit counts the held units beside it
-  {const hd=S.troops.filter(t=>t.hold);hd.forEach(t=>{t.holdLinks=0});
+  {const hd=S.troops.filter(t=>t.hold&&!t.dest&&t.state!=='attack');S.troops.forEach(t=>{t.holdLinks=0});
    for(let i=0;i<hd.length;i++)for(let j=i+1;j<hd.length;j++)if(dist(hd[i],hd[j])<HOLD_LINK_R){hd[i].holdLinks++;hd[j].holdLinks++}}
   S.troops.forEach(t=>{
     t.cd-=dt;
@@ -5970,16 +5972,17 @@ function update(dt){
     let speed=arty?ARTY_SPEED:mech?MECH_SPEED:rock?ROCKET_SPEED:brawl?BRAWL_SPEED:TROOP_SPEED;
     if(t.pace&&t.state==='move')speed=Math.min(speed,t.pace); // v4: a group move keeps to its slowest unit's pace
     const factor=roughFactor(t.x,t.y);
-    if(t.hold){if(t.post){t.x=t.post.x;t.y=t.post.y}} // planted: no moving, no chasing
+    if(t.hold&&!t.dest&&t.state!=='attack'){if(!t.post)t.post={x:t.x,y:t.y};t.x=t.post.x;t.y=t.post.y} // planted: no moving, no chasing (an order to move or attack still goes through, and it plants again after)
     else if(t.following){followMove(t,speed,dt);if(mech||brawl)t.post={x:t.x,y:t.y}}
     else if(t.state==='move'&&t.dest){
       if(mech||brawl)t.ang=Math.atan2(t.dest.y-t.y,t.dest.x-t.x);
       const aim=waypointFor(t,t.dest.x,t.dest.y);
       moveToward(t,aim,speed*factor,dt);
-      if(dist(t,t.dest)<4||(t._nearDone&&dist(t,t.dest)<44)){t._nearDone=false;t.dest=null;t.pace=null;t.state='idle';if(mech||brawl)t.post={x:t.x,y:t.y};if(brawl&&t.wall&&t.wallAng!=null)t.ang=t.wallAng;if(t.formAng!=null)t.ang=t.formAng}
+      if(dist(t,t.dest)<4||(t._nearDone&&dist(t,t.dest)<44)){t._nearDone=false;t.dest=null;t.pace=null;t.state='idle';if(mech||brawl||t.hold)t.post={x:t.x,y:t.y};if(brawl&&t.wall&&t.wallAng!=null)t.ang=t.wallAng;if(t.formAng!=null)t.ang=t.formAng}
     }
     else if(t.state==='attack'){
-      if(!t.target||t.target.hp<=0){t.target=null;t.state='idle';if(mech||brawl)t.post={x:t.x,y:t.y}}
+      if(!t.target||t.target.hp<=0){t.target=null;t.state='idle';if(mech||brawl||t.hold)t.post={x:t.x,y:t.y};
+        if(t.wallHome){const h=t.wallHome;t.wallHome=null;t.state='move';t.dest={x:h.x,y:h.y};t.wall=true;t.wallAng=h.ang;t.formAng=h.form;t.manning=h.man&&S.wallLines&&S.wallLines.includes(h.man)?h.man:null}}
       else if(dist(t,t.target)-(brawl?t.target.r||0:0)>range-10){if(mech||brawl)t.ang=Math.atan2(t.target.y-t.y,t.target.x-t.x);const aim=waypointFor(t,t.target.x,t.target.y);moveToward(t,aim,speed*factor,dt)}
     }
     else if(t.state==='guard')guardMove(t,range,speed*factor,dt);
@@ -6017,7 +6020,7 @@ function update(dt){
           t.cd=MECH_CD;
         }
         else{const end=troopPierce(t,best,range,TROOP_DMG*S.mods.troopDmgMult);tracer(t,end,C.ally);t.cd=TROOP_CD/squadFireRateMult()}
-        if(t.hold)t.cd/=1+Math.min(HOLD_LINK_MAX,HOLD_LINK_BONUS*(t.holdLinks||0));
+        if(t.hold&&!t.dest)t.cd/=1+Math.min(HOLD_LINK_MAX,HOLD_LINK_BONUS*(t.holdLinks||0));
         if(t.state==='idle'&&bd>range*0.7)t.target=best;
       }
     }
@@ -7162,7 +7165,7 @@ function draw(){
   S.harvesters.forEach(h=>drawCable(h,C.cable));
   S.builders.forEach(bu=>drawCable(bu,C.cable));
   // hold: a link line between held units backing each other up, and corner brackets on each
-  {const hd=S.troops.filter(t=>t.hold);ctx.save();ctx.strokeStyle=C.accent;ctx.lineWidth=1.5;ctx.globalAlpha=0.45;ctx.setLineDash([3,4]);ctx.beginPath();
+  {const hd=S.troops.filter(t=>t.hold&&!t.dest&&t.state!=='attack');ctx.save();ctx.strokeStyle=C.accent;ctx.lineWidth=1.5;ctx.globalAlpha=0.45;ctx.setLineDash([3,4]);ctx.beginPath();
    for(let i=0;i<hd.length;i++)for(let j=i+1;j<hd.length;j++)if(dist(hd[i],hd[j])<HOLD_LINK_R){ctx.moveTo(hd[i].x,hd[i].y);ctx.lineTo(hd[j].x,hd[j].y)}
    ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=0.85;ctx.beginPath();
    hd.forEach(t=>{const r=(t.r||7)+6,q=4;[[-1,-1],[1,-1],[1,1],[-1,1]].forEach(([sx,sy])=>{ctx.moveTo(t.x+sx*r,t.y+sy*(r-q));ctx.lineTo(t.x+sx*r,t.y+sy*r);ctx.lineTo(t.x+sx*(r-q),t.y+sy*r)})});
