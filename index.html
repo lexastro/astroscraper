@@ -411,8 +411,8 @@ body.inMenu :is(#game,#fogGrain,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMet
   <!-- v2: every button is a Bastion fabricator — charges that refill on their own timer, no Dat
        cost. Structures (data-mode) are aimed and launched; units (data-unit) deploy at once. -->
   <div class="build" id="buildBar">
-    <button id="bTurret" data-mode="turret"><span class="icon">⌖</span><span>Turret</span><span class="cost" id="cf_turret">●●</span><span class="key">Q</span></button>
-    <button id="bWall" data-mode="wall"><span class="icon">▤</span><span>Wall</span><span class="cost" id="cWall">◆2/slat</span><span class="key">B</span></button>
+    <button id="bTurret" data-mode="turret"><span class="icon">⌖</span><span>Turret</span><span class="cost" id="cf_turret">●●</span><span class="key">T</span></button>
+    <button id="bWall" data-mode="wall"><span class="icon">▤</span><span>Wall</span><span class="cost" id="cWall">◆2/slat</span><span class="key">Q</span></button>
     <button id="bRelay" data-mode="relay"><span class="icon">⟐</span><span>Relay</span><span class="cost" id="cf_relay">●●●</span><span class="key">R</span></button>
     <button id="bFabTroop" data-unit="troop"><span class="icon">▲</span><span>Squad</span><span class="cost" id="cf_troop">●●</span></button>
     <button id="bFabBrawler" data-unit="brawler"><span class="icon">⛊</span><span>Brawler</span><span class="cost" id="cf_brawler">●●●●○○○○</span></button>
@@ -422,8 +422,8 @@ body.inMenu :is(#game,#fogGrain,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMet
     <button id="bFabRocket" data-unit="rocket" hidden><span class="icon">➶</span><span>Rocketeer</span><span class="cost" id="cf_rocket">●●</span></button>
     <button id="bFabMech" data-unit="mech" hidden><span class="icon">◫</span><span>Mech</span><span class="cost" id="cf_mech">●</span></button>
     <button id="bLock"><span class="icon">⛏</span><span id="bLockLabel">Begin Drilling</span><span class="key">F</span></button>
-    <button id="bRig" hidden><span class="icon">⛭</span><span id="bRigLabel">Power the Rig</span><span class="cost" id="cRig"></span><span class="key">G</span></button>
-    <button id="bPing"><span class="icon">◬</span><span id="bPingLabel">Probe</span><span class="cost" id="cProbe">●●●</span><span class="key">T</span></button>
+    <button id="bRig" hidden><span class="icon">⛭</span><span id="bRigLabel">Power the Rig</span><span class="cost" id="cRig"></span><span class="key">Y</span></button>
+    <button id="bPing"><span class="icon">◬</span><span id="bPingLabel">Probe</span><span class="cost" id="cProbe">●●●</span><span class="key">G</span></button>
     <button id="bAutoBuy" title="When on, using an empty stock buys the charge with Dat automatically"><span class="icon">⟳</span><span id="bAutoBuyLabel">Auto-buy: off</span></button>
   </div>
 </div>
@@ -460,9 +460,9 @@ body.inMenu :is(#game,#fogGrain,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMet
 <b>Goal:</b> the ground is cracked all over: <b>follow the pulses of energy</b> running through the cracks back to their source to find a vein, then park the Bastion on its glowing centre and press <kbd>F</kbd> to lock on. Veins <b>emerge, ripen</b> a tier at a time, then go unstable and <b>collapse</b> — and new ones emerge elsewhere. Glowing <b>stray pockets</b> give a bearing toward the nearest vein when a unit reaches one; two bearings from different angles triangulate it. Locking on starts the <b>strike</b> at once: press <kbd>Space</kbd> to stop the needle on a good band of the strip (the thin sliver is a tier above the vein; red ruptures it) — the meter zooms in on where you hit and the drill starts; the first wave arrives about 20s later. While it drills, the needle drifts; Stabilizers hold it steady, and the tier you're paid is where it spends most of its time. If it drifts into the red, the vein ruptures and damages the Bastion. Drain veins for rewards — after 3, the contract vein stirs: it gives off no pulses, so triangulate it with bearings from stray pockets, then drain it to win.<br>
   <b>Controls:</b> drag to select · right-click to move/attack · right-click a friendly unit or building with combat units selected to <b>guard</b> it (escort it, fight off anything that comes near, then fall back) · <kbd>C</kbd> select all your units · <kbd>F</kbd> lock on to a vein / strike · <kbd>H</kbd> jump the camera to the Bastion · <kbd>WASD</kbd> or middle-drag to pan, scroll to zoom<br>
   <b>Touch:</b> tap to select · tap empty ground/an enemy/a resource to move/attack/harvest · drag to pan · hold still then drag to box-select · pinch to zoom · double-tap to select all of a kind<br>
-  <b>Fabricators:</b> Turrets and Relays hold a free stock; once it's empty each use costs Dat (shown on the button). Unit buttons (Squad, Brawler, Grenadier, Rocketeer, Mech) show how many you can field against how many you have, and the price of the next one — just click to deploy. <kbd>Q</kbd> launch a turret · <kbd>Ctrl</kbd>+<kbd>1</kbd>–<kbd>9</kbd> save the selected units as a control group, <kbd>1</kbd>–<kbd>9</kbd> select it (twice to look at it) · <kbd>R</kbd> launch a relay · <kbd>G</kbd> power up a derelict rig ·  <b>Nests</b>: every enemy patrol comes from one, and the nests near a vein send its drilling waves — destroy them (they fight back) for <b>Dat Crystal</b>. <b>Mega nests</b> glow crimson through the fog: hive veins ringed by brood mounds that pour out its waves — break the mounds, then drain the hive for Hive-tier rewards and salvage. When the contract vein stirs, great mounds rise around it too. <b>Dat Crystal</b>: drive the Bastion or a unit over the Dat a nest drops (or an enemy's shard) to scoop it up — your <b>repair drones</b> fly out on their own and spend it patching up Stabilizers, turrets, relays and the Bastion · <kbd>E</kbd> fire a Stabilizer from the Bastion (3 free, then Dat each; aim at a vein's drifting hotspot and lead it — a hit pins it, buys the vein 15s before it collapses, widens the strike bands and steadies the needle; with all 3 pinned, drag the weight on the steering pad to push the needle — the wider their triangle, the further it goes, but the one you lean on draws the enemy) — turrets and relays land anywhere inside the Bastion's ring (or a relay's)<br>
+  <b>Fabricators:</b> Turrets and Relays hold a free stock; once it's empty each use costs Dat (shown on the button). Unit buttons (Squad, Brawler, Grenadier, Rocketeer, Mech) show how many you can field against how many you have, and the price of the next one — just click to deploy. <kbd>T</kbd> launch a turret · <kbd>Ctrl</kbd>+<kbd>1</kbd>–<kbd>9</kbd> save the selected units as a control group, <kbd>1</kbd>–<kbd>9</kbd> select it (twice to look at it) · <kbd>R</kbd> launch a relay · <kbd>G</kbd> power up a derelict rig ·  <b>Nests</b>: every enemy patrol comes from one, and the nests near a vein send its drilling waves — destroy them (they fight back) for <b>Dat Crystal</b>. <b>Mega nests</b> glow crimson through the fog: hive veins ringed by brood mounds that pour out its waves — break the mounds, then drain the hive for Hive-tier rewards and salvage. When the contract vein stirs, great mounds rise around it too. <b>Dat Crystal</b>: drive the Bastion or a unit over the Dat a nest drops (or an enemy's shard) to scoop it up — your <b>repair drones</b> fly out on their own and spend it patching up Stabilizers, turrets, relays and the Bastion · <kbd>E</kbd> fire a Stabilizer from the Bastion (3 free, then Dat each; aim at a vein's drifting hotspot and lead it — a hit pins it, buys the vein 15s before it collapses, widens the strike bands and steadies the needle; with all 3 pinned, drag the weight on the steering pad to push the needle — the wider their triangle, the further it goes, but the one you lean on draws the enemy) — turrets and relays land anywhere inside the Bastion's ring (or a relay's)<br>
   <b>Tether:</b> wireless works freely on the Rim; past it, units need a live cable back to the Bastion or a Relay, or they go dark — chain Relays to push your reach further out. A dark unit still takes orders, but its Sanity drains; reconnect in time to recover it, or it defects into a hostile Corrupted enemy<br>
-  <kbd>T</kbd> recon probe: click a direction and it flies straight out on its fiber line, lifting the fog along a narrow strip for 20s and permanently finding veins it passes (3 charges, one back every 20s) · <kbd>V</kbd> follow Bastion (escorts it as it moves, until given another order) · right-drag with units selected: line them up along the drag, facing square to it (drag longer to spread them wider) · <kbd>B</kbd> wall: click and drag to lay a line of wall (drag from the end of another to join them) · right-click a wall with units selected to man it (one rank behind it, as many as fit; they take 25% less damage) · <kbd>X</kbd> hold position (held units side by side fire up to 30% faster) · <kbd>Esc</kbd> cancel, or pause the whole game if nothing's open · <kbd>`</kbd> reveal map (debug)
+  <kbd>G</kbd> recon probe: click a direction and it flies straight out on its fiber line, lifting the fog along a narrow strip for 20s and permanently finding veins it passes (3 charges, one back every 20s) · <kbd>V</kbd> follow Bastion (escorts it as it moves, until given another order) · right-drag with units selected: line them up along the drag, facing square to it (drag longer to spread them wider) · <kbd>Q</kbd> wall: click and drag to lay a line of wall, or click the end of a wall or a Turret and click again where it should run to (right-click cancels) · right-click a wall with units selected to man it (one rank behind it, as many as fit; they take 25% less damage) · <kbd>X</kbd> hold position (held units side by side fire up to 30% faster) · <kbd>Esc</kbd> cancel, or pause the whole game if nothing's open · <kbd>`</kbd> reveal map (debug)
 </div>
 
 <!-- Guided tutorial: one instruction at a time, advancing on its own as the player does each thing. -->
@@ -789,7 +789,7 @@ const WALL_HP=220;
 // Man the walls: right-click a wall with units selected and they line up along it on the Bastion's
 // side in a single rank, MAN_OFFSET behind it, facing out, up to manCap(wall) of them. Once in place, a unit
 // manning a wall that's still standing takes MAN_DMG_RED less damage.
-const MAN_OFFSET=14, MAN_DMG_RED=0.25, MAN_PICK_R=16, MAN_GAP=22, MAN_END_PAD=24; // one rank only: a wall holds as many as fit MAN_GAP apart, keeping MAN_END_PAD clear at each end // (close enough that a Brawler at the wall reaches what's chewing on it)
+const MAN_OFFSET=14, MAN_DMG_RED=0.25, MAN_PICK_R=16, MAN_GAP=27.5, MAN_END_PAD=34; // one rank only: a wall holds as many as fit MAN_GAP apart, keeping MAN_END_PAD clear at each end // (close enough that a Brawler at the wall reaches what's chewing on it)
 const WALL_SLAT=18, WALL_THICK=8, WALL_SLAT_HP=160, WALL_MIN_LEN=30, WALL_MAX_LEN=420, WALL_SNAP=22, WALL_DAT_BASE=4, WALL_DAT_PER_SLAT=2, WALL_RAISE_STEP=0.07, WALL_RAISE_T=0.25;
 const COST={wall:5,turret:75,relay:15,depot:150,stabilizer:20,harvester:75,troop:30,builder:20,grenadier:45,artillery:140,mech:90,rocket:70,brawler:25};
 // v2 fabricators: nothing is bought with Dat any more. Each kind of thing the Bastion can make has
@@ -2669,7 +2669,7 @@ const TUTORIAL_STEPS=[
    text:()=>`The Bastion is in position. Press <kbd>F</kbd> (or <b>Begin Drilling</b> in the bottom bar) to lock on. A needle sweeps the drill meter — press <kbd>Space</kbd> to stop it on a good band. The meter zooms in on where you hit, and the drill starts.`,
    done:()=>S.base.locked},
   {title:'Build a Turret',
-   text:()=>`The first wave takes about 20 seconds to arrive after you lock on — dig in. Press <kbd>Q</kbd> and click inside the Bastion's ring to launch a <b>Turret</b>. The Bastion's fabricators hold a small free stock of each thing it can make; once a stock runs out, each one costs Dat Crystal.`,
+   text:()=>`The first wave takes about 20 seconds to arrive after you lock on — dig in. Press <kbd>T</kbd> and click inside the Bastion's ring to launch a <b>Turret</b>. The Bastion's fabricators hold a small free stock of each thing it can make; once a stock runs out, each one costs Dat Crystal.`,
    target:()=>({x:S.base.x,y:S.base.y,r:BUILD_R}),
    done:()=>S.turrets.some(t=>t.built)},
   {title:'Pin all three',
@@ -4290,7 +4290,7 @@ cv.addEventListener('pointerdown',e=>{
     }
     if(probeMode){fireProbe(w);return}
     if(pingMode){firePing(w);return}
-    if(buildMode==='wall'){startWallDraw(w);return}
+    if(buildMode==='wall'){if(mouse.wallDraw&&mouse.wallDraw.sticky){moveWallDraw(w);finishWallDraw()}else startWallDraw(w);return}
     if(buildMode){
       const placed=tryBuild(w);
       if(buildMode==='wall'){mouse.wallDragging=true;mouse.wallPlacedTouch=placed}
@@ -4310,6 +4310,7 @@ cv.addEventListener('pointerdown',e=>{
     return;
   }
   if(e.button===1||(e.button===0&&keys[' '])){mouse.panning=true;mouse.x=e.clientX;mouse.y=e.clientY;return}
+  if(e.button===2&&mouse.wallDraw){mouse.wallDraw=null;return} // right-click: cancel the wall being drawn
   if(e.button===2){
     // with combat units selected, a right-drag lays out a formation (see formationSlots); a plain
     // right-click (no drag) is still an ordinary order, issued on release
@@ -4318,7 +4319,7 @@ cv.addEventListener('pointerdown',e=>{
   if(e.button===0){
     if(probeMode){fireProbe(w);return}
     if(pingMode){firePing(w);return}
-    if(buildMode==='wall'){startWallDraw(w);return}
+    if(buildMode==='wall'){if(mouse.wallDraw&&mouse.wallDraw.sticky){moveWallDraw(w);finishWallDraw()}else startWallDraw(w);return}
     if(buildMode){tryBuild(w);return}
     mouse.down=true;mouse.drag={x0:w.x,y0:w.y,x1:w.x,y1:w.y,moved:false};
   }
@@ -4351,7 +4352,10 @@ cv.addEventListener('pointermove',e=>{
   if(mouse.drag){mouse.drag.x1=w.x;mouse.drag.y1=w.y;if(Math.abs(w.x-mouse.drag.x0)+Math.abs(w.y-mouse.drag.y0)>6)mouse.drag.moved=true}
 });
 cv.addEventListener('pointerup',e=>{
-  if(mouse.wallDraw){finishWallDraw();if(e.pointerType==='touch')touchPts.delete(e.pointerId);return}
+  if(mouse.wallDraw){const d=mouse.wallDraw;
+    // a click (no drag) on a wall end or Turret starts the wall there: it follows the cursor until the next click
+    if(!d.sticky&&d.s0&&Math.hypot(d.x1-d.x0,d.y1-d.y0)<WALL_MIN_LEN){d.sticky=true}else finishWallDraw();
+    if(e.pointerType==='touch')touchPts.delete(e.pointerId);return}
   if(mouse.form){const f=mouse.form;mouse.form=null;if(f.moved)orderFormation(f);else rightClick({x:f.x0,y:f.y0});return}
   if(mouse.wallDragging){
     mouse.wallDragging=false;
@@ -4426,19 +4430,18 @@ cv.addEventListener('wheel',e=>{e.preventDefault();const w0=toWorld(e.clientX,e.
 addEventListener('keydown',e=>{
   if(menuOpen||e.target.tagName==='INPUT')return; keys[e.key.toLowerCase()]=true; keys[e.key]=true;
   if(/^Digit[0-9]$/.test(e.code||'')&&!e.altKey){e.preventDefault();const n=+e.code.slice(5);if(e.ctrlKey||e.metaKey)assignGroup(n);else if(!e.repeat)recallGroup(n);return}
-  if(e.key.toLowerCase()==='q')setBuild(buildMode==='turret'?null:'turret'); else if(e.key.toLowerCase()==='r')setBuild(buildMode==='relay'?null:'relay'); else if(e.key.toLowerCase()==='e')setBuild(buildMode==='stabilizer'?null:'stabilizer');
+  if(e.key.toLowerCase()==='q')setBuild(buildMode==='wall'?null:'wall'); else if(e.key.toLowerCase()==='t')setBuild(buildMode==='turret'?null:'turret'); else if(e.key.toLowerCase()==='r')setBuild(buildMode==='relay'?null:'relay'); else if(e.key.toLowerCase()==='e')setBuild(buildMode==='stabilizer'?null:'stabilizer');
   else if(e.key==='Escape'){if(!document.getElementById('drillSelectOverlay').hidden){closeDrillSelect()}else if(probeMode){setProbeMode(false)}else if(pingMode){setPingMode(false)}else if(buildMode||prodMenuOpen){setBuild(null);closeProdMenu()}else togglePause()} else if(e.key.toLowerCase()==='b'){S.sel.troops.clear();S.sel.harv.clear();S.sel.bu.clear();S.sel.base=true}
-  // v4: keys follow v3 — Q turret, E Stabilizer, T probe, C all units, F drill (lock on / strike)
+  // v4: Q wall, T turret, E Stabilizer, G probe, Y power a rig, C all units, F drill (lock on / strike)
   else if(e.key==='F8'){e.preventDefault();setLowGfx(!lowGfx)}
   else if(e.key==='F9'){e.preventDefault();perf.on=!perf.on;if(perf.el)perf.el.hidden=!perf.on}
   else if(e.key.toLowerCase()==='c'){selectAllUnitsOfKind('troops')}
   else if(e.key.toLowerCase()==='h'){cam.x=S.base.x;cam.y=S.base.y}
-  else if(e.key.toLowerCase()==='g'){tryCaptureRig()}
+  else if(e.key.toLowerCase()==='y'){tryCaptureRig()}
   else if(e.key.toLowerCase()==='f'){if(!e.repeat)tryLockdown()}
-  else if(e.key.toLowerCase()==='t'){tryProbe()}
+  else if(e.key.toLowerCase()==='g'){tryProbe()}
   else if(e.key.toLowerCase()==='v'){followSelected()}
   else if(e.key.toLowerCase()==='x'){holdSelected()}
-  else if(e.key.toLowerCase()==='b'){setBuild(buildMode==='wall'?null:'wall')}
   else if(e.key==='`'){debugNoFog=!debugNoFog;dbgSkip.hidden=!debugNoFog;msg(debugNoFog?'Debug: fog of war disabled':'Debug: fog of war re-enabled')}
   if(e.key===' '){e.preventDefault();if(!e.repeat&&strikeReady())doStrike()}
 });
@@ -5241,8 +5244,8 @@ function updateStabilizerShots(dt){
   S.stabShots=S.stabShots.filter(sh=>{sh.t+=dt;if(sh.t<sh.dur)return true;landStabilizer(sh);return false});
 }
 // ---------- wall lines ----------
-function wallEnds(){const out=[];(S.wallLines||[]).forEach(L=>{out.push({x:L.x0,y:L.y0},{x:L.x1,y:L.y1})});return out}
-function wallSnap(w){let best=null,bd=WALL_SNAP/Math.min(1,cam.z);wallEnds().forEach(p=>{const d=dist(p,w);if(d<bd){bd=d;best=p}});return best?{x:best.x,y:best.y,snapped:true}:{x:w.x,y:w.y,snapped:false}}
+function wallEnds(noTurrets){const out=[];(S.wallLines||[]).forEach(L=>{out.push({x:L.x0,y:L.y0},{x:L.x1,y:L.y1})});if(!noTurrets)S.turrets.forEach(t=>{if(t.built)out.push({x:t.x,y:t.y})});return out}
+function wallSnap(w,noTurrets){let best=null,bd=WALL_SNAP/Math.min(1,cam.z);wallEnds(noTurrets).forEach(p=>{const d=dist(p,w);if(d<bd){bd=d;best=p}});return best?{x:best.x,y:best.y,snapped:true}:{x:w.x,y:w.y,snapped:false}}
 // the line being drawn: clamped to WALL_MAX_LEN, with its slat count, cost and whether it can be placed
 function wallPlan(d){
   let x1=d.x1,y1=d.y1,L=Math.hypot(x1-d.x0,y1-d.y0);
@@ -5255,7 +5258,7 @@ function wallPlan(d){
   else if(S.dat<cost)why=`Not enough Dat — this wall costs ${cost}, you have ${Math.floor(S.dat)}.`;
   return {x0:d.x0,y0:d.y0,x1,y1,L,n,cost,ok:!why,why};
 }
-function startWallDraw(w){const p=wallSnap(w);mouse.wallDraw={x0:p.x,y0:p.y,x1:p.x,y1:p.y,s0:p.snapped,s1:false}}
+function startWallDraw(w){const p=wallSnap(w);mouse.wallDraw={x0:p.x,y0:p.y,x1:p.x,y1:p.y,s0:p.snapped,s1:false,sticky:false}}
 function moveWallDraw(w){const d=mouse.wallDraw,p=wallSnap(w);d.x1=p.x;d.y1=p.y;d.s1=p.snapped&&(p.x!==d.x0||p.y!==d.y0)}
 function finishWallDraw(){
   const d=mouse.wallDraw;mouse.wallDraw=null;if(!d)return;
@@ -5263,12 +5266,14 @@ function finishWallDraw(){
   if(P.L<WALL_MIN_LEN)return; // just a click
   if(!P.ok){msg(P.why);return}
   if(!payDat(P.cost,'A wall'))return;
-  const L=P.L,ux=(P.x1-P.x0)/L,uy=(P.y1-P.y0)/L,seg=L/P.n,line={x0:P.x0,y0:P.y0,x1:P.x1,y1:P.y1,ux,uy,ang:Math.atan2(uy,ux),posts:[false,false],raiseT0:null,slats:[]};
+  // an end snapped onto another wall's end or a Turret is already anchored: no post needs launching there
+  const anch=[!!d.s0,!!d.s1&&P.x1===d.x1&&P.y1===d.y1];
+  const L=P.L,ux=(P.x1-P.x0)/L,uy=(P.y1-P.y0)/L,seg=L/P.n,line={x0:P.x0,y0:P.y0,x1:P.x1,y1:P.y1,ux,uy,ang:Math.atan2(uy,ux),posts:anch.slice(),anchored:anch,raiseT0:anch[0]&&anch[1]?S.t:null,slats:[]};
   for(let i=0;i<P.n;i++){const c=(i+0.5)*seg,x=P.x0+ux*c,y=P.y0+uy*c;
     if(terrainAt(x,y)===2)continue; // rock already blocks there
     line.slats.push({x,y,half:seg/2,hp:WALL_SLAT_HP,maxHp:WALL_SLAT_HP,up:0,order:Math.min(i,P.n-1-i),line,kind:'wallslat'})}
   (S.wallLines||(S.wallLines=[])).push(line);S.wallDirty=true;
-  [[P.x0,P.y0],[P.x1,P.y1]].forEach(([tx,ty],i)=>{const dd=Math.hypot(tx-S.base.x,ty-S.base.y);S.fabShots.push({k:'wallpost',line,end:i,x0:S.base.x,y0:S.base.y,tx,ty,t:0,dur:Math.max(0.4,dd/FAB_FLIGHT_SPEED)})});
+  [[P.x0,P.y0],[P.x1,P.y1]].forEach(([tx,ty],i)=>{if(anch[i])return;const dd=Math.hypot(tx-S.base.x,ty-S.base.y);S.fabShots.push({k:'wallpost',line,end:i,x0:S.base.x,y0:S.base.y,tx,ty,t:0,dur:Math.max(0.4,dd/FAB_FLIGHT_SPEED)})});
   tone(200,0.12,'square',0.06,0,420);
 }
 function updateWallLines(dt){
@@ -5291,7 +5296,7 @@ function drawWallLines(){
       ctx.fillStyle=sl.flashT>0?'#fff':'#5d6a77';ctx.fillRect(-h+2,-1,h*2-4,2);
       if(sl.hp<sl.maxHp){ctx.fillStyle='rgba(255,92,77,0.7)';ctx.fillRect(-h,t/2-2,h*2*(1-sl.hp/sl.maxHp),2)}
       ctx.restore()});
-    [[L.x0,L.y0,0],[L.x1,L.y1,1]].forEach(([x,y,i])=>{if(!L.posts[i])return;
+    [[L.x0,L.y0,0],[L.x1,L.y1,1]].forEach(([x,y,i])=>{if(!L.posts[i]||(L.anchored&&L.anchored[i]&&S.turrets.some(t=>t.built&&dist(t,{x,y})<2)))return;
       ctx.fillStyle='#3b4652';ctx.strokeStyle=C.accent;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(x,y,5.5,0,Math.PI*2);ctx.fill();ctx.stroke()});
   });
 }
@@ -5314,6 +5319,7 @@ function drawWallPreview(){
 }
 function tryBuild(w){
   if(buildMode==='stabilizer')return fireStabilizer(w);
+  if(buildMode==='turret'){const p=wallSnap(w,true);w={x:p.x,y:p.y}} // a Turret snaps onto a wall's end or corner
   if(buildMode!=='turret'&&buildMode!=='relay')return;
   if(!inBuildRange(w)){msg("Launch inside the Bastion's dashed ring (or a Relay's).");return}
   if(terrainAt(w.x,w.y)===2){msg('Cannot land a structure on solid rock.');return}
@@ -7282,7 +7288,7 @@ function draw(){
     ctx.restore()}
   else if(buildMode){const ok=inBuildRange({x:mouse.wx,y:mouse.wy})&&terrainAt(mouse.wx,mouse.wy)!==2&&S.fab[buildMode]&&S.fab[buildMode].n>0;ctx.globalAlpha=0.6;
     if(buildMode==='wall'){}
-    else{const rng=buildMode==='turret'?TURRET_RANGE:wirelessTol('dense');ctx.fillStyle=ok?C.accent:C.enemy;ctx.beginPath();ctx.arc(mouse.wx,mouse.wy,11,0,Math.PI*2);ctx.fill();if(rng>0){ctx.strokeStyle=ok?C.accent:C.enemy;ctx.lineWidth=1;ctx.setLineDash([4,6]);ctx.beginPath();ctx.arc(mouse.wx,mouse.wy,rng,0,Math.PI*2);ctx.stroke();ctx.setLineDash([])}}
+    else{const rng=buildMode==='turret'?TURRET_RANGE:wirelessTol('dense'),sp=buildMode==='turret'?wallSnap({x:mouse.wx,y:mouse.wy},true):{x:mouse.wx,y:mouse.wy};ctx.fillStyle=ok?C.accent:C.enemy;ctx.beginPath();ctx.arc(sp.x,sp.y,11,0,Math.PI*2);ctx.fill();if(sp.snapped){ctx.strokeStyle=C.accent;ctx.lineWidth=1.5/cam.z;ctx.beginPath();ctx.arc(sp.x,sp.y,16,0,Math.PI*2);ctx.stroke()}if(rng>0){ctx.strokeStyle=ok?C.accent:C.enemy;ctx.lineWidth=1;ctx.setLineDash([4,6]);ctx.beginPath();ctx.arc(sp.x,sp.y,rng,0,Math.PI*2);ctx.stroke();ctx.setLineDash([])}}
     ctx.globalAlpha=1}
   drawFormationPreview();
   drawWallPreview();
