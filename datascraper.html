@@ -1048,6 +1048,13 @@ const WAVE_SPAWN_DIST=820,WAVE_BASE_N={rim:11,dense:17,core:31}; // ~1.4x, in st
 // pour around rock, clog at gaps and pile up against walls. Every HORDE_BIG_EVERY-th wave is a
 // great wave. Each wave is announced WAVE_WARN_T ahead: a rumble, and red markers at the screen
 // edge on the side it's coming from.
+// Splinter (kind 'splinter'): a ranged enemy, a dark core orbited by SPL_SHARDS shards of rock and
+// glass. Once it has a target in SPL_RANGE it stands off and looses its whole ring as a volley, one
+// shard every SPL_VOLLEY_GAP, each flying at SPL_SHOT_SPEED for SPL_SHOT_DMG; then the shards grow
+// back one at a time, one every SPL_REGROW, and it fires again only once the ring is full. Shards
+// break on walls (chipping the slat) and on a shield-wall Brawler's shield if it's facing them.
+// SPL_SHARE of each band's drilling-wave enemies come as Splinters.
+const SPL_SHARDS=6, SPL_RANGE=230, SPL_VOLLEY_GAP=0.14, SPL_REGROW=1.1, SPL_SHOT_SPEED=270, SPL_SHOT_DMG=4, SPL_HP=45, SPL_SPEED=62, SPL_SHARE={rim:0.08,dense:0.15,core:0.2};
 const HORDE_MULT={rim:4,dense:5,core:5}, HORDE_CAP=420, HORDE_BIG_EVERY=4, HORDE_BIG_MULT=2.2, HORDE_HP=8, HORDE_SHARD_P=0.06, HORDE_DMG=1, HORDE_STOMP_DPS=14;
 // (a horde swarmer pressed up against the Bastion is trampled by its legs at HORDE_STOMP_DPS — each one
 // gets a bite or two in before it's crushed, so it's the flow of them that wears the Bastion down)
@@ -2153,7 +2160,7 @@ function reset(landing){
   const land=landing||defaultLanding();
   S={t:0,surveyVein:null,wrecks:[],beacons:[],squadCap:SQUAD_CAP_START,quakes:[],quakeMsg:false,barrier:null,breachSite:null,breachVein:null,rigSite:null,rig:null,glass:null,glassShards:[],glassB:null,glassCov:null,dat:tutorialMap?TUTORIAL_START_DAT:pressureOn('lean')?20:60,living:0,condensed:0,over:null,rerollCount:0,
     base:{x:land.x,y:land.y,hp:450+bastionHpBonus(),maxHp:450+bastionHpBonus(),r:BASE_R,dest:null,locked:false,gunCd:0,bigGunCd:0,pingCd:0},
-    troops:[],harvesters:[],builders:[],relays:[],depots:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],shards:[],nades:[],
+    troops:[],harvesters:[],builders:[],relays:[],depots:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],shards:[],nades:[],shardShots:[],
     veins:[],activeVein:null,throttleMul:1,ambientT:30,
     minedWindowAmt:0,minedWindowT:0,offZonePatrolCd:OFFZONE_MINE_WINDOW,
     particles:[],floaters:[],shake:{t:0,dur:0,mag:0},surgeWaves:[],surgeT:10,
@@ -2889,6 +2896,7 @@ function spawnEnemy(x,y,kind,opts){
   // that comes at you in a rush.
   if(kind==='roam'&&core&&rand()<BRUTE_CHANCE)kind='brute';
   const brute=kind==='brute';
+  if(kind==='wave'&&!(opts&&opts.noSplinter)&&rand()<(SPL_SHARE[bandAt(x,y)]||0)){spawnSplinter(x,y,core);return}
   const big=kind==='wave'&&rand()<((opts&&opts.bigP!=null)?opts.bigP:0.2);
   const sab=kind==='saboteur', swarm=kind==='swarm';
   const hp=(opts&&opts.hp)||(brute?BRUTE_HP:swarm?SWARM_HP:Math.round((big?120:sab?4:34)*(core?CORE_ENEMY_HP_MULT:1)));
@@ -2896,6 +2904,78 @@ function spawnEnemy(x,y,kind,opts){
     speed:brute?BRUTE_SPEED:big?48:sab?105:swarm?SWARM_SPEED:78,dmg:brute?BRUTE_DMG:big?12:sab?1.5:swarm?SWARM_DMG:5,cd:0,kind,core,target:null,aggro:kind==='roam'||brute?260:1e9,home:{x,y},ang:rnd(0,Math.PI*2),faceT:rnd(1,3),stunT:0});
   if(RUN){const e=S.enemies[S.enemies.length-1];e.hp=e.maxHp=Math.round(e.maxHp*stopHpMult());if(pressureOn('frenzy'))e.speed*=1.15}
   if(opts&&opts.horde){const e=S.enemies[S.enemies.length-1];e.horde=true;e.dmg=HORDE_DMG;e.seed=rnd(0,100);e.speed*=rnd(0.85,1.1)}
+}
+function spawnSplinter(x,y,core){
+  const hp=Math.round(SPL_HP*(core?CORE_ENEMY_HP_MULT:1)*(RUN?stopHpMult():1));
+  S.enemies.push({x,y,r:8,hp,maxHp:hp,speed:SPL_SPEED*(RUN&&pressureOn('frenzy')?1.15:1),dmg:SPL_SHOT_DMG,cd:0,kind:'splinter',core,target:null,aggro:1e9,home:{x,y},ang:rnd(0,Math.PI*2),faceT:rnd(1,3),stunT:0,
+    shards:SPL_SHARDS,regrowT:0,volley:false,volT:0,seed:rnd(0,100)});
+}
+// A Splinter's turn: close in until it's in range with a clear line, then hold there and fire.
+function splinterStep(e,tgt,dt){
+  const d=dist(e,tgt);e.ang=Math.atan2(tgt.y-e.y,tgt.x-e.x);
+  if(e.shards<SPL_SHARDS&&!e.volley){e.regrowT+=dt;if(e.regrowT>=SPL_REGROW){e.regrowT=0;e.shards++;e.grewT=S.t}}
+  const inRange=d<=SPL_RANGE+(tgt.r||12);
+  if(inRange&&!e.volley&&e.shards>=SPL_SHARDS){e.volley=true;e.volT=0}
+  if(e.volley){e.volT-=dt;if(e.volT<=0){
+      if(e.shards>0&&inRange){e.shards--;e.volT=SPL_VOLLEY_GAP;const a=e.ang+rnd(-0.07,0.07);
+        S.shardShots.push({x:e.x+Math.cos(a)*10,y:e.y+Math.sin(a)*10,vx:Math.cos(a)*SPL_SHOT_SPEED,vy:Math.sin(a)*SPL_SHOT_SPEED,life:SPL_RANGE*1.4/SPL_SHOT_SPEED,dmg:e.dmg,ang:a,spin:rnd(-12,12)});
+        if(sfxReady('splshot',0.06))tone(900+Math.random()*300,0.05,'triangle',0.035,0,500)}
+      else{e.volley=false;e.regrowT=0}}}
+  if(d>SPL_RANGE*0.85+(tgt.r||12)&&!e.volley){const aim=enemyApproachPoint(e,tgt);moveToward(e,aim,e.speed*enemyRoughFactor(e.x,e.y),dt)}
+}
+// Splinter shards in flight: they hit the first of your units or structures they touch; walls and a
+// facing shield-wall Brawler stop them; rock swallows them.
+function updateShardShots(dt){
+  if(!S.shardShots.length)return;
+  const B=S.base,hitList=[B].concat(S.troops,S.harvesters,S.builders,S.turrets.filter(t=>t.built),S.relays.filter(r=>r.built&&r.hp>0),S.stabs.filter(st=>st.built&&st.hp>0),S.depots.filter(de=>de.built&&de.hp>0));
+  S.shardShots=S.shardShots.filter(sh=>{
+    const steps=2;for(let k=0;k<steps;k++){
+      sh.x+=sh.vx*dt/steps;sh.y+=sh.vy*dt/steps;
+      const w=wallAt(sh.x,sh.y);if(w){damageWall(w,sh.dmg);spark(sh.x,sh.y,'#8d9aa8',3);return false}
+      if(terrainAt(sh.x,sh.y)===2||sh.x<0||sh.y<0||sh.x>W||sh.y>H)return false;
+      for(const u of hitList){const r=u===B?BASE_R:(u.r||10);if(Math.hypot(u.x-sh.x,u.y-sh.y)>r+3)continue;
+        // a Brawler holding a shield wall turns shards that come at its face
+        if(u.kind==='brawler'&&u.wall&&!u.dest){let da=Math.atan2(sh.y-u.y,sh.x-u.x)-u.ang;da=Math.atan2(Math.sin(da),Math.cos(da));if(Math.abs(da)<1.1){spark(sh.x,sh.y,BRAWL_COLOR,4);if(sfxReady('block',0.08))tone(1400,0.04,'square',0.03);return false}}
+        u.hp-=u.kind?allyHit(u,sh.dmg):sh.dmg;u.lastHitBy='enemy';hitFlash(u);spark(sh.x,sh.y,C.enemy,2);if(u===B&&sfxReady('damage',0.3))sfx.damage();return false}
+    }
+    sh.ang+=sh.spin*dt;return (sh.life-=dt)>0;
+  });
+}
+function drawShardShots(){
+  S.shardShots.forEach(sh=>{ctx.save();ctx.translate(sh.x,sh.y);ctx.rotate(sh.ang);ctx.fillStyle='#55626f';ctx.strokeStyle=C.enemy;ctx.lineWidth=0.8;
+    ctx.beginPath();ctx.moveTo(4,0);ctx.lineTo(-2.5,-2);ctx.lineTo(-1.5,2.2);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();
+    ctx.globalAlpha=0.35;ctx.strokeStyle=C.enemy;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(sh.x,sh.y);ctx.lineTo(sh.x-sh.vx*0.035,sh.y-sh.vy*0.035);ctx.stroke();ctx.globalAlpha=1});
+}
+// Splinter body: a dark core with its shards in orbit (the newest one growing in)
+function drawSplinter(e){
+  const fl=e.flashT>0,red=e.core?'#ff2a2a':C.enemy,t=S.t,n=e.shards||0;
+  ctx.fillStyle='rgba(0,0,0,0.3)';ctx.beginPath();ctx.ellipse(e.x+2,e.y+3,6,5,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle=fl?'#fff':'#120a0b';ctx.strokeStyle=red;ctx.lineWidth=1;ctx.beginPath();ctx.arc(e.x,e.y,3.6,0,Math.PI*2);ctx.fill();ctx.stroke();
+  ctx.fillStyle=red;ctx.globalAlpha=0.6+0.4*Math.sin(t*9+e.seed);ctx.beginPath();ctx.arc(e.x,e.y,1.4,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;
+  const grow=e.grewT!=null?Math.min(1,(t-e.grewT)/0.35):1, aiming=e.volley;
+  for(let i=0;i<n;i++){const a=i/SPL_SHARDS*Math.PI*2+t*1.6+e.seed,r=(aiming?7:9)+Math.sin(t*2+i*1.3)*1.1,sc=(i===n-1&&n<SPL_SHARDS)?grow:1;
+    const X=e.x+Math.cos(a)*r,Y=e.y+Math.sin(a)*r,rot=aiming?e.ang:a;
+    ctx.save();ctx.translate(X,Y);ctx.rotate(rot);ctx.scale(sc,sc);ctx.fillStyle=fl?'#fff':(i%2?'#3a2c2e':'#55626f');ctx.strokeStyle=red;ctx.lineWidth=0.6;
+    ctx.beginPath();ctx.moveTo(3.4,0);ctx.lineTo(-2.1,-1.7);ctx.lineTo(-1.3,1.9);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore()}
+}
+// Echo body (the basic enemy): a figure out of sync with itself, red and cyan copies jittering
+// around it. When it strikes it blinks forward at the target, leaves afterimages, and cuts a red arc.
+function drawEcho(e){
+  const fl=e.flashT>0,k=e.r/8,t=S.t,red=e.core?'#ff2a2a':e.kind==='roam'?'#d9775f':C.enemy,body=e.core?'#050505':'#1c1012';
+  const tg=e.target,since=e.atkT!=null?t-e.atkT:9;
+  let off=0,wind=0;
+  if(since<0.12)off=Math.sin(since/0.12*Math.PI)*7*k; // the blink forward and back
+  else if(tg&&tg.hp>0&&e.cd<0.25&&dist(e,tg)<=e.r+(tg.r||12)+10)wind=(0.25-Math.max(0,e.cd))/0.25;
+  ctx.save();ctx.translate(e.x,e.y);ctx.rotate(e.ang+Math.PI/2);ctx.scale(k,k);
+  const fig=(dx,dy,col,a)=>{ctx.globalAlpha=a;ctx.fillStyle=col;ctx.beginPath();ctx.ellipse(dx,dy+1,5,3.2,0,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(dx,dy-1.5,2.6,0,Math.PI*2);ctx.fill()};
+  if(since<0.3){const g=1-since/0.3;fig(-1,3,red,0.45*g);fig(1,7,C.ally,0.25*g);fig(-1,11,red,0.2*g)}
+  ctx.fillStyle='rgba(0,0,0,0.3)';ctx.globalAlpha=1;ctx.beginPath();ctx.ellipse(2,4-off,5,4,0,0,Math.PI*2);ctx.fill();
+  const j=Math.sin(t*7+(e.seed||e.home.x))*0.8+(wind?(Math.random()-0.5)*2.4*wind:0)+(Math.random()<0.04?1.5:0);
+  fig(-1.6+j,-off,red,0.8);fig(1.6-j,-off,C.ally,0.4);fig(0,-off,fl?'#fff':body,1);
+  ctx.globalAlpha=1;ctx.strokeStyle=red;ctx.lineWidth=1.2;ctx.beginPath();ctx.ellipse(0,1-off,5,3.2,0,0,Math.PI*2);ctx.stroke();
+  if(since<0.25){const sl=since<0.1?since/0.1:1-(since-0.1)/0.15;ctx.globalAlpha=Math.max(0,sl);ctx.strokeStyle=red;ctx.lineWidth=1.6;ctx.beginPath();ctx.arc(0,-off-2,10,-Math.PI/2-1.1*sl,-Math.PI/2+1.1*sl);ctx.stroke();
+    ctx.strokeStyle='#fff';ctx.lineWidth=0.6;ctx.beginPath();ctx.arc(0,-off-2,10,-Math.PI/2-0.8*sl,-Math.PI/2+0.8*sl);ctx.stroke()}
+  ctx.restore();ctx.globalAlpha=1;
 }
 // ---------- Quakers ----------
 // v4: a big stone block whose whole job is to wreck a drilling operation. One lumbers in now and
@@ -6284,6 +6364,7 @@ function update(dt){
     }
     e.target=tgt;
     if(e.horde&&tgt){e._tT=S.t+rnd(0.25,0.45);hordeStep(e,tgt,dt);return}
+    if(e.kind==='splinter'&&tgt){splinterStep(e,tgt,dt);return}
     // face whoever they're engaging; otherwise idle fidget with a random heading
     if(tgt)e.ang=Math.atan2(tgt.y-e.y,tgt.x-e.x);
     else{e.faceT-=dt;if(e.faceT<=0){e.ang=rnd(0,Math.PI*2);e.faceT=rnd(1.5,3.5)}}
@@ -6303,7 +6384,7 @@ function update(dt){
     const reach=e.r+(tgt.r||12)+4;
     if(dist(e,tgt)<=reach&&!wallBetween(e,tgt)){
       if(e.cd<=0){
-        tgt.hp-=allyHit(tgt,e.dmg); tgt.lastHitBy='enemy'; hitFlash(tgt); spark(tgt.x,tgt.y,C.enemy,2); e.cd=0.8;
+        tgt.hp-=allyHit(tgt,e.dmg); tgt.lastHitBy='enemy'; hitFlash(tgt); spark(tgt.x,tgt.y,C.enemy,2); e.cd=0.8; e.atkT=S.t;
         if(tgt===B){shakeScreen(3,0.15);sfx.damage()}
       }
       return;
@@ -6397,6 +6478,7 @@ function update(dt){
   if(S.glassB){S.troops.forEach(u=>glassPush(u,u.r*0.8));S.harvesters.forEach(u=>glassPush(u,u.r*0.8));S.builders.forEach(u=>glassPush(u,u.r*0.8));
     S.enemies.forEach(e=>{if(e.kind!=='nest'&&!(e.air>0))glassPush(e,(e.r||8)*0.8)})}
   S.tracers=S.tracers.filter(t=>(t.t-=dt)>0);
+  if(!S.shardShots)S.shardShots=[];updateShardShots(dt);
   S.nades=S.nades.filter(n=>{n.t+=dt;const pt=Math.min(1,n.t/n.dur);n.x=n.x0+(n.tx-n.x0)*pt;n.y=n.y0+(n.ty-n.y0)*pt;if(pt>=1){explodeNade(n);return false}return true});
   if(B.hp<=0){S.over='lose';sfx.lose();shakeScreen(10,0.6);burst(B.x,B.y,C.enemy,30,160,0.9);showOverlay('Bastion destroyed','The crew and the crystal are lost to the zone. Try fortifying before you push deeper.',0.5)}
 
@@ -7252,13 +7334,17 @@ function draw(){
     if(e.kind==='quaker'){if(debugNoFog||visible(e))drawQuaker(e);return}
     if(e.horde){if(e.x<x0-10||e.x>x1+10||e.y<y0-10||e.y>y1+10||(!debugNoFog&&!visible(e)))return; // horde: batched into three paths
       const p=e.flashT>0?hF:e.core?hC:hN,a=e.ang,r=e.r;p.moveTo(e.x+Math.cos(a)*r*1.4,e.y+Math.sin(a)*r*1.4);p.lineTo(e.x+Math.cos(a+2.5)*r,e.y+Math.sin(a+2.5)*r);p.lineTo(e.x+Math.cos(a-2.5)*r,e.y+Math.sin(a-2.5)*r);p.closePath();hc++;return}
-    if(!debugNoFog&&!visible(e))return;const a=e.ang,brute=e.kind==='brute';ctx.fillStyle=e.flashT>0?'#fff':(e.core?'#0a0a0a':(e.kind==='roam'?'#d9775f':e.kind==='saboteur'?C.cable:e.kind==='corrupted'?C.zone:C.enemy));ctx.beginPath();
+    if(!debugNoFog&&!visible(e))return;
+    if(e.kind==='splinter'){drawSplinter(e);if(e.hp<e.maxHp)hpbar(e.x,e.y-e.r-10,e.r*2+4,e.hp/e.maxHp);return}
+    if(e.kind==='wave'||e.kind==='roam'){drawEcho(e);if(e.hp<e.maxHp)hpbar(e.x,e.y-e.r-8,e.r*2+4,e.hp/e.maxHp);return}
+    const a=e.ang,brute=e.kind==='brute';ctx.fillStyle=e.flashT>0?'#fff':(e.core?'#0a0a0a':(e.kind==='roam'?'#d9775f':e.kind==='saboteur'?C.cable:e.kind==='corrupted'?C.zone:C.enemy));ctx.beginPath();
     ctx.moveTo(e.x+Math.cos(a)*e.r*1.3,e.y+Math.sin(a)*e.r*1.3);ctx.lineTo(e.x+Math.cos(a+2.5)*e.r,e.y+Math.sin(a+2.5)*e.r);ctx.lineTo(e.x+Math.cos(a-2.5)*e.r,e.y+Math.sin(a-2.5)*e.r);ctx.closePath();ctx.fill();
     if(e.core){ctx.strokeStyle=e.flashT>0?'#fff':'#ff2a2a';ctx.lineWidth=brute?3:1.5;ctx.stroke()}
     if(brute){ctx.globalAlpha=0.45;ctx.strokeStyle='#ff2a2a';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(e.x,e.y,e.r+7,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1}
     if(e.hp<e.maxHp)hpbar(e.x,e.y-e.r-8,e.r*2+4,e.hp/e.maxHp)});
   if(hc){ctx.fillStyle=C.enemy;ctx.fill(hN);ctx.fillStyle='#0a0a0a';ctx.fill(hC);ctx.strokeStyle='#ff2a2a';ctx.lineWidth=1;ctx.stroke(hC);ctx.fillStyle='#fff';ctx.fill(hF)}
   // tracers
+  if(S.shardShots)drawShardShots();
   S.tracers.forEach(t=>{ctx.strokeStyle=t.col;ctx.globalAlpha=t.t/0.12;ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(t.x1,t.y1);ctx.lineTo(t.x2,t.y2);ctx.stroke()});ctx.globalAlpha=1;
   // Energy Surge rings: a bright front with a soft glow behind it, fading as it reaches full size
   S.surgeWaves.forEach(w=>{
