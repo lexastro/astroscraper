@@ -1019,6 +1019,16 @@ const WAVE_FRONT_HALF=260; // half-width of the line a wave spawns along, across
 const FIRST_WAVE_LEAD=9;
 const STAB_HUNTER_FRAC=0.35; // share of each drilling wave sent after the Stabilizers
 const WAVE_SPAWN_DIST=820,WAVE_BASE_N={rim:8,dense:12,core:22};
+// v4 horde: every drilling wave brings a flood of swarmlings with it — HORDE_MULT times the wave's
+// own size, each one trivial on its own (a shot or two) but dangerous in a mass. They move as a
+// crowd on one shared flow field toward the Bastion instead of each planning its own path, so they
+// pour around rock, clog at gaps and pile up against walls. Every HORDE_BIG_EVERY-th wave is a
+// great wave. Each wave is announced WAVE_WARN_T ahead: a rumble, and red markers at the screen
+// edge on the side it's coming from.
+const HORDE_MULT={rim:4,dense:5,core:5}, HORDE_CAP=320, HORDE_BIG_EVERY=4, HORDE_BIG_MULT=2.2, HORDE_HP=8, HORDE_SHARD_P=0.06, HORDE_DMG=1, HORDE_STOMP_DPS=14;
+// (a horde swarmer pressed up against the Bastion is trampled by its legs at HORDE_STOMP_DPS — each one
+// gets a bite or two in before it's crushed, so it's the flow of them that wears the Bastion down)
+const WAVE_WARN_T=6, WAVE_WARN_BIG_T=10;
 // v2: the vein's tier sets the threat on top of the zone. It follows the drill meter's live yield
 // (the tier the needle has mostly sat in over the last few seconds), so holding a rich band draws
 // a bigger, faster swarm, and easing down a tier eases off. n = wave size, rate = how much sooner
@@ -2862,6 +2872,7 @@ function spawnEnemy(x,y,kind,opts){
   S.enemies.push({x,y,r:brute?BRUTE_R:big?13:sab?4:swarm?SWARM_R:8,hp,maxHp:hp,
     speed:brute?BRUTE_SPEED:big?48:sab?105:swarm?SWARM_SPEED:78,dmg:brute?BRUTE_DMG:big?12:sab?1.5:swarm?SWARM_DMG:5,cd:0,kind,core,target:null,aggro:kind==='roam'||brute?260:1e9,home:{x,y},ang:rnd(0,Math.PI*2),faceT:rnd(1,3),stunT:0});
   if(RUN){const e=S.enemies[S.enemies.length-1];e.hp=e.maxHp=Math.round(e.maxHp*stopHpMult());if(pressureOn('frenzy'))e.speed*=1.15}
+  if(opts&&opts.horde){const e=S.enemies[S.enemies.length-1];e.horde=true;e.dmg=HORDE_DMG;e.seed=rnd(0,100);e.speed*=rnd(0.85,1.1)}
 }
 // ---------- Quakers ----------
 // v4: a big stone block whose whole job is to wreck a drilling operation. One lumbers in now and
@@ -5193,6 +5204,7 @@ const sfx={
   stall(){tone(140,0.22,'square',0.07)},
   resume(){tone(400,0.07,'sine',0.07);tone(560,0.08,'sine',0.06,0.06)},
   wave(){tone(300,0.15,'triangle',0.08);tone(300,0.15,'triangle',0.08,0.18)},
+  rumble(f){tone(46,1.3,'sawtooth',0.03+0.035*(f||0),0,30);tone(62,1.1,'triangle',0.03+0.03*(f||0),0.05,40)},
   saboteurs(){tone(240,0.1,'square',0.06);tone(200,0.1,'square',0.05,0.1)},
   relayDown(){tone(120,0.25,'sawtooth',0.09,0,50)},
   damage(){if(!sfxReady('damage',0.3))return;tone(90,0.12,'triangle',0.08)},
@@ -5361,17 +5373,110 @@ function spawnAtStab(v,st,k,th){
     const p=nearestPlain(Math.max(20,Math.min(W-20,st.x+ux*R-uy*lat)),Math.max(20,Math.min(H-20,st.y+uy*R+ux*lat)));
     spawnEnemy(p.x,p.y,'wave',{bigP:th.big});const e=S.enemies[S.enemies.length-1];e.stabHunter=true;e.focusStab=st}
 }
+// ---------- horde ----------
+// Where the next wave will come from: the nests feeding the vein, or its wave line.
+function waveSources(v){
+  const feeders=liveNests().filter(nn=>dist(nn,v)<NEST_FEED_R);
+  if(feeders.length){
+    // nests on roughly the same bearing from the vein make one marker (at most three)
+    const pts=feeders.map(nn=>({x:nn.x,y:nn.y,a:Math.atan2(nn.y-v.y,nn.x-v.x)})).sort((p,q)=>p.a-q.a),groups=[];
+    pts.forEach(p=>{const g=groups[groups.length-1];if(g&&p.a-g.a1<0.8){g.m.push(p);g.a1=p.a}else groups.push({m:[p],a1:p.a})});
+    if(groups.length>1){const f=groups[0],l=groups[groups.length-1];if(f.m[0].a+Math.PI*2-l.a1<0.8){f.m.push(...l.m);groups.pop()}}
+    return groups.sort((p,q)=>q.m.length-p.m.length).slice(0,3).map(g=>{let x=0,y=0;g.m.forEach(p=>{x+=p.x;y+=p.y});return{x:x/g.m.length,y:y/g.m.length}});
+  }
+  return [{x:Math.max(20,Math.min(W-20,v.x+Math.cos(v.waveDir)*WAVE_SPAWN_DIST)),y:Math.max(20,Math.min(H-20,v.y+Math.sin(v.waveDir)*WAVE_SPAWN_DIST))}];
+}
+function nextWaveBig(v){return ((v.waveNo||0)+1)%HORDE_BIG_EVERY===0}
+function hordeAlive(){let c=0;for(const e of S.enemies)if(e.horde)c++;return c}
+// The swarm that comes with a wave of n: from the same nests (or along a wider stretch of the wave line)
+function spawnHorde(v,n,feeders,big){
+  let k=Math.round(n*HORDE_MULT[v.band]*(big?HORDE_BIG_MULT:1));
+  k=Math.max(0,Math.min(k,HORDE_CAP-hordeAlive()));if(!k)return;
+  const o={horde:true,hp:Math.round(HORDE_HP*(v.band==='core'?CORE_ENEMY_HP_MULT:1))};
+  if(feeders.length){let left=k;feeders.forEach((nn,i)=>{const m=i===feeders.length-1?left:Math.round(k/feeders.length);left-=m;if(m>0)nestSpawn(nn,m,'swarm',o)});return}
+  const a=v.waveDir, sx=v.x+Math.cos(a)*WAVE_SPAWN_DIST, sy=v.y+Math.sin(a)*WAVE_SPAWN_DIST, px=-Math.sin(a), py=Math.cos(a);
+  for(let i=0;i<k;i++){const lat=rnd(-1.5,1.5)*WAVE_FRONT_HALF, dep=rnd(-120,160);
+    const p=nearestPlain(Math.max(20,Math.min(W-20,sx+px*lat+Math.cos(a)*dep)),Math.max(20,Math.min(H-20,sy+py*lat+Math.sin(a)*dep)));
+    spawnEnemy(p.x,p.y,'swarm',o)}
+}
+// The warning before a wave: a rumble that builds and red markers on the side it's coming from.
+function startWaveWarn(v,lead){
+  const big=nextWaveBig(v), src=waveSources(v);
+  S.waveWarn={src,t0:S.t,end:S.t+Math.max(0.5,lead),big};
+  const c=src[0],side=compassName(Math.atan2(c.y-v.y,c.x-v.x))||'near side';
+  if(big)msg(`The ground is shaking to the ${side}: a great wave is coming in ${Math.round(lead)}s.`);
+  sfx.rumble(1);
+}
+function updateWaveWarn(dt){
+  const w=S.waveWarn;if(!w)return;
+  if(!S.base.locked||S.t>w.end+2.5){S.waveWarn=null;return}
+  const f=Math.min(1,(S.t-w.t0)/Math.max(0.1,w.end-w.t0));
+  if(S.t<w.end){shakeScreen((0.5+1.6*f)*(w.big?1.7:1),0.12);if(sfxReady('rumble',1.15))sfx.rumble(f)}
+}
+// Flow field: one Dijkstra over the terrain grid out from the Bastion's cell, re-run when the
+// Bastion changes cell (or every FLOW_REFRESH s), giving every cell a direction toward it. Every
+// horde enemy just reads the direction where it stands, blended between the four nearest cells.
+const FLOW_REFRESH=1.5;
+const FLOW={n:0,gx:-1,gy:-1,t:-99,dist:null,dx:null,dy:null};
+function updateFlow(){
+  const B=S.base,gx=Math.max(0,Math.min(TGX-1,Math.floor(B.x/TCELL))),gy=Math.max(0,Math.min(TGY-1,Math.floor(B.y/TCELL))),N=TGX*TGY;
+  if(FLOW.n===N&&FLOW.gx===gx&&FLOW.gy===gy&&S.t-FLOW.t<FLOW_REFRESH&&S.t>=FLOW.t)return;
+  if(FLOW.n!==N){FLOW.n=N;FLOW.dist=new Float32Array(N);FLOW.dx=new Float32Array(N);FLOW.dy=new Float32Array(N);FLOW.cost=new Float32Array(N)}
+  FLOW.gx=gx;FLOW.gy=gy;FLOW.t=S.t;
+  const D=FLOW.dist,Cc=FLOW.cost;D.fill(Infinity);
+  for(let y=0;y<TGY;y++)for(let x=0;x<TGX;x++)Cc[y*TGX+x]=tcost(x,y,false,true);
+  // binary heap of cell indices keyed on D
+  const heap=[];const push=i=>{heap.push(i);let k=heap.length-1;while(k>0){const p=(k-1)>>1;if(D[heap[p]]<=D[heap[k]])break;[heap[p],heap[k]]=[heap[k],heap[p]];k=p}};
+  const pop=()=>{const top=heap[0],last=heap.pop();if(heap.length){heap[0]=last;let k=0;for(;;){const l=2*k+1,r=l+1;let m=k;if(l<heap.length&&D[heap[l]]<D[heap[m]])m=l;if(r<heap.length&&D[heap[r]]<D[heap[m]])m=r;if(m===k)break;[heap[m],heap[k]]=[heap[k],heap[m]];k=m}}return top};
+  const g0=gy*TGX+gx;D[g0]=0;push(g0);
+  const pass=(x,y)=>x>=0&&y>=0&&x<TGX&&y<TGY&&Cc[y*TGX+x]<Infinity;
+  while(heap.length){const i=pop(),cx=i%TGX,cy=(i-cx)/TGX,di=D[i];
+    for(const [ox,oy,st] of NBR){const nx=cx+ox,ny=cy+oy;if(!pass(nx,ny))continue;if(ox&&oy&&(!pass(cx+ox,cy)||!pass(cx,cy+oy)))continue;
+      const j=ny*TGX+nx,nd=di+st*Cc[j];if(nd<D[j]){D[j]=nd;push(j)}}}
+  for(let cy=0;cy<TGY;cy++)for(let cx=0;cx<TGX;cx++){const i=cy*TGX+cx;FLOW.dx[i]=0;FLOW.dy[i]=0;if(D[i]===Infinity||i===g0)continue;
+    let best=D[i],bx=0,by=0;
+    for(const [ox,oy] of NBR){const nx=cx+ox,ny=cy+oy;if(!pass(nx,ny))continue;if(ox&&oy&&(!pass(cx+ox,cy)||!pass(cx,cy+oy)))continue;const d=D[ny*TGX+nx];if(d<best){best=d;bx=ox;by=oy}}
+    const L=Math.hypot(bx,by)||1;FLOW.dx[i]=bx/L;FLOW.dy[i]=by/L}
+}
+function flowDir(x,y){
+  if(!FLOW.dist)return null;
+  const fx=x/TCELL-0.5,fy=y/TCELL-0.5,x0=Math.floor(fx),y0=Math.floor(fy),tx=fx-x0,ty=fy-y0;let vx=0,vy=0;
+  for(let k=0;k<4;k++){const cx=x0+(k&1),cy=y0+(k>>1);if(cx<0||cy<0||cx>=TGX||cy>=TGY)continue;const i=cy*TGX+cx;if(FLOW.dist[i]===Infinity)continue;
+    const w=((k&1)?tx:1-tx)*((k>>1)?ty:1-ty);vx+=FLOW.dx[i]*w;vy+=FLOW.dy[i]*w}
+  const L=Math.hypot(vx,vy);return L>0.05?{x:vx/L,y:vy/L}:null;
+}
+function hordeBlocked(x,y){return x<4||y<4||x>W-4||y>H-4||tcost(Math.floor(x/TCELL),Math.floor(y/TCELL),false,true)===Infinity}
+// A horde enemy's turn: bite whatever it's touching, chew through a wall in its way, otherwise run
+// the flow field (or straight at something close), weaving a little, sliding along rock.
+function hordeStep(e,tgt,dt){
+  const B=S.base,db=dist(e,B);
+  if(db<BASE_R+e.r+6){e.hp-=HORDE_STOMP_DPS*dt;if(e.hp<=0)return}
+  const reach=e.r+(tgt.r||12)+4,d=tgt===B?db:dist(e,tgt);
+  if(d<=reach){if(e.cd<=0){tgt.hp-=e.dmg;tgt.lastHitBy='enemy';hitFlash(tgt);spark(tgt.x,tgt.y,C.enemy,1);e.cd=0.8;if(tgt===S.base){shakeScreen(2,0.12);sfx.damage()}}e.ang=Math.atan2(tgt.y-e.y,tgt.x-e.x);return}
+  let ux,uy;
+  const f=(d<170||(tgt!==S.base&&d<380))?null:flowDir(e.x,e.y);
+  if(f){ux=f.x;uy=f.y}else{ux=(tgt.x-e.x)/(d||1);uy=(tgt.y-e.y)/(d||1)}
+  const wv=Math.sin(S.t*2.3+e.seed)*0.4*Math.min(1,d/200),c=Math.cos(wv),s=Math.sin(wv);[ux,uy]=[ux*c-uy*s,ux*s+uy*c];
+  const w=wallAt(e.x+ux*(e.r+6),e.y+uy*(e.r+6));
+  if(w){if(e.cd<=0){w.hp-=e.dmg*1.5;hitFlash(w);spark(w.x,w.y,C.enemy,1);e.cd=0.8;if(w.hp<=0)S.walls.delete(key(w.gx,w.gy))}return}
+  const sp=e.speed*enemyRoughFactor(e.x,e.y)*dt,nx=e.x+ux*sp,ny=e.y+uy*sp;
+  if(!hordeBlocked(nx,ny)){e.x=nx;e.y=ny}else if(!hordeBlocked(nx,e.y))e.x=nx;else if(!hordeBlocked(e.x,ny))e.y=ny;
+  e.ang=Math.atan2(uy,ux);
+}
 function spawnVeinWave(v){
   const th=veinThreat(v);
+  v.waveNo=(v.waveNo||0)+1;v.warnSent=false;const big=v.waveNo%HORDE_BIG_EVERY===0;
+  if(S.waveWarn)S.waveWarn.end=S.t;
   // the nests within reach of the vein are what answers the drill: each one swells the wave and
   // sends its share from where it sits. No nest nearby: just stragglers from the vein's wave line.
   const feeders=liveNests().filter(nn=>dist(nn,v)<NEST_FEED_R);
   const feed=feeders.reduce((t,nn)=>t+NEST[nn.size].feed,0);
   let n=Math.max(1,Math.round((pressureOn('tide')?1.3:1)*WAVE_BASE_N[v.band]*th.n*(feeders.length?Math.min(3,0.4+0.6*feed):NEST_STRAGGLERS)));
+  spawnHorde(v,n,feeders,big);
   const ss=strainedStab(v);let strainMsg='';
   if(ss){const k=Math.max(1,Math.round(n*(WAVE_STRAIN_SHARE+0.3*ss.strain)));spawnAtStab(v,ss,k,th);n=Math.max(1,n-k);
     strainMsg=` A pack is circling in on the Stabilizer you're leaning on.`}
-  const heavy=th.tier==='Legendary'?'A huge wave':th.tier==='Epic'?'A heavy wave':'Wave';
+  const heavy=big?'A great wave, a whole brood,':th.tier==='Legendary'?'A huge wave':th.tier==='Epic'?'A heavy wave':'Wave';
   const why=th.tier==='Epic'||th.tier==='Legendary'?` — the ${th.tier} yield is drawing them in`:'';
   if(feeders.length){
     let left=n;
@@ -5413,6 +5518,7 @@ function update(dt){
       // The first wave sets off FIRST_WAVE_LEAD before the warm-up ends, so it's arriving just as
       // the drill bites in. Launching it only once drilling had started meant it spent most of a
       // short drill still walking in — a Rim vein on Fast could drain before it ever got there.
+      if(!v.firstWarn&&v.prepT<=FIRST_WAVE_LEAD+WAVE_WARN_T){v.firstWarn=true;startWaveWarn(v,v.prepT-FIRST_WAVE_LEAD)}
       if(!v.firstWaveSent&&v.prepT<=FIRST_WAVE_LEAD){v.firstWaveSent=true;spawnVeinWave(v)}
       if(v.prepT<=0){
         v.startT=S.t;
@@ -5432,6 +5538,7 @@ function update(dt){
     v.drillProg+=DRILL_RATE*S.mods.drillRateMult*dt;
     }
     v.waveT-=dt;
+    if(!v.warnSent&&v.waveT<=Math.min(nextWaveBig(v)?WAVE_WARN_BIG_T:WAVE_WARN_T,veinWaveInterval(v)*0.7)){v.warnSent=true;startWaveWarn(v,v.waveT)}
     if(v.waveT<=0){
       spawnVeinWave(v);
       v.waveT=veinWaveInterval(v);
@@ -5834,6 +5941,8 @@ function update(dt){
 
   // enemies
   const allies=S.troops.concat(S.harvesters).concat(S.builders);
+  updateWaveWarn(dt);
+  if(S.enemies.some(e=>e.horde))updateFlow();
   S.enemies.forEach(e=>{
     if(e.kind==='nest')return;
     if(e.kind==='quaker'){e.cd-=dt;updateQuaker(e,dt);return}
@@ -5852,6 +5961,8 @@ function update(dt){
       }
       return;
     }
+    // horde: re-pick a target only a few times a second
+    if(e.horde&&e.target&&e.target.hp>0&&S.t<e._tT){hordeStep(e,e.target,dt);return}
     let tgt=null,bd=e.aggro;
     if(e.kind==='saboteur'){
       // single-minded: ignore allies entirely, always make for whichever built Relay is nearest
@@ -5886,6 +5997,7 @@ function update(dt){
         if(ls&&!(tgt&&tgt!==B&&tgt.kind!=='stabilizer'&&dist(e,tgt)<70))tgt=ls}
     }
     e.target=tgt;
+    if(e.horde&&tgt){e._tT=S.t+rnd(0.25,0.45);hordeStep(e,tgt,dt);return}
     // face whoever they're engaging; otherwise idle fidget with a random heading
     if(tgt)e.ang=Math.atan2(tgt.y-e.y,tgt.x-e.x);
     else{e.faceT-=dt;if(e.faceT<=0){e.ang=rnd(0,Math.PI*2);e.faceT=rnd(1.5,3.5)}}
@@ -5938,9 +6050,9 @@ function update(dt){
     if(e.kind==='nest'){nestDestroyed(e);sfx.kill();return false}
     if(e.kind==='quaker'){S.nodes.push({x:e.x,y:e.y,amt:QUAKER_DAT,max:QUAKER_DAT,found:true});burst(e.x,e.y,'#c9a46b',26,170,0.7);sfx.kill();msg(`Quaker down — it dropped ${QUAKER_DAT} Dat.`);return false}
     const brute=e.kind==='brute';
-    burst(e.x,e.y,brute?'#ff2a2a':e.kind==='saboteur'?C.cable:C.enemy,brute?20:5,brute?150:90,brute?0.6:undefined);
+    burst(e.x,e.y,brute?'#ff2a2a':e.kind==='saboteur'?C.cable:C.enemy,brute?20:e.horde?3:5,brute?150:90,brute?0.6:undefined);
     sfx.kill();
-    if(Math.random()<0.35)S.shards.push({x:e.x+rnd(-8,8),y:e.y+rnd(-8,8),amt:Math.round(rnd(1,3)),rot:rnd(0,Math.PI*2)});
+    if(Math.random()<(e.horde?HORDE_SHARD_P:0.35))S.shards.push({x:e.x+rnd(-8,8),y:e.y+rnd(-8,8),amt:Math.round(rnd(1,3)),rot:rnd(0,Math.PI*2)});
     if(brute)bruteDeaths.push({x:e.x,y:e.y});
     return false}return true});
   // a Brute going down ruptures into a swarm of swarmlings right where it fell, instead of just dying
@@ -6836,13 +6948,17 @@ function draw(){
     ctx.globalAlpha=1});
   drawPOIs();drawRig();
   // enemies (only visible)
+  const hN=new Path2D(),hC=new Path2D(),hF=new Path2D();let hc=0;
   S.enemies.forEach(e=>{if(e.kind==='nest'){if(debugNoFog||e.seen)drawNest(e);return}
     if(e.kind==='quaker'){if(debugNoFog||visible(e))drawQuaker(e);return}
+    if(e.horde){if(e.x<x0-10||e.x>x1+10||e.y<y0-10||e.y>y1+10||(!debugNoFog&&!visible(e)))return; // horde: batched into three paths
+      const p=e.flashT>0?hF:e.core?hC:hN,a=e.ang,r=e.r;p.moveTo(e.x+Math.cos(a)*r*1.4,e.y+Math.sin(a)*r*1.4);p.lineTo(e.x+Math.cos(a+2.5)*r,e.y+Math.sin(a+2.5)*r);p.lineTo(e.x+Math.cos(a-2.5)*r,e.y+Math.sin(a-2.5)*r);p.closePath();hc++;return}
     if(!debugNoFog&&!visible(e))return;const a=e.ang,brute=e.kind==='brute';ctx.fillStyle=e.flashT>0?'#fff':(e.core?'#0a0a0a':(e.kind==='roam'?'#d9775f':e.kind==='saboteur'?C.cable:e.kind==='corrupted'?C.zone:C.enemy));ctx.beginPath();
     ctx.moveTo(e.x+Math.cos(a)*e.r*1.3,e.y+Math.sin(a)*e.r*1.3);ctx.lineTo(e.x+Math.cos(a+2.5)*e.r,e.y+Math.sin(a+2.5)*e.r);ctx.lineTo(e.x+Math.cos(a-2.5)*e.r,e.y+Math.sin(a-2.5)*e.r);ctx.closePath();ctx.fill();
     if(e.core){ctx.strokeStyle=e.flashT>0?'#fff':'#ff2a2a';ctx.lineWidth=brute?3:1.5;ctx.stroke()}
     if(brute){ctx.globalAlpha=0.45;ctx.strokeStyle='#ff2a2a';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(e.x,e.y,e.r+7,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1}
     if(e.hp<e.maxHp)hpbar(e.x,e.y-e.r-8,e.r*2+4,e.hp/e.maxHp)});
+  if(hc){ctx.fillStyle=C.enemy;ctx.fill(hN);ctx.fillStyle='#0a0a0a';ctx.fill(hC);ctx.strokeStyle='#ff2a2a';ctx.lineWidth=1;ctx.stroke(hC);ctx.fillStyle='#fff';ctx.fill(hF)}
   // tracers
   S.tracers.forEach(t=>{ctx.strokeStyle=t.col;ctx.globalAlpha=t.t/0.12;ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(t.x1,t.y1);ctx.lineTo(t.x2,t.y2);ctx.stroke()});ctx.globalAlpha=1;
   // Energy Surge rings: a bright front with a soft glow behind it, fading as it reaches full size
@@ -6900,8 +7016,32 @@ function draw(){
     ctx.globalAlpha=1}
   // selection box
   if(mouse.drag&&mouse.drag.moved){const d=mouse.drag;ctx.strokeStyle=C.ally;ctx.fillStyle='rgba(94,200,255,0.1)';ctx.lineWidth=1/cam.z;ctx.fillRect(d.x0,d.y0,d.x1-d.x0,d.y1-d.y0);ctx.strokeRect(d.x0,d.y0,d.x1-d.x0,d.y1-d.y0)}
-  ctx.setTransform(dpr,0,0,dpr,0,0);drawTutorialArrow(vw,vh);
+  ctx.setTransform(dpr,0,0,dpr,0,0);drawWaveWarn(vw,vh);drawTutorialArrow(vw,vh);
   drawMini();hud();
+}
+// The wave warning on screen: for each place the wave will come from, red bleeding in from the
+// screen edge on that side with chevrons and a countdown (or a pulsing ring, if it's on screen).
+function drawWaveWarn(vw,vh){
+  const w=S.waveWarn;if(!w)return;
+  const left=w.end-S.t,f=Math.min(1,(S.t-w.t0)/Math.max(0.1,w.end-w.t0)),pulse=0.5+0.5*Math.sin(S.t*(5+7*f)),flick=Math.random()<0.08?0.45:1;
+  const col=w.big?'255,40,40':'255,92,77',fade=left<0?Math.max(0,1+left/2.5):1;
+  ctx.save();ctx.font='700 13px '+css('--mono');ctx.textAlign='center';ctx.textBaseline='middle';
+  w.src.forEach(p=>{
+    const sx=(p.x-cam.x)*cam.z+vw/2,sy=(p.y-cam.y)*cam.z+vh/2,m=40,ang=Math.atan2(sy-vh/2,sx-vw/2),label=left>0?`${w.big?'GREAT WAVE':'WAVE'} ${Math.ceil(left)}s`:'INCOMING';
+    if(sx>m&&sx<vw-m&&sy>m&&sy<vh-m){
+      ctx.globalAlpha=fade*(0.4+0.6*pulse);ctx.strokeStyle=`rgb(${col})`;ctx.lineWidth=3;
+      ctx.beginPath();ctx.arc(sx,sy,(36+pulse*12)*(w.big?1.4:1),0,Math.PI*2);ctx.stroke();ctx.fillStyle=`rgb(${col})`;ctx.fillText(label,sx,sy-58);return}
+    // pinned inside the screen edge, clear of the top resource bar and the bottom build bar
+    const iT=96,iB=130,iS=48,c=Math.cos(ang),s=Math.sin(ang);
+    const k=Math.min(c>0?(vw-iS-vw/2)/c:c<0?(iS-vw/2)/c:1e9,s>0?(vh-iB-vh/2)/s:s<0?(iT-vh/2)/s:1e9),ex=vw/2+c*k,ey=vh/2+s*k;
+    const R=(w.big?420:280)*(0.7+0.3*f),g=ctx.createRadialGradient(ex+c*m,ey+s*m,0,ex+c*m,ey+s*m,R);
+    g.addColorStop(0,`rgba(${col},${fade*flick*(0.18+0.22*f)*(0.55+0.45*pulse)})`);g.addColorStop(1,`rgba(${col},0)`);
+    ctx.globalAlpha=1;ctx.fillStyle=g;ctx.fillRect(0,0,vw,vh);
+    ctx.save();ctx.translate(ex,ey);ctx.rotate(ang);ctx.strokeStyle=`rgb(${col})`;ctx.lineWidth=3;ctx.lineCap='round';
+    for(let i=0;i<3;i++){ctx.globalAlpha=fade*Math.max(0.15,Math.sin(S.t*8-i*0.9)*0.5+0.5);ctx.beginPath();ctx.moveTo(18-i*11-8,-10);ctx.lineTo(18-i*11,0);ctx.lineTo(18-i*11-8,10);ctx.stroke()}
+    ctx.restore();ctx.globalAlpha=fade;ctx.fillStyle=`rgb(${col})`;ctx.fillText(label,ex-c*58,ey-s*34);
+  });
+  ctx.restore();
 }
 function hpbar(x,y,w,f){ctx.fillStyle='rgba(0,0,0,0.6)';ctx.fillRect(x-w/2,y,w,3);ctx.fillStyle=f>0.5?C.dat:f>0.25?C.accent:C.enemy;ctx.fillRect(x-w/2,y,w*Math.max(0,f),3)}
 // Sanity meter — only shown once a unit has taken any damage to it, fading from the zone-purple
