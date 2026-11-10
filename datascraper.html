@@ -458,7 +458,7 @@ body.inMenu :is(#game,#fogGrain,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMet
 <div class="help" id="help" hidden>
   <button id="helpClose" aria-label="Close">×</button>
   <b>The run:</b> six stops, each one map in a single zone and each deeper and tougher than the last — Rim, Rim, Dense Field, Dense Field, Core, and the Core's heart where the contract vein waits. A barrier (rift on the Rim, a crystal wall deeper in) cuts every map: drain the <b>breach vein</b> in front of it to break through, then walk the Bastion off the far edge — which side that is changes from map to map, and you arrive on the opposite one. Everything you have carries on to the next stop.<br>
-<b>Healing:</b> units inside the Bastion's dashed ring slowly regain health (Relays don't heal anyone). <b>Unit limits:</b> up to 5 Grenadiers, 4 Rocketeers (rockets that hit nests and Quakers 4× as hard) and 3 Mechs at once (the button shows how many you have). <b>Stock &amp; troopers:</b> nothing refills on its own any more — every fabricator, Stabilizer and Probe has a free stock, and once it's empty each use costs Dat (the price shows on the button). You have 6 Trooper slots (3 filled for free at the start — the button shows how many you have against the limit) and 8 Paladin slots (4 free to start); each new Trooper or Paladin costs Dat, and right-clicking any build button buys another charge of it (or switch <b>Auto-buy</b> on to buy automatically when a stock runs out). Salvage from Large nests and Mega nests can raise the limit. <b>Wrecks</b> (derelict scrapers) lie hidden on every map, some beyond the barrier — park the Bastion on one for 8s (or send units to stand on it — slower) to salvage it (it draws an ambush): Dat, refilled stocks, drones, a barracks module (+1 Trooper limit) or a new fabricator for the run. <b>Quakers</b> — big stone blocks — lumber in while you drill, keep their distance and slam the ground to jolt the drill needle and shake your Stabilizers: send units out to kill them.<br>
+<b>Healing:</b> units inside the Bastion's dashed ring slowly regain health (Relays don't heal anyone). <b>Unit limits:</b> up to 5 Grenadiers, 4 Rocketeers (rockets that hit nests and Quakers 4× as hard) and 3 Mechs at once (the button shows how many you have). <b>Stock &amp; troopers:</b> nothing refills on its own any more — every fabricator, Stabilizer and Probe has a free stock, and once it's empty each use costs Dat (the price shows on the button). You have 6 Trooper slots (3 filled for free at the start — the button shows how many you have against the limit) and 8 Paladin slots (4 free to start); each new Trooper or Paladin costs Dat, and right-clicking any build button buys another charge of it (or switch <b>Auto-buy</b> on to buy automatically when a stock runs out). Salvage from Large nests and Mega nests can raise the limit. <b>Wrecks</b> (derelict scrapers) lie hidden on every map, some beyond the barrier — park the Bastion on one for 8s (or send units to stand on it — slower) to salvage it (it draws an ambush): Dat, refilled stocks, drones, a barracks module (+1 Trooper limit) or a few free units of a kind you haven't unlocked yet (they join you, but only the Unlocks panel lets you build more). <b>Quakers</b> — big stone blocks — lumber in while you drill, keep their distance and slam the ground to jolt the drill needle and shake your Stabilizers: send units out to kill them.<br>
 <b>Goal:</b> the ground is cracked all over: <b>follow the pulses of energy</b> running through the cracks back to their source to find a vein, then park the Bastion on its glowing centre and press <kbd>F</kbd> to lock on. Veins <b>emerge, ripen</b> a tier at a time, then go unstable and <b>collapse</b> — and new ones emerge elsewhere. Glowing <b>stray pockets</b> give a bearing toward the nearest vein when a unit reaches one; two bearings from different angles triangulate it. Locking on starts the <b>strike</b> at once: press <kbd>F</kbd> again to stop the needle on a good band of the strip (the thin sliver is a tier above the vein; red ruptures it) — the meter zooms in on where you hit and the drill starts; the first wave arrives about 20s later. While it drills, the needle drifts; Stabilizers hold it steady, and the tier you're paid is where it spends most of its time. If it drifts into the red, the vein ruptures and damages the Bastion. Drain veins for rewards — after 3, the contract vein stirs: it gives off no pulses, so triangulate it with bearings from stray pockets, then drain it to win.<br>
   <b>Controls:</b> drag to select · right-click to move/attack · right-click a friendly unit or building with combat units selected to <b>guard</b> it (escort it, fight off anything that comes near, then fall back) · <kbd>C</kbd> select all your units · <kbd>F</kbd> lock on to a vein / strike · <kbd>H</kbd> jump the camera to the Bastion · <kbd>WASD</kbd> or middle-drag to pan, scroll to zoom<br>
   <b>Touch:</b> tap to select · tap empty ground/an enemy/a resource to move/attack/harvest · drag to pan · hold still then drag to box-select · pinch to zoom · double-tap to select all of a kind<br>
@@ -3210,7 +3210,7 @@ function updateNests(dt){
     if(liveNests().length<NEST_CAP){const r=rand();placeNest('small',STOP_BAND||(r<0.4?'rim':r<0.75?'dense':'core'),true)}}
 }
 // A destroyed nest drops a Dat deposit to collect; Medium ones also kick a charge back into every
-// fabricator, Large ones give up salvage too (a fabricator for the run, or spare drones).
+// fabricator, Large ones give up salvage too (free units of a locked kind, or spare drones).
 function nestDestroyed(n){
   const N=NEST[n.size], amt=Math.round(N.dat*(n.band==='core'?2:n.band==='dense'?1.5:1));
   S.nodes.push({x:n.x,y:n.y,amt,max:amt,found:true});
@@ -3224,12 +3224,14 @@ function nestDestroyed(n){
   msg(`${N.name} destroyed — drive over its Dat to collect it.${extra}`);
   updateBuildBar();
 }
-// Salvage: a fabricator you don't own yet, for the rest of the run (or 2 drones if you own them all).
+// Salvage: a few free units of a kind you haven't unlocked yet (one Mech, two of anything else),
+// or 2 drones if you own them all. It never unlocks buying more: only the Unlocks panel does that,
+// so a locked unit's button stays hidden however you came by the ones you have.
 function salvageFab(){
   if(S.squadCap<SQUAD_CAP_MAX&&Math.random()<0.5){raiseSquadCap();return ` Salvaged a barracks module \u2014 you can field ${S.squadCap} troopers now!`}
-  const locked=Object.keys(FABS).filter(k=>!fabUnlocked(k)&&!FABS[k].disabled);
-  if(locked.length){const k=locked[Math.floor(Math.random()*locked.length)];S.runUnlock[k]=true;S.fab[k].n=FABS[k].charges;S.fab[k].rt=0;updateBuildBar();
-    return ` Salvaged a ${FABS[k].name} fabricator \u2014 yours for this run!`}
+  const locked=Object.keys(FABS).filter(k=>FABS[k].kind==='unit'&&!fabUnlocked(k)&&!FABS[k].disabled);
+  if(locked.length){const k=locked[Math.floor(Math.random()*locked.length)],n=k==='mech'?1:2;spawnFreeTroops(n,k);updateBuildBar();
+    return ` Salvaged ${n===1?'a':n} ${FABS[k].name}${n===1?'':'s'} from the wreck \u2014 they join you (unlock them to build more)!`}
   addDrones(2);return ' Salvaged 2 repair drones.';
 }
 // Brood mounds ring a hive vein; each slot remembers its spot so a lost mound can regrow there.
@@ -3361,7 +3363,7 @@ function drawMotes(x0,y0,x1,y1){
 // WRECKS are derelict scrapers lying out in the zone, hidden in the fog like everything else. Park
 // the Bastion on one and hold there WRECK_T seconds to salvage it — the noise draws a small ambush
 // the moment you start. Pay-out is rolled by depth (WRECK_LOOT): a Dat cache, every fabricator
-// refilled, spare drones, or a fabricator you don't own for the rest of the run.
+// refilled, spare drones, or free units of a kind you haven't unlocked.
 // BEACONS are old survey masts. Any unit (or the Bastion) standing at one for BEACON_T seconds
 // powers it up once: it sweeps BEACON_R around itself and marks every live vein and nest in that
 // radius on your map for good.
@@ -4664,7 +4666,7 @@ document.getElementById('helpToggleBtn').onclick=()=>{const h=document.getElemen
 function closeProdMenu(){prodMenuOpen=false}
 // ---------- fabricators (v2) ----------
 function unitAlive(k){return S.troops.filter(t=>(t.kind||'troop')===k&&t.hp>0).length}
-function fabUnlocked(k){const f=FABS[k];if(f.disabled)return false;return !f.unlock||!!meta[f.unlock]||!!(S&&S.runUnlock&&S.runUnlock[k])}
+function fabUnlocked(k){const f=FABS[k];if(f.disabled)return false;return !f.unlock||!!meta[f.unlock]}
 function fabPips(k){const f=FABS[k],st=S.fab[k],n=Math.max(0,Math.min(f.charges,st.n));return '●'.repeat(n)+'○'.repeat(f.charges-n)+(st.n<=0?` ◆${FAB_DAT[k]}`:'')+(f.cap?` · ${unitAlive(k)}/${f.cap}`:'')}
 function unitPips(k){const n=unitHave(k),c=unitLimit(k);return '●'.repeat(Math.min(n,c))+'○'.repeat(Math.max(0,c-n))+(n<c?` ◆${unitPrice(k)}`:'')}
 function squadPips(){const n=squadCount(),c=S.squadCap;return '●'.repeat(Math.min(n,c))+'○'.repeat(Math.max(0,c-n))+(n<c?` ◆${SQUAD_DAT}`:'')}
