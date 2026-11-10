@@ -6433,25 +6433,42 @@ function palShieldEnds(t){
 // its ~30 little shapes every frame is what slowed big fights down. So a unit in a calm pose (not
 // firing, charging, jabbing, reloading or flashing) is drawn from a cached image of that pose,
 // rendered once at the current zoom and rotated into place; anything animating draws live as before.
-const USPR=new Map(),USPR_E=30;
+const USPR=new Map(),USPR_E=28,USPR_ANG=16,USPR_SH=5; // 16 facings; USPR_SH: how far (world px) a unit's shadow falls down-right
 function unitSpriteKey(t){
   if(t.flashT>0)return null;
   const k=t.kind||'troop',since=S.t-(t.shotT??-9),aq=Math.round((t.aimV??RIFLE_READY)*5),TAU=Math.PI*2;
   if(k==='troop')return since>0.9?'t'+aq:null;
-  if(k==='marksman'){if(t.chargeT>0||since<0.9)return null;return 'm'+aq+(t.moving?'w':'')+(((Math.floor((S.t*3+(t.id||0))/TAU*6)%6)+6)%6)}
-  if(k==='brawler'){if(t.jabT>0||S.t-(t.atkT??-9)<0.75||S.t-(t.bashT??-9)<0.85)return null;return 'p'+(((Math.floor((S.t*8+(t.id||0))/TAU*4)%4)+4)%4)}
+  if(k==='marksman'){if(t.chargeT>0||since<0.9)return null;return 'm'+aq+(t.moving?'w':'')+(((Math.floor((S.t*3+(t.id||0))/TAU*3)%3)+3)%3)}
+  if(k==='brawler'){if(t.jabT>0||S.t-(t.atkT??-9)<0.75||S.t-(t.bashT??-9)<0.85)return null;return 'p'}
   if(k==='grenadier'){if(S.t-(t.podShotT??-9)<0.35||S.t-(t.podGrewT??-9)<0.35)return null;return 'g'+(t.pods??GREN_PODS)}
   if(k==='rocket'){if(t.paintT>0||since<0.9)return null;return 'r'+aq}
   return null}
+// Unit images are cached by pose and facing (USPR_ANG steps): the body in one cache, and the cast
+// shadow in another keyed only by unit type and facing (one calm pose's silhouette serves every
+// pose, so units that are firing or jabbing get a shadow for free too). Both caches drop their oldest
+// entries when full rather than starting over.
+const USHD=new Map(),USPR_CAP=900,USHD_CAP=200;
+function cacheGet(M,k){const c=M.get(k);if(c){M.delete(k);M.set(k,c)}return c}
+function cachePut(M,k,c,cap){M.set(k,c);if(M.size>cap){let n=Math.ceil(cap/4);for(const key of M.keys()){M.delete(key);if(--n<=0)break}}}
+function renderUnit(t,ang,sc,shadow){const S2=Math.ceil(USPR_E*2*sc),c=document.createElement('canvas');c.width=c.height=S2;
+  const tmp=shadow?document.createElement('canvas'):c;if(shadow){tmp.width=tmp.height=S2}
+  const x=tmp.getContext('2d');x.setTransform(sc,0,0,sc,USPR_E*sc,USPR_E*sc);
+  const proxy=Object.create(t);proxy.x=0;proxy.y=0;proxy.ang=ang;
+  if(shadow){proxy.flashT=0;proxy.shotT=-9;proxy.chargeT=0;proxy.jabT=0;proxy.atkT=-9;proxy.bashT=-9;proxy.paintT=0;proxy.paintTgt=null;proxy.aimV=RIFLE_READY;proxy.podShotT=-9;proxy.podGrewT=-9}
+  const keep=ctx;ctx=x;try{drawUnitBodyLive(proxy)}finally{ctx=keep}
+  if(shadow){const cx=c.getContext('2d');cx.drawImage(tmp,USPR_SH*sc,USPR_SH*sc);cx.globalCompositeOperation='source-in';cx.fillStyle='rgba(0,0,0,0.48)';cx.fillRect(0,0,S2,S2)}
+  return c}
+function blitUnit(c,t,a){let da=t.ang-a;da=Math.atan2(Math.sin(da),Math.cos(da));ctx.save();ctx.translate(t.x,t.y);ctx.rotate(da);ctx.drawImage(c,-USPR_E,-USPR_E,USPR_E*2,USPR_E*2);ctx.restore()}
 function drawUnitBody(t){
-  const key=unitSpriteKey(t);if(!key)return drawUnitBodyLive(t);
-  const sc=Math.min(6,Math.ceil(cam.z*gDpr()*2)/2),fk=key+'@'+sc;let c=USPR.get(fk);
-  if(!c){if(USPR.size>500)USPR.clear();
-    c=document.createElement('canvas');c.width=c.height=Math.ceil(USPR_E*2*sc);const x=c.getContext('2d');x.setTransform(sc,0,0,sc,USPR_E*sc,USPR_E*sc);
-    const proxy=Object.create(t);proxy.x=0;proxy.y=0;proxy.ang=0;const keep=ctx;ctx=x;try{drawUnitBodyLive(proxy)}finally{ctx=keep}
-    USPR.set(fk,c)}
+  const sc=Math.min(4,Math.ceil(cam.z*gDpr()*2)/2),step=Math.PI*2/USPR_ANG,ai=((Math.round(t.ang/step)%USPR_ANG)+USPR_ANG)%USPR_ANG,a=ai*step,kind=t.kind||'troop';
+  // the cast shadow, down-right
+  const sk=kind+'@'+sc+'#'+ai;let sh=cacheGet(USHD,sk);if(!sh){sh=renderUnit(t,a,sc,true);cachePut(USHD,sk,sh,USHD_CAP)}
+  blitUnit(sh,t,a);
+  const key=unitSpriteKey(t);
+  if(!key)return drawUnitBodyLive(t); // animating: drawn live, so effects that reach out (lasers, sparks) stay put
+  const fk=key+'@'+sc+'#'+ai;let c=cacheGet(USPR,fk);if(!c){c=renderUnit(t,a,sc,false);cachePut(USPR,fk,c,USPR_CAP)}
   if(t.kind==='brawler')t._pal=palState(t); // the shield wall reads each Paladin's pose
-  ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang);ctx.drawImage(c,-USPR_E,-USPR_E,USPR_E*2,USPR_E*2);ctx.restore();
+  blitUnit(c,t,a); // the cached facing is within half a step of the real one: turn the last few degrees
 }
 function drawUnitBodyLive(t){
   const gren=t.kind==='grenadier',arty=t.kind==='artillery',mech=t.kind==='mech',rock=t.kind==='rocket',brawl=t.kind==='brawler';
@@ -6470,7 +6487,7 @@ function drawPaladin(t){
   const s=palState(t);t._pal=s;const fl=t.flashT>0,L=(a,b,k)=>a+(b-a)*k;
   const AL=C.ally,AD=fl?'#fff':'#2f6f93',G1=fl?'#fff':'#e6e6e6',G2=fl?'#fff':'#ccc',G3='#999',G4='#4d4d4d';
   ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2);ctx.scale(PAL_SC,PAL_SC);
-  ctx.fillStyle='rgba(0,0,0,0.3)';ctx.beginPath();ctx.ellipse(1,2,7.5,6,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='rgba(0,0,0,0)';ctx.beginPath();ctx.ellipse(1,2,7.5,6,0,0,Math.PI*2);ctx.fill();
   const lift=Math.max(0,s.bash)*1.2;ctx.translate(0,-lift);
   const [hx,hy]=s.h,SL=18,back=5,pr=Math.sin(s.pitch*Math.PI/2),ang=L(0,-0.05,s.pitch),ux=Math.sin(ang),uy=-Math.cos(ang);
   const tipX=hx+ux*(SL-back)*pr,tipY=hy+uy*(SL-back)*pr-(1-pr)*0.7,buttX=hx-ux*back*pr,buttY=hy-uy*back*pr;
@@ -6556,7 +6573,7 @@ function podCellPos(t,i){const lx=-1.8+(i%2)*3.6,ly=2.8+(i>>1)*2.6,rot=t.ang+Mat
 function drawGrenadier(t){
   const fl=t.flashT>0,AL=fl?'#fff':C.ally,n=t.pods??GREN_PODS,pop=S.t-(t.podShotT??-9),OC=fl?'#fff':ROLE_COL.grenadier;
   ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2);ctx.scale(1.15,1.15);
-  ctx.fillStyle='rgba(0,0,0,0.3)';ctx.beginPath();ctx.ellipse(1,3,7,6,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='rgba(0,0,0,0)';ctx.beginPath();ctx.ellipse(1,3,7,6,0,0,Math.PI*2);ctx.fill();
   // the pod: four cells, emptied in order 0..3 and reloaded in reverse; the newest one blinks in
   rP([[-4.6,0.8],[4.6,0.8],[4.6,7.6],[-4.6,7.6]],OC,0.6);ctx.fillStyle='#000';ctx.globalAlpha=0.25;ctx.fillRect(-4.6,6.4,9.2,1.2);ctx.globalAlpha=1;
   for(let i=0;i<4;i++){const cx=-1.8+(i%2)*3.6,cy=2.8+(i>>1)*2.6,loaded=i>=GREN_PODS-n,fresh=loaded&&i===GREN_PODS-n&&S.t-(t.podGrewT??-9)<0.3;rO(cx,cy,1.1,loaded?(fresh?ROCKET_COLOR:'#5a2f1a'):'#111',0.4)}
@@ -6570,7 +6587,7 @@ function drawGrenadier(t){
 function drawRocketeer(t){
   const fl=t.flashT>0,AD=fl?'#fff':C.ally,VC=fl?'#fff':ROLE_COL.rocket,VD=fl?'#fff':ROLE_COL.rocketDark,a=t.aimV??RIFLE_READY,since=S.t-(t.shotT??-9),kick=since<0.25?1-since/0.25:0,ang=0.3+(0-0.3)*a;
   ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2);
-  ctx.fillStyle='rgba(0,0,0,0.3)';ctx.beginPath();ctx.ellipse(1,2,6,5,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='rgba(0,0,0,0)';ctx.beginPath();ctx.ellipse(1,2,6,5,0,0,Math.PI*2);ctx.fill();
   ctx.translate(0,kick*1.6);
   rP([[-5.4,0.6],[-4,-2],[4,-2],[5.4,0.6],[4,2.6],[-4,2.6]],AD,0.6);
   ctx.save();ctx.translate(3,0.6);ctx.rotate(ang);rP([[-2.3,-12],[2.3,-12],[2.3,7],[-2.3,7]],VC,0.6);rP([[-2.7,-12.6],[2.7,-12.6],[2.7,-10.6],[-2.7,-10.6]],VD);rP([[-2.7,5.6],[2.7,5.6],[2.7,7.6],[-2.7,7.6]],VD);rP([[-3,-6],[-2.3,-6],[-2.3,-2.6],[-3,-2.6]],'#4d4d4d');ctx.fillStyle=C.enemy;ctx.beginPath();ctx.arc(1.4,-11,0.6,0,Math.PI*2);ctx.fill();ctx.restore();
@@ -6635,9 +6652,36 @@ function drawArcRound(n){
 // rests at a ready angle across the body at RIFLE_READY. Each shot kicks back through the shoulder.
 const RIFLE_READY=0.4;
 function gunMuzzle(t,L){const a=t.ang;return {x:t.x+Math.cos(a)*(L+2)-Math.sin(a)*2.4,y:t.y+Math.sin(a)*(L+2)+Math.cos(a)*2.4}}
-function rP(pts,c,lw){ctx.fillStyle=c;ctx.strokeStyle='#000';ctx.lineWidth=lw||0.5;ctx.beginPath();pts.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.closePath();ctx.fill();ctx.stroke()}
-function rO(X,Y,r,c,lw){ctx.fillStyle=c;ctx.strokeStyle='#000';ctx.lineWidth=lw||0.5;ctx.beginPath();ctx.arc(X,Y,r,0,Math.PI*2);ctx.fill();ctx.stroke()}
-function rLimb(pts,w,c){[[w+1,'#000'],[w,c]].forEach(([lw,col])=>{ctx.lineWidth=lw;ctx.strokeStyle=col;ctx.lineCap='round';ctx.lineJoin='round';ctx.beginPath();pts.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.stroke()})}
+// ---- unit art primitives, lit like the terrain ----
+// The unit drawings are unchanged; only how their pieces are rendered: colours muted a little so the
+// units sit in the world, soft dark-grey outlines, every circle a dome lit from the terrain's
+// top-left sun, every filled shape a light-to-dark wash with a lit rim on its sunny edges and a dark
+// one on the rest, every limb a highlight down its sunny side. The sun's direction is worked out
+// from the canvas transform, so the light holds still however the unit is turned.
+const U_SUN={x:-0.62,y:-0.62},U_OL='rgba(16,19,23,0.85)',U_MUTE=new Map();
+function muteCol(c){let m=U_MUTE.get(c);if(m)return m;let r,g,b,a=1;
+  if(c[0]==='#'){let h=c.slice(1);if(h.length===3)h=h.replace(/./g,x=>x+x);r=parseInt(h.slice(0,2),16);g=parseInt(h.slice(2,4),16);b=parseInt(h.slice(4,6),16)}
+  else{const n=String(c).match(/[\d.]+/g);if(!n||n.length<3){U_MUTE.set(c,c);return c}r=+n[0];g=+n[1];b=+n[2];if(n[3]!=null)a=+n[3]}
+  const L=0.2126*r+0.7152*g+0.0722*b,f=v=>Math.max(0,Math.min(255,((L+(v-L)*0.58)*0.9-128)*1.06+128))|0;
+  m=`rgba(${f(r)},${f(g)},${f(b)},${a})`;U_MUTE.set(c,m);return m}
+function uSun(){const m=ctx.getTransform(),det=m.a*m.d-m.b*m.c||1;let x=(m.d*U_SUN.x-m.c*U_SUN.y)/det,y=(-m.b*U_SUN.x+m.a*U_SUN.y)/det;const l=Math.hypot(x,y)||1;return [x/l,y/l]}
+function rP(pts,c,lw){const [lx,ly]=uSun(),path=()=>{ctx.beginPath();pts.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.closePath()};
+  let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9,cx=0,cy=0,ar=0;pts.forEach((p,i)=>{x0=Math.min(x0,p[0]);y0=Math.min(y0,p[1]);x1=Math.max(x1,p[0]);y1=Math.max(y1,p[1]);cx+=p[0];cy+=p[1];const q=pts[(i+1)%pts.length];ar+=p[0]*q[1]-q[0]*p[1]});cx/=pts.length;cy/=pts.length;
+  const R=Math.max(x1-x0,y1-y0)/2+0.01,sg=ar>0?1:-1;
+  ctx.fillStyle=muteCol(c);path();ctx.fill();
+  const g=ctx.createLinearGradient(cx+lx*R,cy+ly*R,cx-lx*R,cy-ly*R);g.addColorStop(0,'rgba(255,255,255,0.36)');g.addColorStop(0.5,'rgba(255,255,255,0)');g.addColorStop(1,'rgba(0,0,0,0.5)');ctx.fillStyle=g;path();ctx.fill();
+  ctx.strokeStyle=U_OL;ctx.lineWidth=(lw||0.5)*0.62;path();ctx.stroke();
+  for(let i=0;i<pts.length;i++){const p=pts[i],q=pts[(i+1)%pts.length],ex=(q[1]-p[1])*sg,ey=-(q[0]-p[0])*sg,el=Math.hypot(ex,ey)||1,f=(ex*lx+ey*ly)/el,ix=-ex/el*0.35,iy=-ey/el*0.35;
+    if(f>0.25)ctx.strokeStyle=`rgba(255,255,255,${(0.2+0.4*f)*1.375})`;else if(f<-0.25)ctx.strokeStyle=`rgba(0,0,0,${-0.45*f})`;else continue;
+    ctx.lineWidth=0.45;ctx.beginPath();ctx.moveTo(p[0]+ix,p[1]+iy);ctx.lineTo(q[0]+ix,q[1]+iy);ctx.stroke()}}
+function rO(X,Y,r,c,lw){const [lx,ly]=uSun();ctx.fillStyle=muteCol(c);ctx.beginPath();ctx.arc(X,Y,r,0,Math.PI*2);ctx.fill();
+  const g=ctx.createRadialGradient(X+lx*r*0.45,Y+ly*r*0.45,r*0.05,X+lx*r*0.2,Y+ly*r*0.2,r*1.15);g.addColorStop(0,'rgba(255,255,255,0.62)');g.addColorStop(0.35,'rgba(255,255,255,0.1)');g.addColorStop(0.7,'rgba(0,0,0,0.08)');g.addColorStop(1,'rgba(0,0,0,0.62)');
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(X,Y,r,0,Math.PI*2);ctx.fill();ctx.strokeStyle=U_OL;ctx.lineWidth=(lw||0.5)*0.62;ctx.beginPath();ctx.arc(X,Y,r,0,Math.PI*2);ctx.stroke()}
+function rLimb(pts,w,c){const [lx,ly]=uSun();ctx.lineCap='round';ctx.lineJoin='round';
+  [[w+0.6,U_OL],[w,muteCol(c)]].forEach(([lw,col])=>{ctx.lineWidth=lw;ctx.strokeStyle=col;ctx.beginPath();pts.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.stroke()});
+  for(let i=0;i<pts.length-1;i++){const p=pts[i],q=pts[i+1],dx=q[0]-p[0],dy=q[1]-p[1],l=Math.hypot(dx,dy)||1,nx=-dy/l,ny=dx/l,sd=(nx*lx+ny*ly)>0?1:-1,o=w*0.28;
+    ctx.strokeStyle='rgba(255,255,255,0.4)';ctx.lineWidth=w*0.28;ctx.beginPath();ctx.moveTo(p[0]+nx*sd*o,p[1]+ny*sd*o);ctx.lineTo(q[0]+nx*sd*o,q[1]+ny*sd*o);ctx.stroke();
+    ctx.strokeStyle='rgba(0,0,0,0.3)';ctx.lineWidth=w*0.3;ctx.beginPath();ctx.moveTo(p[0]-nx*sd*o,p[1]-ny*sd*o);ctx.lineTo(q[0]-nx*sd*o,q[1]-ny*sd*o);ctx.stroke()}}
 function rifleFlash(X,Y,s){ctx.fillStyle=C.accent;ctx.globalAlpha=0.9;ctx.beginPath();ctx.moveTo(X,Y-5*s);ctx.lineTo(X+2*s,Y);ctx.lineTo(X,Y+s);ctx.lineTo(X-2*s,Y);ctx.closePath();ctx.fill();ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(X,Y-1,1.1*s,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1}
 function riflePose(o){
   const lerp=(a,b,k)=>a+(b-a)*k,a=o.a,blade=lerp(0.15,0.42,a),fl=o.flash;ctx.save();ctx.rotate(-blade*0.6);
@@ -6656,7 +6700,7 @@ function riflePose(o){
 function drawRifleman(t){
   const since=S.t-(t.shotT??-9),kick=since<0.3?(since<0.05?since/0.05:1-(since-0.05)/0.25):0,a=t.aimV??RIFLE_READY,fl=t.flashT>0;
   ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2);
-  ctx.fillStyle='rgba(0,0,0,0.3)';ctx.beginPath();ctx.ellipse(1,2,6,5,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='rgba(0,0,0,0)';ctx.beginPath();ctx.ellipse(1,2,6,5,0,0,Math.PI*2);ctx.fill();
   ctx.translate(0,kick*1.4);
   riflePose({a,L:11,rw:1.6,gy:3,hy:7.5,flash:fl,
     pack:()=>{rP([[-3,2],[3,1.6],[3,5],[-3,5.4]],'#999');rO(0,3.6,1.5,'#4d4d4d');ctx.strokeStyle=C.accent;ctx.lineWidth=0.5;ctx.beginPath();ctx.arc(0,3.6,1,0,Math.PI*2);ctx.stroke()},
@@ -6667,7 +6711,7 @@ function drawRifleman(t){
 function drawMarksman(t){
   const since=S.t-(t.shotT??-9),kick=since<0.4?Math.max(0,1-since/0.4):0,a=t.aimV??RIFLE_READY,fl=t.flashT>0,charge=t.chargeT>0?1-t.chargeT/MARK_CHARGE:0,kneel=!t.moving;
   ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2);
-  ctx.fillStyle='rgba(0,0,0,0.3)';ctx.beginPath();ctx.ellipse(1,2,6,5,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='rgba(0,0,0,0)';ctx.beginPath();ctx.ellipse(1,2,6,5,0,0,Math.PI*2);ctx.fill();
   ctx.translate(0,kick*2);
   const MC=fl?'#fff':ROLE_COL.marksman,MD=fl?'#fff':ROLE_COL.marksmanDark;
   if(kneel)rP([[-1.5,3],[1.5,3],[1.8,8],[-0.8,8.4]],fl?'#fff':'#2f6f93');
