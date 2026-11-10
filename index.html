@@ -35,6 +35,12 @@ html,body{height:100%;margin:0;overflow:hidden}
 body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:13px;position:relative;
   padding-left:max(0px,env(safe-area-inset-left,0px));padding-right:max(0px,env(safe-area-inset-right,0px))}
 canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:none}
+.poiBtn{position:fixed;z-index:5;transform:translate(-50%,0);background:var(--panel);border:1px solid var(--accent);color:var(--fg);font:600 12px var(--mono);padding:5px 10px;border-radius:14px;cursor:pointer;white-space:nowrap;box-shadow:0 2px 10px rgba(0,0,0,0.5)}
+.poiBtn .c{color:var(--dat);margin-left:6px}
+.poiBtn .n{color:var(--muted);margin-left:6px;font-weight:400}
+.poiBtn:hover{background:#1d252e}
+.poiBtn.dry{border-color:var(--line);color:var(--muted)}
+.poiBtn.dry .c{color:var(--enemy)}
 /* v4: the anti-banding grain is a static CSS layer over the canvas, composited by the browser for free,
    instead of a full-screen canvas pass every frame */
 #fogGrain{position:absolute;inset:0;pointer-events:none;background-repeat:repeat;opacity:.035}
@@ -384,6 +390,8 @@ body.inMenu :is(#game,#fogGrain,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMet
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;600&display=swap">
 
 <canvas id="game"></canvas>
+<button class="poiBtn" id="poiRig" hidden></button>
+<button class="poiBtn" id="poiStrand" hidden></button>
 <div id="fogGrain" aria-hidden="true"></div>
 
 <div class="hud">
@@ -4676,6 +4684,22 @@ document.getElementById('bLock').onclick=()=>tryLockdown();
 document.getElementById('bPing').onclick=()=>tryProbe();
 document.getElementById('bRig').onclick=()=>tryCaptureRig();
 document.getElementById('bStrand').onclick=()=>tryRescueStrand();
+// In-world buttons for the distress-signal finds (the derelict rig, a stranded squad): pinned under
+// the thing on screen once you've found it, so you needn't reach down to the build bar.
+document.getElementById('poiRig').onclick=e=>{e.stopPropagation();tryCaptureRig();positionPoiBtns()};
+document.getElementById('poiStrand').onclick=e=>{e.stopPropagation();tryRescueStrand();positionPoiBtns()};
+function positionPoiBtns(){
+  const rb=document.getElementById('poiRig'),sb=document.getElementById('poiStrand');
+  if(!S||S.over||menuOpen){rb._hd=true;sb._hd=true;return}
+  const R=cv.getBoundingClientRect();
+  const place=(el,x,y,html,dry)=>{const sx=R.left+R.width/2+(x-cam.x)*cam.z,sy=R.top+R.height/2+(y-cam.y)*cam.z;
+    if(sx<R.left-40||sx>R.right+40||sy<R.top-20||sy>R.bottom-20){el._hd=true;return}
+    el._hd=false;el.style.left=sx+'px';el.style.top=sy+'px';if(el._html!==html){el._html=html;el.innerHTML=html}el.classList.toggle('dry',dry)};
+  const r=S.rig;
+  if(r&&r.seen&&!r.online&&!r.vein.done){const ln=rigLinked();place(rb,r.x,r.y+56,`⛭ Power the Rig<span class="c">◆${RIG_DAT}</span>${ln?'':'<span class="n">needs a Relay link</span>'}`,!ln||S.dat<RIG_DAT)}else rb._hd=true;
+  const g=S.strand;
+  if(g&&g.seen&&!g.done){const reach=strandInReach();place(sb,g.x,g.y+38,`⚑ Take on Squad<span class="c">◆${g.cost}</span>${reach?'':'<span class="n">get closer</span>'}`,!reach||S.dat<g.cost)}else sb._hd=true;
+}
 document.getElementById('bFollow').onclick=followSelected;document.getElementById('bHold').onclick=holdSelected;
 // Shared by the top HUD selector buttons, their mobile equivalents next to the zoom controls, and
 // the T/H/U hotkeys — one selection path for "select every unit of this kind" everywhere it appears.
@@ -7779,7 +7803,7 @@ function draw(){
     ctx.globalAlpha=p*0.8*fl;ctx.fillStyle=C.zone;ctx.beginPath();ctx.arc(c.x,c.y,c.r,0,Math.PI*2);ctx.fill();
     ctx.globalAlpha=0.35+0.5*p;ctx.strokeStyle=C.zone;ctx.lineWidth=2;ctx.beginPath();ctx.arc(c.x,c.y,c.r+4+(1-p)*22,0,Math.PI*2);ctx.stroke();
     ctx.globalAlpha=1});
-  drawPOIs();drawRig();drawStrand();
+  drawPOIs();drawRig();drawStrand();positionPoiBtns();
   // enemies (only visible)
   const hN=new Path2D(),hC=new Path2D(),hF=new Path2D();let hc=0;
   S.enemies.forEach(e=>{if(e.kind==='nest'){if(debugNoFog||e.seen)drawNest(e);return}
