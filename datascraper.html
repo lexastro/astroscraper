@@ -397,6 +397,193 @@ body.inMenu :is(#game,#fogGrain,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMet
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;600&display=swap">
 
 <canvas id="game"></canvas>
+<script type="text/plain" id="terrainWorkerSrc">
+// ---- Astroscraper terrain painter: runs in a Web Worker so the game never stalls while a map is painted.
+// It gets the map's cells (what blocks movement), the crack network, the vein sites and the glass
+// shards, builds a full-resolution heightmap (rock climbing in uneven tiers, rift stepping down into
+// chasms, mud pans, the crystal wall, cracks cut into the ground, a shattered patch at every vein
+// site), lights it from the top-left with hard cast shadows, and sends it back tile by tile, nearest
+// the camera first. Loose stones and glass chunks go back as a list for the game to draw on top.
+let JOB=0,FOCUS={x:0,y:0};
+onmessage=e=>{const d=e.data;if(d.type==='focus'){FOCUS=d;return}if(d.type==='job'){JOB=d.id;run(d).catch(err=>postMessage({type:'error',id:d.id,msg:String(err&&err.stack||err)}))}};
+const Y=()=>new Promise(r=>setTimeout(r,0)); // let a newer job's message in
+function mulberry(a){return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function mkNoise(rand){const L=new Float32Array(65536);for(let i=0;i<65536;i++)L[i]=rand();
+  const sm=t=>t*t*(3-2*t);
+  const val=(x,y)=>{const ix=Math.floor(x),iy=Math.floor(y),fx=sm(x-ix),fy=sm(y-iy),o=((iy&255)<<8),o2=(((iy+1)&255)<<8),a=L[o|(ix&255)],b=L[o|((ix+1)&255)],c=L[o2|(ix&255)],d=L[o2|((ix+1)&255)];return a+(b-a)*fx+(c-a)*fy+(a-b-c+d)*fx*fy};
+  const fbm=(x,y,o)=>{let s=0,amp=0.5,tot=0;for(let k=0;k<o;k++){s+=val(x+k*31.7,y-k*17.3)*amp;tot+=amp;amp*=0.5;x*=2.02;y*=2.02}return s/tot};
+  const ridge=(x,y,o)=>{let s=0,amp=0.5,tot=0;for(let k=0;k<o;k++){s+=(1-Math.abs(val(x+k*11.1,y+k*5.3)*2-1))*amp;tot+=amp;amp*=0.5;x*=2.05;y*=2.05}return s/tot};
+  return {val,fbm,ridge}}
+const ss=(a,b,x)=>{const t=Math.max(0,Math.min(1,(x-a)/(b-a)));return t*t*(3-2*t)};
+const hash=(x,y)=>{let h=Math.imul(x|0,374761393)+Math.imul(y|0,668265263);h=Math.imul(h^h>>>13,1274126177);return ((h^h>>>16)>>>0)/4294967296};
+const G=0,MUD=1,ROCK=2,RIFT=3,WALL=4,GLASS=5;
+const PAL=[ // rim, dense, core
+  {ground:[27,30,33],rock:[78,82,86],mud:[60,47,33],riftWall:[56,40,64],riftFloor:[20,8,30],glow:[190,100,255],glass:[150,80,220],wall:[70,150,205],ember:null},
+  {ground:[30,25,38],rock:[84,76,96],mud:[52,40,40],riftWall:[64,42,78],riftFloor:[24,8,36],glow:[200,110,255],glass:[160,85,235],wall:[70,150,210],ember:null},
+  {ground:[30,23,21],rock:[64,57,55],mud:[44,32,26],riftWall:[58,34,40],riftFloor:[26,8,14],glow:[255,110,60],glass:[175,90,230],wall:[80,155,215],ember:[255,110,40]}];
+const TIER_W=[7,4,11,5,3.5,9,4,6,3,8,4,7],WALL_W=[6,9,5,10,7,12,6,9],RIFT_W=[5,8,4,10,6,7];
+function tierOf(d,maxLv,W){let lv=0,acc=0;while(lv<maxLv){acc+=W[lv%W.length];if(d<acc)break;lv++}return lv}
+const Lx=-0.62,Ly=-0.62,Lz=0.48,HS=36,TS=256,VR=82,WARP=32;
+
+async function run(d){
+  const id=d.id,W=d.W,H=d.H,TC=d.TC,GX=d.GX,GY=d.GY,K=d.kind,NP=W*H;
+  const N=mkNoise(mulberry(d.seed*7+5)),rand=mulberry(d.seed*131+1);
+  const bandAt=(x,y)=>{if(d.band!=null)return d.band;const r=Math.hypot(x-d.epi.x,y-d.epi.y);return r<=d.coreR?2:r<=d.denseR?1:0};
+  // ---- coarse noise grids (every GS px, sampled bilinearly) — the slow, low-frequency noise
+  const GS=4,GW=Math.ceil(W/GS)+2,GH=Math.ceil(H/GS)+2;
+  const grid=f=>{const a=new Float32Array(GW*GH);for(let j=0;j<GH;j++)for(let i=0;i<GW;i++)a[j*GW+i]=f(i*GS,j*GS);return a};
+  const smp=(a,x,y)=>{const gx=x/GS,gy=y/GS,ix=gx|0,iy=gy|0,tx=gx-ix,ty=gy-iy,o=iy*GW+ix,A=a[o],B=a[o+1],C=a[o+GW],D=a[o+GW+1];return A+(B-A)*tx+(C-A)*ty+(A-B-C+D)*tx*ty};
+  const gWX=grid((x,y)=>(N.fbm(x/80,y/80,3)-0.5)*WARP),gWY=grid((x,y)=>(N.fbm(x/80+40,y/80+40,3)-0.5)*WARP);
+  const gE=grid((x,y)=>(N.fbm(x/34,y/34,3)-0.5)*0.28),gMud=grid((x,y)=>(N.fbm(x/22,y/22,2)-0.5)*0.22),gRift=grid((x,y)=>(N.fbm(x/30+50,y/30,2)-0.5)*0.3);
+  // ---- materials: the cells, roughened by noise, cut crisply
+  const cellK=(gx,gy)=>{gx=gx<0?0:gx>=GX?GX-1:gx;gy=gy<0?0:gy>=GY?GY-1:gy;return K[gy*GX+gx]};
+  const mat=new Uint8Array(NP);
+  for(let y=0;y<H;y++){if((y&63)===0){await Y();if(id!==JOB)return}for(let x=0;x<W;x++){
+    const wx=x+smp(gWX,x,y),wy=y+smp(gWY,x,y),gx=wx/TC-0.5,gy=wy/TC-0.5,ix=Math.floor(gx),iy=Math.floor(gy),tx=gx-ix,ty=gy-iy;
+    const a=cellK(ix,iy),b=cellK(ix+1,iy),c=cellK(ix,iy+1),e4=cellK(ix+1,iy+1);
+    if(a===b&&b===c&&c===e4){if(a===G)continue;if(a===ROCK||a===WALL||a===RIFT){mat[y*W+x]=a;continue}} // well inside one kind: no edge to roughen
+    const wA=(1-tx)*(1-ty),wB=tx*(1-ty),wC=(1-tx)*ty,wD=tx*ty;
+    const e=smp(gE,x,y);let m=G;
+    if((a===MUD||b===MUD||c===MUD||e4===MUD)&&((a===MUD?wA:0)+(b===MUD?wB:0)+(c===MUD?wC:0)+(e4===MUD?wD:0))+smp(gMud,x,y)>0.5)m=MUD;
+    const fg=((a===GLASS?wA:0)+(b===GLASS?wB:0)+(c===GLASS?wC:0)+(e4===GLASS?wD:0)),fr=((a===RIFT?wA:0)+(b===RIFT?wB:0)+(c===RIFT?wC:0)+(e4===RIFT?wD:0));if((fr>0||fg>0)&&fr+fg*0.8+smp(gRift,x,y)>0.5)m=RIFT;
+    if(fg>0&&fg+e>0.55)m=GLASS;
+    const fR=((a===ROCK?wA:0)+(b===ROCK?wB:0)+(c===ROCK?wC:0)+(e4===ROCK?wD:0));if(fR>0&&fR+e>0.5)m=ROCK;
+    const fW=((a===WALL?wA:0)+(b===WALL?wB:0)+(c===WALL?wC:0)+(e4===WALL?wD:0));if(fW>0&&fW+e*0.8>0.5)m=WALL;
+    mat[y*W+x]=m}}
+  await Y();if(id!==JOB)return;
+  // ---- distance in from the edge of each region (one chamfer pass for every material at once)
+  const DT=new Uint16Array(NP);
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){const i=y*W+x,m=mat[i];if(m===G||m===GLASS){DT[i]=0;continue}
+    let v=65000;
+    if(x>0)v=Math.min(v,mat[i-1]===m?DT[i-1]+4:4);else v=4;
+    if(y>0){v=Math.min(v,mat[i-W]===m?DT[i-W]+4:4);if(x>0)v=Math.min(v,mat[i-W-1]===m?DT[i-W-1]+6:6);if(x<W-1)v=Math.min(v,mat[i-W+1]===m?DT[i-W+1]+6:6)}else v=Math.min(v,4);
+    DT[i]=v}
+  for(let y=H-1;y>=0;y--)for(let x=W-1;x>=0;x--){const i=y*W+x,m=mat[i];if(m===G||m===GLASS)continue;let v=DT[i];
+    if(x<W-1)v=Math.min(v,mat[i+1]===m?DT[i+1]+4:4);
+    if(y<H-1){v=Math.min(v,mat[i+W]===m?DT[i+W]+4:4);if(x<W-1)v=Math.min(v,mat[i+W+1]===m?DT[i+W+1]+6:6);if(x>0)v=Math.min(v,mat[i+W-1]===m?DT[i+W-1]+6:6)}
+    DT[i]=v}
+  await Y();if(id!==JOB)return;
+  // ---- heights
+  const gT=grid((x,y)=>N.fbm(x/22,y/22,3)),gSc=grid((x,y)=>N.fbm(x/90,y/90,2)),gMax=grid((x,y)=>N.fbm(x/160+20,y/160,2)),gRough=grid((x,y)=>(N.ridge(x/26,y/26,4)-0.5)*0.12);
+  const gRM=grid((x,y)=>N.fbm(x/140+5,y/140,2)),gRT=grid((x,y)=>N.fbm(x/20,y/20,3)),gWT=grid((x,y)=>N.fbm(x/26,y/26,3));
+  const Hh=new Float32Array(NP),LV=new Uint8Array(NP);
+  for(let y=0;y<H;y++){if((y&63)===0){await Y();if(id!==JOB)return}for(let x=0;x<W;x++){const i=y*W+x,m=mat[i];if(m===G||m===GLASS)continue;const dd=DT[i]/4;
+    if(m===ROCK){const maxLv=3+Math.floor(smp(gMax,x,y)*9.6),sc=0.8+smp(gSc,x,y)*0.6,lv=tierOf((dd+(smp(gT,x,y)-0.5)*9)/sc,maxLv,TIER_W);LV[i]=lv;Hh[i]=0.35+lv*0.24+smp(gRough,x,y)+(N.val(x/4,y/4)-0.5)*0.03}
+    else if(m===WALL){const lv=tierOf((dd+(smp(gWT,x,y)-0.5)*10)/1.1,8,WALL_W);LV[i]=lv;Hh[i]=0.5+lv*0.3}
+    else if(m===RIFT){const maxLv=3+Math.floor(smp(gRM,x,y)*4.8),lv=tierOf((dd+(smp(gRT,x,y)-0.5)*8)/0.9,maxLv,RIFT_W);LV[i]=lv;Hh[i]=-(0.22+lv*0.22)+smp(gRough,x,y)*0.6}
+    else if(m===MUD){Hh[i]=-0.07*ss(0,7,dd)}}}
+  await Y();if(id!==JOB)return;
+  // ---- cracks: cut into the ground as crisp trenches, as wide and deep as the crack itself
+  let CUTS=new Uint8Array(NP);const CK=new Uint8Array(NP),CD=new Uint8Array(NP),net=d.net,dep=d.dep,cid=d.cid,sites=d.sites;
+  const nearSite=(x,y)=>{for(const s of sites){const dx=x-s.x,dy=y-s.y;if(dx*dx+dy*dy<VR*VR*0.85)return true}return false};
+  for(let k=0;k<dep.length;k++){if((k&2047)===0){await Y();if(id!==JOB)return}const x1=net[k*4],y1=net[k*4+1],x2=net[k*4+2],y2=net[k*4+3],dp=dep[k],sd=cid[k],L=Math.hypot(x2-x1,y2-y1);if(L<0.01)continue;
+    const ux=(x2-x1)/L,uy=(y2-y1)/L,cw=0.45+0.6*hash(sd,21);
+    for(let t=0;t<=L;t+=0.6){const px=x1+ux*t,py=y1+uy*t;if(nearSite(px,py))continue;
+      const jit=(N.val(px/3.1,py/3.1)-0.5)*1.2*dp,cx=px-uy*jit,cy=py+ux*jit;
+      const w=Math.min(2.2,(0.3+1.4*Math.pow(dp,1.5))*cw*(0.3+1.2*N.val(px/13+sd*3.7,py/13))*(0.6+0.7*N.val(px/110+5,py/110)));
+      for(let yy=Math.floor(cy-w-1);yy<=cy+w+1;yy++){if(yy<0||yy>=H)continue;for(let xx=Math.floor(cx-w-1);xx<=cx+w+1;xx++){if(xx<0||xx>=W)continue;const i=yy*W+xx,m=mat[i];
+        if(m===WALL||m===GLASS||m===RIFT)continue;const dd=Math.hypot(xx+0.5-cx,yy+0.5-cy);if(dd>w)continue;
+        const u=dd/w,cut=(0.035+0.3*Math.pow(dp,1.5))*Math.min(1,(1-u)*3.2),kk=Math.max(0,1-u/0.6)*255;
+        if(kk>CK[i]){CK[i]=kk;CD[i]=dp*255}
+        const cq=cut*700;if(cq>CUTS[i])CUTS[i]=cq}}}}
+  for(let i=0;i<NP;i++)if(CUTS[i])Hh[i]-=CUTS[i]/700;
+  CUTS=null;
+  // ---- every vein site: the ground there shattered like struck glass, a few tiny pieces gone
+  const lights=[];
+  sites.forEach((st,si)=>{const ang=st.ang.slice().sort((p,q)=>p-q),rings=[7,15,30,50,VR],removed=new Set(),pr=mulberry(d.seed*17+3+si*101);
+    for(let sct=0;sct<ang.length;sct++)for(const half of [0,100]){if(pr()<0.45)removed.add(sct*16+half);if(pr()<0.12)removed.add(sct*16+1+half)}
+    if(removed.size<2){removed.add(0);removed.add(16+100)}
+    const SZ=VR*2+9,LA=new Uint8Array(SZ*SZ),ox=Math.round(st.x)-VR-4,oy=Math.round(st.y)-VR-4;
+    for(let y=oy;y<oy+SZ;y++)for(let x=ox;x<ox+SZ;x++){if(x<0||y<0||x>=W||y>=H)continue;
+      const i=y*W+x,m=mat[i];if(m!==G&&m!==MUD)continue;
+      const dx=x-st.x,dy=y-st.y,r0=Math.hypot(dx,dy),th0=(Math.atan2(dy,dx)+6.283)%6.283;
+      const th=th0+(N.val(r0/11+3,th0*2.3)-0.5)*0.22,r=r0+(N.val(th0*3.1,r0/15+9)-0.5)*7;if(r>VR+2)continue;
+      let sct=ang.length-1;for(let k=0;k<ang.length;k++)if(ang[k]<=th)sct=k;
+      const a0=ang[sct],a1=sct+1<ang.length?ang[sct+1]:ang[0]+6.283,thw=th<a0?th+6.283:th;
+      const mid=(a0+a1)/2+(hash(sct,5)-0.5)*(a1-a0)*0.4,split=r>4&&hash(sct,9)<0.75,half=split&&thw>mid?100:0;
+      const dAng=Math.min(thw-a0,a1-thw,split?Math.abs(thw-mid):9)*Math.max(4,r);
+      const rj=rings.map((R,k)=>R*(0.8+0.4*hash(sct*13+k,7))).filter((R,k)=>k===rings.length-1||k===0||hash(sct*13+k,11)<0.65);let ring=0;while(ring<rj.length-1&&r>rj[ring])ring++;
+      let dRing=99;for(let k=0;k<rj.length-1;k++)dRing=Math.min(dRing,Math.abs(r-rj[k]));
+      const near=1-Math.min(1,r/VR),gw=0.6+1.6*near*near,key=sct*16+ring+half,lift=-0.18*Math.pow(near,1.2),tilt=(hash(key,1)-0.5)*0.08+(dx*(hash(key,2)-0.5)+dy*(hash(key,3)-0.5))*0.002;
+      const li=(y-oy)*SZ+(x-ox);
+      if(removed.has(key)&&ring<=1&&r<(ring?rj[1]:rj[0])&&r<17){Hh[i]=-0.9;CK[i]=255;CD[i]=255;LA[li]=255;continue}
+      const crack=Math.min(dAng/gw,dRing/(gw*0.7));
+      if(crack<1){Hh[i]+=lift-0.3*Math.min(1,(1-crack)*3.2);CK[i]=Math.max(CK[i],(1-crack)*255);CD[i]=Math.max(CD[i],(0.4+0.6*near)*255);LA[li]=Math.min(255,Math.pow(1-crack,1.5)*0.75*(1-r0/VR*0.6)/1.6*255);continue}
+      Hh[i]+=lift+tilt*near}
+    st._la=LA;st._ox=ox;st._oy=oy;st._sz=SZ});
+  sites.forEach(st=>{const RG=230,SZ=RG*2+1,LA=new Uint8Array(SZ*SZ),ox=Math.round(st.x)-RG,oy=Math.round(st.y)-RG;
+    for(let y=oy;y<oy+SZ;y++)for(let x=ox;x<ox+SZ;x++){if(x<0||y<0||x>=W||y>=H)continue;const i=y*W+x;if(!CK[i])continue;
+      const dd=Math.hypot(x-st.x,y-st.y);if(dd>RG)continue;const ck=CK[i]/255,cd=CD[i]/255,f=dd/200;
+      let a=Math.pow(ck,2.2)*(0.25+0.75*cd*cd)*Math.exp(-3.4*f*f)*0.75;
+      const sx=x-st._ox,sy=y-st._oy;if(sx>=0&&sy>=0&&sx<st._sz&&sy<st._sz)a=Math.max(a,st._la[sy*st._sz+sx]/255);
+      LA[(y-oy)*SZ+(x-ox)]=Math.min(255,a*255)}
+    lights.push({x:ox,y:oy,size:SZ,a:LA});st._la=null});
+  await Y();if(id!==JOB)return;
+  // ---- cast shadows: one sweep down each diagonal toward the light
+  const SH=new Uint8Array(NP),C=0.55*1.414;
+  const sweep=(sx,sy)=>{let m=-1e9,prev=-1e9,k=0;for(let x=sx,y=sy;x<W&&y<H;x++,y++,k++){const i=y*W+x,v=Hh[i]*HS+C*k;if(m>v)SH[i]=1;if(prev>m)m=prev;prev=v}};
+  for(let x=0;x<W;x++)sweep(x,0);for(let y=1;y<H;y++)sweep(0,y);
+  // ---- loose stones, glass chunks (one per blocking shard) and the crystal wall's heap of glass
+  const items=[],pal=b=>PAL[b];
+  const chunk=(x,y,R,lift,col)=>{const n=3+(rand()*3|0),angs=[];for(let j=0;j<n;j++)angs.push(rand()*6.283);angs.sort((p,q)=>p-q);
+    for(let j=1;j<n;j++)if(angs[j]-angs[j-1]<0.6)angs[j]=angs[j-1]+0.6+rand()*0.5;
+    const st=1+rand()*rand()*1.8,sa=rand()*6.283,cs=Math.cos(sa),sn=Math.sin(sa),P=[];angs.forEach(a=>{const rr=R*(0.55+rand()*0.5);const px=Math.cos(a)*rr,py=Math.sin(a)*rr,u=px*cs+py*sn,v=-px*sn+py*cs;P.push(x+(u*st)*cs-v*sn,y+(u*st)*sn+v*cs)});
+    const tx=(rand()-0.5)*1.3,ty=(rand()-0.5)*1.3,nl=Math.hypot(tx,ty,1);
+    items.push({t:1,x,y,R,P,nx:tx/nl,ny:ty/nl,nz:1/nl,h:R*(0.25+0.5*Math.hypot(tx,ty))+lift,th:1.4+R*0.12+lift*0.12,hue:0.85+rand()*0.3,arc:rand(),col})};
+  d.shards.forEach(s=>{const c=pal(bandAt(s.x,s.y)).glass;chunk(s.x,s.y,s.r*0.95,0,c);if(rand()<0.6){const a=rand()*6.283;chunk(s.x+Math.cos(a)*s.r*0.9,s.y+Math.sin(a)*s.r*0.9,s.r*(0.3+rand()*0.3),0,c)}
+    for(let k=0;k<5;k++){const a=rand()*6.283,rr=s.r*(0.8+rand()*1.2);items.push({t:2,x:s.x+Math.cos(a)*rr,y:s.y+Math.sin(a)*rr,L:1.5+rand()*4,a:rand()*6.283,w:0.5+rand()*1.2,col:c})}});
+  // the wall: big slabs in its heart, smaller toward its edges, standing higher the deeper they are
+  {const BK=new Map(),CB=40,placed=(x,y,R)=>{const bx=Math.floor(x/CB),by=Math.floor(y/CB);for(let j=-1;j<=1;j++)for(let i=-1;i<=1;i++){const L=BK.get((bx+i)+','+(by+j));if(L)for(const c of L)if(Math.hypot(c.x-x,c.y-y)<(c.R+R)*0.42)return true}return false};
+    for(let y=0;y<H;y+=5)for(let x=0;x<W;x+=5){const xx=x+((rand()*5)|0),yy=y+((rand()*5)|0);if(xx>=W||yy>=H)continue;const i=yy*W+xx;if(mat[i]!==WALL||rand()>0.35)continue;
+      const inn=Math.min(1,DT[i]/4/45),R=7+inn*14+Math.pow(rand(),1.5)*12*(0.4+inn);if(placed(xx,yy,R))continue;
+      chunk(xx,yy,R,LV[i]*5+inn*10,pal(bandAt(xx,yy)).wall);const c=items[items.length-1],key=Math.floor(xx/CB)+','+Math.floor(yy/CB);(BK.get(key)||BK.set(key,[]).get(key)).push(c);
+      if(DT[i]<24&&rand()<0.5){const a=rand()*6.283,rr=R+rand()*14;items.push({t:2,x:xx+Math.cos(a)*rr,y:yy+Math.sin(a)*rr,L:1.5+rand()*4,a:rand()*6.283,w:0.5+rand()*1.2,col:pal(bandAt(xx,yy)).wall})}}}
+  // stones: heaped at the foot of the rock, thin elsewhere
+  {const n=Math.round(NP/190);for(let k=0;k<n;k++){const x=rand()*W,y=rand()*H,i=(y|0)*W+(x|0),m=mat[i];if(m!==G&&m!==MUD)continue;
+    let near=0;for(const q of [[14,0],[-14,0],[0,14],[0,-14],[20,20],[-20,-20]]){const xx=Math.max(0,Math.min(W-1,x+q[0]|0)),yy=Math.max(0,Math.min(H-1,y+q[1]|0));if(mat[yy*W+xx]===ROCK){near=1;break}}
+    if(!near&&rand()>0.3)continue;const R=near?1+rand()*3.6:0.8+rand()*1.8,tone=(near?0.8:0.65)+rand()*0.3,nn=6+(rand()*3|0),rot=rand()*6.3,P=[];
+    for(let j=0;j<nn;j++){const a=rot+j/nn*6.283,rr=R*(0.72+rand()*0.4);P.push(x+Math.cos(a)*rr,y+Math.sin(a)*rr*0.85)}
+    items.push({t:0,x,y,R,P,tone,col:pal(bandAt(x,y)).rock})}}
+  items.sort((p,q)=>p.y-q.y);
+  postMessage({type:'meta',id,items,lights});
+  // ---- tiles, nearest the camera first
+  const gN1=grid((x,y)=>N.fbm(x/140,y/140,3)),gN2=grid((x,y)=>N.fbm(x/28,y/28,3)),gRT2=grid((x,y)=>N.fbm(x/18,y/18,3)),gEm=grid((x,y)=>N.ridge(x/70,y/70,3)),gEmF=grid((x,y)=>N.fbm(x/40,y/40,2)),gWeb=grid((x,y)=>N.ridge(x/45,y/45,3)),gMT=grid((x,y)=>N.fbm(x/16,y/16,2)),gWl=grid((x,y)=>N.fbm(x/14,y/14,2));
+  const tiles=[];for(let ty=0;ty<H;ty+=TS)for(let tx=0;tx<W;tx+=TS)tiles.push({x:tx,y:ty,w:Math.min(TS,W-tx),h:Math.min(TS,H-ty)});
+  const VC2=13,vor=(x,y)=>{const cx=Math.floor(x/VC2),cy=Math.floor(y/VC2);let d1=1e9,d2=1e9;for(let j=-1;j<=1;j++)for(let i=-1;i<=1;i++){const px=(cx+i+hash(cx+i,cy+j))*VC2,py=(cy+j+hash(cy+j+91,cx+i-37))*VC2,dd=Math.hypot(x-px,y-py);if(dd<d1){d2=d1;d1=dd}else if(dd<d2)d2=dd}return d2-d1};
+  const flat=0.35+0.85*(Lz/0.9);
+  const shadeTile=T=>{const buf=new Uint8ClampedArray(T.w*T.h*4);
+    for(let yy=0;yy<T.h;yy++)for(let xx=0;xx<T.w;xx++){const x=T.x+xx,y=T.y+yy,i=y*W+x,o=(yy*T.w+xx)*4,m=mat[i],h=Hh[i],P=PAL[bandAt(x,y)];
+      const xl=x>0?i-1:i,xr=x<W-1?i+1:i,yu=y>0?i-W:i,yd=y<H-1?i+W:i;
+      const dx=(Hh[xr]-Hh[xl])*HS*0.5,dy=(Hh[yd]-Hh[yu])*HS*0.5,nl=Math.hypot(dx,dy,1),nx=-dx/nl,ny=-dy/nl,nz=1/nl;
+      let lit=0.35+0.85*Math.max(0,nx*Lx+ny*Ly+nz*Lz)/0.9;
+      const gr=hash(x,y);let r,g,b,er=0,eg=0,eb=0;
+      if(m===G||m===GLASS){const n1=smp(gN1,x,y),n2=smp(gN2,x,y);const L=0.86+0.38*(n1-0.5)+0.22*(n2-0.5)+0.10*(N.val(x/5,y/5)-0.5)+0.08*(gr-0.5);
+        const c=P.ground;if(m===GLASS){r=(c[0]*0.8+10)*L;g=c[1]*0.6*L;b=(c[2]*0.8+16)*L}else{r=c[0]*L;g=c[1]*L;b=c[2]*L}
+        if(gr<0.025){r*=0.6;g*=0.6;b*=0.6}else if(gr>0.985){r*=1.35;g*=1.35;b*=1.32}
+        lit/=flat;
+        if(P.ember){const w=smp(gEm,x,y);if(w>0.94){const k=ss(0.94,0.985,w)*(0.5+0.5*smp(gEmF,x,y));er=P.ember[0]*k*0.55;eg=P.ember[1]*k*0.5;eb=P.ember[2]*k*0.4;r*=0.6;g*=0.6;b*=0.6}}}
+      else if(m===MUD){const ml=(0.9+0.3*(smp(gMT,x,y)-0.5)+0.06*(gr-0.5))*(DT[i]>24&&vor(x,y)<1.4?0.55:1);r=P.mud[0]*ml;g=P.mud[1]*ml;b=P.mud[2]*ml;lit/=flat}
+      else if(m===ROCK){const lv=LV[i],strata=N.ridge(x/9+h*6,y/40,2);let base=(0.78+Math.min(1.25,0.35+lv*0.1)*0.35)*(0.92+0.32*(smp(gRT2,x,y)-0.5)+0.05*(gr-0.5));if(strata>0.82)base*=0.82;
+        const steep=1-nz;r=(P.rock[0]-10*steep)*base;g=(P.rock[1]-14*steep)*base;b=(P.rock[2]-20*steep)*base;
+        if(P.ember&&strata>0.9&&lv<=1&&steep>0.2){const k=ss(0.9,0.97,strata);er=P.ember[0]*k*0.6;eg=P.ember[1]*k*0.5;eb=P.ember[2]*k*0.3}}
+      else if(m===RIFT){const lv=LV[i],depth=Math.min(1,lv/5),steep=1-nz,c0=P.riftWall,c1=P.riftFloor,base=0.9+0.4*(smp(gRT2,x,y)-0.5)+0.05*(gr-0.5);
+        r=(c0[0]+(c1[0]-c0[0])*depth)*base;g=(c0[1]+(c1[1]-c0[1])*depth)*base;b=(c0[2]+(c1[2]-c0[2])*depth)*base;
+        if(steep>0.15&&N.ridge(x/9+h*5,y/30,2)>0.85){r*=0.8;g*=0.8;b*=0.8}
+        const gl=ss(0.15,1,depth)*0.6;er=P.glow[0]*gl*0.35;eg=P.glow[1]*gl*0.35;eb=P.glow[2]*gl*0.35;
+        const web=smp(gWeb,x,y);if(web>0.9&&nz>0.9&&lv>=1){const w=ss(0.9,0.975,web)*(0.4+0.6*depth);er+=P.glow[0]*w*0.8;eg+=P.glow[1]*w*0.8;eb+=P.glow[2]*w*0.8}}
+      else{const c=P.wall,lv=LV[i],tone=(0.22+0.04*Math.min(8,lv))*(0.92+0.32*(smp(gWl,x,y)-0.5));r=c[0]*tone;g=c[1]*tone;b=c[2]*tone;
+        const rz=2*nz*(nx*Lx+ny*Ly+nz*Lz)-Lz,spec=Math.pow(Math.max(0,rz),60);er=220*spec*0.7;eg=240*spec*0.7;eb=255*spec*0.7;const steep=1-nz;er+=6+20*steep;eg+=14+35*steep;eb+=22+45*steep}
+      if(SH[i])lit*=0.62;
+      const cdk=CK[i]?1-0.55*(CK[i]/255)*(CD[i]/255):1;
+      buf[o]=(r*lit+er)*cdk;buf[o+1]=(g*lit+eg)*cdk;buf[o+2]=(b*lit+eb)*cdk;buf[o+3]=255}
+    return buf};
+  const step=()=>{if(id!==JOB)return;if(!tiles.length){postMessage({type:'done',id});return}
+    let bi=0,bd=1e18;for(let k=0;k<tiles.length;k++){const t=tiles[k],dx=t.x+t.w/2-FOCUS.x,dy=t.y+t.h/2-FOCUS.y,dd=dx*dx+dy*dy;if(dd<bd){bd=dd;bi=k}}
+    const T=tiles.splice(bi,1)[0],buf=shadeTile(T);postMessage({type:'tile',id,x:T.x,y:T.y,w:T.w,h:T.h,buf:buf.buffer},[buf.buffer]);setTimeout(step,0)};
+  step();
+}
+
+</script>
 <div class="banners" id="banners"></div>
 <div class="curNote" id="curNote" hidden></div>
 <button class="poiBtn" id="poiRig" hidden></button>
@@ -1756,7 +1943,7 @@ document.getElementById('dmStrike').onclick=()=>doStrike();
 // passes. Each crack has its own base depth, branches are shallower, and everything deepens close
 // to a vein site: each site is a knot of the deepest cracks in the network, fanning out from the
 // point where a vein's mining spot would sit. So the ground itself hints where veins can be.
-const NET_CRACKS_PER_MPX=11, PULSE_PERIOD=2.2, PULSE_SPEED=230, PULSE_REACH=800, PULSE_W=16;
+const NET_CRACKS_PER_MPX=42, PULSE_PERIOD=2.2, PULSE_SPEED=230, PULSE_REACH=800, PULSE_W=16;
 const SITE_KNOT_MAINS=9, SITE_DEEPEN_R=200;
 // A vein's glow comes from its mining point and stays tight around it.
 const VEIN_GLOW_R=200;
@@ -1799,24 +1986,24 @@ function pulseTiming(v){
 // How much light a crack lets through: shallow hairlines barely glow, deep fissures blaze.
 function depthGlow(d){return 0.15+0.85*d*d}
 function genCrackNet(sites){
-  const segs=[], dep=[];
+  const segs=[], dep=[], ids=[]; let cidN=0;
   const grow=(x,y,a,len,depth,base,turnP,brP)=>{
-    let d=0;
+    let d=0;const me=cidN++;
     while(d<len){
-      const st=rnd(14,38);
+      const st=rnd(8,22);
       if(rnd(0,1)<turnP)a+=(rnd(0,1)<0.5?1:-1)*rnd(0.35,1.0); else a+=rnd(-0.05,0.05);
       const nx=x+Math.cos(a)*st, ny=y+Math.sin(a)*st;
       if(nx<40||ny<40||nx>W-40||ny>H-40)return;
-      segs.push(x,y,nx,ny); dep.push(base*(1-0.35*d/len)); x=nx;y=ny;d+=st;
+      segs.push(x,y,nx,ny); dep.push(base*(1-0.35*d/len)); ids.push(me); x=nx;y=ny;d+=st;
       if(depth<2&&rnd(0,1)<brP)grow(x,y,a+(rnd(0,1)<0.5?1:-1)*rnd(0.5,1.3),len*rnd(0.25,0.5),depth+1,base*0.6,turnP,brP);
     }
   };
   const n=Math.round(W*H/1e6*NET_CRACKS_PER_MPX);
-  for(let i=0;i<n;i++)grow(rnd(80,W-80),rnd(80,H-80),rnd(0,Math.PI*2),rnd(250,800),0,rnd(0.12,0.45),0.3,0.06);
+  for(let i=0;i<n;i++)grow(rnd(80,W-80),rnd(80,H-80),rnd(0,Math.PI*2),rnd(200,600),0,rnd(0.12,0.45),0.38,0.16);
   // the knot at every site: deep fissures fanning out from (very near) its centre
-  sites.forEach(st=>{
+  sites.forEach(st=>{st.knotAng=[];
     for(let k=0;k<SITE_KNOT_MAINS;k++){
-      const a=k/SITE_KNOT_MAINS*Math.PI*2+rnd(-0.5,0.5);
+      const a=k/SITE_KNOT_MAINS*Math.PI*2+rnd(-0.5,0.5);st.knotAng.push((a%(Math.PI*2)+Math.PI*2)%(Math.PI*2));
       grow(st.x+rnd(-6,6),st.y+rnd(-6,6),a,ZONE_R*rnd(0.4,1.2),0,rnd(0.85,1),0.3,0.18);
     }
   });
@@ -1828,7 +2015,7 @@ function genCrackNet(sites){
     const near=Math.exp(-Math.pow(md/SITE_DEEPEN_R,2));
     depth[k]=Math.min(1,depth[k]+0.55*near*(1-depth[k]));
   }
-  S.crackDepth=depth;
+  S.crackDepth=depth;S.crackId=new Uint32Array(ids);S.crackSites=sites;
   return out;
 }
 // Per-source index of nearby network segments, sorted by distance from the source — a pulse ring
@@ -1989,8 +2176,8 @@ function drawPulseRing(src,R,col,I,vx0,vy0,vx1,vy1,c){
   c.strokeStyle=col;
   [[0,0.35],[0.35,0.65],[0.65,1.01]].forEach(([dlo,dhi])=>{
     const g=depthGlow((dlo+dhi)/2);
-    c.globalAlpha=0.25*I*g;c.lineWidth=2.4;seg(a,b,dlo,dhi);
-    c.globalAlpha=Math.min(1,I*g*1.1);c.lineWidth=1.1;seg(a,m,dlo,dhi);
+    c.globalAlpha=0.25*I*g;c.lineWidth=1.7;seg(a,b,dlo,dhi);
+    c.globalAlpha=Math.min(1,I*g*1.1);c.lineWidth=0.8;seg(a,m,dlo,dhi);
   });
 }
 // The crack network, drawn live each frame so the fog can hide it: the cracks in view go into a
@@ -2393,6 +2580,7 @@ function reset(landing){
   {const maze=STOP_BAND==='dense'&&S.barrier;if(maze)denseMaze();
    const glass=STOP_BAND&&!tutorialMap?placeGlass():false; // v4: purple glass formations in the rift
    if(maze||glass){const keep=rand;rand=seededRng(mapSeed*131+17);terrainCv=buildTerrainCanvas();rand=keep;buildTerrainBlur()}}
+  startTerrainPaint(); // the real ground paints in the background, tile by tile, over the quick placeholder
   if(STOP_BAND&&stopInfo().final){S.contractAwake=true;const cv=S.veins.find(v=>v.contract);if(cv)raiseMounds(cv,CONTRACT_MOUNDS,'great')}
   rand=Math.random; // map built — live gameplay goes back to unseeded randomness
   cam={x:S.base.x,y:S.base.y,z:1};
@@ -2463,8 +2651,7 @@ function openBreach(v){
   B.open=true;
   for(let gy=0;gy<TGY;gy++)for(let gx=0;gx<TGX;gx++){const id=gy*TGX+gx;
     if(B.mask[id]&&Math.abs(frameAB(gx*TCELL+TCELL/2,gy*TCELL+TCELL/2).b-B.y)<=BREACH_GAP+TCELL/2){terrain[id]=0;B.mask[id]=0}}
-  {const keep=rand;rand=seededRng(mapSeed*131+17);terrainCv=buildTerrainCanvas();rand=keep}
-  buildTerrainBlur();
+  if(terrainWorker)startTerrainPaint();else{const keep=rand;rand=seededRng(mapSeed*131+17);terrainCv=buildTerrainCanvas();rand=keep;buildTerrainBlur()}
   [S.base,...S.troops,...S.enemies].forEach(u=>{u._pg=null;u._path=null;u._blocked=false});
   const cx=B.centre, cols=B.type===RIFT?['#b28cff','#8fe3ff']:['#9fe8ff','#e8fbff'];
   for(let i=0;i<14;i++){const q=frameXY(cx+rnd(-BARRIER_HALF,BARRIER_HALF),B.y+rnd(-BREACH_GAP,BREACH_GAP));burst(q.x,q.y,cols[i%2],18,220,0.9)}
@@ -3550,19 +3737,61 @@ function drawPOIs(){
     if(b.sweep>=0&&b.sweep<2.5){const f=b.sweep/2.5;ctx.globalAlpha=(1-f)*0.7;ctx.strokeStyle='#8fe3ff';ctx.lineWidth=4;ctx.beginPath();ctx.arc(b.x,b.y,BEACON_R*f,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1}
   });
 }
+// A nest: spires of red broken glass bursting up out of a patch of shattered ground, red light
+// beating up through the breaks. Built once per nest (and again when it grows) into three sprites —
+// the broken ground with glass debris, the light in its breaks, and the spires with their shadows.
+const NEST_GLASS=[175,30,38],NEST_SPIRE=[105,12,20];
+function buildNestSprite(n){
+  const VR=n.r*1.35,SC=VR/26,E=Math.ceil(VR*3.4),sz=E*2,rr=seededRng(Math.floor(n.x*13+n.y*7)+(n.r|0)*101),mk=()=>{const c=document.createElement('canvas');c.width=c.height=sz;return c};
+  const base=mk(),light=mk(),top=mk(),bx=base.getContext('2d'),lx=light.getContext('2d'),tx=top.getContext('2d');[bx,lx,tx].forEach(c=>c.translate(E,E));
+  // the breaks: fissures fanning out from the heart, rings broken through here and there, a few small pieces gone
+  const nm=5+Math.round(SC*2),angs=[];for(let k=0;k<nm;k++)angs.push(k/nm*Math.PI*2+(rr()-0.5)*0.8);
+  const lines=[];
+  angs.forEach(a=>{const P=[[0,0]];let r=0,aa=a;while(r<VR*(0.85+0.3*rr())){r+=VR*0.18;aa+=(rr()-0.5)*0.35;P.push([Math.cos(aa)*r,Math.sin(aa)*r])}lines.push({P,w:1.4+SC*0.8})});
+  [0.32,0.58,0.82].forEach(f=>{let a=rr()*Math.PI*2;const end=a+Math.PI*2;while(a<end){const span=0.4+rr()*0.9;if(rr()<0.6){const P=[];for(let t=0;t<=6;t++){const q=a+span*t/6,r=VR*f*(0.92+0.16*rr());P.push([Math.cos(q)*r,Math.sin(q)*r])}lines.push({P,w:(0.6+0.6*SC)*(1.2-f)})}a+=span+0.2+rr()*0.5}});
+  const path=(c,P,dx,dy)=>{c.beginPath();P.forEach((q,j)=>j?c.lineTo(q[0]+dx,q[1]+dy):c.moveTo(q[0]+dx,q[1]+dy))};
+  bx.lineCap=lx.lineCap='round';bx.lineJoin=lx.lineJoin='round';
+  lines.forEach(Ln=>{path(bx,Ln.P,0,0);bx.strokeStyle='rgba(4,5,7,0.85)';bx.lineWidth=Ln.w;bx.stroke();path(bx,Ln.P,Ln.w*0.45,Ln.w*0.45);bx.strokeStyle='rgba(255,235,230,0.12)';bx.lineWidth=0.6;bx.stroke();
+    path(lx,Ln.P,0,0);lx.strokeStyle='rgba(255,62,48,0.8)';lx.lineWidth=Math.max(0.6,Ln.w*0.45);lx.stroke()});
+  for(let k=0;k<3;k++){const a=rr()*Math.PI*2,d=rr()*VR*0.15,r=2+rr()*VR*0.08,P=[];for(let j=0;j<4;j++){const q=a+j*1.57+(rr()-0.5)*0.6;P.push([Math.cos(a)*d+Math.cos(q)*r,Math.sin(a)*d+Math.sin(q)*r])}
+    path(bx,P,0,0);bx.closePath();bx.fillStyle='rgba(6,2,3,0.95)';bx.fill();path(lx,P,0,0);lx.closePath();lx.fillStyle='rgba(255,90,70,1)';lx.fill()}
+  // red glass debris round the base
+  const chunks=[];for(let k=0;k<Math.round(4+SC*4);k++){const a=rr()*Math.PI*2,r0=VR*(0.3+0.55*rr()),R=3+rr()*VR*0.16,x=Math.cos(a)*r0,y=Math.sin(a)*r0;
+    const nn=3+(rr()*3|0),P=[];for(let j=0;j<nn;j++){const q=j/nn*Math.PI*2+rr()*0.6,r=R*(0.55+rr()*0.5);P.push(x+Math.cos(q)*r,y+Math.sin(q)*r)}
+    const tx2=(rr()-0.5)*1.3,ty2=(rr()-0.5)*1.3,nl=Math.hypot(tx2,ty2,1);chunks.push({x,y,R,P,nx:tx2/nl,ny:ty2/nl,nz:1/nl,h:R*(0.25+0.5*Math.hypot(tx2,ty2)),th:1.4+R*0.12,hue:0.85+rr()*0.3,arc:rr(),col:NEST_GLASS})}
+  chunks.sort((p,q)=>p.y-q.y);chunks.forEach(ch=>drawChunkShadow(bx,ch));chunks.forEach(ch=>drawChunkBody(bx,ch));
+  // the spires, leaning outward and (a top-down cheat for height) drawn raised toward the top of the screen
+  const L=TP_L,sp=[],cnt=Math.round(7+SC*6);
+  for(let k=0;k<cnt;k++){const a=rr()*Math.PI*2,r0=Math.pow(rr(),1.5)*VR*0.3,big=1-r0/(VR*0.3)*0.55,Ls=VR*(1.0+1.3*rr())*big,lean=0.12+0.33*rr();
+    sp.push({a,bx:Math.cos(a)*r0,by:Math.sin(a)*r0,w:Ls*(0.14+0.12*rr()),h:Ls*Math.sqrt(1-lean*lean)*1.35,tx:Math.cos(a)*r0+Math.cos(a)*Ls*lean,ty:Math.sin(a)*r0+Math.sin(a)*Ls*lean,snap:rr()<0.3?0.55+0.3*rr():1,tw:rr()})}
+  const shade=(A,B,Cc)=>{const ux=B[0]-A[0],uy=B[1]-A[1],uz=B[2]-A[2],vx=Cc[0]-A[0],vy=Cc[1]-A[1],vz=Cc[2]-A[2];let nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx;const l=Math.hypot(nx,ny,nz)||1;nx/=l;ny/=l;nz/=l;if(nz<0){nx=-nx;ny=-ny;nz=-nz}
+    const d=Math.max(0,nx*L.x+ny*L.y+nz*L.z),rz=2*nz*(nx*L.x+ny*L.y+nz*L.z)-L.z;return {lit:0.28+1.05*d,spec:Math.pow(Math.max(0,rz),14)}};
+  tx.fillStyle='rgba(12,0,2,0.5)';
+  sp.forEach(q=>{const px=-Math.sin(q.a)*q.w/2,py=Math.cos(q.a)*q.w/2,hz=q.h*q.snap,sx=q.bx+(q.tx-q.bx)*q.snap+hz*0.7,sy=q.by+(q.ty-q.by)*q.snap+hz*0.7;
+    tx.beginPath();tx.moveTo(q.bx+px,q.by+py);tx.lineTo(sx,sy);tx.lineTo(q.bx-px,q.by-py);tx.closePath();tx.fill()});
+  sp.sort((p,q)=>p.by-q.by);
+  const NG=NEST_SPIRE;
+  sp.forEach(q=>{const f=q.snap,TILT=0.5,tip=[q.bx+(q.tx-q.bx)*f,q.by+(q.ty-q.by)*f-q.h*f*TILT,q.h*f],sa=Math.atan2(tip[1]-q.by,tip[0]-q.bx),px=-Math.sin(sa)*q.w/2,py=Math.cos(sa)*q.w/2;
+    const bl=[q.bx+px,q.by+py,0],br=[q.bx-px,q.by-py,0],mid=[q.bx+Math.cos(sa+1.57)*q.w*(q.tw-0.5)*0.3,q.by+Math.sin(sa+1.57)*q.w*(q.tw-0.5)*0.3,q.h*0.08];
+    const tp=f<1?[[tip[0]+px*0.45,tip[1]+py*0.45],[tip[0]+Math.cos(sa)*q.w*0.15-px*0.1,tip[1]+Math.sin(sa)*q.w*0.15-py*0.1],[tip[0]-px*0.45,tip[1]-py*0.45]]:[[tip[0],tip[1]]];
+    [[bl,mid,tip],[mid,br,tip]].forEach((F,fi)=>{const {lit,spec}=shade(...F),k=lit*(0.85+0.3*q.tw),g=tx.createLinearGradient(q.bx,q.by,tip[0],tip[1]);
+      g.addColorStop(0,`rgba(${Math.min(255,NG[0]*k*1.2+70)|0},${Math.min(255,NG[1]*k+12)|0},${Math.min(255,NG[2]*k+12)|0},0.94)`);
+      g.addColorStop(1,`rgba(${Math.min(255,NG[0]*k+255*spec)|0},${Math.min(255,NG[1]*k+230*spec)|0},${Math.min(255,NG[2]*k+235*spec)|0},0.82)`);
+      tx.fillStyle=g;tx.beginPath();tx.moveTo(F[0][0],F[0][1]);tx.lineTo(F[1][0],F[1][1]);(fi===0?tp:tp.slice().reverse()).forEach(t=>tx.lineTo(t[0],t[1]));tx.closePath();tx.fill()});
+    const lit1=((-Math.sin(sa))*L.x+Math.cos(sa)*L.y)>0;
+    tx.lineWidth=0.9;tx.strokeStyle=lit1?'rgba(255,225,220,0.75)':'rgba(30,0,4,0.8)';tx.beginPath();tx.moveTo(bl[0],bl[1]);tx.lineTo(tp[0][0],tp[0][1]);tx.stroke();
+    tx.strokeStyle=lit1?'rgba(30,0,4,0.8)':'rgba(255,225,220,0.75)';tx.beginPath();tx.moveTo(br[0],br[1]);tx.lineTo(tp[tp.length-1][0],tp[tp.length-1][1]);tx.stroke();
+    tx.strokeStyle='rgba(255,235,230,0.45)';tx.lineWidth=0.6;tx.beginPath();tx.moveTo(mid[0],mid[1]);const tm=tp[Math.floor(tp.length/2)];tx.lineTo(tm[0],tm[1]);tx.stroke()});
+  return {r:n.r,E,base,light,top};
+}
 function drawNest(n){
-  const R=n.r, pul=0.5+0.5*Math.sin(S.t*2.2+n.ph), fl=n.flashT>0;
-  ctx.save();ctx.translate(n.x,n.y);
-  ctx.fillStyle='rgba(0,0,0,0.35)';ctx.beginPath();ctx.ellipse(3,5,R*1.2,R*0.85,0,0,Math.PI*2);ctx.fill();
-  ctx.fillStyle=fl?'#fff':'#4a1d1a';ctx.beginPath();
-  for(let k=0;k<=16;k++){const a=k/16*Math.PI*2, rr=R*(0.86+0.14*Math.sin(a*3+n.ph));ctx.lineTo(Math.cos(a)*rr,Math.sin(a)*rr)}
-  ctx.closePath();ctx.fill();ctx.strokeStyle='#8a2c22';ctx.lineWidth=2;ctx.stroke();
-  const vents=n.size==='small'?3:n.size==='large'?6:n.size==='great'?7:n.size==='mound'?5:4;
-  for(let k=0;k<vents;k++){const a=k/vents*Math.PI*2+n.ph,d=R*0.52;
-    ctx.fillStyle=`rgba(255,92,77,${0.3+0.5*pul})`;ctx.beginPath();ctx.arc(Math.cos(a)*d,Math.sin(a)*d,R*0.15,0,Math.PI*2);ctx.fill()}
-  ctx.fillStyle=`rgba(255,130,95,${0.5+0.45*pul})`;ctx.beginPath();ctx.arc(0,0,R*0.24,0,Math.PI*2);ctx.fill();
-  ctx.restore();
-  if(n.hp<n.maxHp)hpbar(n.x,n.y-R-10,R*2+8,n.hp/n.maxHp);
+  if(!n._spr||n._spr.r!==n.r)n._spr=buildNestSprite(n);
+  const sp=n._spr,E=sp.E,fl=n.flashT>0,beat=0.55+0.45*Math.pow(0.5+0.5*Math.sin(S.t*2.1+n.ph),3)+0.12*Math.sin(S.t*5.3+n.ph);
+  ctx.drawImage(sp.base,n.x-E,n.y-E);
+  ctx.save();ctx.globalCompositeOperation='lighter';ctx.globalAlpha=Math.max(0,Math.min(1,beat));ctx.drawImage(sp.light,n.x-E,n.y-E);ctx.restore();
+  ctx.drawImage(sp.top,n.x-E,n.y-E);
+  if(fl){ctx.save();ctx.globalCompositeOperation='lighter';ctx.globalAlpha=0.6;ctx.drawImage(sp.top,n.x-E,n.y-E);ctx.restore()}
+  if(n.hp<n.maxHp)hpbar(n.x,n.y-n.r-10,n.r*2+8,n.hp/n.maxHp);
 }
 // Where the player's actual mining is happening right now — the average position of harvesters
 // currently working a node (falling back to all harvesters, then the Bastion) — rather than just
@@ -7470,10 +7699,11 @@ function drawVeinCracks(v,target){
   const en=veinEnergy(v), net=S.crackNet, dep=S.crackDepth, R=VEIN_GLOW_R, flick=en.jitter?0.55+0.45*Math.random():1;
   if(en.glow<=0&&!veinAlive(v)&&!v.collapsed)return; // drained: back to dead dark cracks
   ctx.save();ctx.lineCap='round';ctx.globalCompositeOperation='lighter';ctx.strokeStyle=en.col;
-  // a small bloom right at the mining point
-  const g0=ctx.createRadialGradient(v.mine.x,v.mine.y,0,v.mine.x,v.mine.y,R*0.6);
-  g0.addColorStop(0,en.col);g0.addColorStop(0.25,mixCol(en.col,'#000',0.55));g0.addColorStop(0.6,mixCol(en.col,'#000',0.88));g0.addColorStop(1,'rgba(0,0,0,0)');
-  ctx.globalAlpha=0.45*(0.4+0.6*en.glow)*flick;ctx.fillStyle=g0;ctx.beginPath();ctx.arc(v.mine.x,v.mine.y,R*0.6,0,Math.PI*2);ctx.fill();
+  // the light at the heart: it shines up only out of the few missing pieces and the breaks in the
+  // shattered ground at the site (painted by the terrain worker); before that lands, a small bloom
+  const Lt=v.site&&v.site._light;
+  if(Lt){const tl=siteLight(Lt,en.col),rip=en.flow?0.75+0.25*Math.sin(S.t*4*en.flow):0.88+0.12*Math.sin(S.t*1.5);ctx.globalAlpha=Math.min(1,(0.5+0.5*en.glow)*flick*rip*(0.6+0.4*en.core));ctx.drawImage(tl.sharp,Lt.x,Lt.y);ctx.globalAlpha*=0.75;ctx.drawImage(tl.blur,Lt.x-8,Lt.y-8);ctx.restore();return}
+  else{const g0=ctx.createRadialGradient(v.mine.x,v.mine.y,0,v.mine.x,v.mine.y,R*0.25);g0.addColorStop(0,en.col);g0.addColorStop(1,'rgba(0,0,0,0)');ctx.globalAlpha=0.35*(0.4+0.6*en.glow)*flick;ctx.fillStyle=g0;ctx.beginPath();ctx.arc(v.mine.x,v.mine.y,R*0.25,0,Math.PI*2);ctx.fill()}
   let k0=0;
   for(let b=0;b<VEIN_GLOW_RINGS;b++){
     const k1=lowerBound(v.pd,R*(b+1)/VEIN_GLOW_RINGS);
@@ -7485,8 +7715,8 @@ function drawVeinCracks(v,target){
       ctx.beginPath();
       for(let k=k0;k<k1;k++){const i=v.pi[k],d=dep[i>>2];if(d<dlo||d>=dhi)continue;ctx.moveTo(net[i],net[i+1]);ctx.lineTo(net[i+2],net[i+3])}
       const gl=depthGlow((dlo+dhi)/2);
-      if(en.glow>0){ctx.globalAlpha=Math.min(1,0.4*en.glow*I*gl);ctx.lineWidth=5;ctx.stroke()}
-      ctx.globalAlpha=Math.min(1,1.6*en.core*(0.6+0.4*en.glow)*I*gl);ctx.lineWidth=1.4;ctx.stroke();
+      if(en.glow>0){ctx.globalAlpha=Math.min(1,0.4*en.glow*I*gl);ctx.lineWidth=2.4;ctx.stroke()}
+      ctx.globalAlpha=Math.min(1,1.6*en.core*(0.6+0.4*en.glow)*I*gl);ctx.lineWidth=0.9;ctx.stroke();
     });
     k0=k1;
   }
@@ -7521,6 +7751,78 @@ function buildTerrainBlur(){
   terrainBlurC.width=w;terrainBlurC.height=h;const tx=terrainBlurC.getContext('2d');tx.imageSmoothingEnabled=true;
   tx.filter=`blur(${FOG_BLUR_PX*0.6}px)`;tx.drawImage(b,0,0,w,h);tx.filter='none'; // one blur, at build time only
 }
+// ---------- terrain painting ----------
+// The ground is painted by a Web Worker (terrainWorkerSrc above): the same rules as the old canvas
+// builder, but a full heightmap — tiered rock, stepped rift chasms, mud pans, the crystal wall, the
+// crack network cut into the ground, a shattered patch at each vein site — lit from the top-left
+// with hard shadows. It comes back tile by tile (nearest the camera first) and each tile is copied
+// into terrainCv, with the stones and glass the worker placed drawn over it. Until a tile lands, the
+// quick placeholder ground is what shows there. Nothing about movement changes: the cells decide that.
+let terrainWorker=null;
+try{terrainWorker=new Worker(URL.createObjectURL(new Blob([document.getElementById('terrainWorkerSrc').textContent],{type:'text/javascript'})))}catch(e){terrainWorker=null}
+const TPAINT={id:0,items:null,buckets:null,todo:0,got:0,focusT:-9,NTX:1};
+const TP_TS=256,TP_L={x:-0.62,y:-0.62,z:0.48};
+function terrainKinds(){const K=new Uint8Array(TGX*TGY),B=S.barrier;
+  for(let i=0;i<K.length;i++){const v=terrain[i];K[i]=(S.glass&&S.glass[i])?5:v===1?1:v===RIFT?3:v===2?((B&&B.type===2&&B.mask&&B.mask[i])?4:2):0}return K}
+function startTerrainPaint(){
+  if(!terrainWorker||!S.crackNet)return;
+  const id=++TPAINT.id;TPAINT.items=null;TPAINT.buckets=null;TPAINT.got=0;TPAINT.NTX=Math.ceil(W/TP_TS);TPAINT.todo=TPAINT.NTX*Math.ceil(H/TP_TS);
+  const sites=(S.crackSites||[]).filter(Boolean).map(st=>({x:st.x,y:st.y,ang:st.knotAng||[]}));
+  const shards=(S.glassShards||[]).map(sh=>({x:sh.x,y:sh.y,r:sh.r}));
+  terrainWorker.postMessage({type:'focus',x:S.base.x,y:S.base.y});TPAINT.focusT=S.t+1;
+  terrainWorker.postMessage({type:'job',id,W,H,TC:TCELL,GX:TGX,GY:TGY,kind:terrainKinds(),seed:mapSeed,band:STOP_BAND?{rim:0,dense:1,core:2}[STOP_BAND]:null,
+    epi:{x:EPI.x,y:EPI.y},coreR:CORE_R,denseR:DENSE_R,net:S.crackNet,dep:S.crackDepth,cid:S.crackId,sites,shards});
+}
+function terrainFocus(){if(terrainWorker&&TPAINT.got<TPAINT.todo&&S.t-TPAINT.focusT>0.4){TPAINT.focusT=S.t;terrainWorker.postMessage({type:'focus',x:cam.x,y:cam.y})}}
+if(terrainWorker)terrainWorker.onmessage=e=>{const d=e.data;if(d.id!==TPAINT.id)return;
+  if(d.type==='error'){console.error('terrain painter:',d.msg);return}
+  if(d.type==='meta'){TPAINT.items=d.items;const NT=TPAINT.NTX*Math.ceil(H/TP_TS),bk=new Array(NT);
+    d.items.forEach(it=>{const e=it.t===1?it.R*1.6+it.h*0.75+4:it.t===2?it.L+3:it.R*1.6+2;
+      for(let ty=Math.max(0,Math.floor((it.y-e)/TP_TS));ty<=Math.min(Math.ceil(H/TP_TS)-1,Math.floor((it.y+e)/TP_TS));ty++)
+        for(let tx=Math.max(0,Math.floor((it.x-e)/TP_TS));tx<=Math.min(TPAINT.NTX-1,Math.floor((it.x+e)/TP_TS));tx++){const k=ty*TPAINT.NTX+tx;(bk[k]||(bk[k]=[])).push(it)}});
+    TPAINT.buckets=bk;
+    (S.crackSites||[]).filter(Boolean).forEach((st,k)=>{const L=d.lights[k];if(!L)return;const c=document.createElement('canvas');c.width=c.height=L.size;const x=c.getContext('2d'),im=x.createImageData(L.size,L.size);
+      for(let i=0;i<L.a.length;i++){im.data[i*4]=255;im.data[i*4+1]=255;im.data[i*4+2]=255;im.data[i*4+3]=L.a[i]}x.putImageData(im,0,0);
+      const b=document.createElement('canvas');b.width=b.height=L.size+16;const bx=b.getContext('2d');bx.filter='blur(4px)';bx.drawImage(c,8,8);
+      st._light={x:L.x,y:L.y,size:L.size,sharp:c,blur:b,tint:{}}});
+    return}
+  if(d.type==='tile'){const tc=terrainCv.getContext('2d');tc.putImageData(new ImageData(new Uint8ClampedArray(d.buf),d.w,d.h),d.x,d.y);
+    if(TPAINT.buckets)drawTerrainItems(tc,d.x,d.y,d.w,d.h);
+    TPAINT.got++;if(TPAINT.got===TPAINT.todo||TPAINT.got%48===0)buildTerrainBlur();return}
+};
+// a vein site's light, tinted to the vein's colour (cached per colour)
+function siteLight(L,col){let t=L.tint[col];if(t)return t;const mk=src=>{const c=document.createElement('canvas');c.width=src.width;c.height=src.height;const x=c.getContext('2d');x.drawImage(src,0,0);x.globalCompositeOperation='source-in';x.fillStyle=col;x.fillRect(0,0,c.width,c.height);return c};
+  t=L.tint[col]={sharp:mk(L.sharp),blur:mk(L.blur)};return t}
+// ---- glass chunks, splinters and stones (shared by the terrain tiles and the nests)
+function chunkPath(c,P,dx,dy){c.beginPath();for(let j=0;j<P.length;j+=2){const X=P[j]+(dx||0),Y=P[j+1]+(dy||0);j?c.lineTo(X,Y):c.moveTo(X,Y)}c.closePath()}
+function chunkSwept(c,P,dx,dy){chunkPath(c,P);c.fill();chunkPath(c,P,dx,dy);c.fill();for(let j=0;j<P.length;j+=2){const ax=P[j],ay=P[j+1],bx=P[(j+2)%P.length],by=P[(j+3)%P.length];c.beginPath();c.moveTo(ax,ay);c.lineTo(bx,by);c.lineTo(bx+dx,by+dy);c.lineTo(ax+dx,ay+dy);c.closePath();c.fill()}}
+function drawChunkShadow(c,ch){const d=ch.h*0.7;c.fillStyle='rgba(8,0,18,0.42)';chunkSwept(c,ch.P,d,d);
+  const col=ch.col,dd=d+ch.R*0.3,gx=ch.x+dd,gy=ch.y+dd,g=c.createRadialGradient(gx,gy,0,gx,gy,ch.R*0.6);g.addColorStop(0,`rgba(${col[0]},${col[1]},${col[2]},0.22)`);g.addColorStop(1,'rgba(0,0,0,0)');
+  c.save();c.globalCompositeOperation='lighter';c.fillStyle=g;c.beginPath();c.arc(gx,gy,ch.R*0.6,0,Math.PI*2);c.fill();c.restore()}
+function drawChunkBody(c,ch){const L=TP_L,col=ch.col,ndl=ch.nx*L.x+ch.ny*L.y+ch.nz*L.z,lit=0.35+0.9*Math.max(0,ndl),spec=Math.pow(Math.max(0,2*ch.nz*ndl-L.z),10);
+  c.fillStyle=`rgba(${col[0]*0.3|0},${col[1]*0.2|0},${col[2]*0.35|0},0.95)`;chunkSwept(c,ch.P,ch.th*0.7,ch.th*0.9);
+  const k=lit*ch.hue,g=c.createRadialGradient(ch.x-ch.R*0.2,ch.y-ch.R*0.2,0,ch.x,ch.y,ch.R*1.3);
+  g.addColorStop(0,`rgba(${Math.min(255,col[0]*k*1.1)|0},${Math.min(255,col[1]*k*1.1)|0},${Math.min(255,col[2]*k*1.1)|0},0.42)`);g.addColorStop(1,`rgba(${col[0]*k*0.7|0},${col[1]*k*0.6|0},${col[2]*k*0.8|0},0.78)`);
+  c.fillStyle=g;chunkPath(c,ch.P);c.fill();
+  c.save();chunkPath(c,ch.P);c.clip();
+  if(spec>0.05){c.fillStyle=`rgba(255,245,255,${Math.min(0.55,spec*0.6)})`;c.fill()}
+  const sa=-0.8+ch.arc*0.6,ox=Math.cos(sa+1.57)*ch.R*(ch.arc-0.5);c.strokeStyle=`rgba(255,250,255,${0.18+0.5*Math.min(1,spec*2)})`;c.lineWidth=0.8+ch.R*0.05;
+  c.beginPath();c.moveTo(ch.x+ox-Math.cos(sa)*ch.R*1.5,ch.y-Math.sin(sa)*ch.R*1.5);c.lineTo(ch.x+ox+Math.cos(sa)*ch.R*1.5,ch.y+Math.sin(sa)*ch.R*1.5);c.stroke();
+  c.strokeStyle='rgba(255,235,255,0.22)';c.lineWidth=0.6;for(let j=1;j<=2;j++){c.beginPath();c.arc(ch.P[0],ch.P[1],ch.R*(0.35+0.3*j),ch.arc*6,ch.arc*6+1.4);c.stroke()}
+  c.restore();
+  for(let j=0;j<ch.P.length;j+=2){const ax=ch.P[j],ay=ch.P[j+1],bx=ch.P[(j+2)%ch.P.length],by=ch.P[(j+3)%ch.P.length],ex=by-ay,ey=-(bx-ax),el=Math.hypot(ex,ey)||1,f=(ex*L.x+ey*L.y)/el/0.88;
+    c.strokeStyle=f>0.15?`rgba(255,240,255,${0.45+0.5*f})`:'rgba(20,0,35,0.75)';c.lineWidth=f>0.15?1:0.9;c.beginPath();c.moveTo(ax,ay);c.lineTo(bx,by);c.stroke()}}
+function drawSplinter(c,it){const ca=Math.cos(it.a),sa=Math.sin(it.a),T=[it.x+ca*it.L,it.y+sa*it.L,it.x-sa*it.w,it.y+ca*it.w,it.x-ca*it.L*0.6,it.y-sa*it.L*0.6];
+  c.fillStyle='rgba(8,0,18,0.4)';chunkPath(c,T,1.2,1.2);c.fill();c.fillStyle=`rgba(${it.col[0]},${it.col[1]},${it.col[2]},0.7)`;chunkPath(c,T);c.fill();
+  c.strokeStyle='rgba(255,240,255,0.7)';c.lineWidth=0.6;c.beginPath();c.moveTo(T[0],T[1]);c.lineTo(T[2],T[3]);c.stroke()}
+function drawStone(c,it){const R=it.R,sc=it.col,tone=it.tone;c.fillStyle='rgba(0,0,0,0.45)';chunkPath(c,it.P,R*0.5,R*0.5);c.fill();
+  const g=c.createLinearGradient(it.x-R,it.y-R,it.x+R,it.y+R);g.addColorStop(0,`rgb(${sc[0]*tone*1.25|0},${sc[1]*tone*1.25|0},${sc[2]*tone*1.25|0})`);g.addColorStop(1,`rgb(${sc[0]*tone*0.5|0},${sc[1]*tone*0.5|0},${sc[2]*tone*0.5|0})`);
+  c.fillStyle=g;chunkPath(c,it.P);c.fill();c.strokeStyle='rgba(8,10,12,0.6)';c.lineWidth=0.6;c.stroke()}
+function drawTerrainItems(c,x,y,w,h){const L=TPAINT.buckets[Math.floor(y/TP_TS)*TPAINT.NTX+Math.floor(x/TP_TS)];if(!L)return;
+  c.save();c.beginPath();c.rect(x,y,w,h);c.clip();
+  L.forEach(it=>{if(it.t===1)drawChunkShadow(c,it)});L.forEach(it=>{if(it.t===1)drawChunkBody(c,it)});
+  L.forEach(it=>{if(it.t===2)drawSplinter(c,it)});L.forEach(it=>{if(it.t===0)drawStone(c,it)});
+  c.restore()}
 function blurFogged(vw,vh,shkx,shky){
   const w=Math.max(1,Math.round(cv.width/FOG_BLUR_DOWN)), h=Math.max(1,Math.round(cv.height/FOG_BLUR_DOWN));
   if(fogBlurC.width!==w||fogBlurC.height!==h){fogBlurC.width=w;fogBlurC.height=h}
@@ -7692,7 +7994,8 @@ function draw(){
   const x0=cam.x-vw/2/cam.z,y0=cam.y-vh/2/cam.z,x1=cam.x+vw/2/cam.z,y1=cam.y+vh/2/cam.z;
   // ground (terrain + depth-band tint)
   ctx.drawImage(terrainCv,0,0,W,H);
-  drawCrackNet(vw,vh,shkx,shky,x0,y0,x1,y1);
+  if(!terrainWorker)drawCrackNet(vw,vh,shkx,shky,x0,y0,x1,y1); // otherwise the cracks are cut into the painted ground
+  terrainFocus();
   // veins: their glow and hotspots go into a vision-masked light layer (so only the part of a vein
   // your units can currently see shows); the drill ring, warm-up text and wave arrow stay on top
   const VL=beginVeinLight(vw,vh,shkx,shky);
