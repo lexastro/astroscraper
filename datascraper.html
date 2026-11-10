@@ -1256,6 +1256,7 @@ const UPGRADES={
     {id:'tactical',name:'Tactical Reinforcements',desc:'+5 free Troopers, +3 free Grenadiers, right now.',apply:()=>{spawnFreeTroops(5,'troop');spawnFreeTroops(3,'grenadier')}},
     {id:'targeting',name:'Targeting Computer',desc:'The Bastion gun keeps firing while drilling instead of going quiet.',apply:()=>{S.mods.bastionShootWhileDrilling=true}},
     {id:'energySurge2',name:'Energy Surge II',desc:'Energy Surge now pulses every 5s instead of 10s.',apply:()=>{S.mods.energySurgeLevel=Math.max(S.mods.energySurgeLevel,2)}},
+    {id:'wallTowers',name:'Bulwark Towers',desc:'Every wall end gets a free Turret — on the walls you have now and every wall you build from here on. A tower that falls is not replaced.',has:()=>S.mods.wallTowers,apply:()=>{S.mods.wallTowers=true;wallTowers()}},
   ],
   Legendary:[
     {id:'overdrive',name:'Overdrive Capacitor',desc:'Drill rate +40%.',apply:()=>{S.mods.drillRateMult*=1.4}},
@@ -2187,7 +2188,7 @@ function reset(landing){
     // reset back to baseline (1 / 0 / false) by a fresh reset(), never persisted between runs.
     mods:{carryMult:1,troopDmgMult:1,moveSpeedMult:1,visionMult:1,relayTolMult:1,drillBurnMult:1,
       cableLenAdd:0,cableHpMult:1,condensedMult:1,livingMult:1,fastBonus:0,drillRateMult:1,freeRelayCharges:0,
-      grenFireRateMult:1,grenSplashMult:1,squadRangeMult:1,bigGuns:false,bastionShootWhileDrilling:false,
+      grenFireRateMult:1,grenSplashMult:1,squadRangeMult:1,bigGuns:false,bastionShootWhileDrilling:false,wallTowers:false,
       energySurgeLevel:0,armedRelays:false,martyrs:false,fabRateMult:1},
     rewardChoice:null,pingRing:null,pings:[],reanim:[],stabs:[],stabShots:[],stabCharges:3,stabRechargeT:0,probes:[],probeCharges:3,probeRechargeT:0,paused:false,
     sel:{base:false,troops:new Set(),harv:new Set(),bu:new Set()},
@@ -4691,7 +4692,7 @@ function landFabShot(sh){
     if(L.posts[0]&&L.posts[1]&&L.raiseT0==null)L.raiseT0=S.t;return}
   if(sh.k==='turret'){
     S.turrets.push({x:w.x,y:w.y,hp:TURRET_HP,maxHp:TURRET_HP,cd:0,ang:0,kind:'turret',built:true,buildT:TURRET_BUILD_T,buildTotal:TURRET_BUILD_T,builder:null,repairer:null});
-    msg('Turret deployed.');
+    msg(sh.free?'Bulwark Tower raised on a wall end.':'Turret deployed.');
   }else{
     S.relays.push({x:w.x,y:w.y,hp:RELAY_HP,maxHp:RELAY_HP,kind:'relay',built:true,buildT:RELAY_BUILD_T,buildTotal:RELAY_BUILD_T,builder:null,repairer:null,
       state:null,tetherOk:false,trail:null,cableHp:0,cableLen:0,cableMaxed:false,reconnectT:0,wasFree:false,gunCd:0,ang:0});
@@ -5434,8 +5435,20 @@ function finishWallDraw(){
   [[P.x0,P.y0],[P.x1,P.y1]].forEach(([tx,ty],i)=>{if(anch[i])return;const dd=Math.hypot(tx-S.base.x,ty-S.base.y);S.fabShots.push({k:'wallpost',line,end:i,x0:S.base.x,y0:S.base.y,tx,ty,t:0,dur:Math.max(0.4,dd/FAB_FLIGHT_SPEED)})});
   tone(200,0.12,'square',0.06,0,420);
 }
+// Bulwark Towers: every landed wall end gets a free Turret lobbed from the Bastion, once per end
+// (L.tower marks it, so a tower that's destroyed isn't rebuilt). Ends shared by two walls, or
+// already anchored on a Turret, get only the one.
+function wallTowers(){
+  if(!S.mods.wallTowers||!S.wallLines)return;
+  const near=(p)=>S.turrets.some(t=>dist(t,p)<4)||S.fabShots.some(sh=>sh.k==='turret'&&Math.hypot(sh.tx-p.x,sh.ty-p.y)<4);
+  S.wallLines.forEach(L=>{L.tower=L.tower||[false,false];
+    [[L.x0,L.y0],[L.x1,L.y1]].forEach(([x,y],i)=>{if(L.tower[i]||!L.posts[i])return;L.tower[i]=true;const p={x,y};
+      if(near(p))return;
+      const dd=Math.hypot(x-S.base.x,y-S.base.y);S.fabShots.push({k:'turret',free:true,x0:S.base.x,y0:S.base.y,tx:x,ty:y,t:0,dur:Math.max(0.4,dd/FAB_FLIGHT_SPEED)})})});
+}
 function updateWallLines(dt){
   if(!S.wallLines)return;
+  wallTowers();
   S.wallLines.forEach(L=>{
     L.slats.forEach(sl=>{if(sl.flashT>0)sl.flashT=Math.max(0,sl.flashT-dt)});
     if(L.raiseT0==null)return;const el=S.t-L.raiseT0;
@@ -6892,20 +6905,21 @@ function rewardTierFor(tier,band){
   if(band==='dense'&&tier==='Legendary'&&Math.random()>REWARD_DENSE_LEGENDARY)return 'Epic';
   return tier;
 }
+const cardOpen=u=>!(u.has&&u.has());
 function rollRewardCards(tier,band){
   // Hive tier: three cards, all Epic or Legendary (in the Dense Field, Legendary ones are rare)
   if(tier==='Hive'){
-    const pool=shuffled(['Epic','Legendary'].flatMap(t=>UPGRADES[t].map(u=>({tier:t,...u})))).filter(c=>!(band==='dense'&&c.tier==='Legendary'&&Math.random()>REWARD_DENSE_LEGENDARY));
+    const pool=shuffled(['Epic','Legendary'].flatMap(t=>UPGRADES[t].filter(cardOpen).map(u=>({tier:t,...u})))).filter(c=>!(band==='dense'&&c.tier==='Legendary'&&Math.random()>REWARD_DENSE_LEGENDARY));
     const picks=pool.slice(0,3).map(c=>({kind:'upgrade',...c}));
     picks.push({kind:'trade',tier,name:'Sell the Reward',desc:`Skip the upgrade — bank +${TIER_TRADE_DAT[tier]} Dat Crystal instead.`,amt:TIER_TRADE_DAT[tier]});
     return picks;
   }
   const topIdx=TIER_ORDER.indexOf(tier);
-  const topPool=shuffled(UPGRADES[tier]);
+  const topPool=shuffled(UPGRADES[tier].filter(cardOpen));
   const picks=[{kind:'upgrade',tier,...topPool[0]}];
   const used=new Set([topPool[0].id]);
   const lowerTiers=TIER_ORDER.slice(0,topIdx);
-  let lowerPool=shuffled((lowerTiers.length?lowerTiers:[tier]).flatMap(t=>UPGRADES[t].map(u=>({tier:t,...u}))));
+  let lowerPool=shuffled((lowerTiers.length?lowerTiers:[tier]).flatMap(t=>UPGRADES[t].filter(cardOpen).map(u=>({tier:t,...u}))));
   lowerPool=lowerPool.filter(c=>!used.has(c.id));
   while(picks.length<3&&lowerPool.length){
     const c=lowerPool.pop();
