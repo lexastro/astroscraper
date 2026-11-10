@@ -260,6 +260,13 @@ body.lowGfx #fogGrain{display:none}
 .shopHeader .metaRow{margin:0}
 /* --- gameplay announcements: a dismissible, color-coded toast stack over the left side of the
    play area; most recent is largest, the next few shrink, older ones fall off the end --- */
+.banners{position:absolute;left:50%;top:calc(env(safe-area-inset-top,0px) + 12px);transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none;z-index:16;width:min(620px,calc(100vw - 32px))}
+.banner{background:rgba(11,14,18,0.92);border:1px solid var(--line);border-top:3px solid var(--enemy);color:var(--fg);font:600 14px var(--mono);padding:8px 16px;border-radius:4px;text-align:center;box-shadow:0 4px 16px rgba(0,0,0,0.5);animation:bannerIn .2s ease}
+.banner.success{border-top-color:var(--dat)}
+.banner.secondary{opacity:.75;font-size:12px;padding:5px 12px}
+@keyframes bannerIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+.curNote{position:fixed;z-index:30;pointer-events:none;background:rgba(11,14,18,0.9);border:1px solid var(--accent);color:var(--fg);font:600 12px var(--mono);padding:3px 8px;border-radius:3px;white-space:nowrap;transform:translate(14px,-130%);transition:opacity .25s}
+@media (max-width:720px){.banners{top:calc(env(safe-area-inset-top,0px) + 64px)}.banner{font-size:12px;padding:6px 10px}}
 .toasts{position:absolute;left:max(16px,env(safe-area-inset-left,0px));top:calc(env(safe-area-inset-top,0px) + 150px);
   display:flex;flex-direction:column;gap:8px;width:300px;max-width:calc(100vw - 32px);pointer-events:none;z-index:15}
 .toast{pointer-events:auto;display:flex;align-items:flex-start;gap:8px;background:var(--panel);border:1px solid var(--line);
@@ -390,6 +397,8 @@ body.inMenu :is(#game,#fogGrain,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMet
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;600&display=swap">
 
 <canvas id="game"></canvas>
+<div class="banners" id="banners"></div>
+<div class="curNote" id="curNote" hidden></div>
 <button class="poiBtn" id="poiRig" hidden></button>
 <button class="poiBtn" id="poiStrand" hidden></button>
 <div id="fogGrain" aria-hidden="true"></div>
@@ -861,11 +870,11 @@ function raiseSquadCap(){if(S.squadCap>=SQUAD_CAP_MAX)return false;S.squadCap++;
 // pay for one use of an empty stock; false (with a message) if there isn't the Dat
 // an empty stock: buy the charge only if Auto-buy is on; otherwise say how to get one
 function takeStock(cost,what){
-  if(!autoBuy){msg(`${what} stock is empty — right-click its button to buy one for ${cost} Dat (or switch Auto-buy on).`);return false}
+  if(!autoBuy){note(`${what} empty — right-click to buy (◆${cost})`);return false}
   return payDat(cost,what);
 }
 function payDat(cost,what){
-  if(S.dat<cost){msg(`${what} is out of stock — another costs ${cost} Dat (you have ${Math.floor(S.dat)}).`);return false}
+  if(S.dat<cost){note(`${what}: need ◆${cost}`);return false}
   S.dat-=cost;floatText(S.base.x,S.base.y-46,`-${cost} Dat`,C.dat);return true;
 }
 // Repair drones (replace Builders): a small flying swarm that lives on the Bastion and launches on
@@ -913,11 +922,10 @@ function makeStrand(){
 function strandInReach(){const g=S.strand;return !!g&&(dist(S.base,g)<=STRAND_REACH+S.base.r||S.troops.some(t=>dist(t,g)<=STRAND_REACH))}
 function tryRescueStrand(){
   const g=S.strand;if(!g||g.done||!g.seen||S.over||S.paused)return;
-  if(!strandInReach()){msg(`Get the Bastion or one of your units within reach of the stranded squad to take them on.`);return}
+  if(!strandInReach()){note('Get closer to the squad');return}
   if(!payDat(g.cost,'Taking on the stranded squad'))return;
   g.done=true;g.units.forEach(u=>{S.troops.push(u);guardBastion(u);burst(u.x,u.y,C.ally,6,80,0.35)});
   floatText(g.x,g.y-40,`-${g.cost} Dat`,C.dat);sfx.build();
-  msg(`The stranded squad joins you: ${strandLabel(g.units)}. They're heading back to the Bastion.`);
   S.strand=null;updateBuildBar();
 }
 function updateStrand(dt){
@@ -975,10 +983,9 @@ function makeRig(site){
 }
 function tryCaptureRig(){
   const r=S.rig;if(!r||r.online||!r.seen||S.over||S.paused)return;
-  if(!rigLinked()){msg(`The rig has no link — land Relays out from the Bastion until a connected one stands within ${RIG_LINK_R} of it.`);return}
-  if(S.dat<RIG_DAT){msg(`Bringing the rig online costs ${RIG_DAT} Dat — you have ${Math.floor(S.dat)}.`);return}
+  if(!rigLinked()){note('The rig needs a Relay link');return}
+  if(S.dat<RIG_DAT){note(`Need ◆${RIG_DAT}`);return}
   S.dat-=RIG_DAT;r.online=true;floatText(r.x,r.y-60,`-${RIG_DAT} Dat`,C.dat);burst(r.x,r.y,C.accent,28,170,0.8);shakeScreen(3,0.2);sfx.build();
-  msg('The rig is online. Press F (Begin Drilling) to drill its vein from here — the Bastion locks in place while it does, and the drill pauses if the rig loses its Relay link.');
   updateBuildBar();
 }
 function updateRig(dt){
@@ -986,7 +993,7 @@ function updateRig(dt){
   const v=r.vein;
   if(!r.seen&&visible(r)){r.seen=true;v.seen=true;v.mine.found=true;msg(`A derelict mining rig, stranded in the rift with its Stabilizers still pinned. Link it with a Relay and spend ${RIG_DAT} Dat to bring it online (button, or G) — then its vein can be drilled.`);updateBuildBar()}
   if(S.activeVein===v){
-    if(!rigLinked()){if(!v.paused){v.paused=true;v.rigCut=true;msg('The rig has lost its Relay link — drilling is paused until it is reconnected.')}}
+    if(!rigLinked()){if(!v.paused){v.paused=true;v.rigCut=true;banner('The rig has lost its Relay link — drilling is paused until it is reconnected.','danger')}}
     else if(v.rigCut){v.paused=false;v.rigCut=false;msg('Rig link restored — drilling resumes.')}
   }
   // its distress signal: every so often, until someone has found it, a ping and a bearing — and a pulsing
@@ -1552,7 +1559,7 @@ function updateMeter(v,dt){
   // for RED_GRACE seconds; get the needle out in time and it drains away again (RED_RECOVER × as
   // fast). No yield is earned while the needle sits in the red.
   if(here.red){
-    if(!m.inRed){m.inRed=true;msg('ALARM — the drill needle is in the red! Steer it back out before the vein ruptures.')}
+    if(!m.inRed){m.inRed=true;banner('ALARM — the drill needle is in the red! Steer it back out before the vein ruptures.','danger')}
     m.redT=(m.redT||0)+dt;
     m.alarmT=(m.alarmT||0)-dt;if(m.alarmT<=0){m.alarmT=0.3;m.alarmHi=!m.alarmHi;tone(m.alarmHi?980:740,0.13,'square',0.07)}
     if(m.redT>=RED_GRACE){ruptureVein(v,'The drill needle stayed in the red too long — the vein ruptured!');return}
@@ -1583,7 +1590,7 @@ function ruptureVein(v,why){
   if(v.contract){v.drillProg=0;v.crackedT=CRACKED_T}else collapseVein(v,true);
   burst(v.x,v.y,C.enemy,46,260,1.0); burst(v.x,v.y,'#ffb36b',24,200,0.7);
   sfx.explode(); shakeScreen(12,0.7);
-  msg(`${why} The Bastion took ${dmg} damage, and ${v.contract?`the contract vein needs ${CRACKED_T}s to settle before it can be struck again`:'the vein has collapsed'}.`);
+  banner(`${why} The Bastion took ${dmg} damage, and ${v.contract?`the contract vein needs ${CRACKED_T}s to settle before it can be struck again`:'the vein has collapsed'}.`,'danger');
   updateMeterUI(true); updateBuildBar();
 }
 // Draws the drill meter panel (called every frame from hud()). The view is a window onto the
@@ -1880,7 +1887,7 @@ function pickSite(band){
 function collapseVein(v,quiet){
   v.collapsed=true; v.goneT=0;
   S.stabs.forEach(st=>{if(st.vein===v){st.hp=0;st.silent=true}});
-  if(v.seen&&!quiet){msg('A vein has collapsed.');burst(v.x,v.y,C.enemy,18,130,0.6)}
+  if(v.seen&&!quiet){banner('A vein has collapsed.','danger');burst(v.x,v.y,C.enemy,18,130,0.6)}
 }
 function updateVeinLife(dt){
   S.veins.forEach(v=>{
@@ -1894,7 +1901,7 @@ function updateVeinLife(dt){
     v.ripeT=(v.ripeT||0)+dt;
     if(v.ripeT>=ripePeakT(v)+unstableDur(v)){collapseVein(v);return}
     if(!v.seen)return;
-    if(!wasUnstable&&isUnstable(v))msg('A vein has gone unstable — it will collapse soon.');
+    if(!wasUnstable&&isUnstable(v))banner('A vein has gone unstable — it will collapse soon.','danger');
   });
   // spent veins linger as dark cracks, then free their site and queue a replacement
   // (the replacement's countdown starts the moment a vein dies, not once it's finished fading)
@@ -2216,14 +2223,14 @@ function corruptUnit(u,type,label,reason){
     S.enemies.forEach(e=>{if(dist(e,u)<=MARTYR_R)damageEnemy(e,MARTYR_DMG)});
     S.troops.concat(S.harvesters).concat(S.builders).forEach(a=>{if(a!==u&&dist(a,u)<=MARTYR_R){a.hp-=MARTYR_DMG;a.lastHitBy='martyr';hitFlash(a)}});
     if(dist(S.base,u)<=MARTYR_R){S.base.hp-=MARTYR_DMG;hitFlash(S.base)}
-    msg(fallen?`${label} detonated as it rose again!`:`${label} lost its mind and detonated!`);
+    banner(fallen?`${label} detonated as it rose again!`:`${label} lost its mind and detonated!`,'danger');
     burst(u.x,u.y,C.enemy,24,180,0.6);sfx.explode();shakeScreen(7,0.35);
     return;
   }
   const st=CORRUPT_STATS[type];
   S.enemies.push({x:u.x,y:u.y,r:st.r,hp:st.hp,maxHp:st.hp,speed:st.speed,dmg:st.dmg,cd:0,kind:'corrupted',
     target:null,aggro:1e9,home:{x:u.x,y:u.y},ang:rnd(0,Math.PI*2),faceT:rnd(1,3),stunT:0});
-  msg(fallen?`${label} has risen again — corrupted and hostile!`:`${label} lost its mind and turned hostile!`);
+  banner(fallen?`${label} has risen again — corrupted and hostile!`:`${label} lost its mind and turned hostile!`,'danger');
   burst(u.x,u.y,C.zone,16,130,0.5);sfx.sever();shakeScreen(5,0.25);
 }
 // Death by enemy hands isn't the end: a unit an enemy kills lies still for REANIMATE_T, then rises
@@ -2870,7 +2877,7 @@ function tutSpawnDemo(again){
   const v=emergeVein(site,{ripeT:0,guards:false});v.tutDemo=true;v.seen=true;v.mine.found=true;
   v.ripeT=ripePeakT(v)+1; v.lifeBonus=Math.max(0,left-(UNSTABLE_T-1)); // already unstable, with `left` seconds to go
   tutorial.demo=v;
-  if(again)msg('It collapsed — another vein nearby has just gone unstable. Be quicker this time!');
+  if(again)banner('It collapsed — another vein nearby has just gone unstable. Be quicker this time!','danger');
 }
 // The deep-zone lessons: the Bastion and its Troopers are set down on a corridor just inside the
 // Dense Field, with a wreck out in the rift far enough away that it takes two Relays to reach.
@@ -3118,7 +3125,7 @@ function spawnQuaker(v){
   const core=bandAt(p.x,p.y)==='core', hp=Math.round(QUAKER_HP*(core?CORE_ENEMY_HP_MULT:1)*stopHpMult());
   S.enemies.push({x:p.x,y:p.y,r:QUAKER_R,hp,maxHp:hp,speed:QUAKER_SPEED,dmg:0,cd:0,kind:'quaker',core,target:null,aggro:0,home:{x:p.x,y:p.y},
     ang:rnd(0,Math.PI*2),faceT:9,stunT:0,vein:v,ring:rnd(QUAKER_STANDOFF[0],QUAKER_STANDOFF[1]),post:null,jumpT:rnd(4,7),air:0,airT:0,from:null,land:null});
-  msg(`A Quaker is lumbering in from the ${compassName(a)||'dark'} — it keeps its distance and pounds the ground to throw your drill off. Send units out to kill it.`);
+  banner(`A Quaker is lumbering in from the ${compassName(a)||'dark'} — it keeps its distance and pounds the ground to throw your drill off. Send units out to kill it.`,'danger');
   sfx.wave();
 }
 function quakerPost(e,ang){const v=e.vein;return nearestPlain(Math.max(60,Math.min(W-60,v.x+Math.cos(ang)*e.ring)),Math.max(60,Math.min(H-60,v.y+Math.sin(ang)*e.ring)))}
@@ -3134,7 +3141,7 @@ function quakeAt(e){
   if(m&&m.phase==='drill'){const sv=steerState(v), away=m.x-sv.target;m.x+=(away?Math.sign(away):(Math.random()<0.5?-1:1))*QUAKER_KICK*f}
   veinStabs(v).forEach(st=>{st.hp-=QUAKER_STAB_DMG*f;st.lastHitBy='enemy';hitFlash(st)});
   S.quakes.push({x:v.x,y:v.y,r:0,t:0,soft:true});
-  if(!S.quakeMsg){S.quakeMsg=true;msg('A Quaker\'s landing jolted the drill needle and shook the Stabilizers — kill it before it throws the drill into the red.')}
+  if(!S.quakeMsg){S.quakeMsg=true;banner('A Quaker\'s landing jolted the drill needle and shook the Stabilizers — kill it before it throws the drill into the red.','danger')}
 }
 function updateQuaker(e,dt){
   const v=e.vein;
@@ -3275,7 +3282,7 @@ function updateNests(dt){
       if(n.growT<=0){
         const ns=NEST_SIZES[NEST_SIZES.indexOf(n.size)+1], M=NEST[ns], f=n.hp/n.maxHp;
         n.size=ns;n.r=M.r;n.maxHp=Math.round(M.hp*stopHpMult());n.hp=Math.round(n.maxHp*f);n.lastHp=n.hp;n.growT=M.growT||0;
-        if(n.seen)msg(`A nest has grown into a ${M.name}.`);
+        if(n.seen)banner(`A nest has grown into a ${M.name}.`,'danger');
       }}
   });
   // new Small nests sprout in the fog
@@ -3295,7 +3302,7 @@ function nestDestroyed(n){
     extra=' Every fabricator gains a charge.';
   }
   if(n.size==='large')extra+=salvageFab();
-  msg(`${N.name} destroyed — drive over its Dat to collect it.${extra}`);
+  banner(`${N.name} destroyed — drive over its Dat to collect it.${extra}`,'success');
   updateBuildBar();
 }
 // Salvage: a few free units of a kind you haven't unlocked yet (one Mech, two of anything else),
@@ -3330,7 +3337,7 @@ function updateMounds(dt){
       if(visible(sl))return; // nothing regrows while you're watching
       sl.regrowT-=dt;
       if(sl.regrowT<=0){sl.nest=makeNest(sl.x,sl.y,sl.size);sl.nest.hiveVein=v;sl.regrowT=MOUND_REGROW_T;
-        if(v.seen)msg(`A ${NEST[sl.size].name.toLowerCase()} has regrown around the ${v.contract?'contract vein':'hive'}.`)}
+        if(v.seen)banner(`A ${NEST[sl.size].name.toLowerCase()} has regrown around the ${v.contract?'contract vein':'hive'}.`,'danger')}
     });
   });
 }
@@ -3485,7 +3492,7 @@ function salvageWreck(w){
   else if(kind==='squad'){const a=WRECK_DAT[w.band];S.dat+=a;floatText(w.x,w.y-20,'+'+a+' Dat',C.dat);text=`a Dat Crystal cache (+${a})`}
   else text=salvageFab().trim().replace(/^Salvaged /,'').replace(/[!.]$/,'');
   burst(w.x,w.y,C.accent,24,150,0.7);sfx.veinDone();updateBuildBar();
-  msg(`Wreck salvaged — ${text}.`);
+  banner(`Wreck salvaged — ${text}.`,'success');
 }
 function updatePOIs(dt){
   if(!S.wrecks)return;
@@ -3586,7 +3593,7 @@ function spawnOffZonePatrol(){
     const p=nearestPlain(Math.max(20,Math.min(W-20,sx+px*lat+Math.cos(a)*dep)),Math.max(20,Math.min(H-20,sy+py*lat+Math.sin(a)*dep)));
     spawnEnemy(p.x,p.y,'wave');
   }
-  msg('A patrol has spotted your mining operation and is closing in.');
+  banner('A patrol has spotted your mining operation and is closing in.','danger');
   sfx.wave();
 }
 // Gameplay announcements render as a dismissible toast stack (see .toasts in the CSS) instead of
@@ -3640,6 +3647,22 @@ function pushToast(text,type){
 // msg() — suppressed while any menu screen is up front, so no toast is sitting there before the
 // player has even started a run.
 function msg(s){if(menuOpen)return;pushToast(s,inferToastType(s));msgT=S.t}
+// Threats and salvage results go to a banner at the top centre of the screen instead of the toast
+// stack: the newest on top, at most BANNER_MAX, each gone after BANNER_LIFE.
+const BANNER_MAX=2, BANNER_LIFE=6500;let bannerLog=[],bannerSeq=0;
+function banner(s,type){if(menuOpen)return;msgT=S.t;
+  if(bannerLog[0]&&bannerLog[0].text===s){clearTimeout(bannerLog[0].timer);const id=bannerLog[0].id;bannerLog[0].timer=setTimeout(()=>dropBanner(id),BANNER_LIFE);return}
+  const id=++bannerSeq;bannerLog.unshift({id,text:s,type:type||'danger',timer:setTimeout(()=>dropBanner(id),BANNER_LIFE)});
+  while(bannerLog.length>BANNER_MAX)clearTimeout(bannerLog.pop().timer);renderBanners()}
+function dropBanner(id){const i=bannerLog.findIndex(b=>b.id===id);if(i<0)return;bannerLog.splice(i,1);renderBanners()}
+function renderBanners(){const el=document.getElementById('banners');el.innerHTML='';
+  bannerLog.forEach((b,i)=>{const d=document.createElement('div');d.className=`banner ${b.type} ${i?'secondary':''}`;d.textContent=b.text;el.appendChild(d)})}
+// A "can't do that" goes beside the cursor for a moment instead of into the toast stack.
+let curX=innerWidth/2,curY=innerHeight/2,noteTimer=null;
+addEventListener('pointermove',e=>{curX=e.clientX;curY=e.clientY},{passive:true});
+addEventListener('pointerdown',e=>{curX=e.clientX;curY=e.clientY},{passive:true,capture:true});
+function note(s){if(menuOpen)return;const el=document.getElementById('curNote');el.textContent=s;el.style.left=curX+'px';el.style.top=curY+'px';el.style.opacity=1;el._hd=false;
+  clearTimeout(noteTimer);noteTimer=setTimeout(()=>{el.style.opacity=0;noteTimer=setTimeout(()=>{el._hd=true},260)},1600)}
 
 // ---------- terrain & pathfinding ----------
 function genTerrain(){
@@ -4410,7 +4433,7 @@ function cableLenPass(units){
     // path as an enemy chewing through it, which leaves the unit free to walk itself back.
     if(u.cableLen>maxCableLen){
       severUnit(u);
-      msg('A cable stretched too far and snapped — a unit has gone dark.');
+      banner('A cable stretched too far and snapped — a unit has gone dark.','danger');
       sfx.sever();
       return;
     }
@@ -4462,7 +4485,7 @@ function cableSeverPass(allUnits,dt){
       anySevered=true;
     }
   });
-  if(anySevered){msg('A cable was severed — a unit has gone dark.');sfx.sever()}
+  if(anySevered){banner('A cable was severed — a unit has gone dark.','danger');sfx.sever()}
 }
 
 // ---------- input ----------
@@ -4472,7 +4495,7 @@ const LOWGFX_KEY='datascraper_lowgfx_v4';
 let lowGfx=false;try{lowGfx=localStorage.getItem(LOWGFX_KEY)==='1'}catch(e){}
 function gDpr(){return lowGfx?Math.min(1,devicePixelRatio||1)*0.6:(devicePixelRatio||1)}
 function resize(){const d=gDpr();cv.width=Math.round(cv.clientWidth*d);cv.height=Math.round(cv.clientHeight*d);document.body.classList.toggle('lowGfx',lowGfx)}
-function setLowGfx(on){lowGfx=on;try{localStorage.setItem(LOWGFX_KEY,on?'1':'0')}catch(e){}resize();msg(on?'Low graphics ON — lower resolution, no grain (F8 to turn off).':'Low graphics OFF (F8).')}
+function setLowGfx(on){lowGfx=on;try{localStorage.setItem(LOWGFX_KEY,on?'1':'0')}catch(e){}resize()}
 addEventListener('resize',resize);resize();
 function toWorld(sx,sy){const r=cv.getBoundingClientRect();return{x:(sx-r.left-r.width/2)/cam.z+cam.x,y:(sy-r.top-r.height/2)/cam.z+cam.y}}
 cv.addEventListener('contextmenu',e=>e.preventDefault());
@@ -4659,7 +4682,7 @@ document.querySelectorAll('#buildBar button[data-unit]').forEach(b=>b.addEventLi
 // Trooper outright). Stocks top out at their usual size.
 function refreshAutoBuy(){const b=document.getElementById('bAutoBuy');b.classList.toggle('on',autoBuy);document.getElementById('bAutoBuyLabel')._tc=`Auto-buy: ${autoBuy?'on':'off'}`}
 document.getElementById('bAutoBuy').onclick=()=>{autoBuy=!autoBuy;try{localStorage.setItem(AUTOBUY_KEY,autoBuy?'1':'0')}catch(e){}refreshAutoBuy();sfx.click();
-  msg(autoBuy?'Auto-buy on — using an empty stock buys the charge with Dat.':'Auto-buy off — right-click a button to buy charges.')};
+  };
 refreshAutoBuy();
 function buyCharge(k){
   if(!S||S.over||menuOpen)return;
@@ -4668,8 +4691,8 @@ function buyCharge(k){
   const isStab=k==='stabilizer', isProbe=k==='probe';
   const name=isStab?'Stabilizer':isProbe?'Probe':FABS[k].name, cost=isStab?STAB_DAT:isProbe?PROBE_DAT:FAB_DAT[k];
   const have=isStab?S.stabCharges:isProbe?S.probeCharges:S.fab[k].n, max=isStab?STAB_CHARGES:isProbe?PROBE_CHARGES:FABS[k].charges;
-  if(have>=max){msg(`${name} stock is already full.`);return}
-  if(S.dat<cost){msg(`Not enough Dat for a ${name} charge — it costs ${cost}, you have ${Math.floor(S.dat)}.`);return}
+  if(have>=max){note(`${name} stock is full`);return}
+  if(S.dat<cost){note(`Need ◆${cost}`);return}
   S.dat-=cost;floatText(S.base.x,S.base.y-46,`-${cost} Dat`,C.dat);
   if(isStab)S.stabCharges++;else if(isProbe)S.probeCharges++;else S.fab[k].n++;
   sfx.build();updateBuildBar();
@@ -4709,14 +4732,14 @@ document.getElementById('bFollow').onclick=followSelected;document.getElementByI
 let lastGroupKey={n:-1,t:0};
 function assignGroup(n){
   const sel=S.troops.filter(t=>S.sel.troops.has(t.id));
-  if(!sel.length){msg(`Select some units first, then Ctrl+${n} to make them group ${n}.`);return}
+  if(!sel.length){note(`Select units, then Ctrl+${n}`);return}
   S.troops.forEach(t=>{if(t.grp===n)t.grp=null});
   sel.forEach(t=>{t.grp=n});
-  sfx.click();msg(`Group ${n}: ${sel.length} unit${sel.length===1?'':'s'}.`);
+  sfx.click();
 }
 function recallGroup(n){
   const g=S.troops.filter(t=>t.grp===n&&t.hp>0);
-  if(!g.length){msg(`Group ${n} is empty — select units and press Ctrl+${n} to set it.`);return}
+  if(!g.length){note(`Group ${n} is empty`);return}
   S.sel.base=false;S.sel.harv.clear();S.sel.bu.clear();closeProdMenu();
   S.sel.troops.clear();g.forEach(t=>S.sel.troops.add(t.id));
   const now=performance.now();
@@ -4773,21 +4796,21 @@ function fabUnit(k){
   if(!S||S.over||menuOpen)return;
   if(!fabUnlocked(k))return;
   if(k==='troop'){ // troopers: up to the cap, each one bought with Dat
-    if(squadCount()>=S.squadCap){msg(`Trooper limit reached (${squadCount()}/${S.squadCap}). Salvage from Large nests and Mega nests can raise it.`);return}
+    if(squadCount()>=S.squadCap){note(`Trooper limit ${squadCount()}/${S.squadCap}`);return}
     if(!payDat(SQUAD_DAT,'Trooper'))return;
   }else if(isSquadLike(k)){
-    if(unitHave(k)>=unitLimit(k)){msg(`${FABS[k].name} limit reached (${unitHave(k)}/${unitLimit(k)}).`);return}
+    if(unitHave(k)>=unitLimit(k)){note(`${FABS[k].name} limit ${unitHave(k)}/${unitLimit(k)}`);return}
     if(!payDat(unitPrice(k),FABS[k].name))return;
   }else{
     const cap=FABS[k].cap;
-    if(cap&&unitAlive(k)>=cap){msg(`${FABS[k].name} limit reached — you can field ${cap} at once.`);return}
+    if(cap&&unitAlive(k)>=cap){note(`${FABS[k].name} limit ${cap}`);return}
     if(!useFab(k))return;
   }
   const a=rnd(0,Math.PI*2), u=mkTroop(Date.now()+Math.floor(Math.random()*1000),k);
   u.x=S.base.x+Math.cos(a)*(S.base.r+12);u.y=S.base.y+Math.sin(a)*(S.base.r+12);
   S.troops.push(u);guardBastion(u);
   burst(u.x,u.y,C.ally,8,90,0.35);sfx.build();
-  msg(`${FABS[k].name} deployed.`);updateBuildBar();
+  updateBuildBar();
 }
 // Structures are lobbed from the Bastion and stand up the moment they land.
 function landFabShot(sh){
@@ -4797,11 +4820,9 @@ function landFabShot(sh){
   if(sh.k==='turret'||sh.k==='podturret'){
     const pod=sh.k==='podturret',hp=pod?PODT_HP:TURRET_HP;
     S.turrets.push({x:w.x,y:w.y,hp,maxHp:hp,cd:0,ang:0,kind:sh.k,built:true,buildT:TURRET_BUILD_T,buildTotal:TURRET_BUILD_T,builder:null,repairer:null,tower:!!sh.free,pods:pod?PODT_CELLS:0});
-    msg(sh.free?(pod?'Missile Pod raised on a wall end.':'Bulwark Tower raised on a wall end.'):pod?'Missile Pod deployed.':'Turret deployed.');
   }else{
     S.relays.push({x:w.x,y:w.y,hp:RELAY_HP,maxHp:RELAY_HP,kind:'relay',built:true,buildT:RELAY_BUILD_T,buildTotal:RELAY_BUILD_T,builder:null,repairer:null,
       state:null,tetherOk:false,trail:null,cableHp:0,cableLen:0,cableMaxed:false,reconnectT:0,wasFree:false,gunCd:0,ang:0});
-    msg('Relay deployed.');
   }
   burst(w.x,w.y,C.builder,12,120,0.45);shakeScreen(2,0.12);sfx.build();
 }
@@ -4816,9 +4837,8 @@ function drawFabShots(){
     ctx.strokeStyle=C.builder;ctx.globalAlpha=0.35;ctx.setLineDash([4,6]);ctx.beginPath();ctx.arc(sh.tx,sh.ty,14,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1});
 }
 function resumeAutoLoop(){
-  if(S.sel.harv.size===0){msg('Select harvesters to resume their auto-gather loop.');return}
+  if(S.sel.harv.size===0){return}
   S.harvesters.forEach(h=>{if(S.sel.harv.has(h.id)){h.autoLoop=true;h.following=false}});
-  msg('Auto-gather resumed for selected harvesters.');
   sfx.click();
 }
 // Keeps the selected units orbiting the Bastion at a fixed personal offset as it drives around,
@@ -4830,7 +4850,7 @@ function followSelected(){
   const rawH=[...S.sel.harv].map(id=>S.harvesters.find(h=>h.id===id)).filter(Boolean);
   const rawBu=[...S.sel.bu].map(id=>S.builders.find(b=>b.id===id)).filter(Boolean);
   const all=[...rawT,...rawH,...rawBu];
-  if(all.length===0){msg('Select units to follow the Bastion.');return}
+  if(all.length===0){note('Select units first');return}
   all.forEach((u,i)=>{
     u.following=true;u.dest=null;u.target=null;u.state='idle';u.guard=null;u.hold=false;u.wallHome=null;u.manning=null;u.formAng=null;
     u.followAng=(i/all.length)*Math.PI*2+rnd(-0.15,0.15);
@@ -4838,17 +4858,15 @@ function followSelected(){
   });
   rawH.forEach(h=>{h.autoLoop=false;h.node=null;h.state='idle'});
   rawBu.forEach(bu=>{releaseBuilderClaim(bu);bu.state='idle'});
-  msg('Selected units will stick near the Bastion until given another order.');
   sfx.click();
 }
 // Hold position: the selected combat units plant where they stand (or, if they're all holding
 // already, are released back to normal).
 function holdSelected(){
   const sel=[...S.sel.troops].map(id=>S.troops.find(t=>t.id===id)).filter(Boolean);
-  if(!sel.length){msg('Select Troopers or Paladins to hold position.');return}
+  if(!sel.length){note('Select Troopers or Paladins');return}
   const release=sel.every(t=>t.hold);
   sel.forEach(t=>{t.hold=!release;t.wallHome=null;t.following=false;t.guard=null;t.dest=null;t.target=null;t.pace=null;t.state='idle';t.post={x:t.x,y:t.y}});
-  msg(release?'Released from hold.':`${sel.length===1?'Unit':sel.length+' units'} holding position. Held units side by side fire faster.`);
   sfx.click();updateBuildBar();
 }
 // Moves a following unit toward its personal orbit point around the (possibly moving) Bastion.
@@ -4866,11 +4884,10 @@ function releaseBuilderClaim(bu){
   if(bu.target.repairer===bu)bu.target.repairer=null;
 }
 function toggleRepairMode(){
-  if(S.sel.bu.size===0){msg('Select builders to toggle their mode.');return}
+  if(S.sel.bu.size===0){return}
   const anyOn=S.builders.some(b=>S.sel.bu.has(b.id)&&b.autoRepair);
   const newVal=!anyOn;
   S.builders.forEach(b=>{if(S.sel.bu.has(b.id)){b.autoRepair=newVal;if(!newVal&&b.state==='repair'){releaseBuilderClaim(b);b.state='idle';b.target=null;b.following=false}}});
-  msg(newVal?'Selected builders will auto-repair when idle.':'Selected builders will no longer auto-repair.');
   sfx.click();
   updateBuildBar();
 }
@@ -4998,7 +5015,7 @@ function tryLockdown(){
   const v=canLockdown();
   if(!v){
     const cracked=S.veins.find(x=>x.crackedT>0&&dist(S.base,x.mine)<BASE_R+18);
-    msg(cracked?`This vein is still cracked from the rupture — ${Math.ceil(cracked.crackedT)}s until it can be drilled.`:'Move the Bastion onto the glowing centre of a vein first.');
+    note(cracked?`Vein still cracked — ${Math.ceil(cracked.crackedT)}s`:'Move onto a vein first');
     return;
   }
   S.throttleMul=1; S.base.locked=true; S.base.dest=null;
@@ -5013,10 +5030,9 @@ function tryLockdown(){
 // ticking — so a stockpile can build up (or a player can step away) without the drill eating
 // through it or the fight escalating in the meantime. The Bastion stays locked down either way.
 function toggleDrillPause(){
-  if(!S.base.locked||!S.activeVein){msg('Not drilling.');return}
+  if(!S.base.locked||!S.activeVein){note('Not drilling');return}
   const v=S.activeVein;
   v.paused=!v.paused;
-  msg(v.paused?'Drilling paused — Dat Crystal reserved.':'Drilling resumed.');
   sfx.click();
   updateBuildBar();
 }
@@ -5036,9 +5052,9 @@ function drawTacPause(vw,vh){
   const txt='TACTICAL PAUSE',sub='orders and builds still work · Space to resume';
   ctx.font='700 16px '+css('--mono');ctx.textAlign='center';ctx.textBaseline='middle';
   const w=Math.max(ctx.measureText(txt).width,(ctx.font='500 12px '+css('--mono'),ctx.measureText(sub).width))+32;
-  ctx.fillStyle='rgba(11,14,18,0.85)';ctx.fillRect(vw/2-w/2,64,w,48);ctx.strokeStyle='rgba(94,200,255,0.6)';ctx.lineWidth=1;ctx.strokeRect(vw/2-w/2+0.5,64.5,w-1,47);
-  ctx.fillStyle=C.ally;ctx.font='700 16px '+css('--mono');ctx.fillText(txt,vw/2,80);
-  ctx.fillStyle=C.muted;ctx.font='500 12px '+css('--mono');ctx.fillText(sub,vw/2,99);
+  ctx.fillStyle='rgba(11,14,18,0.85)';ctx.fillRect(vw/2-w/2,100,w,48);ctx.strokeStyle='rgba(94,200,255,0.6)';ctx.lineWidth=1;ctx.strokeRect(vw/2-w/2+0.5,100.5,w-1,47);
+  ctx.fillStyle=C.ally;ctx.font='700 16px '+css('--mono');ctx.fillText(txt,vw/2,116);
+  ctx.fillStyle=C.muted;ctx.font='500 12px '+css('--mono');ctx.fillText(sub,vw/2,135);
   ctx.restore();
 }
 function togglePause(){
@@ -5053,16 +5069,15 @@ let pingMode=false;
 function pingReach(){return PING_REACH*pingRangeMult()}
 function tryPing(){
   if(pingMode){setPingMode(false);return}
-  if(S.base.pingCd>0){msg('Ping is still recharging.');return}
+  if(S.base.pingCd>0){return}
   setBuild(null);
   setPingMode(true);
-  msg('Ping armed — click a spot within range to scan it. Right-click or Esc to cancel.');
   sfx.click();
 }
 function setPingMode(on){pingMode=on;updateBuildBar()}
 // Ping, step two: fire at w. Returns false (and stays armed) if w is out of reach.
 function firePing(w){
-  if(dist(w,S.base)>pingReach()){msg('Out of ping range — pick a spot inside the dashed ring.');return false}
+  if(dist(w,S.base)>pingReach()){return false}
   const r=PING_REVEAL_R;
   let deposits=0,veins=0;
   S.nodes.forEach(n=>{if(!n.found&&n.amt>0&&dist(n,w)<=r){n.found=true;deposits++}});
@@ -5076,7 +5091,6 @@ function firePing(w){
   const found=[];
   if(veins)found.push(`${veins} vein mining point${veins===1?'':'s'}`);
   if(deposits)found.push(`${deposits} Dat Crystal deposit${deposits===1?'':'s'}`);
-  msg(`Ping landed — ${found.length?found.join(' and ')+' found':'no new deposits'}; ${enemies?enemies+' enemies':'no enemies'} spotted (visible for ${PING_ENEMY_T}s).`);
   sfx.ping();
   return true;
 }
@@ -5103,9 +5117,9 @@ function probeRange(){return PROBE_RANGE*pingRangeMult()}
 function setProbeMode(on){probeMode=on;updateBuildBar()}
 function tryProbe(){
   if(probeMode){setProbeMode(false);return}
-  if(S.probeCharges<=0){msg(`No probes left — one comes back every ${PROBE_RECHARGE_T}s.`);return}
+  if(S.probeCharges<=0){note(`No probes — one back every ${PROBE_RECHARGE_T}s`);return}
   setBuild(null); setProbeMode(true);
-  msg(`Probe armed — click a direction to launch it. It flies straight and can't turn. Right-click or Esc to cancel.`);
+  note('Click a direction to launch · Esc cancels');
   sfx.click();
 }
 function fireProbe(w){
@@ -5184,7 +5198,6 @@ function cancelPendingBuild(w){
   else if(kind==='stabilizer'){S.stabs=S.stabs.filter(st=>st!==obj);if(obj.hot)obj.hot.stab=null}
   const refund=(kind==='relay'&&obj.wasFree)?0:COST[kind];
   S.dat+=refund;
-  msg(refund>0?`${kind[0].toUpperCase()+kind.slice(1)} cancelled — ${refund} Dat Crystal refunded.`:`${kind[0].toUpperCase()+kind.slice(1)} cancelled.`);
   sfx.click();updateBuildBar();
   return true;
 }
@@ -5311,7 +5324,7 @@ function manWall(L,units){
   const keep=manners(L).filter(t=>!units.includes(t)),room=Math.max(0,cap-keep.length);
   const mid={x:mx,y:my},join=units.slice().sort((a,b)=>dist(a,mid)-dist(b,mid)).slice(0,room);
   const left=units.length-join.length;
-  if(!join.length){msg(`That wall is fully manned (${keep.length}/${cap}).`);return}
+  if(!join.length){note(`Wall full (${keep.length}/${cap})`);return}
   const all=keep.concat(join),len=Math.hypot(L.x1-L.x0,L.y1-L.y0),span=Math.max(0,len-2*MAN_END_PAD),n=all.length;
   // spread the rank evenly over the padded stretch, units taking the slots in the order they stand along it
   const ux=L.ux,uy=L.uy,ord=all.slice().sort((a,b)=>(a.x*ux+a.y*uy)-(b.x*ux+b.y*uy));
@@ -5319,7 +5332,6 @@ function manWall(L,units){
     t.following=false;t.guard=null;t.pace=null;t.target=null;t.wallHome=null;t.state='move';
     t.dest={x:mx+ux*o+nx*MAN_OFFSET,y:my+uy*o+ny*MAN_OFFSET};t.formAng=face;t.manning=L;t.wall=t.kind==='brawler';t.wallAng=face});
   sfx.click();
-  msg(`${join.length===1?'1 unit':join.length+' units'} manning the wall (${n}/${cap}) — ${Math.round(MAN_DMG_RED*100)}% less damage behind it, and ranged units shoot ${Math.round(MAN_RANGE_BONUS*100)}% further.${left?` ${left} didn't fit.`:''}`);
 }
 // damage an enemy deals to one of your units: less if it's manning a standing wall
 function allyHit(t,d){return t.manning&&!t.dest&&S.wallLines&&S.wallLines.includes(t.manning)?d*(1-MAN_DMG_RED):d}
@@ -5383,7 +5395,7 @@ function rightClick(w){
   const rawH=[...S.sel.harv].map(id=>S.harvesters.find(h=>h.id===id)).filter(Boolean);
   const rawBu=[...S.sel.bu].map(id=>S.builders.find(b=>b.id===id)).filter(Boolean);
   if(S.sel.base&&rawT.length===0&&rawH.length===0&&rawBu.length===0){
-    if(S.base.locked){msg('The Bastion is locked down while drilling.');return}
+    if(S.base.locked){note('The Bastion is locked while drilling');return}
     S.base.dest={x:w.x,y:w.y};return;
   }
   if(rawT.length===0&&rawH.length===0&&rawBu.length===0)return;
@@ -5431,12 +5443,10 @@ function rightClick(w){
   // pace the group: everyone moving keeps to the slowest of them (unless this is the double click)
   {const mv=selT.filter(t=>t.state==='move'&&t.dest);
    if(mv.length>1&&!dblRC){const sp=mv.map(troopBaseSpeed), lo=Math.min(...sp), hi=Math.max(...sp);
-     if(lo<hi){mv.forEach(t=>{t.pace=lo});S.paceHint=(S.paceHint||0)+1;if(S.paceHint<=2)msg('Moving together at the pace of the slowest unit — right-click again to let everyone move at their own pace.')}}}
+     if(lo<hi){mv.forEach(t=>{t.pace=lo});S.paceHint=(S.paceHint||0)+1}}}
   if(S.glassB)selT.forEach(t=>{if(t.dest)glassPush(t.dest,(t.r||7)+4)}); // a spot hard against crystal moves just clear of it
   if(en&&selT.length){S.attackFx={e:en,t0:performance.now()};if(sfxReady('attackOrder',0.08)){tone(520,0.05,'square',0.05);tone(390,0.08,'square',0.05,0.05)}}
-  if(wallSlot.size>1)msg(`${wallSlot.size} Paladins moving to form a shield wall.`);
   if(guards.length){
-    msg(`${guards.length===1?'1 unit is':guards.length+' units are'} now guarding ${guardName(friend)}.`);
     sfx.click();
   }
 
@@ -5444,14 +5454,11 @@ function rightClick(w){
     selH.forEach(h=>h.following=false);
     if(nearBase){
       selH.forEach(h=>{h.state='return';h.dest=null;h.autoLoop=false});
-      msg('Harvesters returning to drop off — auto-gather paused.');
     }else if(nd){
       selH.forEach(h=>{h.state='harvest';h.node=nd;h.dest=null;h.autoLoop=false});
-      msg('Harvesters assigned to that deposit — auto-gather paused.');
     }else{
       selH.forEach((h,i)=>{const off=selH.length>1?{x:Math.cos(i*2.1)*14,y:Math.sin(i*2.1)*14}:{x:0,y:0};
         h.state='move';h.dest={x:w.x+off.x,y:w.y+off.y};h.node=null;h.autoLoop=false});
-      msg('Harvesters moving — auto-gather paused.');
     }
   }
 
@@ -5486,7 +5493,7 @@ function inHarvestRange(p){
 }
 function fireStabilizer(w){
   const d=dist(w,S.base);
-  if(d>STAB_RANGE){msg('Out of Stabilizer range — get the Bastion closer.');return}
+  if(d>STAB_RANGE){note('Too far — move the Bastion closer');return}
   if(S.stabCharges<=0&&!takeStock(STAB_DAT,'Stabilizer'))return;
   S.stabShots.push({x0:S.base.x,y0:S.base.y,tx:w.x,ty:w.y,t:0,dur:Math.max(0.45,d/STAB_FLIGHT_SPEED),spin:rnd(2,4)*(rnd(0,1)<0.5?-1:1)});
   if(S.stabCharges>0)S.stabCharges--;
@@ -5497,7 +5504,7 @@ function fireStabilizer(w){
 // A spike lands: pin the free hotspot it hit (if any) and buy the vein time, or fizzle.
 function landStabilizer(sh){
   const hit=hotspotAt({x:sh.tx,y:sh.ty});
-  if(!hit){burst(sh.tx,sh.ty,'#8d96a1',10,90,0.4);msg('The Stabilizer missed the hotspot — lead it, they drift.');return}
+  if(!hit){burst(sh.tx,sh.ty,'#8d96a1',10,90,0.4);note('Missed — lead the hotspot');return}
   const {v,h}=hit;
   const st={x:h.x,y:h.y,hp:STAB_HP,maxHp:STAB_HP,kind:'stabilizer',r:12,built:true,buildT:STAB_BUILD_T,buildTotal:STAB_BUILD_T,builder:null,repairer:null,vein:v,hot:h,
     cracks:mkCracks(6,4,30,0.45)};
@@ -5506,7 +5513,6 @@ function landStabilizer(sh){
   else S.surveyVein=v;
   const before=v.lifeBonus||0; v.lifeBonus=Math.min(STAB_LIFE_BONUS*HOTSPOTS_PER_VEIN,before+STAB_LIFE_BONUS);
   burst(h.x,h.y,veinEnergy(v).col,16,140,0.5); shakeScreen(2,0.15); sfx.build();
-  msg(v.lifeBonus>before?`Stabilizer pinned — the vein holds ${STAB_LIFE_BONUS}s longer.`:'Stabilizer pinned.');
 }
 function updateStabilizerShots(dt){
 
@@ -5521,10 +5527,10 @@ function wallPlan(d){
   if(L>WALL_MAX_LEN){const k=WALL_MAX_LEN/L;x1=d.x0+(x1-d.x0)*k;y1=d.y0+(y1-d.y0)*k;L=WALL_MAX_LEN}
   const n=Math.max(1,Math.round(L/WALL_SLAT)),cost=(WALL_DAT_BASE+n*WALL_DAT_PER_SLAT)*wallCostMult();
   const a={x:d.x0,y:d.y0},b={x:x1,y:y1};let why='';
-  if(L<WALL_MIN_LEN)why='Drag out a longer wall.';
-  else if(!inBuildRange(a)||!inBuildRange(b))why="Both ends must be inside the Bastion's dashed ring (or a Relay's).";
-  else if(terrainAt(a.x,a.y)===2||terrainAt(b.x,b.y)===2)why='A wall post cannot land on solid rock.';
-  else if(S.dat<cost)why=`Not enough Dat — this wall costs ${cost}, you have ${Math.floor(S.dat)}.`;
+  if(L<WALL_MIN_LEN)why='Too short';
+  else if(!inBuildRange(a)||!inBuildRange(b))why='Both ends inside the ring';
+  else if(terrainAt(a.x,a.y)===2||terrainAt(b.x,b.y)===2)why='A post would land on rock';
+  else if(S.dat<cost)why=`Need ◆${cost}`;
   return {x0:d.x0,y0:d.y0,x1,y1,L,n,cost,ok:!why,why};
 }
 function startWallDraw(w){const p=wallSnap(w);mouse.wallDraw={x0:p.x,y0:p.y,x1:p.x,y1:p.y,s0:p.snapped,s1:false,sticky:false}}
@@ -5533,7 +5539,7 @@ function finishWallDraw(){
   const d=mouse.wallDraw;mouse.wallDraw=null;if(!d)return;
   const P=wallPlan(d);
   if(P.L<WALL_MIN_LEN)return; // just a click
-  if(!P.ok){msg(P.why);return}
+  if(!P.ok){note(P.why);return}
   if(!payDat(P.cost,'A wall'))return;
   // an end snapped onto another wall's end or a Turret is already anchored: no post needs launching there
   const anch=[!!d.s0,!!d.s1&&P.x1===d.x1&&P.y1===d.y1];
@@ -5603,9 +5609,9 @@ function tryBuild(w){
   if(buildMode==='stabilizer')return fireStabilizer(w);
   if(buildMode==='turret'||buildMode==='podturret'){const p=wallSnap(w,true);w={x:p.x,y:p.y}} // a Turret snaps onto a wall's end or corner
   if(buildMode!=='turret'&&buildMode!=='podturret'&&buildMode!=='relay')return;
-  if(!inBuildRange(w)){msg("Launch inside the Bastion's dashed ring (or a Relay's).");return}
-  if(terrainAt(w.x,w.y)===2){msg('Cannot land a structure on solid rock.');return}
-  if(glassHit(w.x,w.y,12)){msg('Cannot land a structure on crystal.');return}
+  if(!inBuildRange(w)){note('Inside the ring only');return}
+  if(terrainAt(w.x,w.y)===2){note('Not on rock');return}
+  if(glassHit(w.x,w.y,12)){note('Not on crystal');return}
   const gap=buildMode==='relay'?40:26;
   if(dist(w,S.base)<BASE_R+14||S.turrets.some(t=>dist(t,w)<26)||S.relays.some(r=>dist(r,w)<gap)||S.fabShots.some(sh=>dist({x:sh.tx,y:sh.ty},w)<26))return;
   if(!useFab(buildMode))return;
@@ -5839,7 +5845,7 @@ function droneJobAlive(o){
 function updateDrones(dt){
   const B=S.base, noDat=S.dat<=0.01;
   const jobs=noDat?[]:droneJobs();
-  if(noDat&&jobs.length===0&&droneJobs().length&&S.t-S.droneNoDatMsgT>30){S.droneNoDatMsgT=S.t;msg('Repair drones are grounded — out of Dat Crystal. Destroy nests and collect enemy drops to get them flying.')}
+  if(noDat&&jobs.length===0&&droneJobs().length&&S.t-S.droneNoDatMsgT>30){S.droneNoDatMsgT=S.t;banner('Repair drones are grounded — out of Dat Crystal. Destroy nests and collect enemy drops to get them flying.','danger')}
   const load=new Map();
   S.drones.forEach(d=>{if(d.target&&(noDat||!droneJobAlive(d.target))){d.target=null;d.state='dock'}if(d.target)load.set(d.target,(load.get(d.target)||0)+1)});
   S.drones.forEach(d=>{
@@ -5955,7 +5961,7 @@ function startWaveWarn(v,lead){
   const big=nextWaveBig(v), src=waveSources(v);
   S.waveWarn={src,t0:S.t,end:S.t+Math.max(0.5,lead),big};
   const c=src[0],side=compassName(Math.atan2(c.y-v.y,c.x-v.x))||'near side';
-  if(big)msg(`The ground is shaking to the ${side}: a great wave is coming in ${Math.round(lead)}s.`);
+  if(big)banner(`The ground is shaking to the ${side}: a great wave is coming in ${Math.round(lead)}s.`,'danger');
   sfx.rumble(1);
 }
 function updateWaveWarn(dt){
@@ -6037,7 +6043,7 @@ function spawnVeinWave(v){
       if(k>0)nestSpawn(nn,k,'wave',{bigP:th.big}).forEach(e=>{if(rnd(0,1)<th.hunt)e.stabHunter=true});
     });
     const top=feeders[0];
-    msg(`${heavy} pouring out of ${feeders.length>1?feeders.length+' nests':'the nest'} to the ${compassName(Math.atan2(top.y-v.y,top.x-v.x))||'near side'}${why}.${strainMsg}`);
+    banner(`${heavy} pouring out of ${feeders.length>1?feeders.length+' nests':'the nest'} to the ${compassName(Math.atan2(top.y-v.y,top.x-v.x))||'near side'}${why}.${strainMsg}`,'danger');
     sfx.wave();return;
   }
   const a=v.waveDir, sx=v.x+Math.cos(a)*WAVE_SPAWN_DIST, sy=v.y+Math.sin(a)*WAVE_SPAWN_DIST;
@@ -6048,7 +6054,7 @@ function spawnVeinWave(v){
     spawnEnemy(p.x,p.y,'wave',{bigP:th.big});
     if(rnd(0,1)<th.hunt)S.enemies[S.enemies.length-1].stabHunter=true;
   }
-  msg(`${heavy} incoming from the ${a<Math.PI?'south':'north'}${Math.cos(a)>0?'east':'west'}${why}.${strainMsg}`);
+  banner(`${heavy} incoming from the ${a<Math.PI?'south':'north'}${Math.cos(a)>0?'east':'west'}${why}.${strainMsg}`,'danger');
   sfx.wave();
 }
 // A Trooper round: hits its target, then carries on along the same line to full range, hitting up to
@@ -6390,7 +6396,7 @@ function update(dt){
           const p=nearestPlain(Math.max(20,Math.min(W-20,sx+rnd(-100,100))),Math.max(20,Math.min(H-20,sy+rnd(-100,100))));
           spawnEnemy(p.x,p.y,'saboteur');S.enemies[S.enemies.length-1].sabTarget=target;
         }
-        msg(target.kind==='stabilizer'||S.stabs.includes(target)?'A saboteur swarm is creeping in on one of your Stabilizers.':'A saboteur swarm is massing on a Relay\'s cable.');
+        banner(target.kind==='stabilizer'||S.stabs.includes(target)?'A saboteur swarm is creeping in on one of your Stabilizers.':'A saboteur swarm is massing on a Relay\'s cable.','danger');
         sfx.saboteurs();
       }
     }
@@ -6699,7 +6705,7 @@ function update(dt){
       else if(dist(bu,site)>26){const aim=waypointFor(bu,site.x,site.y);moveToward(bu,aim,BUILDER_SPEED*S.mods.moveSpeedMult*factor,dt)}
       else{
         site.buildT+=dt;
-        if(site.buildT>=site.buildTotal){site.built=true;site.builder=null;bu.target=null;bu.state='idle';msg(site.kind==='wall'?'Wall built.':site.kind==='turret'?'Turret built.':site.kind==='depot'?'Depot built.':site.kind==='stabilizer'?`Stabilizer built — the vein's energy is steadier here.`:'Relay built.');sfx.build();spark(site.x,site.y,C.builder,8)}
+        if(site.buildT>=site.buildTotal){site.built=true;site.builder=null;bu.target=null;bu.state='idle';sfx.build();spark(site.x,site.y,C.builder,8)}
       }
     }
     else if(bu.state==='repair'){
@@ -6938,7 +6944,7 @@ function update(dt){
     }
     burst(p.x,p.y,'#ff2a2a',30,220,0.8);
     shakeScreen(7,0.4);
-    msg('A Brute has burst apart — a swarm is pouring out of the wreckage!');
+    banner('A Brute has burst apart — a swarm is pouring out of the wreckage!','danger');
   });
   S.turrets.forEach(t=>{if(t.hp<=0){burst(t.x,t.y,C.accent,10,110,0.5);sfx.relayDown()}});
   S.turrets=S.turrets.filter(t=>t.hp>0);
@@ -6946,19 +6952,19 @@ function update(dt){
   // anchoring for anyone) until a repair-mode builder brings its HP back above zero.
   S.relays.forEach(r=>{
     if(r.hp<=0){
-      if(!r.wasDestroyed){r.wasDestroyed=true;r.tetherOk=false;r.trail=null;r.cableLen=0;r.cableMaxed=false;r.state=null;r.reconnectT=0;msg('A Relay was destroyed — repair it to bring it back online.');burst(r.x,r.y,C.cable,10,110,0.5);sfx.relayDown();shakeScreen(4,0.2)}
+      if(!r.wasDestroyed){r.wasDestroyed=true;r.tetherOk=false;r.trail=null;r.cableLen=0;r.cableMaxed=false;r.state=null;r.reconnectT=0;banner('A Relay was destroyed — repair it to bring it back online.','danger');burst(r.x,r.y,C.cable,10,110,0.5);sfx.relayDown();shakeScreen(4,0.2)}
     } else if(r.wasDestroyed)r.wasDestroyed=false;
   });
   // a destroyed Depot stays put too — it just stops accepting deposits until repaired.
   S.depots.forEach(de=>{
     if(de.hp<=0){
-      if(!de.wasDestroyed){de.wasDestroyed=true;msg('A Depot was destroyed — repair it before harvesters can drop off there again.');burst(de.x,de.y,C.dat,10,110,0.5);sfx.relayDown();shakeScreen(4,0.2)}
+      if(!de.wasDestroyed){de.wasDestroyed=true;banner('A Depot was destroyed — repair it before harvesters can drop off there again.','danger');burst(de.x,de.y,C.dat,10,110,0.5);sfx.relayDown();shakeScreen(4,0.2)}
     } else if(de.wasDestroyed)de.wasDestroyed=false;
   });
   // a destroyed Stabilizer is gone for good — its hotspot comes loose and starts drifting again
   S.stabs.forEach(st=>{if(st.hp<=0){if(st.hot)st.hot.stab=null;
     {const m=st.vein&&st.vein.meter;if(m&&m.phase==='drill'&&(st.lastStrain||0)>0.1){m.x-=(st.steerDir||0)*STRAIN_KICK*st.lastStrain;shakeScreen(5,0.3)}}
-    if(!st.silent){burst(st.x,st.y,C.zone,14,130,0.5);sfx.relayDown();shakeScreen(3,0.2);msg('A Stabilizer was destroyed — the drill needle is slipping!')}}});
+    if(!st.silent){burst(st.x,st.y,C.zone,14,130,0.5);sfx.relayDown();shakeScreen(3,0.2);banner('A Stabilizer was destroyed — the drill needle is slipping!','danger')}}});
   S.stabs=S.stabs.filter(st=>st.hp>0);
   // units killed by an enemy go down and, a moment later, get back up corrupted
   S.troops.forEach(t=>{if(t.hp<=0){S.sel.troops.delete(t.id);sfx.death(t.kind||'troop');if(t.lastHitBy==='enemy')queueReanimation(t,t.kind||'troop')}});
@@ -7153,10 +7159,8 @@ function pickReward(i){
   const c=choice.cards[i];
   if(c.kind==='trade'){
     S.dat+=c.amt; floatText(S.base.x,S.base.y-40,'+'+c.amt+' Dat',C.dat);
-    msg(`Traded the ${choice.tier} reward for +${c.amt} Dat Crystal.`);
   }else{
     c.apply();
-    msg(`${c.name} acquired — ${c.desc}`);
   }
   sfx.click();
   document.getElementById('rewardOverlay')._hd=true;
