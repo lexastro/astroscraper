@@ -1484,7 +1484,8 @@ function placeVeins(){
 // counting down. Once the Bastion locks onto a vein its ripeness is frozen, and the payout tier is
 // settled by the drill meter instead. The contract vein ripens to its peak and holds there.
 const TIER_MULT={Common:0.6,Rare:1,Epic:1.5,Legendary:2,Hive:3};
-const TIER_LADDER={rim:['Common','Rare','Epic'],dense:['Rare','Epic','Legendary'],core:['Rare','Epic','Legendary'],hive:['Epic','Legendary','Hive']};
+// v4: the Rim tops out at Rare — its ladder keeps three steps so its veins ripen and collapse on the same clock
+const TIER_LADDER={rim:['Common','Rare','Rare'],dense:['Rare','Epic','Legendary'],core:['Rare','Epic','Legendary'],hive:['Epic','Legendary','Hive']};
 // v2: a hive vein (Mega nest) has its own ladder topping out at the Hive tier; every other vein uses its band's.
 function veinLadder(v){return TIER_LADDER[v.hive?'hive':v.band]}
 const TIER_ORDER_ALL=['Common','Rare','Epic','Legendary'];
@@ -1704,7 +1705,9 @@ const STAB_WIDEN=0.2, STRIKE_SHRINK_T=12, STRIKE_SHRINK_MIN=0.2, STRIKE_SWEEP_T=
 const METER_TURB={Common:0.17,Rare:0.22,Epic:0.29,Legendary:0.36,Hive:0.38}, METER_K_BASE=1.0, METER_K_STAB=3.5;
 function buildStrip(v){
   const ladder=veinLadder(v), idx=v.lockIdx!=null?v.lockIdx:ripeIdx(v);
-  const floor=ladder[0], ripe=ladder[idx], ri=TIER_ORDER_ALL.indexOf(ripe), above=ri>=0?TIER_ORDER_ALL[ri+1]:null; // nothing above Hive
+  const floor=ladder[0], ripe=ladder[idx], ri=TIER_ORDER_ALL.indexOf(ripe), top=TIER_ORDER_ALL.indexOf(ladder[ladder.length-1]);
+  let above=ri>=0?TIER_ORDER_ALL[ri+1]:null; // nothing above Hive
+  if(above&&top>=0&&TIER_ORDER_ALL.indexOf(above)>top)above=null; // no jackpot band above the band's own ceiling (the Rim's is Rare)
   const widen=1+STAB_WIDEN*veinStabs(v).length, u=v.lockUnstable||0;
   const segs=[];
   const place=(w,o)=>{for(let t=0;t<80;t++){const a=rnd(0.02,0.98-w);if(segs.some(q=>a<q.b+0.008&&a+w>q.a-0.008))continue;segs.push({a,b:a+w,...o});return}};
