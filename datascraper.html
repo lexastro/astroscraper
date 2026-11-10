@@ -425,6 +425,7 @@ body.inMenu :is(#game,#fogGrain,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMet
     <button id="bFabMech" data-unit="mech" hidden><span class="icon">◫</span><span>Mech</span><span class="cost" id="cf_mech">●</span></button>
     <button id="bLock"><span class="icon">⛏</span><span id="bLockLabel">Begin Drilling</span><span class="key">F</span></button>
     <button id="bRig" hidden><span class="icon">⛭</span><span id="bRigLabel">Power the Rig</span><span class="cost" id="cRig"></span><span class="key">Y</span></button>
+    <button id="bStrand" hidden><span class="icon">⚑</span><span>Take on Squad</span><span class="cost" id="cStrand"></span><span class="key">Y</span></button>
     <button id="bPing"><span class="icon">◬</span><span id="bPingLabel">Probe</span><span class="cost" id="cProbe">●●●</span><span class="key">G</span></button>
     <button id="bAutoBuy" title="When on, using an empty stock buys the charge with Dat automatically"><span class="icon">⟳</span><span id="bAutoBuyLabel">Auto-buy: off</span></button>
   </div>
@@ -874,6 +875,70 @@ const DAT_PICKUP_R=26;
 // v4: units inside the Bastion's ring (BUILD_R) regain UNIT_REGEN_PCT of their max HP a second
 const UNIT_REGEN_R=BUILD_R, UNIT_REGEN_PCT=0.01;
 const RIG_CHANCE=0.7, RIG_DAT=200, RIG_LINK_R=BUILD_R, RIG_ISLAND_R=190, RIG_GUARDS=[20,26];
+// Stranded squad: a second kind of distress call, on any map in any zone. A random handful of units
+// cut off from their own Bastion huddle somewhere out in the field with a few enemies prowling
+// round them. Get the Bastion or any unit within STRAND_REACH and pay to take them on — the price is
+// STRAND_FRAC of what they'd cost to buy one by one (so pricier kinds raise it, but it's always a
+// bargain). It can bring kinds you haven't unlocked; that never unlocks building more of them.
+const STRAND_CHANCE=0.75, STRAND_FRAC=0.25, STRAND_REACH=150, STRAND_GUARDS=[3,6];
+const STRAND_SIZE={rim:[3,4],dense:[4,5],core:[5,6]};
+const STRAND_KINDS=[['troop',3],['brawler',2],['marksman',2],['grenadier',1.5],['rocket',1],['mech',0.6]];
+function strandCost(units){return Math.max(15,Math.round(units.reduce((a,u)=>a+unitPrice(u.kind),0)*STRAND_FRAC/5)*5)}
+function strandLabel(units){const c={};units.forEach(u=>{const n=u.kind==='troop'?'Trooper':FABS[u.kind].name;c[n]=(c[n]||0)+1});return Object.entries(c).map(([n,k])=>`${k} ${n}${k>1?'s':''}`).join(', ')}
+function makeStrand(){
+  S.strand=null;if(tutorialMap||Math.random()>STRAND_CHANCE)return;
+  const xmax=W*BARRIER_X-BARRIER_HALF-250,m=NEST_DENSE_EDGE*0.6;let at=null;
+  for(let k=0;k<60&&!at;k++){const a=rnd(0,Math.PI*2),d=rnd(900,2100),x=S.base.x+Math.cos(a)*d,y=S.base.y+Math.sin(a)*d;
+    if(x<m||y<m||x>W-m||y>H-m||frameAB(x,y).a>xmax||terrainAt(x,y)===2||glassHit(x,y,90))continue;
+    if(S.veins.some(v=>dist(v.mine||v,{x,y})<420)||(S.rig&&dist(S.rig,{x,y})<700))continue;
+    at={x,y}}
+  if(!at)return;
+  const band=bandAt(at.x,at.y),[lo,hi]=STRAND_SIZE[band]||STRAND_SIZE.rim,n=Math.round(rnd(lo,hi)),tot=STRAND_KINDS.reduce((a,k)=>a+k[1],0);
+  const units=[];
+  for(let i=0;i<n;i++){let r=Math.random()*tot,kind='troop';for(const [k,w] of STRAND_KINDS){if((r-=w)<=0){kind=k;break}}
+    const u=mkTroop(Date.now()+5000+i*7+Math.floor(Math.random()*1000),kind),a=i/n*Math.PI*2,rr=n>1?22:0,q=nearestPlain(at.x+Math.cos(a)*rr,at.y+Math.sin(a)*rr);
+    u.x=q.x;u.y=q.y;u.ang=a;u.hp=Math.round(u.maxHp*rnd(0.4,0.75));u.aimV=0.8;units.push(u)}
+  S.strand={x:at.x,y:at.y,units,cost:strandCost(units),seen:false,done:false,pingT:40,pingFlash:-99,fuzz:{x:rnd(-200,200),y:rnd(-200,200)}};
+  const g=Math.round(rnd(STRAND_GUARDS[0],STRAND_GUARDS[1]));
+  for(let i=0;i<g;i++){const a=rnd(0,Math.PI*2),rr=rnd(150,260),q=nearestPlain(at.x+Math.cos(a)*rr,at.y+Math.sin(a)*rr);spawnEnemy(q.x,q.y,'roam')}
+}
+function strandInReach(){const g=S.strand;return !!g&&(dist(S.base,g)<=STRAND_REACH+S.base.r||S.troops.some(t=>dist(t,g)<=STRAND_REACH))}
+function tryRescueStrand(){
+  const g=S.strand;if(!g||g.done||!g.seen||S.over||S.paused)return;
+  if(!strandInReach()){msg(`Get the Bastion or one of your units within reach of the stranded squad to take them on.`);return}
+  if(!payDat(g.cost,'Taking on the stranded squad'))return;
+  g.done=true;g.units.forEach(u=>{S.troops.push(u);guardBastion(u);burst(u.x,u.y,C.ally,6,80,0.35)});
+  floatText(g.x,g.y-40,`-${g.cost} Dat`,C.dat);sfx.build();
+  msg(`The stranded squad joins you: ${strandLabel(g.units)}. They're heading back to the Bastion.`);
+  S.strand=null;updateBuildBar();
+}
+function updateStrand(dt){
+  const g=S.strand;if(!g||g.done)return;
+  if(!g.seen&&(visible(g)||g.units.some(u=>visible(u)))){g.seen=true;
+    msg(`A stranded squad — ${strandLabel(g.units)}, cut off from their Bastion. Get within reach and pay ${g.cost} Dat to take them on (button, or Y).`);updateBuildBar()}
+  // slowly turn to watch the dark around them
+  g.units.forEach((u,i)=>{u.ang+=Math.sin(S.t*0.4+i*1.7)*dt*0.25;if(u.flashT>0)u.flashT=Math.max(0,u.flashT-dt)});
+  if(!g.seen&&S.t>=g.pingT){g.pingT=S.t+rnd(40,55);g.pingFlash=S.t;
+    const dir=compassName(Math.atan2(g.y-S.base.y,g.x-S.base.x));
+    msg(`Distress signal — a stranded squad is calling for pickup${dir?`, somewhere ${dir} of the Bastion`:' from close by'}. It's marked on the minimap.`);
+    sfx.distress()}
+  g.uiT=(g.uiT||0)-dt;if(g.uiT<=0){g.uiT=0.5;if(g.seen)updateBuildBar()}
+}
+function drawStrand(){
+  const g=S.strand;if(!g||g.done||!(g.seen||debugNoFog))return;
+  // an emergency beacon planted in the middle, blinking
+  const on=Math.sin(S.t*6)>0;
+  ctx.save();ctx.fillStyle='rgba(0,0,0,0.3)';ctx.beginPath();ctx.ellipse(g.x+2,g.y+3,4,3,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#4d5560';ctx.fillRect(g.x-1,g.y-9,2,10);
+  ctx.fillStyle=on?C.ally:'#2b4250';ctx.beginPath();ctx.arc(g.x,g.y-10,2.6,0,Math.PI*2);ctx.fill();
+  if(on){ctx.globalAlpha=0.25;ctx.beginPath();ctx.arc(g.x,g.y-10,9,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1}
+  // the reach ring, dashed
+  ctx.strokeStyle=C.ally;ctx.globalAlpha=0.35;ctx.lineWidth=1.2;ctx.setLineDash([5,6]);ctx.beginPath();ctx.arc(g.x,g.y,STRAND_REACH,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1;
+  ctx.restore();
+  g.units.forEach(u=>{ctx.save();ctx.globalAlpha=0.85;drawUnitBody(u);ctx.restore();if(u.hp<u.maxHp)hpbar(u.x,u.y-14,16,u.hp/u.maxHp)});
+  ctx.save();ctx.font='11px monospace';ctx.textAlign='center';ctx.fillStyle=C.ally;
+  ctx.fillText(`STRANDED · ◆${g.cost}`,g.x,g.y-46);ctx.restore();
+}
 function rigLinked(){const r=S.rig;return !!r&&S.relays.some(x=>x.built&&x.hp>0&&x.tetherOk&&x.state!=='cut'&&dist(x,r)<=RIG_LINK_R)}
 function pickRigSite(starts){
   if(STOP_BAND!=='dense'||!S.breachSite||rand()>RIG_CHANCE)return null;
@@ -2291,6 +2356,7 @@ function reset(landing){
   S.hiveSites.forEach(st=>{const v=emergeVein(st,{hive:true,ripeT:ripeStart(2)});raiseMounds(v,HIVE_MOUNDS,'mound')});
   S.breachVein=S.breachSite?emergeVein(S.breachSite,{breach:true,ripeT:ripeStart(2)}):null;
   if(S.rigSite)makeRig(S.rigSite);
+  makeStrand();
   // the opening vein: if no starting vein is close to the landing, a fresh one emerges at the
   // nearest Rim site at least LANDING_SITE_CLEAR away
   if(S.sites.some(st=>st.band===(STOP_BAND||'rim'))){const rim=S.sites.filter(st=>st.band===(STOP_BAND||'rim')), clear=rim.filter(st=>dist(st,S.base)>=LANDING_SITE_CLEAR);
@@ -4570,7 +4636,7 @@ addEventListener('keydown',e=>{
   else if(e.key==='F9'){e.preventDefault();perf.on=!perf.on;if(perf.el)perf.el.hidden=!perf.on}
   else if(e.key.toLowerCase()==='c'){selectAllUnitsOfKind('troops')}
   else if(e.key.toLowerCase()==='h'){cam.x=S.base.x;cam.y=S.base.y}
-  else if(e.key.toLowerCase()==='y'){tryCaptureRig()}
+  else if(e.key.toLowerCase()==='y'){const r=S.rig;if(r&&r.seen&&!r.online&&!r.vein.done&&!(S.strand&&S.strand.seen&&strandInReach()))tryCaptureRig();else tryRescueStrand()}
   else if(e.key.toLowerCase()==='f'){if(!e.repeat)tryLockdown()}
   else if(e.key.toLowerCase()==='g'){tryProbe()}
   else if(e.key.toLowerCase()==='v'){followSelected()}
@@ -4609,6 +4675,7 @@ document.querySelectorAll('#buildBar button').forEach(b=>{
 document.getElementById('bLock').onclick=()=>tryLockdown();
 document.getElementById('bPing').onclick=()=>tryProbe();
 document.getElementById('bRig').onclick=()=>tryCaptureRig();
+document.getElementById('bStrand').onclick=()=>tryRescueStrand();
 document.getElementById('bFollow').onclick=followSelected;document.getElementById('bHold').onclick=holdSelected;
 // Shared by the top HUD selector buttons, their mobile equivalents next to the zoom controls, and
 // the T/H/U hotkeys — one selection path for "select every unit of this kind" everywhere it appears.
@@ -4817,6 +4884,10 @@ function updateBuildBar(){
     rb._hd=!(r&&r.seen&&!r.online&&!r.vein.done);
     if(!rb.hidden){const ok=rigLinked()&&S.dat>=RIG_DAT;rb.classList.toggle('dry',!ok);
       document.getElementById('cRig')._tc=`${rigLinked()?'linked':'no link'} · ◆${RIG_DAT}`}}
+  {const sb=document.getElementById('bStrand'),g=S.strand;
+    sb._hd=!(g&&g.seen&&!g.done);
+    if(!sb.hidden){const reach=strandInReach();sb.classList.toggle('dry',!reach||S.dat<g.cost);
+      document.getElementById('cStrand')._tc=`${reach?'in reach':'out of reach'} · ◆${g.cost}`}}
   const pgb=document.getElementById('bPing');
   if(pgb){
     pgb._ds=S.probeCharges<=0&&!probeMode;pgb.classList.remove('dry');
@@ -5980,6 +6051,19 @@ function palShieldEnds(t){
   const rot=t.ang+Math.PI/2,c=Math.cos(rot),sn=Math.sin(rot),w=(x,y)=>({x:t.x+(x*c-y*sn)*PAL_SC,y:t.y+(x*sn+y*c)*PAL_SC});
   return [w(PAL_SH_CX+Math.cos(a1)*PAL_SH_R,cy+Math.sin(a1)*PAL_SH_R),w(PAL_SH_CX+Math.cos(a2)*PAL_SH_R,cy+Math.sin(a2)*PAL_SH_R)];
 }
+function drawUnitBody(t){
+  const gren=t.kind==='grenadier',arty=t.kind==='artillery',mech=t.kind==='mech',rock=t.kind==='rocket',brawl=t.kind==='brawler';
+  ctx.fillStyle=t.flashT>0?'#fff':gren?C.accent:arty?C.condensed:mech?C.mech:rock?ROCKET_COLOR:brawl?BRAWL_COLOR:C.ally;
+  if(gren)drawGrenadier(t);
+  else if(brawl)drawPaladin(t);
+  else if(rock)drawRocketeer(t);
+  else if(arty){const r=t.r;ctx.fillRect(t.x-r,t.y-r*0.6,r*2,r*1.2);ctx.strokeStyle=ctx.fillStyle;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(t.x,t.y);ctx.lineTo(t.x+r*1.7,t.y-r*0.9);ctx.stroke()}
+  else if(mech){ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2);
+    const legW=t.r*0.42,legH=t.r*1.7,bodyW=t.r*1.7,bodyH=t.r*0.95;
+    ctx.fillRect(-bodyW/2-legW,-legH/2,legW,legH);ctx.fillRect(bodyW/2,-legH/2,legW,legH);ctx.fillRect(-bodyW/2,legH/2-bodyH,bodyW,bodyH);ctx.restore()}
+  else if(t.kind==='marksman')drawMarksman(t);
+  else drawRifleman(t);
+}
 function drawPaladin(t){
   const s=palState(t);t._pal=s;const fl=t.flashT>0,L=(a,b,k)=>a+(b-a)*k;
   const AL=C.ally,AD=fl?'#fff':'#2f6f93',G1=fl?'#fff':'#e6e6e6',G2=fl?'#fff':'#ccc',G3='#999',G4='#4d4d4d';
@@ -6343,7 +6427,7 @@ function update(dt){
   updateQuakes(dt);
   updateNests(dt);
   updateMounds(dt);
-  updatePOIs(dt);updateRig(dt);
+  updatePOIs(dt);updateRig(dt);updateStrand(dt);
   {const sig=['troop','brawler','grenadier','rocket','mech','marksman'].map(unitHave).join(',');if(sig!==S.unitSig){S.unitSig=sig;updateBuildBar()}} // the Trooper / Paladin counts on their buttons follow deaths and deployments
   updateFabShots(dt);
   updateDrones(dt);
@@ -7645,24 +7729,7 @@ function draw(){
   (S.shoves||[]).forEach(f=>{const k=f.t/0.3;ctx.save();ctx.globalAlpha=0.5*(1-k);ctx.fillStyle=BRAWL_COLOR;ctx.beginPath();ctx.moveTo(f.x,f.y);ctx.arc(f.x,f.y,BRAWL_KB_R*(0.5+0.5*k),f.a-BRAWL_KB_ARC/2,f.a+BRAWL_KB_ARC/2);ctx.closePath();ctx.fill();ctx.restore()});
   // troops
   S.troops.forEach(t=>{const sel=S.sel.troops.has(t.id),gren=t.kind==='grenadier',arty=t.kind==='artillery',mech=t.kind==='mech',rock=t.kind==='rocket',brawl=t.kind==='brawler';if(sel){ctx.strokeStyle=C.ally;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(t.x,t.y,t.r+5,0,Math.PI*2);ctx.stroke()}
-    ctx.fillStyle=t.flashT>0?'#fff':gren?C.accent:arty?C.condensed:mech?C.mech:rock?ROCKET_COLOR:brawl?BRAWL_COLOR:C.ally;
-    if(gren)drawGrenadier(t);
-    else if(brawl)drawPaladin(t);
-    else if(rock)drawRocketeer(t);
-    else if(arty){const r=t.r;ctx.fillRect(t.x-r,t.y-r*0.6,r*2,r*1.2);ctx.strokeStyle=ctx.fillStyle;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(t.x,t.y);ctx.lineTo(t.x+r*1.7,t.y-r*0.9);ctx.stroke()}
-    else if(mech){
-      // two side "tread" rectangles flanking a shorter body rectangle, matching the reference
-      // silhouette — drawn in local space with "forward" along -y, then rotated so forward
-      // points at t.ang (its default/idle orientation is north, same as the reference art).
-      ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2);
-      const legW=t.r*0.42,legH=t.r*1.7,bodyW=t.r*1.7,bodyH=t.r*0.95;
-      ctx.fillRect(-bodyW/2-legW,-legH/2,legW,legH);
-      ctx.fillRect(bodyW/2,-legH/2,legW,legH);
-      ctx.fillRect(-bodyW/2,legH/2-bodyH,bodyW,bodyH); // bottom-aligned with the legs, not centered
-      ctx.restore();
-    }
-    else if(t.kind==='marksman')drawMarksman(t);
-    else drawRifleman(t);
+    drawUnitBody(t);
     if(t.hp<t.maxHp)hpbar(t.x,t.y-14,16,t.hp/t.maxHp);
     if(sel&&t.grp!=null){ctx.fillStyle='#bfe6ff';ctx.font='bold 9px monospace';ctx.textAlign='center';ctx.fillText(t.grp,t.x,t.y-20);ctx.textAlign='start'}
     if(t.sanity<SANITY_MAX)sanityBar(t.x,t.y-10,16,t.sanity/SANITY_MAX);
@@ -7712,7 +7779,7 @@ function draw(){
     ctx.globalAlpha=p*0.8*fl;ctx.fillStyle=C.zone;ctx.beginPath();ctx.arc(c.x,c.y,c.r,0,Math.PI*2);ctx.fill();
     ctx.globalAlpha=0.35+0.5*p;ctx.strokeStyle=C.zone;ctx.lineWidth=2;ctx.beginPath();ctx.arc(c.x,c.y,c.r+4+(1-p)*22,0,Math.PI*2);ctx.stroke();
     ctx.globalAlpha=1});
-  drawPOIs();drawRig();
+  drawPOIs();drawRig();drawStrand();
   // enemies (only visible)
   const hN=new Path2D(),hC=new Path2D(),hF=new Path2D();let hc=0;
   S.enemies.forEach(e=>{if(e.kind==='nest'){if(debugNoFog||e.seen)drawNest(e);return}
@@ -7835,6 +7902,11 @@ function drawMini(){const s=mini.width/W;mctx.fillStyle='#10151b';mctx.fillRect(
     mctx.strokeStyle=C.accent;mctx.lineWidth=1.5;
     mctx.globalAlpha=boost*(1-ph);mctx.beginPath();mctx.arc((g.x+g.fuzz.x)*s,(g.y+g.fuzz.y)*s,(260+ph*340)*s,0,Math.PI*2);mctx.stroke();
     mctx.globalAlpha=boost;mctx.beginPath();mctx.arc((g.x+g.fuzz.x)*s,(g.y+g.fuzz.y)*s,3,0,Math.PI*2);mctx.fillStyle=C.accent;mctx.fill();mctx.globalAlpha=1}}
+  {const g=S.strand;if(g&&!g.done){
+    if(!g.seen&&S.t>=36){const since=S.t-g.pingFlash,ph=(S.t*0.7+0.5)%1,boost=since<8?1:0.45;
+      mctx.strokeStyle=C.ally;mctx.lineWidth=1.5;mctx.globalAlpha=boost*(1-ph);mctx.beginPath();mctx.arc((g.x+g.fuzz.x)*s,(g.y+g.fuzz.y)*s,(240+ph*300)*s,0,Math.PI*2);mctx.stroke();
+      mctx.globalAlpha=boost;mctx.beginPath();mctx.arc((g.x+g.fuzz.x)*s,(g.y+g.fuzz.y)*s,3,0,Math.PI*2);mctx.fillStyle=C.ally;mctx.fill();mctx.globalAlpha=1}
+    else if(g.seen){mctx.fillStyle=C.ally;mctx.globalAlpha=0.6+0.4*Math.sin(S.t*4);mctx.beginPath();mctx.arc(g.x*s,g.y*s,3.5,0,Math.PI*2);mctx.fill();mctx.globalAlpha=1}}}
   S.depots.forEach(de=>{if(de.built){mctx.fillStyle=de.hp>0?C.dat:C.enemy;mctx.fillRect(de.x*s-2,de.y*s-2,4,4)}});
   S.enemies.forEach(e=>{if(e.kind==='nest'){if(debugNoFog||e.seen){const q=e.size==='small'?2.5:e.size==='large'||e.size==='great'?4.5:3.5;mctx.fillStyle='#8a2c22';mctx.beginPath();mctx.arc(e.x*s,e.y*s,q+1,0,Math.PI*2);mctx.fill();mctx.fillStyle=C.enemy;mctx.beginPath();mctx.arc(e.x*s,e.y*s,q*0.55,0,Math.PI*2);mctx.fill()}return}
     if(debugNoFog||visible(e)){mctx.fillStyle=C.enemy;mctx.fillRect(e.x*s-1,e.y*s-1,2,2)}});
