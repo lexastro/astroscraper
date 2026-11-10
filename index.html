@@ -2189,7 +2189,7 @@ function reset(landing){
   Object.keys(FABS).forEach(k=>{S.fab[k]={n:FABS[k].charges,rt:0}});
   addDrones(DRONE_COUNT);
   for(let i=0;i<(pressureOn('lean')?4:SQUAD_START_N);i++){const u=mkTroop(i);S.troops.push(u);guardBastion(u)}
-  if(!tutorialMap&&!pressureOn('lean'))for(let i=0;i<BRAWL_START_N;i++){const u=mkTroop(100+i,'brawler');S.troops.push(u);guardBastion(u)}
+  if(!pressureOn('lean'))for(let i=0;i<(tutorialMap?4:BRAWL_START_N);i++){ /* the tutorial gets a few Paladins to show the shield wall */const u=mkTroop(100+i,'brawler');S.troops.push(u);guardBastion(u)}
   prodMenuOpen=false;
 
   S.mapSeed=mapSeed; S.mapType=mapType.id; S.mapLayout=mapLayout.id;
@@ -2680,16 +2680,36 @@ const TUTORIAL_STEPS=[
    target:()=>{const v=tutVein();return{x:v.x,y:v.y,r:v.r+20}},
    done:()=>!!tutVein().surveyed},
   {title:'Move the Bastion',
-   text:()=>`Now bring the rig over. Click the Bastion (or press <kbd>B</kbd>) to select it, then <b>right-click the glowing mining point</b> inside the vein. It's slow, so give it a moment to roll over.`,
+   text:()=>`Now bring the rig over. Click the Bastion to select it, then <b>right-click the glowing mining point</b> inside the vein. It's slow, so give it a moment to roll over.`,
    target:()=>{const v=tutVein();return{x:v.mine.x,y:v.mine.y,r:40}},
    done:()=>!!canLockdown()||S.base.locked},
   {title:'Start drilling',
    text:()=>`The Bastion is in position. Press <kbd>F</kbd> (or <b>Begin Drilling</b> in the bottom bar) to lock on. A needle sweeps the drill meter — press <kbd>F</kbd> again to stop it on a good band. The meter zooms in on where you hit, and the drill starts.`,
    done:()=>S.base.locked},
+  {title:'Tactical pause',
+   text:()=>`The first wave is on its way. Press <kbd>Space</kbd> to <b>pause</b> the action. While it's paused you can still select units, give orders and call in builds — they all go ahead when you press <kbd>Space</kbd> again. Use it any time you need a moment to plan. Pause now.`,
+   done:()=>S.tacPause||S.tacUsed},
   {title:'Build a Turret',
-   text:()=>`The first wave takes about 20 seconds to arrive after you lock on — dig in. Press <kbd>T</kbd> and click inside the Bastion's ring to launch a <b>Turret</b>. The Bastion's fabricators hold a small free stock of each thing it can make; once a stock runs out, each one costs Dat Crystal.`,
+   text:()=>`Dig in — you can do all of this while paused. Press <kbd>T</kbd> and click inside the Bastion's ring to launch a <b>Turret</b>. The Bastion's fabricators hold a small free stock of each thing it can make; once a stock runs out, each one costs Dat Crystal.`,
    target:()=>({x:S.base.x,y:S.base.y,r:BUILD_R}),
-   done:()=>S.turrets.some(t=>t.built)},
+   done:()=>S.turrets.some(t=>t.built)||S.fabShots.some(sh=>sh.k==='turret')},
+  {title:'Lay a wall',
+   text:()=>`<b>Walls</b> stop enemies (your own units walk straight through). Press <kbd>Q</kbd>, then <b>click and drag</b> inside the Bastion's ring to draw a wall across the way the enemy will come — the price shows by your cursor. Its two end posts fly out from the Bastion and slats rise between them.`,
+   target:()=>({x:S.base.x,y:S.base.y,r:BUILD_R}),
+   done:()=>(S.wallLines||[]).length>=1},
+  {title:'Chain it',
+   text:()=>`<b>Click the end</b> of your wall, then click again where the next stretch should run to — it joins straight on, no need to hold the button. A wall can start from a Turret too, and a Turret placed near a wall's end snaps onto it. Right-click cancels a wall you're drawing; <kbd>Esc</kbd> leaves wall mode.`,
+   target:()=>({x:S.base.x,y:S.base.y,r:BUILD_R}),
+   done:()=>(S.wallLines||[]).length>=2},
+  {title:'Formations',
+   text:()=>`Now your units. Select some (<kbd>C</kbd> for all Troopers) and <b>right-click and drag</b>: the drag is their front line. They spread out along it facing square to it — the longer the drag, the wider apart. In a mixed group, <b>Paladins</b> take the front rank and lock their shields into one band of light, with Troopers behind.`,
+   done:()=>S.troops.some(t=>t.formAng!=null&&!t.manning)},
+  {title:'Man the wall',
+   text:()=>`Unpause (<kbd>Space</kbd>) so your walls finish rising. Then select some Troopers and <b>right-click a wall</b>: they line up behind it in one rank, taking 25% less damage and shooting 15% further. Hover a wall with units selected to see how many it holds.`,
+   done:()=>S.troops.some(t=>t.manning)},
+  {title:'Hold position',
+   text:()=>`Press <kbd>X</kbd> with units selected to put them on <b>Hold</b>: they plant where they stand and won't chase. Held units standing side by side fire up to 30% faster — and they stay on Hold when you move them somewhere new.`,
+   done:()=>S.troops.some(t=>t.hold)},
   {title:'Pin all three',
    text:()=>`Now pin the vein's <b>other two hotspots</b> with Stabilizers (<kbd>E</kbd>). Pinned Stabilizers hold the drill needle steady — and with all three in, they form a triangle and the <b>steering pad</b> in the drill console lights up. (Missed and out of stock? Right-click the Stabilizer button to buy another for Dat.)`,
    target:()=>{const v=tutVein();return{x:v.x,y:v.y,r:v.r+20}},
@@ -2700,7 +2720,7 @@ const TUTORIAL_STEPS=[
   {title:'The price of steering',
    text:()=>`Leaning on the weight <b>loads</b> the Stabilizers you lean toward — watch its card in the console turn LOADED, then STRAINED, and see the <b>rings of light</b> running in to it on the map. That's where the enemy goes: part of every wave and the saboteurs head straight for the Stabilizer you lean on hardest. Lose it and the needle jerks the other way. Cover it, and don't lean harder than you need.`},
   {title:'Hold the line',
-   text:()=>`Waves pour out of the nests around the vein. Keep your Troopers near the Bastion — click the Trooper button to deploy another (Troopers cost Dat). If the needle slips into the red an alarm sounds: steer it back out within a few seconds or the vein ruptures. Hold out until the vein is drained.`,
+   text:()=>`Waves pour out of the nests around the vein. A <b>rumble and red markers</b> at the screen edge warn you where the next one is coming from, and every few waves a <b>great wave</b> comes. Each wave brings a swarm of small swarmers that pile up against your walls. <b>Right-click an enemy</b> to focus your units on it. Deploy more Troopers, or <b>Marksmen</b> for long-range shots that pierce a line of enemies (both cost Dat). If the needle slips into the red an alarm sounds: steer it back out within a few seconds or the vein ruptures. Hold out until the vein is drained.`,
    done:()=>tutVein().done},
   {title:'Pick a reward',
    text:()=>`Vein drained! Every drained vein lets you pick one upgrade card for the rest of the run — or sell it for Dat. Choose one now.`,
@@ -4888,7 +4908,7 @@ function toggleDrillPause(){
 // launched while paused (Turrets, wall posts) sets off when the game resumes.
 function toggleTacPause(){
   if(!S||S.over||S.rewardChoice||S.paused||menuOpen)return;
-  S.tacPause=!S.tacPause;sfx.click();
+  S.tacPause=!S.tacPause;S.tacUsed=true;sfx.click();
 }
 function drawTacPause(vw,vh){
   if(!S.tacPause)return;
