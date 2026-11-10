@@ -305,6 +305,12 @@ body.lowGfx #fogGrain{display:none}
 .bar i.hp.low{background:var(--enemy);animation:pulseLow 1s ease-in-out infinite}
 @keyframes pulseLow{0%,100%{opacity:1}50%{opacity:.5}}
 .overlay{animation:fadeIn .18s ease}
+#loadOverlay{background:#0b0e12;z-index:40}
+.loadBox{display:flex;flex-direction:column;align-items:center;gap:12px;font-family:var(--mono);color:var(--fg)}
+.loadBox b{font-size:15px;letter-spacing:.08em;text-transform:uppercase}
+.loadBox span{font-size:12px;color:var(--muted)}
+.loadBar{width:260px;max-width:70vw;height:6px;background:#1a2129;border:1px solid var(--line);border-radius:3px;overflow:hidden}
+.loadBar i{display:block;height:100%;width:0;background:var(--accent);transition:width .15s}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 .helpToggleBtn{display:inline-flex;align-items:center;justify-content:center;position:absolute;top:calc(env(safe-area-inset-top,0px) + 8px);right:max(10px,env(safe-area-inset-right,0px));
   width:34px;height:34px;border-radius:50%;background:var(--panel);border:1px solid var(--line);color:var(--fg);
@@ -684,6 +690,7 @@ async function run(d){
   <h1 id="ovTitle"></h1><p id="ovText"></p><button id="ovBtn">Return to Base</button>
 </div>
 
+<div class="overlay" id="loadOverlay" hidden><div class="loadBox"><b>Surveying the ground</b><div class="loadBar"><i id="loadFill"></i></div><span id="loadSub">mapping rock, rift and crystal…</span></div></div>
 <div class="overlay" id="stopOverlay" hidden>
   <h1 id="stopTitle"></h1><p id="stopText"></p><button id="stopBtn">Continue</button>
 </div>
@@ -2580,7 +2587,7 @@ function reset(landing){
   {const maze=STOP_BAND==='dense'&&S.barrier;if(maze)denseMaze();
    const glass=STOP_BAND&&!tutorialMap?placeGlass():false; // v4: purple glass formations in the rift
    if(maze||glass){const keep=rand;rand=seededRng(mapSeed*131+17);terrainCv=buildTerrainCanvas();rand=keep;buildTerrainBlur()}}
-  startTerrainPaint(); // the real ground paints in the background, tile by tile, over the quick placeholder
+  startTerrainPaint(true); // the ground paints in the background; a loading screen covers it until the area round the landing is done
   if(STOP_BAND&&stopInfo().final){S.contractAwake=true;const cv=S.veins.find(v=>v.contract);if(cv)raiseMounds(cv,CONTRACT_MOUNDS,'great')}
   rand=Math.random; // map built — live gameplay goes back to unseeded randomness
   cam={x:S.base.x,y:S.base.y,z:1};
@@ -7764,18 +7771,24 @@ const TPAINT={id:0,items:null,buckets:null,todo:0,got:0,focusT:-9,NTX:1};
 const TP_TS=256,TP_L={x:-0.62,y:-0.62,z:0.48};
 function terrainKinds(){const K=new Uint8Array(TGX*TGY),B=S.barrier;
   for(let i=0;i<K.length;i++){const v=terrain[i];K[i]=(S.glass&&S.glass[i])?5:v===1?1:v===RIFT?3:v===2?((B&&B.type===2&&B.mask&&B.mask[i])?4:2):0}return K}
-function startTerrainPaint(){
+function startTerrainPaint(loading){
   if(!terrainWorker||!S.crackNet)return;
   const id=++TPAINT.id;TPAINT.items=null;TPAINT.buckets=null;TPAINT.got=0;TPAINT.NTX=Math.ceil(W/TP_TS);TPAINT.todo=TPAINT.NTX*Math.ceil(H/TP_TS);
   const sites=(S.crackSites||[]).filter(Boolean).map(st=>({x:st.x,y:st.y,ang:st.knotAng||[]}));
   const shards=(S.glassShards||[]).map(sh=>({x:sh.x,y:sh.y,r:sh.r}));
   terrainWorker.postMessage({type:'focus',x:S.base.x,y:S.base.y});TPAINT.focusT=S.t+1;
+  // the loading screen waits for every tile that a screen round the landing spot touches
+  TPAINT.need=null;TPAINT.loading=false;
+  if(loading&&!menuOpen){const R=Math.max(innerWidth,innerHeight)*0.75+TP_TS,need=new Set();
+    for(let ty=0;ty<Math.ceil(H/TP_TS);ty++)for(let tx=0;tx<TPAINT.NTX;tx++){const cx=Math.max(tx*TP_TS,Math.min(S.base.x,(tx+1)*TP_TS)),cy=Math.max(ty*TP_TS,Math.min(S.base.y,(ty+1)*TP_TS));if(Math.hypot(cx-S.base.x,cy-S.base.y)<R)need.add(ty*TPAINT.NTX+tx)}
+    TPAINT.need=need;TPAINT.needN=need.size;TPAINT.loading=true;TPAINT.loadT0=performance.now();showLoading(true)}
   terrainWorker.postMessage({type:'job',id,W,H,TC:TCELL,GX:TGX,GY:TGY,kind:terrainKinds(),seed:mapSeed,band:STOP_BAND?{rim:0,dense:1,core:2}[STOP_BAND]:null,
     epi:{x:EPI.x,y:EPI.y},coreR:CORE_R,denseR:DENSE_R,net:S.crackNet,dep:S.crackDepth,cid:S.crackId,sites,shards});
 }
+function showLoading(on){TPAINT.loading=on;const el=document.getElementById('loadOverlay');el._hd=!on;if(on)document.getElementById('loadFill').style.width='0%'}
 function terrainFocus(){if(terrainWorker&&TPAINT.got<TPAINT.todo&&S.t-TPAINT.focusT>0.4){TPAINT.focusT=S.t;terrainWorker.postMessage({type:'focus',x:cam.x,y:cam.y})}}
 if(terrainWorker)terrainWorker.onmessage=e=>{const d=e.data;if(d.id!==TPAINT.id)return;
-  if(d.type==='error'){console.error('terrain painter:',d.msg);return}
+  if(d.type==='error'){console.error('terrain painter:',d.msg);showLoading(false);return}
   if(d.type==='meta'){TPAINT.items=d.items;const NT=TPAINT.NTX*Math.ceil(H/TP_TS),bk=new Array(NT);
     d.items.forEach(it=>{const e=it.t===1?it.R*1.6+it.h*0.75+4:it.t===2?it.L+3:it.R*1.6+2;
       for(let ty=Math.max(0,Math.floor((it.y-e)/TP_TS));ty<=Math.min(Math.ceil(H/TP_TS)-1,Math.floor((it.y+e)/TP_TS));ty++)
@@ -7788,7 +7801,10 @@ if(terrainWorker)terrainWorker.onmessage=e=>{const d=e.data;if(d.id!==TPAINT.id)
     return}
   if(d.type==='tile'){const tc=terrainCv.getContext('2d');tc.putImageData(new ImageData(new Uint8ClampedArray(d.buf),d.w,d.h),d.x,d.y);
     if(TPAINT.buckets)drawTerrainItems(tc,d.x,d.y,d.w,d.h);
-    TPAINT.got++;if(TPAINT.got===TPAINT.todo||TPAINT.got%48===0)buildTerrainBlur();return}
+    TPAINT.got++;
+    if(TPAINT.loading&&TPAINT.need){TPAINT.need.delete(Math.floor(d.y/TP_TS)*TPAINT.NTX+Math.floor(d.x/TP_TS));const f=1-TPAINT.need.size/Math.max(1,TPAINT.needN);document.getElementById('loadFill').style.width=(f*100).toFixed(0)+'%';
+      if(!TPAINT.need.size){buildTerrainBlur();showLoading(false);return}}
+    if(TPAINT.got===TPAINT.todo||TPAINT.got%48===0)buildTerrainBlur();return}
 };
 // a vein site's light, tinted to the vein's colour (cached per colour)
 function siteLight(L,col){let t=L.tint[col];if(t)return t;const mk=src=>{const c=document.createElement('canvas');c.width=src.width;c.height=src.height;const x=c.getContext('2d');x.drawImage(src,0,0);x.globalCompositeOperation='source-in';x.fillStyle=col;x.fillRect(0,0,c.width,c.height);return c};
@@ -8382,7 +8398,8 @@ function perfTick(ts,gap,up,dr){
 }
 function frame(ts){requestAnimationFrame(frame); // asked for first, so one bad frame can't stop the game for good
   const gap=ts-lastT,dt=Math.min(0.05,gap/1000||0);lastT=ts;document.body.classList.toggle('inMenu',menuOpen);
-  const a=performance.now();update(dt);tutTick();const b=performance.now();if(cv.width>0&&cv.height>0)draw();perfTick(ts,gap||0,b-a,performance.now()-b)}
+  if(TPAINT.loading&&performance.now()-TPAINT.loadT0>25000)showLoading(false);
+  const a=performance.now();if(!TPAINT.loading){update(dt);tutTick()}const b=performance.now();if(cv.width>0&&cv.height>0)draw();perfTick(ts,gap||0,b-a,performance.now()-b)}
 reset();refreshMenuMeta();requestAnimationFrame(frame);
 // Title-screen build marker: the live latest commit on master, not a hand-maintained string — a
 // baked-in value can never equal its own commit's hash (the hash is computed FROM the file's
