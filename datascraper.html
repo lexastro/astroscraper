@@ -412,6 +412,7 @@ body.inMenu :is(#game,#fogGrain,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMet
        cost. Structures (data-mode) are aimed and launched; units (data-unit) deploy at once. -->
   <div class="build" id="buildBar">
     <button id="bTurret" data-mode="turret"><span class="icon">⌖</span><span>Turret</span><span class="cost" id="cf_turret">●●</span><span class="key">T</span></button>
+    <button id="bPodTurret" data-mode="podturret" hidden><span class="icon">⁘</span><span>Missile Pod</span><span class="cost" id="cf_podturret">●</span><span class="key">M</span></button>
     <button id="bWall" data-mode="wall"><span class="icon">▤</span><span>Wall</span><span class="cost" id="cWall">◆2/slat</span><span class="key">Q</span></button>
     <button id="bRelay" data-mode="relay"><span class="icon">⟐</span><span>Relay</span><span class="cost" id="cf_relay">●●●</span><span class="key">R</span></button>
     <button id="bFabTroop" data-unit="troop"><span class="icon">▲</span><span>Trooper</span><span class="cost" id="cf_troop">●●</span></button>
@@ -765,6 +766,9 @@ const WALL_BUILD_T=1, TURRET_BUILD_T=5, RELAY_BUILD_T=3, DEPOT_BUILD_T=4, REPAIR
 const RELAY_RECONNECT_T=2.5;
 // Turret firing rate +100% (cooldown halved from 0.65s to 0.325s), range -25% (240 -> 180).
 const TURRET_RANGE=180, TURRET_DMG=14, TURRET_CD=0.325, TURRET_HP=150;
+// Missile Pod turret (a later unlock): the Grenadier's pod scaled up into a structure. Eight cells
+// reload one at a time; once all eight are full it ripples the whole salvo onto one cluster.
+const PODT_CELLS=8, PODT_RANGE=270, PODT_HP=240, PODT_GAP=0.08, PODT_RELOAD=0.45, PODT_DMG=14, PODT_SPLASH=50, PODT_SPREAD=48;
 const RELAY_HP=100;
 // Energy Surge (reward card): every powered, tethered Relay pulses together on one shared timer
 // while a vein is actively being drilled. Each pulse is a ring that expands out from the Relay at
@@ -812,6 +816,7 @@ const COST={wall:5,turret:75,relay:15,depot:150,stabilizer:20,harvester:75,troop
 // deploy straight out of the Bastion. A lost unit or structure is never refunded.
 const FABS={
   turret:{name:'Turret',charges:2,t:45,kind:'structure'},
+  podturret:{name:'Missile Pod',charges:1,t:90,kind:'structure',unlock:'unlockPodTurret'},
   relay:{name:'Relay',charges:3,t:20,kind:'structure'},
   troop:{name:'Trooper',charges:2,t:40,kind:'unit'},
   brawler:{name:'Paladin',charges:0,t:35,kind:'unit',cap:16,squadLike:true}, // v4: cheap melee wall — fielded up to 16 like Troopers, paid for with Dat (no stock)
@@ -826,7 +831,7 @@ const FAB_FLIGHT_SPEED=380;
 // use is free; once it's empty, every use costs Dat (FAB_DAT / STAB_DAT / PROBE_DAT). Nests and
 // salvage can still put free charges back.
 // v4: build and unit prices doubled
-const FAB_DAT={turret:60,relay:24,grenadier:60,artillery:90,mech:120,rocket:90,brawler:30,marksman:70}, STAB_DAT=24, PROBE_DAT=8;
+const FAB_DAT={turret:60,podturret:150,relay:24,grenadier:60,artillery:90,mech:120,rocket:90,brawler:30,marksman:70}, STAB_DAT=24, PROBE_DAT=8;
 // Troopers aren't stocked: you can field up to S.squadCap of them at once (SQUAD_CAP_START, raised by
 // salvage and a reward card up to SQUAD_CAP_MAX), each new one costing SQUAD_DAT.
 const SQUAD_CAP_START=12, SQUAD_CAP_MAX=24, SQUAD_START_N=6, SQUAD_DAT=40;
@@ -989,7 +994,7 @@ const PRESSURE=[
   {id:'frail',name:'Brittle Units',icon:'✚',cost:8,bonus:0.2,desc:'Troopers, Paladins and the rest have 25% less health.'},
   {id:'lean',name:'Lean Start',icon:'◇',cost:4,bonus:0.1,desc:'Start with 20 Dat, 4 Troopers and no Paladins (instead of 60 Dat, 6 Troopers and 8 Paladins).'},
 ];
-const ARTY_UNLOCK_COST=2, GREN_UNLOCK_COST=1, MECH_UNLOCK_COST=1, ROCKET_UNLOCK_COST=1;
+const ARTY_UNLOCK_COST=2, GREN_UNLOCK_COST=1, MECH_UNLOCK_COST=1, ROCKET_UNLOCK_COST=1, PODT_UNLOCK_COST=3;
 function loadMeta(){
   try{
     const raw=localStorage.getItem(META_KEY);
@@ -999,14 +1004,14 @@ function loadMeta(){
       // recordingConsent is tri-state: true (allowed), false (disabled), undefined (never asked
       // — the consent screen shows until this becomes one of the other two).
       return {condensedBank:m.condensedBank|0,livingBank:m.livingBank|0,unlockArtillery:!!m.unlockArtillery,unlockGrenadier:!!m.unlockGrenadier,
-        unlockMech:!!m.unlockMech,unlockRocket:!!m.unlockRocket,pressure:Array.isArray(m.pressure)?m.pressure.filter(x=>typeof x==='string'):[],
+        unlockMech:!!m.unlockMech,unlockRocket:!!m.unlockRocket,unlockPodTurret:!!m.unlockPodTurret,pressure:Array.isArray(m.pressure)?m.pressure.filter(x=>typeof x==='string'):[],
         // every stored tier, whatever the key — listing them by hand here silently dropped any
         // upgrade added later (Rapid Loaders / Magnetic Collectors) on every page reload
         upgrades:Object.fromEntries(Object.entries(mu).map(([k,v])=>[k,v|0])),
         recordingConsent:m.recordingConsent===true?true:m.recordingConsent===false?false:undefined};
     }
   }catch(e){}
-  return {condensedBank:0,livingBank:0,unlockArtillery:false,unlockGrenadier:false,unlockMech:false,unlockRocket:false,pressure:[],
+  return {condensedBank:0,livingBank:0,unlockArtillery:false,unlockGrenadier:false,unlockMech:false,unlockRocket:false,unlockPodTurret:false,pressure:[],
     upgrades:{bastionHp:0,unitHp:0,pingRange:0},recordingConsent:undefined};
 }
 function saveMeta(){try{localStorage.setItem(META_KEY,JSON.stringify(meta))}catch(e){}}
@@ -1262,6 +1267,8 @@ const UPGRADES={
     {id:'overdrive',name:'Overdrive Capacitor',desc:'Drill rate +40%.',apply:()=>{S.mods.drillRateMult*=1.4}},
     {id:'cablehp2',name:'Hardened Network',desc:'All tether cable HP +150%.',apply:()=>{S.mods.cableHpMult*=2.5}},
     {id:'living1',name:'Rich Vein Memory',desc:'Living Crystal yield ×2 for the rest of the run.',apply:()=>{S.mods.livingMult*=2}},
+    {id:'podTowers',name:'Missile Battery Walls',desc:'Every wall end gets a free Missile Pod — on the walls you have now and every wall you build from here on. Turrets raised by Bulwark Towers become Missile Pods. A pod that falls is not replaced.',has:()=>S.mods.podTowers||!meta.unlockPodTurret,
+     apply:()=>{S.mods.podTowers=true;S.fabShots.forEach(sh=>{if(sh.free&&sh.k==='turret')sh.k='podturret'});S.turrets.forEach(t=>{if(t.tower&&t.kind==='turret'){const f=t.hp/t.maxHp;t.kind='podturret';t.maxHp=PODT_HP;t.hp=PODT_HP*f;t.pods=PODT_CELLS;burst(t.x,t.y,ROLE_COL.grenadier,10,110,0.4)}});wallTowers()}},
     {id:'energySurge3',name:'Energy Surge III',desc:'Energy Surge still pulses every 5s, and now damages enemies it reaches too.',apply:()=>{S.mods.energySurgeLevel=Math.max(S.mods.energySurgeLevel,3)}},
   ],
 };
@@ -2188,7 +2195,7 @@ function reset(landing){
     // reset back to baseline (1 / 0 / false) by a fresh reset(), never persisted between runs.
     mods:{carryMult:1,troopDmgMult:1,moveSpeedMult:1,visionMult:1,relayTolMult:1,drillBurnMult:1,
       cableLenAdd:0,cableHpMult:1,condensedMult:1,livingMult:1,fastBonus:0,drillRateMult:1,freeRelayCharges:0,
-      grenFireRateMult:1,grenSplashMult:1,squadRangeMult:1,bigGuns:false,bastionShootWhileDrilling:false,wallTowers:false,
+      grenFireRateMult:1,grenSplashMult:1,squadRangeMult:1,bigGuns:false,bastionShootWhileDrilling:false,wallTowers:false,podTowers:false,
       energySurgeLevel:0,armedRelays:false,martyrs:false,fabRateMult:1},
     rewardChoice:null,pingRing:null,pings:[],reanim:[],stabs:[],stabShots:[],stabCharges:3,stabRechargeT:0,probes:[],probeCharges:3,probeRechargeT:0,paused:false,
     sel:{base:false,troops:new Set(),harv:new Set(),bu:new Set()},
@@ -2467,6 +2474,7 @@ const UNLOCKS=[
   {flag:'unlockGrenadier',cost:GREN_UNLOCK_COST,name:'Grenadier',icon:'✺'},
   {flag:'unlockMech',cost:MECH_UNLOCK_COST,name:'Mech',icon:'◫'},
   {flag:'unlockRocket',cost:ROCKET_UNLOCK_COST,name:'Rocketeer',icon:'➶'},
+  {flag:'unlockPodTurret',cost:PODT_UNLOCK_COST,name:'Missile Pod',icon:'⁘'},
 ];
 // Permanent, tiered upgrades bought with Condensed Crystal — unlike UNLOCKS these aren't one-shot:
 // meta.upgrades[key] holds how many tiers are already bought (0..max). costs[i] is the price of
@@ -4550,7 +4558,7 @@ cv.addEventListener('wheel',e=>{e.preventDefault();const w0=toWorld(e.clientX,e.
 addEventListener('keydown',e=>{
   if(menuOpen||e.target.tagName==='INPUT')return; keys[e.key.toLowerCase()]=true; keys[e.key]=true;
   if(/^Digit[0-9]$/.test(e.code||'')&&!e.altKey){e.preventDefault();const n=+e.code.slice(5);if(e.ctrlKey||e.metaKey)assignGroup(n);else if(!e.repeat)recallGroup(n);return}
-  if(e.key.toLowerCase()==='q')setBuild(buildMode==='wall'?null:'wall'); else if(e.key.toLowerCase()==='t')setBuild(buildMode==='turret'?null:'turret'); else if(e.key.toLowerCase()==='r')setBuild(buildMode==='relay'?null:'relay'); else if(e.key.toLowerCase()==='e')setBuild(buildMode==='stabilizer'?null:'stabilizer');
+  if(e.key.toLowerCase()==='q')setBuild(buildMode==='wall'?null:'wall'); else if(e.key.toLowerCase()==='t')setBuild(buildMode==='turret'?null:'turret'); else if(e.key.toLowerCase()==='r')setBuild(buildMode==='relay'?null:'relay'); else if(e.key.toLowerCase()==='e')setBuild(buildMode==='stabilizer'?null:'stabilizer'); else if(e.key.toLowerCase()==='m'&&fabUnlocked('podturret'))setBuild(buildMode==='podturret'?null:'podturret');
   else if(e.key==='Escape'){if(!document.getElementById('drillSelectOverlay').hidden){closeDrillSelect()}else if(probeMode){setProbeMode(false)}else if(pingMode){setPingMode(false)}else if(buildMode||prodMenuOpen){setBuild(null);closeProdMenu()}else togglePause()} else if(e.key.toLowerCase()==='b'){S.sel.troops.clear();S.sel.harv.clear();S.sel.bu.clear();S.sel.base=true}
   // v4: Q wall, T turret, E Stabilizer, G probe, Y power a rig, C all units, F drill (lock on / strike)
   else if(e.key==='F8'){e.preventDefault();setLowGfx(!lowGfx)}
@@ -4690,9 +4698,10 @@ function landFabShot(sh){
   const w={x:sh.tx,y:sh.ty};
   if(sh.k==='wallpost'){const L=sh.line;L.posts[sh.end]=true;burst(w.x,w.y,'#8d9aa8',8,100,0.35);shakeScreen(1.5,0.1);sfx.build();
     if(L.posts[0]&&L.posts[1]&&L.raiseT0==null)L.raiseT0=S.t;return}
-  if(sh.k==='turret'){
-    S.turrets.push({x:w.x,y:w.y,hp:TURRET_HP,maxHp:TURRET_HP,cd:0,ang:0,kind:'turret',built:true,buildT:TURRET_BUILD_T,buildTotal:TURRET_BUILD_T,builder:null,repairer:null});
-    msg(sh.free?'Bulwark Tower raised on a wall end.':'Turret deployed.');
+  if(sh.k==='turret'||sh.k==='podturret'){
+    const pod=sh.k==='podturret',hp=pod?PODT_HP:TURRET_HP;
+    S.turrets.push({x:w.x,y:w.y,hp,maxHp:hp,cd:0,ang:0,kind:sh.k,built:true,buildT:TURRET_BUILD_T,buildTotal:TURRET_BUILD_T,builder:null,repairer:null,tower:!!sh.free,pods:pod?PODT_CELLS:0});
+    msg(sh.free?(pod?'Missile Pod raised on a wall end.':'Bulwark Tower raised on a wall end.'):pod?'Missile Pod deployed.':'Turret deployed.');
   }else{
     S.relays.push({x:w.x,y:w.y,hp:RELAY_HP,maxHp:RELAY_HP,kind:'relay',built:true,buildT:RELAY_BUILD_T,buildTotal:RELAY_BUILD_T,builder:null,repairer:null,
       state:null,tetherOk:false,trail:null,cableHp:0,cableLen:0,cableMaxed:false,reconnectT:0,wasFree:false,gunCd:0,ang:0});
@@ -4706,7 +4715,7 @@ function updateFabShots(dt){
 function drawFabShots(){
   S.fabShots.forEach(sh=>{const p=sh.t/sh.dur, x=sh.x0+(sh.tx-sh.x0)*p, y=sh.y0+(sh.ty-sh.y0)*p, lift=Math.sin(p*Math.PI)*Math.min(90,sh.dur*60);
     ctx.fillStyle='rgba(0,0,0,0.35)';ctx.beginPath();ctx.ellipse(x,y,6,3,0,0,Math.PI*2);ctx.fill();
-    ctx.save();ctx.translate(x,y-lift);ctx.rotate(sh.t*6);ctx.fillStyle=sh.k==='turret'?C.accent:sh.k==='wallpost'?'#8d9aa8':C.cable;ctx.strokeStyle='#000';ctx.lineWidth=1;
+    ctx.save();ctx.translate(x,y-lift);ctx.rotate(sh.t*6);ctx.fillStyle=sh.k==='podturret'?ROLE_COL.grenadier:sh.k==='turret'?C.accent:sh.k==='wallpost'?'#8d9aa8':C.cable;ctx.strokeStyle='#000';ctx.lineWidth=1;
     ctx.fillRect(-6,-6,12,12);ctx.strokeRect(-6,-6,12,12);ctx.restore();
     ctx.strokeStyle=C.builder;ctx.globalAlpha=0.35;ctx.setLineDash([4,6]);ctx.beginPath();ctx.arc(sh.tx,sh.ty,14,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1});
 }
@@ -4781,6 +4790,7 @@ function updateBuildBar(){
       return;
     }
     const k=b.dataset.mode;
+    b._hd=!fabUnlocked(k);
     b._ds=false;b.classList.toggle('dry',S.fab[k].n<=0);
     document.getElementById('cf_'+k)._tc=fabPips(k);
   });
@@ -5102,7 +5112,7 @@ function guardName(g){
   if(S.troops.includes(g))return 'the '+(GUARD_UNIT_NAMES[g.kind]||'Trooper');
   if(S.harvesters.includes(g))return 'the Harvester';
   if(S.builders.includes(g))return 'the Builder';
-  if(S.turrets.includes(g))return 'the Turret';
+  if(S.turrets.includes(g))return g.kind==='podturret'?'the Missile Pod':'the Turret';
   if(S.relays.includes(g))return 'the Relay';
   return 'the Depot';
 }
@@ -5439,12 +5449,13 @@ function finishWallDraw(){
 // (L.tower marks it, so a tower that's destroyed isn't rebuilt). Ends shared by two walls, or
 // already anchored on a Turret, get only the one.
 function wallTowers(){
-  if(!S.mods.wallTowers||!S.wallLines)return;
-  const near=(p)=>S.turrets.some(t=>dist(t,p)<4)||S.fabShots.some(sh=>sh.k==='turret'&&Math.hypot(sh.tx-p.x,sh.ty-p.y)<4);
+  if(!(S.mods.wallTowers||S.mods.podTowers)||!S.wallLines)return;
+  const k=S.mods.podTowers?'podturret':'turret';
+  const near=(p)=>S.turrets.some(t=>dist(t,p)<4)||S.fabShots.some(sh=>(sh.k==='turret'||sh.k==='podturret')&&Math.hypot(sh.tx-p.x,sh.ty-p.y)<4);
   S.wallLines.forEach(L=>{L.tower=L.tower||[false,false];
     [[L.x0,L.y0],[L.x1,L.y1]].forEach(([x,y],i)=>{if(L.tower[i]||!L.posts[i])return;L.tower[i]=true;const p={x,y};
       if(near(p))return;
-      const dd=Math.hypot(x-S.base.x,y-S.base.y);S.fabShots.push({k:'turret',free:true,x0:S.base.x,y0:S.base.y,tx:x,ty:y,t:0,dur:Math.max(0.4,dd/FAB_FLIGHT_SPEED)})})});
+      const dd=Math.hypot(x-S.base.x,y-S.base.y);S.fabShots.push({k,free:true,x0:S.base.x,y0:S.base.y,tx:x,ty:y,t:0,dur:Math.max(0.4,dd/FAB_FLIGHT_SPEED)})})});
 }
 function updateWallLines(dt){
   if(!S.wallLines)return;
@@ -5490,8 +5501,8 @@ function drawWallPreview(){
 }
 function tryBuild(w){
   if(buildMode==='stabilizer')return fireStabilizer(w);
-  if(buildMode==='turret'){const p=wallSnap(w,true);w={x:p.x,y:p.y}} // a Turret snaps onto a wall's end or corner
-  if(buildMode!=='turret'&&buildMode!=='relay')return;
+  if(buildMode==='turret'||buildMode==='podturret'){const p=wallSnap(w,true);w={x:p.x,y:p.y}} // a Turret snaps onto a wall's end or corner
+  if(buildMode!=='turret'&&buildMode!=='podturret'&&buildMode!=='relay')return;
   if(!inBuildRange(w)){msg("Launch inside the Bastion's dashed ring (or a Relay's).");return}
   if(terrainAt(w.x,w.y)===2){msg('Cannot land a structure on solid rock.');return}
   if(glassHit(w.x,w.y,12)){msg('Cannot land a structure on crystal.');return}
@@ -6014,6 +6025,41 @@ function drawPaladinWall(){
 // white, Marksmen a long moss-green cloak and hood, Grenadiers a big orange missile pod, Rocketeers a
 // violet launcher and helmet.
 const ROLE_COL={marksman:'#5f8a55',marksmanDark:'#3f5e39',grenadier:'#e8913a',rocket:'#9b7cf5',rocketDark:'#6c51c8'};
+// Missile Pod turret: cells reload one by one; with all PODT_CELLS full it locks the nearest enemy
+// and ripples the whole salvo onto it (scattered over PODT_SPREAD), one missile every PODT_GAP.
+function podCellT(t,i){const lx=-5.1+(i%4)*3.4,ly=-1.8+(i>>2)*3.6,rot=t.ang+Math.PI/2,c=Math.cos(rot),s=Math.sin(rot);return {x:t.x+lx*c-ly*s,y:t.y+lx*s+ly*c}}
+function podTurretStep(tu,dt){
+  if(tu.pods==null)tu.pods=PODT_CELLS;
+  if(!tu.volley&&tu.pods<PODT_CELLS){tu.podT=(tu.podT||0)+dt;if(tu.podT>=PODT_RELOAD){tu.podT=0;tu.pods++;tu.podGrewT=S.t}}
+  if(!tu.volley){let best=null,bd=PODT_RANGE;S.enemies.forEach(e=>{const d=dist(e,tu);if(d<bd){bd=d;best=e}});
+    if(best){const want=Math.atan2(best.y-tu.y,best.x-tu.x);tu.ang+=Math.atan2(Math.sin(want-tu.ang),Math.cos(want-tu.ang))*Math.min(1,dt*8);
+      if(tu.pods>=PODT_CELLS){tu.volley=true;tu.volT=0;tu.volTgt=best;tu.volAt=null}}
+    return}
+  tu.volT-=dt;if(tu.volT>0)return;
+  const c=tu.volTgt&&tu.volTgt.hp>0&&S.enemies.includes(tu.volTgt)?tu.volTgt:null;
+  if(tu.pods>0&&(c||tu.volAt)){const at=c?{x:c.x,y:c.y}:tu.volAt;tu.volAt=at;tu.ang=Math.atan2(at.y-tu.y,at.x-tu.x);
+    const a=rnd(0,Math.PI*2),r=Math.sqrt(Math.random())*PODT_SPREAD,back=podCellT(tu,PODT_CELLS-tu.pods);
+    launchProjectile(back,{x:at.x+Math.cos(a)*r,y:at.y+Math.sin(a)*r},{speed:GREN_PROJ_SPEED*0.8,minDur:0.7,dmg:PODT_DMG,splashR:PODT_SPLASH,color:ROCKET_COLOR,style:'pod'});
+    tu.pods--;tu.podShotT=S.t;tu.volT=PODT_GAP;if(sfxReady('podShot',0.05)){noiseCrack(0.09,0.07,800);tone(280,0.12,'sawtooth',0.04,0,600)}}
+  if(tu.pods<=0||!(c||tu.volAt)){tu.volley=false;tu.volTgt=null;tu.volAt=null;tu.podT=0}
+}
+// The launcher: a heavy base plate, and on it an orange box of eight cells (the Grenadier's pod,
+// scaled up) that swivels to aim. Loaded cells glow, the freshest one blinks in.
+function drawPodTurret(t){
+  const fl=t.flashT>0,OC=fl?'#fff':ROLE_COL.grenadier,n=t.pods??PODT_CELLS,pop=S.t-(t.podShotT??-9);
+  ctx.save();ctx.translate(t.x,t.y);
+  ctx.fillStyle='rgba(0,0,0,0.35)';ctx.beginPath();ctx.arc(2,3,13,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle=fl?'#fff':(t.powered?'#3b4652':'#2a2d31');ctx.strokeStyle=t.powered?'#56616d':C.enemy;ctx.lineWidth=1.5;
+  ctx.beginPath();for(let i=0;i<8;i++){const a=i*Math.PI/4+Math.PI/8;ctx.lineTo(Math.cos(a)*12.5,Math.sin(a)*12.5)}ctx.closePath();ctx.fill();ctx.stroke();
+  ctx.rotate(t.ang+Math.PI/2);
+  rP([[-7.4,-4.4],[7.4,-4.4],[7.4,4.4],[-7.4,4.4]],OC,0.8);
+  ctx.fillStyle='#000';ctx.globalAlpha=0.25;ctx.fillRect(-7.4,3,14.8,1.4);ctx.globalAlpha=1;
+  for(let i=0;i<PODT_CELLS;i++){const cx=-5.1+(i%4)*3.4,cy=-1.8+(i>>2)*3.6,loaded=i>=PODT_CELLS-n,fresh=loaded&&i===PODT_CELLS-n&&S.t-(t.podGrewT??-9)<0.3;rO(cx,cy,1.25,loaded?(fresh?ROCKET_COLOR:'#5a2f1a'):'#111',0.4)}
+  if(pop<0.3){const cell=PODT_CELLS-n-1;if(cell>=0){const cx=-5.1+(cell%4)*3.4,cy=-1.8+(cell>>2)*3.6;ctx.fillStyle='#cfd8e0';ctx.globalAlpha=0.6*(1-pop/0.3);ctx.beginPath();ctx.arc(cx,cy,1.8+pop*10,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1}}
+  ctx.restore();
+  if(!t.powered)drawCutGlyph(t.x,t.y);
+  hpbar(t.x,t.y-19,24,t.hp/t.maxHp);
+}
 // ---------- Grenadier (pod) and Rocketeer (spotter) art ----------
 function podCellPos(t,i){const lx=-1.8+(i%2)*3.6,ly=2.8+(i>>1)*2.6,rot=t.ang+Math.PI/2,c=Math.cos(rot),s=Math.sin(rot);return {x:t.x+lx*c-ly*s,y:t.y+lx*s+ly*c}}
 function drawGrenadier(t){
@@ -6579,6 +6625,7 @@ function update(dt){
     tu.cd-=dt;
     tu.powered=turretPowered(tu);
     if(!tu.powered)return;
+    if(tu.kind==='podturret')return podTurretStep(tu,dt);
     let best=null,bd=TURRET_RANGE;S.enemies.forEach(e=>{const d=dist(e,tu);if(d<bd){bd=d;best=e}});
     if(best){tu.ang=Math.atan2(best.y-tu.y,best.x-tu.x);if(tu.cd<=0){damageEnemy(best,TURRET_DMG);tracer(tu,best,C.accent);tu.cd=TURRET_CD}}
   });
@@ -7515,6 +7562,7 @@ function draw(){
       ctx.fillStyle=C.builder;ctx.fillRect(t.x-11,t.y+15,22*(t.buildT/t.buildTotal),3);
       return;
     }
+    if(t.kind==='podturret')return drawPodTurret(t);
     ctx.fillStyle=t.flashT>0?'#fff':(t.powered?'#3b4652':'#2a2d31');ctx.beginPath();ctx.arc(t.x,t.y,11,0,Math.PI*2);ctx.fill();ctx.strokeStyle=t.powered?C.accent:C.enemy;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(t.x,t.y);ctx.lineTo(t.x+Math.cos(t.ang)*15,t.y+Math.sin(t.ang)*15);ctx.stroke();
     if(!t.powered)drawCutGlyph(t.x,t.y);
     hpbar(t.x,t.y-18,22,t.hp/t.maxHp)});
@@ -7729,7 +7777,7 @@ function draw(){
     ctx.restore()}
   else if(buildMode){const ok=inBuildRange({x:mouse.wx,y:mouse.wy})&&terrainAt(mouse.wx,mouse.wy)!==2&&S.fab[buildMode]&&S.fab[buildMode].n>0;ctx.globalAlpha=0.6;
     if(buildMode==='wall'){}
-    else{const rng=buildMode==='turret'?TURRET_RANGE:wirelessTol('dense'),sp=buildMode==='turret'?wallSnap({x:mouse.wx,y:mouse.wy},true):{x:mouse.wx,y:mouse.wy};ctx.fillStyle=ok?C.accent:C.enemy;ctx.beginPath();ctx.arc(sp.x,sp.y,11,0,Math.PI*2);ctx.fill();if(sp.snapped){ctx.strokeStyle=C.accent;ctx.lineWidth=1.5/cam.z;ctx.beginPath();ctx.arc(sp.x,sp.y,16,0,Math.PI*2);ctx.stroke()}if(rng>0){ctx.strokeStyle=ok?C.accent:C.enemy;ctx.lineWidth=1;ctx.setLineDash([4,6]);ctx.beginPath();ctx.arc(sp.x,sp.y,rng,0,Math.PI*2);ctx.stroke();ctx.setLineDash([])}}
+    else{const tur=buildMode==='turret'||buildMode==='podturret',rng=buildMode==='turret'?TURRET_RANGE:buildMode==='podturret'?PODT_RANGE:wirelessTol('dense'),sp=tur?wallSnap({x:mouse.wx,y:mouse.wy},true):{x:mouse.wx,y:mouse.wy};ctx.fillStyle=ok?C.accent:C.enemy;ctx.beginPath();ctx.arc(sp.x,sp.y,11,0,Math.PI*2);ctx.fill();if(sp.snapped){ctx.strokeStyle=C.accent;ctx.lineWidth=1.5/cam.z;ctx.beginPath();ctx.arc(sp.x,sp.y,16,0,Math.PI*2);ctx.stroke()}if(rng>0){ctx.strokeStyle=ok?C.accent:C.enemy;ctx.lineWidth=1;ctx.setLineDash([4,6]);ctx.beginPath();ctx.arc(sp.x,sp.y,rng,0,Math.PI*2);ctx.stroke();ctx.setLineDash([])}}
     ctx.globalAlpha=1}
   drawFormationPreview();
   drawAttackMarks();
