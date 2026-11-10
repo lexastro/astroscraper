@@ -1773,10 +1773,13 @@ function emergeVein(site,o){
   }
   return v;
 }
-// A free site in the band for a new vein: not right on top of the Bastion, and clear of other live
-// veins where possible.
+// A free site in the band for a new vein: never one the Bastion is within VEIN_WAKE_CLEAR of or any
+// of your units within VEIN_WAKE_UNIT_CLEAR of (a vein and its guards mustn't spring up underfoot);
+// far from the Bastion and clear of other live veins where possible. Nothing allowed: null, and the
+// respawn waits and tries again.
+const VEIN_WAKE_CLEAR=480, VEIN_WAKE_UNIT_CLEAR=260;
 function pickSite(band){
-  const free=S.sites.filter(st=>st.band===band&&!st.vein);
+  const free=S.sites.filter(st=>st.band===band&&!st.vein&&dist(st,S.base)>VEIN_WAKE_CLEAR&&!S.troops.some(t=>dist(t,st)<VEIN_WAKE_UNIT_CLEAR)&&!S.harvesters.some(h=>dist(h,st)<VEIN_WAKE_UNIT_CLEAR)&&!S.builders.some(b=>dist(b,st)<VEIN_WAKE_UNIT_CLEAR));
   if(!free.length)return null;
   const good=free.filter(st=>dist(st,S.base)>700&&!S.veins.some(v=>veinAlive(v)&&dist(v,st)<700));
   const pool=good.length?good:free;
@@ -1810,7 +1813,7 @@ function updateVeinLife(dt){
     v.site.vein=null;
     return false;
   });
-  S.respawnQ=S.respawnQ.filter(q=>{q.t-=dt;if(q.t>0)return true;const st=pickSite(q.band);if(st)emergeVein(st);return false});
+  S.respawnQ=S.respawnQ.filter(q=>{q.t-=dt;if(q.t>0)return true;const st=pickSite(q.band);if(st){emergeVein(st);return false}q.t=4;return true}); // no allowed site right now: try again shortly
 }
 
 // ---- strays & bearings ----
