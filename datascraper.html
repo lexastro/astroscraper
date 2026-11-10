@@ -809,6 +809,9 @@ const WALL_HP=220;
 const MAN_RANGE_BONUS=0.15; // ranged units manning a standing wall shoot 15% further
 const MAN_OFFSET=14, MAN_DMG_RED=0.25, MAN_PICK_R=16, MAN_GAP=27.5, MAN_END_PAD=34; // one rank only: a wall holds as many as fit MAN_GAP apart, keeping MAN_END_PAD clear at each end // (close enough that a Paladin at the wall reaches what's chewing on it)
 const WALL_SLAT=18, WALL_THICK=8, WALL_SLAT_HP=160, WALL_MIN_LEN=30, WALL_MAX_LEN=420, WALL_SNAP=22, WALL_DAT_BASE=4, WALL_DAT_PER_SLAT=2, WALL_RAISE_STEP=0.07, WALL_RAISE_T=0.25;
+// the wall-end tower cards make walls dearer: ×2 with Bulwark Towers, ×3 with Missile Battery Walls
+// (the Legendary replaces the Epic's ×2, they don't stack)
+function wallCostMult(){return S.mods.podTowers?3:S.mods.wallTowers?2:1}
 const COST={wall:5,turret:75,relay:15,depot:150,stabilizer:20,harvester:75,troop:30,builder:20,grenadier:45,artillery:140,mech:90,rocket:70,brawler:25,marksman:60};
 // v2 fabricators: nothing is bought with Dat any more. Each kind of thing the Bastion can make has
 // its own fabricator holding `charges`; a spent charge comes back after `t` seconds (one at a time,
@@ -1261,14 +1264,14 @@ const UPGRADES={
     {id:'tactical',name:'Tactical Reinforcements',desc:'+5 free Troopers, +3 free Grenadiers, right now.',apply:()=>{spawnFreeTroops(5,'troop');spawnFreeTroops(3,'grenadier')}},
     {id:'targeting',name:'Targeting Computer',desc:'The Bastion gun keeps firing while drilling instead of going quiet.',apply:()=>{S.mods.bastionShootWhileDrilling=true}},
     {id:'energySurge2',name:'Energy Surge II',desc:'Energy Surge now pulses every 5s instead of 10s.',apply:()=>{S.mods.energySurgeLevel=Math.max(S.mods.energySurgeLevel,2)}},
-    {id:'wallTowers',name:'Bulwark Towers',desc:'Every wall end gets a free Turret — on the walls you have now and every wall you build from here on. A tower that falls is not replaced.',has:()=>S.mods.wallTowers,apply:()=>{S.mods.wallTowers=true;wallTowers()}},
+    {id:'wallTowers',name:'Bulwark Towers',desc:'Every wall end gets a free Turret — on the walls you have now and every wall you build from here on. A tower that falls is not replaced. Drawback: walls cost twice as much.',has:()=>S.mods.wallTowers||S.mods.podTowers,apply:()=>{S.mods.wallTowers=true;wallTowers();updateBuildBar()}},
   ],
   Legendary:[
     {id:'overdrive',name:'Overdrive Capacitor',desc:'Drill rate +40%.',apply:()=>{S.mods.drillRateMult*=1.4}},
     {id:'cablehp2',name:'Hardened Network',desc:'All tether cable HP +150%.',apply:()=>{S.mods.cableHpMult*=2.5}},
     {id:'living1',name:'Rich Vein Memory',desc:'Living Crystal yield ×2 for the rest of the run.',apply:()=>{S.mods.livingMult*=2}},
-    {id:'podTowers',name:'Missile Battery Walls',desc:'Every wall end gets a free Missile Pod — on the walls you have now and every wall you build from here on. Turrets raised by Bulwark Towers become Missile Pods. A pod that falls is not replaced.',has:()=>S.mods.podTowers||!meta.unlockPodTurret,
-     apply:()=>{S.mods.podTowers=true;S.fabShots.forEach(sh=>{if(sh.free&&sh.k==='turret')sh.k='podturret'});S.turrets.forEach(t=>{if(t.tower&&t.kind==='turret'){const f=t.hp/t.maxHp;t.kind='podturret';t.maxHp=PODT_HP;t.hp=PODT_HP*f;t.pods=PODT_CELLS;burst(t.x,t.y,ROLE_COL.grenadier,10,110,0.4)}});wallTowers()}},
+    {id:'podTowers',name:'Missile Battery Walls',desc:'Every wall end gets a free Missile Pod — on the walls you have now and every wall you build from here on. Turrets raised by Bulwark Towers become Missile Pods. A pod that falls is not replaced. Drawback: walls cost three times as much (replaces Bulwark Towers\' double cost).',has:()=>S.mods.podTowers||!meta.unlockPodTurret,
+     apply:()=>{S.mods.podTowers=true;S.fabShots.forEach(sh=>{if(sh.free&&sh.k==='turret')sh.k='podturret'});S.turrets.forEach(t=>{if(t.tower&&t.kind==='turret'){const f=t.hp/t.maxHp;t.kind='podturret';t.maxHp=PODT_HP;t.hp=PODT_HP*f;t.pods=PODT_CELLS;burst(t.x,t.y,ROLE_COL.grenadier,10,110,0.4)}});wallTowers();updateBuildBar()}},
     {id:'energySurge3',name:'Energy Surge III',desc:'Energy Surge still pulses every 5s, and now damages enemies it reaches too.',apply:()=>{S.mods.energySurgeLevel=Math.max(S.mods.energySurgeLevel,3)}},
   ],
 };
@@ -4782,7 +4785,7 @@ function setBuild(m){buildMode=m;mouse.wallDraw=null;if(m){pingMode=false;probeM
 function updateBuildBar(){
   document.querySelectorAll('#buildBar button[data-mode]').forEach(b=>{
     b.classList.toggle('on',b.dataset.mode===buildMode);
-    if(b.dataset.mode==='wall'){b._ds=false;b.classList.toggle('dry',S.dat<WALL_DAT_BASE+WALL_DAT_PER_SLAT*2);const c=document.getElementById('cWall');if(c)c._tc=`◆${WALL_DAT_PER_SLAT}/slat`;return}
+    if(b.dataset.mode==='wall'){b._ds=false;b.classList.toggle('dry',S.dat<(WALL_DAT_BASE+WALL_DAT_PER_SLAT*2)*wallCostMult());const c=document.getElementById('cWall');if(c)c._tc=`◆${WALL_DAT_PER_SLAT*wallCostMult()}/slat`;return}
     if(b.dataset.mode==='stabilizer'){
       b._ds=false;b.classList.toggle('dry',S.stabCharges<=0);
       const c=document.getElementById('cStab');
@@ -5419,7 +5422,7 @@ function wallSnap(w,noTurrets){let best=null,bd=WALL_SNAP/Math.min(1,cam.z);wall
 function wallPlan(d){
   let x1=d.x1,y1=d.y1,L=Math.hypot(x1-d.x0,y1-d.y0);
   if(L>WALL_MAX_LEN){const k=WALL_MAX_LEN/L;x1=d.x0+(x1-d.x0)*k;y1=d.y0+(y1-d.y0)*k;L=WALL_MAX_LEN}
-  const n=Math.max(1,Math.round(L/WALL_SLAT)),cost=WALL_DAT_BASE+n*WALL_DAT_PER_SLAT;
+  const n=Math.max(1,Math.round(L/WALL_SLAT)),cost=(WALL_DAT_BASE+n*WALL_DAT_PER_SLAT)*wallCostMult();
   const a={x:d.x0,y:d.y0},b={x:x1,y:y1};let why='';
   if(L<WALL_MIN_LEN)why='Drag out a longer wall.';
   else if(!inBuildRange(a)||!inBuildRange(b))why="Both ends must be inside the Bastion's dashed ring (or a Relay's).";
