@@ -7828,7 +7828,7 @@ function drawChunkBody(c,ch){const L=TP_L,col=ch.col,ndl=ch.nx*L.x+ch.ny*L.y+ch.
   c.restore();
   for(let j=0;j<ch.P.length;j+=2){const ax=ch.P[j],ay=ch.P[j+1],bx=ch.P[(j+2)%ch.P.length],by=ch.P[(j+3)%ch.P.length],ex=by-ay,ey=-(bx-ax),el=Math.hypot(ex,ey)||1,f=(ex*L.x+ey*L.y)/el/0.88;
     c.strokeStyle=f>0.15?`rgba(255,240,255,${0.45+0.5*f})`:'rgba(20,0,35,0.75)';c.lineWidth=f>0.15?1:0.9;c.beginPath();c.moveTo(ax,ay);c.lineTo(bx,by);c.stroke()}}
-function drawSplinter(c,it){const ca=Math.cos(it.a),sa=Math.sin(it.a),T=[it.x+ca*it.L,it.y+sa*it.L,it.x-sa*it.w,it.y+ca*it.w,it.x-ca*it.L*0.6,it.y-sa*it.L*0.6];
+function drawGlassSplinter(c,it){const ca=Math.cos(it.a),sa=Math.sin(it.a),T=[it.x+ca*it.L,it.y+sa*it.L,it.x-sa*it.w,it.y+ca*it.w,it.x-ca*it.L*0.6,it.y-sa*it.L*0.6];
   c.fillStyle='rgba(8,0,18,0.4)';chunkPath(c,T,1.2,1.2);c.fill();c.fillStyle=`rgba(${it.col[0]},${it.col[1]},${it.col[2]},0.7)`;chunkPath(c,T);c.fill();
   c.strokeStyle='rgba(255,240,255,0.7)';c.lineWidth=0.6;c.beginPath();c.moveTo(T[0],T[1]);c.lineTo(T[2],T[3]);c.stroke()}
 function drawStone(c,it){const R=it.R,sc=it.col,tone=it.tone;c.fillStyle='rgba(0,0,0,0.45)';chunkPath(c,it.P,R*0.5,R*0.5);c.fill();
@@ -7837,7 +7837,7 @@ function drawStone(c,it){const R=it.R,sc=it.col,tone=it.tone;c.fillStyle='rgba(0
 function drawTerrainItems(c,x,y,w,h){const L=TPAINT.buckets[Math.floor(y/TP_TS)*TPAINT.NTX+Math.floor(x/TP_TS)];if(!L)return;
   c.save();c.beginPath();c.rect(x,y,w,h);c.clip();
   L.forEach(it=>{if(it.t===1)drawChunkShadow(c,it)});L.forEach(it=>{if(it.t===1)drawChunkBody(c,it)});
-  L.forEach(it=>{if(it.t===2)drawSplinter(c,it)});L.forEach(it=>{if(it.t===0)drawStone(c,it)});
+  L.forEach(it=>{if(it.t===2)drawGlassSplinter(c,it)});L.forEach(it=>{if(it.t===0)drawStone(c,it)});
   c.restore()}
 function blurFogged(vw,vh,shkx,shky){
   const w=Math.max(1,Math.round(cv.width/FOG_BLUR_DOWN)), h=Math.max(1,Math.round(cv.height/FOG_BLUR_DOWN));
