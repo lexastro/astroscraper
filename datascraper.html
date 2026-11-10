@@ -5188,6 +5188,24 @@ function drawManHover(){
   const f=12/cam.z;ctx.globalAlpha=1;ctx.font=`700 ${f}px ${css('--mono')}`;ctx.fillStyle=C.accent;ctx.textAlign='left';const nm=manners(L).length,cap=manCap(L);ctx.fillStyle=nm>=cap?C.enemy:C.accent;ctx.fillText(`Man the wall  ${nm}/${cap}`,mouse.wx+14/cam.z,mouse.wy-12/cam.z);
   ctx.restore();
 }
+// Attack orders: the clicked enemy pulses with a red ring that snaps in tight (in real time, so it
+// shows during the tactical pause too), and while selected units are attacking something, it keeps
+// a thin red reticle so you can see what they're after.
+const ATTACK_FX_MS=900;
+function drawAttackMarks(){
+  const now=performance.now(),targets=new Set();
+  S.troops.forEach(t=>{if(S.sel.troops.has(t.id)&&t.state==='attack'&&t.target&&t.target.hp>0)targets.add(t.target)});
+  ctx.save();ctx.strokeStyle=C.enemy;ctx.lineWidth=1.5/cam.z;
+  targets.forEach(e=>{const r=(e.r||8)+7,q=4,rot=now/900;ctx.globalAlpha=0.8;ctx.beginPath();
+    for(let i=0;i<4;i++){const a=rot+i*Math.PI/2;ctx.moveTo(e.x+Math.cos(a-0.35)*r,e.y+Math.sin(a-0.35)*r);ctx.arc(e.x,e.y,r,a-0.35,a+0.35)}ctx.stroke()});
+  const f=S.attackFx;
+  if(f){const k=(now-f.t0)/ATTACK_FX_MS;
+    if(k>=1||!f.e||f.e.hp<=0)S.attackFx=null;
+    else{const e=f.e,r0=(e.r||8)+4;for(let i=0;i<2;i++){const kk=Math.max(0,Math.min(1,k*1.6-i*0.35));if(kk<=0||kk>=1)continue;
+        const r=r0+(1-kk)*26;ctx.globalAlpha=Math.sin(kk*Math.PI)*0.95;ctx.lineWidth=(3-kk*1.5)/Math.min(1,cam.z);ctx.beginPath();ctx.arc(e.x,e.y,r,0,Math.PI*2);ctx.stroke()}
+      ctx.globalAlpha=0.35*(1-k);ctx.fillStyle=C.enemy;ctx.beginPath();ctx.arc(e.x,e.y,r0+2,0,Math.PI*2);ctx.fill()}}
+  ctx.restore();
+}
 function drawFormationPreview(){
   const f=mouse.form;
   if(f&&f.moved){
@@ -5272,6 +5290,7 @@ function rightClick(w){
    if(mv.length>1&&!dblRC){const sp=mv.map(troopBaseSpeed), lo=Math.min(...sp), hi=Math.max(...sp);
      if(lo<hi){mv.forEach(t=>{t.pace=lo});S.paceHint=(S.paceHint||0)+1;if(S.paceHint<=2)msg('Moving together at the pace of the slowest unit — right-click again to let everyone move at their own pace.')}}}
   if(S.glassB)selT.forEach(t=>{if(t.dest)glassPush(t.dest,(t.r||7)+4)}); // a spot hard against crystal moves just clear of it
+  if(en&&selT.length){S.attackFx={e:en,t0:performance.now()};if(sfxReady('attackOrder',0.08)){tone(520,0.05,'square',0.05);tone(390,0.08,'square',0.05,0.05)}}
   if(wallSlot.size>1)msg(`${wallSlot.size} Brawlers moving to form a shield wall.`);
   if(guards.length){
     msg(`${guards.length===1?'1 unit is':guards.length+' units are'} now guarding ${guardName(friend)}.`);
@@ -7470,6 +7489,7 @@ function draw(){
     else{const rng=buildMode==='turret'?TURRET_RANGE:wirelessTol('dense'),sp=buildMode==='turret'?wallSnap({x:mouse.wx,y:mouse.wy},true):{x:mouse.wx,y:mouse.wy};ctx.fillStyle=ok?C.accent:C.enemy;ctx.beginPath();ctx.arc(sp.x,sp.y,11,0,Math.PI*2);ctx.fill();if(sp.snapped){ctx.strokeStyle=C.accent;ctx.lineWidth=1.5/cam.z;ctx.beginPath();ctx.arc(sp.x,sp.y,16,0,Math.PI*2);ctx.stroke()}if(rng>0){ctx.strokeStyle=ok?C.accent:C.enemy;ctx.lineWidth=1;ctx.setLineDash([4,6]);ctx.beginPath();ctx.arc(sp.x,sp.y,rng,0,Math.PI*2);ctx.stroke();ctx.setLineDash([])}}
     ctx.globalAlpha=1}
   drawFormationPreview();
+  drawAttackMarks();
   drawWallPreview();
   // selection box
   if(mouse.drag&&mouse.drag.moved){const d=mouse.drag;ctx.strokeStyle=C.ally;ctx.fillStyle='rgba(94,200,255,0.1)';ctx.lineWidth=1/cam.z;ctx.fillRect(d.x0,d.y0,d.x1-d.x0,d.y1-d.y0);ctx.strokeRect(d.x0,d.y0,d.x1-d.x0,d.y1-d.y0)}
