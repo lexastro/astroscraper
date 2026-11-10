@@ -5997,31 +5997,35 @@ function drawPaladinWall(){
     ctx.globalAlpha=0.9*flick;ctx.lineWidth=0.7*PAL_SC;ctx.stroke()}
   ctx.restore();ctx.globalAlpha=1;
 }
+// Role colours for the ranged units' gear, so they read apart in a fight: Troopers plain blue and
+// white, Marksmen a long moss-green cloak and hood, Grenadiers a big orange missile pod, Rocketeers a
+// violet launcher and helmet.
+const ROLE_COL={marksman:'#5f8a55',marksmanDark:'#3f5e39',grenadier:'#e8913a',rocket:'#9b7cf5',rocketDark:'#6c51c8'};
 // ---------- Grenadier (pod) and Rocketeer (spotter) art ----------
 function podCellPos(t,i){const lx=-1.8+(i%2)*3.6,ly=2.8+(i>>1)*2.6,rot=t.ang+Math.PI/2,c=Math.cos(rot),s=Math.sin(rot);return {x:t.x+lx*c-ly*s,y:t.y+lx*s+ly*c}}
 function drawGrenadier(t){
-  const fl=t.flashT>0,AL=fl?'#fff':C.ally,n=t.pods??GREN_PODS,pop=S.t-(t.podShotT??-9);
-  ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2);
-  ctx.fillStyle='rgba(0,0,0,0.3)';ctx.beginPath();ctx.ellipse(1,2,6,5,0,0,Math.PI*2);ctx.fill();
+  const fl=t.flashT>0,AL=fl?'#fff':C.ally,n=t.pods??GREN_PODS,pop=S.t-(t.podShotT??-9),OC=fl?'#fff':ROLE_COL.grenadier;
+  ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2);ctx.scale(1.15,1.15);
+  ctx.fillStyle='rgba(0,0,0,0.3)';ctx.beginPath();ctx.ellipse(1,3,7,6,0,0,Math.PI*2);ctx.fill();
   // the pod: four cells, emptied in order 0..3 and reloaded in reverse; the newest one blinks in
-  rP([[-3.6,1.4],[3.6,1.4],[3.6,6.8],[-3.6,6.8]],fl?'#fff':'#999');
+  rP([[-4.6,0.8],[4.6,0.8],[4.6,7.6],[-4.6,7.6]],OC,0.6);ctx.fillStyle='#000';ctx.globalAlpha=0.25;ctx.fillRect(-4.6,6.4,9.2,1.2);ctx.globalAlpha=1;
   for(let i=0;i<4;i++){const cx=-1.8+(i%2)*3.6,cy=2.8+(i>>1)*2.6,loaded=i>=GREN_PODS-n,fresh=loaded&&i===GREN_PODS-n&&S.t-(t.podGrewT??-9)<0.3;rO(cx,cy,1.1,loaded?(fresh?ROCKET_COLOR:'#5a2f1a'):'#111',0.4)}
   if(pop<0.3){const cell=GREN_PODS-n-1;if(cell>=0){const cx=-1.8+(cell%2)*3.6,cy=2.8+(cell>>1)*2.6;ctx.fillStyle='#cfd8e0';ctx.globalAlpha=0.6*(1-pop/0.3);ctx.beginPath();ctx.arc(cx,cy,1.5+pop*8,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1}}
   rP([[-5.4,0.6],[-4,-2],[4,-2],[5.4,0.6],[4,2.6],[-4,2.6]],AL,0.6);
   rLimb([[-4,0.2],[-4.4,-2.6],[-2.6,-4.4]],1.9,AL);rLimb([[4,0.2],[4.4,-2.6],[2.6,-4.4]],1.9,AL);rO(-2.6,-4.4,1,'#4d4d4d');rO(2.6,-4.4,1,'#4d4d4d');
   ctx.fillStyle='#4d4d4d';ctx.fillRect(-1.6,-5,3.2,1.6);ctx.fillStyle=ROCKET_COLOR;ctx.fillRect(-0.5,-4.8,1,1.2);
-  rO(0,0.2,2.7,fl?'#fff':'#e6e6e6',0.6);ctx.fillStyle='#4d4d4d';ctx.fillRect(-1.7,-2,3.4,1);ctx.fillStyle=ROCKET_COLOR;ctx.fillRect(-1.3,-1.9,2.6,0.5);
+  rO(0,0.2,2.7,fl?'#fff':'#e6e6e6',0.6);ctx.fillStyle=OC;ctx.fillRect(-0.6,-2.4,1.2,4.4);ctx.fillStyle='#4d4d4d';ctx.fillRect(-1.7,-2,3.4,1);ctx.fillStyle=OC;ctx.fillRect(-1.3,-1.9,2.6,0.5);
   ctx.restore();
 }
 function drawRocketeer(t){
-  const fl=t.flashT>0,AD=fl?'#fff':'#2f6f93',a=t.aimV??RIFLE_READY,since=S.t-(t.shotT??-9),kick=since<0.25?1-since/0.25:0,ang=0.3+(0-0.3)*a;
+  const fl=t.flashT>0,AD=fl?'#fff':C.ally,VC=fl?'#fff':ROLE_COL.rocket,VD=fl?'#fff':ROLE_COL.rocketDark,a=t.aimV??RIFLE_READY,since=S.t-(t.shotT??-9),kick=since<0.25?1-since/0.25:0,ang=0.3+(0-0.3)*a;
   ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2);
   ctx.fillStyle='rgba(0,0,0,0.3)';ctx.beginPath();ctx.ellipse(1,2,6,5,0,0,Math.PI*2);ctx.fill();
   ctx.translate(0,kick*1.6);
   rP([[-5.4,0.6],[-4,-2],[4,-2],[5.4,0.6],[4,2.6],[-4,2.6]],AD,0.6);
-  ctx.save();ctx.translate(3,0.6);ctx.rotate(ang);rP([[-1.8,-11],[1.8,-11],[1.8,4],[-1.8,4]],'#4d4d4d');rP([[-2.2,-6],[2.2,-6],[2.2,-3],[-2.2,-3]],'#999');ctx.fillStyle=C.enemy;ctx.beginPath();ctx.arc(1.2,-10,0.6,0,Math.PI*2);ctx.fill();ctx.restore();
+  ctx.save();ctx.translate(3,0.6);ctx.rotate(ang);rP([[-2.3,-12],[2.3,-12],[2.3,7],[-2.3,7]],VC,0.6);rP([[-2.7,-12.6],[2.7,-12.6],[2.7,-10.6],[-2.7,-10.6]],VD);rP([[-2.7,5.6],[2.7,5.6],[2.7,7.6],[-2.7,7.6]],VD);rP([[-3,-6],[-2.3,-6],[-2.3,-2.6],[-3,-2.6]],'#4d4d4d');ctx.fillStyle=C.enemy;ctx.beginPath();ctx.arc(1.4,-11,0.6,0,Math.PI*2);ctx.fill();ctx.restore();
   rLimb([[4,0],[5.6,-0.8],[3.8,-2.4]],1.9,AD);rLimb([[-4,0.2],[-1.6,-3.4],[2.2,-5.6]],1.9,AD);rO(3.8,-2.4,1,'#4d4d4d');rO(2.2,-5.6,1,'#4d4d4d');
-  rO(0.6,-0.6,2.7,fl?'#fff':'#ccc',0.6);ctx.fillStyle='#4d4d4d';ctx.fillRect(-1.1,-2.8,3.4,1);ctx.fillStyle=C.enemy;ctx.fillRect(-0.7,-2.7,2.6,0.5);
+  rO(0.6,-0.6,2.8,VC,0.6);ctx.fillStyle=VD;ctx.fillRect(-1.1,-2.9,3.4,1.1);ctx.fillStyle=C.enemy;ctx.fillRect(-0.7,-2.8,2.6,0.5);
   ctx.restore();
   // the painting laser, from the launcher's sight to the target
   if(t.paintT>0&&t.paintTgt){const m=gunMuzzle(t,9),c=t.paintTgt;ctx.save();ctx.strokeStyle=C.enemy;ctx.globalAlpha=0.45+0.4*Math.random();ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(m.x,m.y);ctx.lineTo(c.x,c.y);ctx.stroke();
@@ -6087,10 +6091,14 @@ function drawMarksman(t){
   ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2);
   ctx.fillStyle='rgba(0,0,0,0.3)';ctx.beginPath();ctx.ellipse(1,2,6,5,0,0,Math.PI*2);ctx.fill();
   ctx.translate(0,kick*2);
+  const MC=fl?'#fff':ROLE_COL.marksman,MD=fl?'#fff':ROLE_COL.marksmanDark;
   if(kneel)rP([[-1.5,3],[1.5,3],[1.8,8],[-0.8,8.4]],fl?'#fff':'#2f6f93');
   riflePose({a,L:16,rw:1.4,gy:4,hy:10,flash:fl,
+    pack:()=>{const w=Math.sin(S.t*3+(t.id||0))*0.5;ctx.fillStyle=MC;ctx.strokeStyle='#000';ctx.lineWidth=0.5;ctx.beginPath();ctx.moveTo(-5.4,-0.4);ctx.quadraticCurveTo(-7,5,-4+w,9.5);
+      for(let i=0;i<5;i++){ctx.lineTo(-4+w+i*2,9.5+(i%2?-1.2:0.6))}ctx.lineTo(4.6-w,9);ctx.quadraticCurveTo(7,5,5.4,-0.4);ctx.closePath();ctx.fill();ctx.stroke();
+      ctx.strokeStyle=MD;ctx.lineWidth=0.6;ctx.beginPath();ctx.moveTo(-2,2);ctx.lineTo(-2.6,8);ctx.moveTo(1.6,2);ctx.lineTo(2.2,8);ctx.stroke()},
     rx:(L,w)=>{ctx.fillStyle='#ccc';ctx.fillRect(-w/2-0.4,-L-1.5,w+0.8,1.8);if(charge>0){ctx.fillStyle='#bfefff';ctx.globalAlpha=charge;ctx.fillRect(-0.35,-L+1,0.7,(L-6)*charge);ctx.globalAlpha=0.3*charge;ctx.beginPath();ctx.arc(0,-L-0.6,2.5+charge,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1}},
-    head:(hx,hy)=>{rO(hx,hy,2.6,fl?'#fff':'#ccc',0.6);ctx.fillStyle=C.accent;ctx.fillRect(hx-0.4,hy-2.3,2.2,0.9)}});
+    head:(hx,hy)=>{rO(hx,hy,2.9,MC,0.6);ctx.fillStyle=MD;ctx.beginPath();ctx.arc(hx,hy+0.4,2,Math.PI*0.05,Math.PI*0.95);ctx.fill();ctx.fillStyle=C.accent;ctx.fillRect(hx-0.4,hy-2.3,2.2,0.9)}});
   if(since>0.05&&since<0.8){const k=since/0.8;for(let i=0;i<3;i++){ctx.globalAlpha=(1-k)*0.6;ctx.fillStyle='#cfd8e0';ctx.beginPath();ctx.arc(4+i+k*3,-7-k*4+i,0.8+k*1.5,0,Math.PI*2);ctx.fill()}ctx.globalAlpha=1}
   ctx.restore();
   if(since<0.07){const m=gunMuzzle(t,16);ctx.save();ctx.translate(m.x,m.y);ctx.rotate(t.ang+Math.PI/2);rifleFlash(0,0,1.2);ctx.restore()}
