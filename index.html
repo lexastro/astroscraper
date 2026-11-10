@@ -4057,36 +4057,103 @@ function glassPush(o,rad){
   for(const sh of L){let dx=o.x-sh.x,dy=o.y-sh.y,d=Math.hypot(dx,dy);const m=sh.cr+rad;
     if(d<m){if(d<0.01){dx=1;dy=0;d=1}o.x=sh.x+dx/d*m;o.y=sh.y+dy/d*m}}
 }
+// v4: the ground is painted per pixel (at TERR_SR world px per pixel, then scaled up smoothly)
+// instead of cell by cell, so nothing reads as a grid. Each terrain type gets a smooth field from
+// its cells (bilinear between cell centres) roughened with noise and cut at the cell edges — the
+// shapes still sit where the cells that block movement are, just with natural, wandering outlines
+// and soft transitions. Rock gets a bevel lit from the top-left and casts a soft shadow; the open
+// ground is mottled; then pebbles, scree and cracks are scattered on top at full resolution.
+const TERR_SR=3;
+function mkNoise(){const N=64,L=new Float32Array(N*N);for(let i=0;i<N*N;i++)L[i]=rand();
+  const at=(x,y)=>L[((y&(N-1))*N)+(x&(N-1))],sm=t=>t*t*(3-2*t);
+  const val=(x,y)=>{const ix=Math.floor(x),iy=Math.floor(y),fx=sm(x-ix),fy=sm(y-iy);
+    const a=at(ix,iy),b=at(ix+1,iy),c=at(ix,iy+1),d=at(ix+1,iy+1);return a+(b-a)*fx+(c-a)*fy+(a-b-c+d)*fx*fy};
+  return (x,y,o)=>{let s=0,amp=0.5,f=1,tot=0;for(let k=0;k<(o||3);k++){s+=val(x*f+k*17.3,y*f-k*9.1)*amp;tot+=amp;amp*=0.5;f*=2.03}return s/tot}}
 function buildTerrainCanvas(){
   const cv2=document.createElement('canvas'); cv2.width=W;cv2.height=H; const x2=cv2.getContext('2d');
-  x2.fillStyle='#10151b'; x2.fillRect(0,0,W,H);
-  for(let gy=0;gy<TGY;gy++)for(let gx=0;gx<TGX;gx++){
-    const v=terrain[gy*TGX+gx]; if(v===0)continue;
-    x2.fillStyle = v===1 ? '#352c1c' : v===RIFT ? '#2a1030' : (v===2&&S&&S.glass&&S.glass[gy*TGX+gx]) ? '#2a1030' : '#363d44';
-    x2.fillRect(gx*TCELL,gy*TCELL,TCELL,TCELL);
+  const glassAt=id=>!!(S&&S.glass&&S.glass[id]),barAt=id=>!!(S&&S.barrier&&S.barrier.type===2&&S.barrier.mask&&S.barrier.mask[id]);
+  // per-cell indicators: 0 ground, 1 mud, 2 rock, 3 rift (glass ground counts as rift-coloured)
+  const kind=new Uint8Array(TGX*TGY);
+  for(let i=0;i<TGX*TGY;i++){const v=terrain[i];kind[i]=v===1?1:v===RIFT?3:v===2?(glassAt(i)?3:barAt(i)?0:2):0}
+  const field=(k,fx,fy)=>{ // bilinear between cell centres
+    const gx=fx/TCELL-0.5,gy=fy/TCELL-0.5,ix=Math.floor(gx),iy=Math.floor(gy),tx=gx-ix,ty=gy-iy;
+    const g=(a,b)=>(a<0||b<0||a>=TGX||b>=TGY)?0:(kind[b*TGX+a]===k?1:0);
+    const a=g(ix,iy),b=g(ix+1,iy),c=g(ix,iy+1),d=g(ix+1,iy+1);return a+(b-a)*tx+(c-a)*ty+(a-b-c+d)*tx*ty};
+  const nA=mkNoise(),nB=mkNoise(),nC=mkNoise();
+  const PW=Math.ceil(W/TERR_SR),PH=Math.ceil(H/TERR_SR),N=PW*PH;
+  const rockH=new Float32Array(N),mudA=new Float32Array(N),riftA=new Float32Array(N),lo=new Float32Array(N),hi=new Float32Array(N);
+  const ss=(a,b,x)=>{const t=Math.max(0,Math.min(1,(x-a)/(b-a)));return t*t*(3-2*t)};
+  for(let py=0;py<PH;py++)for(let px=0;px<PW;px++){
+    const x=(px+0.5)*TERR_SR,y=(py+0.5)*TERR_SR,i=py*PW+px;
+    const l=nA(x/260,y/260,3),h=nB(x/34,y/34,3);lo[i]=l;hi[i]=h;
+    const fr=field(2,x,y);
+    if(fr>0.02){const e=fr+(nC(x/90,y/90,2)-0.5)*0.42+(h-0.5)*0.12;rockH[i]=ss(0.44,0.56,e)*(0.75+0.5*h)}
+    const fm=field(1,x,y);if(fm>0.02)mudA[i]=ss(0.3,0.62,fm+(l-0.5)*0.5+(h-0.5)*0.18);
+    const fi=field(3,x,y);if(fi>0.02)riftA[i]=ss(0.32,0.6,fi+(nC(x/120+40,y/120,2)-0.5)*0.45);
   }
-  x2.fillStyle='rgba(0,0,0,0.25)';
-  for(let gy=0;gy<TGY;gy++)for(let gx=0;gx<TGX;gx++){
-    if(terrain[gy*TGX+gx]!==2||(S&&S.glass&&S.glass[gy*TGX+gx]))continue;
-    for(let k=0;k<4;k++){const px=gx*TCELL+rnd(4,TCELL-4), py=gy*TCELL+rnd(4,TCELL-4); x2.fillRect(px,py,rnd(3,7),rnd(3,7))}
+  const img=new ImageData(PW,PH),D=img.data;
+  for(let py=0;py<PH;py++)for(let px=0;px<PW;px++){
+    const i=py*PW+px,l=lo[i],h=hi[i];
+    // open ground: a dark slate, mottled in broad patches with fine grit
+    let lt=0.9+0.32*(l-0.5)+0.12*(h-0.5)+(rand()-0.5)*0.05;
+    let r=16*lt,g=21*lt,b=27*lt;
+    // rock's soft shadow falling down-right onto the ground around it
+    const sx=Math.max(0,px-3),sy=Math.max(0,py-3),sh=rockH[sy*PW+sx];
+    if(sh>0){const k=1-0.45*Math.min(1,sh*1.3);r*=k;g*=k;b*=k}
+    const m=mudA[i];if(m>0){const wet=1-0.35*Math.sin(Math.PI*Math.min(1,m))*(m<0.9?1:0),ml=(0.85+0.4*(h-0.5)+0.25*(l-0.5))*wet;
+      r+=(47*ml-r)*m;g+=(39*ml-g)*m;b+=(26*ml-b)*m}
+    const ri=riftA[i];if(ri>0){const rl=0.85+0.5*(l-0.5)+0.25*(h-0.5);r+=(42*rl-r)*ri;g+=(16*rl-g)*ri;b+=(48*rl-b)*ri}
+    const rk=rockH[i];
+    if(rk>0){const a=Math.min(1,rk*1.6);
+      // bevel: compare with the rock height up-left vs down-right of here
+      const ul=rockH[Math.max(0,py-1)*PW+Math.max(0,px-1)],dr=rockH[Math.min(PH-1,py+1)*PW+Math.min(PW-1,px+1)];
+      const sl=Math.max(-1,Math.min(1,(dr-ul)*2.2)),rl=(0.82+0.5*(h-0.5)+0.18*(l-0.5))*(1+0.55*sl);
+      r+=(54*rl-r)*a;g+=(61*rl-g)*a;b+=(68*rl-b)*a}
+    const o=i*4;D[o]=r;D[o+1]=g;D[o+2]=b;D[o+3]=255;
   }
+  const pc=document.createElement('canvas');pc.width=PW;pc.height=PH;pc.getContext('2d').putImageData(img,0,0);
+  x2.imageSmoothingEnabled=true;x2.imageSmoothingQuality='high';x2.drawImage(pc,0,0,PW*TERR_SR,PH*TERR_SR);
+  const at=(arr,x,y)=>arr[Math.min(PH-1,Math.max(0,Math.floor(y/TERR_SR)))*PW+Math.min(PW-1,Math.max(0,Math.floor(x/TERR_SR)))];
+  // cracks and seams across the rock faces
+  x2.lineCap='round';
+  for(let k=0;k<Math.round(W*H/9000);k++){const x=rnd(0,W),y=rnd(0,H);if(at(rockH,x,y)<0.6)continue;
+    let a=rnd(0,Math.PI*2),cx=x,cy=y;x2.strokeStyle='rgba(10,13,17,0.55)';x2.lineWidth=rnd(0.8,1.6);x2.beginPath();x2.moveTo(cx,cy);
+    for(let j=0;j<4;j++){a+=rnd(-0.7,0.7);cx+=Math.cos(a)*rnd(5,12);cy+=Math.sin(a)*rnd(5,12);if(at(rockH,cx,cy)<0.5)break;x2.lineTo(cx,cy)}x2.stroke()}
+  // pebbles and scree: scattered thinly over open ground, heaped up at the foot of the rock
+  const pebble=(x,y,R,tone)=>{const n=5+Math.floor(rand()*3),rot=rand()*6.3,P=[];for(let j=0;j<n;j++){const a=rot+j/n*Math.PI*2,rr=R*(0.7+rand()*0.45);P.push([x+Math.cos(a)*rr,y+Math.sin(a)*rr*0.8])}
+    x2.fillStyle='rgba(0,0,0,0.35)';x2.beginPath();x2.ellipse(x+R*0.35,y+R*0.45,R*1.05,R*0.8,0,0,Math.PI*2);x2.fill();
+    x2.fillStyle=`rgb(${tone*0.95|0},${tone|0},${tone*1.08|0})`;x2.beginPath();P.forEach((q,j)=>j?x2.lineTo(q[0],q[1]):x2.moveTo(q[0],q[1]));x2.closePath();x2.fill();
+    x2.fillStyle='rgba(255,255,255,0.10)';x2.beginPath();x2.ellipse(x-R*0.25,y-R*0.3,R*0.5,R*0.3,-0.5,0,Math.PI*2);x2.fill()};
+  for(let k=0;k<Math.round(W*H/2600);k++){const x=rnd(0,W),y=rnd(0,H);
+    if(at(rockH,x,y)>0.15||at(riftA,x,y)>0.5)continue;
+    const near=Math.max(at(rockH,x+14,y),at(rockH,x-14,y),at(rockH,x,y+14),at(rockH,x,y-14));
+    const mud=at(mudA,x,y)>0.5;
+    if(near>0.2){if(rand()<0.85)pebble(x,y,rnd(1.6,5.5),rnd(48,72))} // scree at the foot of the rock
+    else if(rand()<(mud?0.12:0.28)){const big=rand()<0.06;pebble(x,y,big?rnd(5,9):rnd(1.2,3.2),mud?rnd(42,56):rnd(38,62))}}
+  // the odd glint of standing water on the mud
+  for(let k=0;k<Math.round(W*H/20000);k++){const x=rnd(0,W),y=rnd(0,H);if(at(mudA,x,y)<0.85)continue;
+    x2.fillStyle='rgba(150,170,190,0.06)';x2.beginPath();x2.ellipse(x,y,rnd(8,22),rnd(3,7),rnd(-0.3,0.3),0,Math.PI*2);x2.fill()}
   // rift cracks — same glowing violet as its minimap/HUD marker, so it reads as the same hazard
   // everywhere it's drawn, not just a darker patch of ground
-  x2.strokeStyle='rgba(200,110,255,0.5)'; x2.lineWidth=1.5;
-  for(let gy=0;gy<TGY;gy++)for(let gx=0;gx<TGX;gx++){
-    if(terrain[gy*TGX+gx]!==RIFT)continue;
-    for(let k=0;k<2;k++){
-      const px=gx*TCELL+rnd(4,TCELL-4), py=gy*TCELL+rnd(4,TCELL-4), a=rnd(0,Math.PI*2), len=rnd(5,12);
-      x2.beginPath();x2.moveTo(px,py);x2.lineTo(px+Math.cos(a)*len,py+Math.sin(a)*len);x2.stroke();
-    }
-  }
+  x2.strokeStyle='rgba(200,110,255,0.42)';
+  for(let k=0;k<Math.round(W*H/1600);k++){const x=rnd(0,W),y=rnd(0,H);if(at(riftA,x,y)<0.6)continue;
+    let a=rnd(0,Math.PI*2),cx=x,cy=y;x2.lineWidth=rnd(0.8,1.6);x2.beginPath();x2.moveTo(cx,cy);
+    for(let j=0;j<3;j++){a+=rnd(-0.8,0.8);cx+=Math.cos(a)*rnd(4,9);cy+=Math.sin(a)*rnd(4,9);x2.lineTo(cx,cy)}x2.stroke()}
   // (the crack network is drawn live each frame instead — see drawCrackNet — so the fog can hide it)
   // v4: the crystal wall
-  if(S&&S.barrier&&S.barrier.type===2){const m=S.barrier.mask;
+  // (a mass of overlapping blue crystal shards over its cells, spilling a little past their edges,
+  // so the wall has a jagged, grown outline rather than a stair-step of squares)
+  if(S&&S.barrier&&S.barrier.type===2){const m=S.barrier.mask,list=[];
     for(let gy=0;gy<TGY;gy++)for(let gx=0;gx<TGX;gx++){const id=gy*TGX+gx;if(!m[id]||terrain[id]!==2)continue;
-      const x=gx*TCELL,y=gy*TCELL,h=Math.imul(gx,73856093)^Math.imul(gy,19349663),u=h>>>0;
-      x2.fillStyle=`hsl(${188+(u%34)},${55+(u>>5)%25}%,${30+(u>>9)%22}%)`;x2.fillRect(x,y,TCELL,TCELL);
-      x2.fillStyle='rgba(225,250,255,0.32)';x2.beginPath();x2.moveTo(x+(u%TCELL),y);x2.lineTo(x+TCELL,y+((u>>3)%TCELL));x2.lineTo(x+((u>>6)%TCELL),y+TCELL);x2.closePath();x2.fill()}}
+      for(let k=0;k<4;k++)list.push({x:gx*TCELL+rnd(4,TCELL-4),y:gy*TCELL+rnd(4,TCELL-4),r:rnd(14,30),rot:rnd(0,Math.PI*2),h:rnd(186,222),sa:rnd(50,78),l:rnd(28,50),v:[0,1,2,3,4,5].map(()=>rnd(0.7,1.15)),f:Math.floor(rnd(0,6))})}
+    list.sort((a,b)=>a.y-b.y);
+    x2.fillStyle='rgba(0,8,20,0.45)';list.forEach(c=>{x2.beginPath();x2.ellipse(c.x+3,c.y+5,c.r,c.r*0.8,0,0,Math.PI*2);x2.fill()});
+    list.forEach(c=>{const P=[];for(let i=0;i<6;i++){const a=c.rot+i*Math.PI/3,rr=c.r*c.v[i];P.push([c.x+Math.cos(a)*rr,c.y+Math.sin(a)*rr])}
+      x2.fillStyle=`hsl(${c.h},${c.sa}%,${c.l}%)`;x2.strokeStyle='rgba(4,22,40,0.7)';x2.lineWidth=1.4;
+      x2.beginPath();P.forEach((q,i)=>i?x2.lineTo(q[0],q[1]):x2.moveTo(q[0],q[1]));x2.closePath();x2.fill();x2.stroke();
+      x2.fillStyle='rgba(225,250,255,0.28)';x2.beginPath();x2.moveTo(c.x,c.y);x2.lineTo(P[c.f][0],P[c.f][1]);x2.lineTo(P[(c.f+1)%6][0],P[(c.f+1)%6][1]);x2.closePath();x2.fill();
+      x2.fillStyle='rgba(0,20,40,0.28)';x2.beginPath();x2.moveTo(c.x,c.y);x2.lineTo(P[(c.f+3)%6][0],P[(c.f+3)%6][1]);x2.lineTo(P[(c.f+4)%6][0],P[(c.f+4)%6][1]);x2.closePath();x2.fill();
+      x2.strokeStyle='rgba(235,252,255,0.5)';x2.lineWidth=1;x2.beginPath();x2.moveTo(P[c.f][0],P[c.f][1]);x2.lineTo(c.x,c.y);x2.stroke()})}
   // v4: the purple glass shards, drawn from the same shapes that block movement
   if(S&&S.glassShards&&S.glassShards.length){
     const list=[...S.glassShards].sort((p,q)=>p.y-q.y);
@@ -7623,13 +7690,9 @@ function draw(){
   const shkx=shk?rnd(-shk,shk):0, shky=shk?rnd(-shk,shk):0;
   ctx.translate(vw/2+shkx,vh/2+shky);ctx.scale(cam.z,cam.z);ctx.translate(-cam.x,-cam.y);
   const x0=cam.x-vw/2/cam.z,y0=cam.y-vh/2/cam.z,x1=cam.x+vw/2/cam.z,y1=cam.y+vh/2/cam.z;
-  // ground (terrain + depth-band tint) + grid
+  // ground (terrain + depth-band tint)
   ctx.drawImage(terrainCv,0,0,W,H);
   drawCrackNet(vw,vh,shkx,shky,x0,y0,x1,y1);
-  ctx.strokeStyle='rgba(255,255,255,0.035)';ctx.lineWidth=1/cam.z;ctx.beginPath();
-  for(let gx=Math.floor(Math.max(0,x0)/120)*120;gx<Math.min(W,x1);gx+=120){ctx.moveTo(gx,Math.max(0,y0));ctx.lineTo(gx,Math.min(H,y1))}
-  for(let gy=Math.floor(Math.max(0,y0)/120)*120;gy<Math.min(H,y1);gy+=120){ctx.moveTo(Math.max(0,x0),gy);ctx.lineTo(Math.min(W,x1),gy)}
-  ctx.stroke();
   // veins: their glow and hotspots go into a vision-masked light layer (so only the part of a vein
   // your units can currently see shows); the drill ring, warm-up text and wave arrow stay on top
   const VL=beginVeinLight(vw,vh,shkx,shky);
