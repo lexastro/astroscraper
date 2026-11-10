@@ -5728,6 +5728,26 @@ const sfx={
   damage(){if(!sfxReady('damage',0.3))return;tone(90,0.12,'triangle',0.08)},
   ping(){tone(700,0.1,'sine',0.08);tone(1100,0.35,'sine',0.07,0.1)},
   explode(){tone(90,0.2,'sawtooth',0.1,0,40);tone(50,0.3,'square',0.08,0.03,30)},
+  // Marksman: a rising whine while the rail charges, then a sharp crack with a ringing tail
+  railCharge(){if(!sfxReady('railCharge',0.1))return;tone(380,MARK_CHARGE,'sine',0.035,0,1900);tone(760,MARK_CHARGE,'triangle',0.015,0,3800)},
+  rail(){if(!sfxReady('rail',0.06))return;noiseCrack(0.05,0.12,4200);tone(2200,0.06,'square',0.045,0,900);tone(180,0.32,'sawtooth',0.06,0.01,55);tone(1320,0.4,'sine',0.025,0.04,1100)},
+  // Paladin: the spear swishes back, then the jab lands with a meaty thunk; a shield-wall shove is a deep bash
+  spearSwing(){if(!sfxReady('swing',0.05))return;noiseCrack(0.16,0.045,700);tone(260,0.14,'sine',0.02,0,120)},
+  spearHit(){if(!sfxReady('spear',0.05))return;noiseCrack(0.06,0.1,2400);tone(150,0.12,'triangle',0.09,0,70);noiseCrack(0.09,0.06,500,0.01)},
+  shieldBash(){if(!sfxReady('bash',0.08))return;tone(95,0.22,'triangle',0.11,0,45);noiseCrack(0.12,0.09,900);tone(620,0.18,'square',0.025,0.02,300)},
+  // every kind of unit goes down with its own sound
+  death(kind){if(!sfxReady('death_'+kind,0.15))return;
+    switch(kind){
+      case 'brawler':noiseCrack(0.08,0.09,2800);noiseCrack(0.1,0.08,1300,0.07);tone(115,0.35,'triangle',0.1,0.02,55);noiseCrack(0.07,0.05,3400,0.2);break; // armour clattering down
+      case 'marksman':tone(1100,0.5,'sine',0.05,0,110);noiseCrack(0.05,0.06,5000,0.05);noiseCrack(0.05,0.05,5000,0.14);tone(90,0.2,'triangle',0.06,0.1);break; // the rail powers down, sparking
+      case 'grenadier':[0,0.07,0.15].forEach((d,i)=>{noiseCrack(0.08,0.08,700-i*120,d);tone(130-i*20,0.12,'sawtooth',0.05,d,50)});break; // its pod cooks off
+      case 'rocket':noiseCrack(0.18,0.06,3200);tone(700,0.45,'sawtooth',0.035,0,70);tone(80,0.25,'triangle',0.08,0.3);break; // a launcher fizzling out
+      case 'mech':tone(130,0.6,'sawtooth',0.09,0,32);noiseCrack(0.18,0.1,320);noiseCrack(0.12,0.08,1900,0.25);tone(60,0.4,'square',0.06,0.28,30);break; // a heavy crunch and a clank
+      case 'artillery':tone(110,0.5,'sawtooth',0.08,0,35);noiseCrack(0.15,0.09,400);break;
+      case 'harvester':tone(300,0.4,'square',0.05,0,60);noiseCrack(0.1,0.06,1500,0.1);break; // gears grinding to a stop
+      case 'builder':tone(900,0.25,'sine',0.05,0,200);tone(450,0.15,'square',0.03,0.12,150);break; // a drone's blip falling away
+      default:tone(480,0.18,'square',0.045,0,170);noiseCrack(0.08,0.08,900,0.05);tone(100,0.15,'triangle',0.07,0.08);break; // Trooper: a short cry and a thud
+    }},
   surge(){if(!sfxReady('surge',0.2))return;tone(900,0.08,'sine',0.07);tone(1400,0.12,'sine',0.06,0.05,1800)},
 };
 // Only a FINISHED wall is a solid obstacle — a queued/under-construction site is just a ghost preview.
@@ -6047,7 +6067,7 @@ function brawlerShove(t){
   S.enemies.forEach(e=>{if(e.hp<=0||e.kind==='nest'||e.kind==='quaker')return;const dx=e.x-t.x,dy=e.y-t.y,d=Math.hypot(dx,dy);
     if(d>BRAWL_KB_R+(e.r||0)||d<1)return;let da=Math.atan2(dy,dx)-t.ang;da=Math.atan2(Math.sin(da),Math.cos(da));if(Math.abs(da)>BRAWL_KB_ARC/2)return;
     const k=(e.kind==='brute'?0.35:1)*BRAWL_KB_SPEED*(1-0.4*d/BRAWL_KB_R);e.kbx=dx/d*k;e.kby=dy/d*k;e.stunT=Math.max(e.stunT||0,BRAWL_KB_STUN)});
-  (S.shoves||(S.shoves=[])).push({x:t.x,y:t.y,a:t.ang,t:0});t.bashT=S.t;
+  (S.shoves||(S.shoves=[])).push({x:t.x,y:t.y,a:t.ang,t:0});t.bashT=S.t;sfx.shieldBash();
 }
 // ---------- Paladin art ----------
 // Top-down, facing t.ang: a hard-light shield projected from the left gauntlet, a spear in the right
@@ -6484,7 +6504,7 @@ function update(dt){
   tetherPass(S.harvesters,HARV_SPEED*S.mods.moveSpeedMult,dt);
   tetherPass(S.builders,BUILDER_SPEED*S.mods.moveSpeedMult,dt);
   // Sanity hit 0 — the unit snaps and defects to the enemy side
-  S.troops=S.troops.filter(t=>{if(t.sanity<=0){corruptUnit(t,t.kind,t.kind==='grenadier'?'A Grenadier':t.kind==='artillery'?'An Artillery Piece':t.kind==='mech'?'A Mech':t.kind==='rocket'?'A Rocketeer':t.kind==='brawler'?'A Paladin':t.kind==='marksman'?'A Marksman':'A Trooper');S.sel.troops.delete(t.id);return false}return true});
+  S.troops=S.troops.filter(t=>{if(t.sanity<=0){sfx.death(t.kind||'troop');corruptUnit(t,t.kind,t.kind==='grenadier'?'A Grenadier':t.kind==='artillery'?'An Artillery Piece':t.kind==='mech'?'A Mech':t.kind==='rocket'?'A Rocketeer':t.kind==='brawler'?'A Paladin':t.kind==='marksman'?'A Marksman':'A Trooper');S.sel.troops.delete(t.id);return false}return true});
   S.harvesters=S.harvesters.filter(h=>{if(h.sanity<=0){corruptUnit(h,'harvester','A Harvester');S.sel.harv.delete(h.id);return false}return true});
   S.builders=S.builders.filter(bu=>{if(bu.sanity<=0){releaseBuilderClaim(bu);corruptUnit(bu,'builder','A Builder');S.sel.bu.delete(bu.id);return false}return true});
 
@@ -6539,7 +6559,7 @@ function update(dt){
     // a Paladin's jab: once the wind-up runs out it lands on its target if that's still in reach
     if(brawl&&t.jabT>0){t.jabT-=dt;const c=t.jabTgt;if(c&&c.hp>0)t.ang=Math.atan2(c.y-t.y,c.x-t.x);
       if(t.jabT<=0){t.jabT=0;t.jabTgt=null;t.atkT=S.t;
-        if(c&&c.hp>0&&dist(t,c)-(c.r||0)<=range+6){const dm=BRAWL_DMG*S.mods.troopDmgMult;damageEnemy(c,dm);
+        if(c&&c.hp>0&&dist(t,c)-(c.r||0)<=range+6){const dm=BRAWL_DMG*S.mods.troopDmgMult;damageEnemy(c,dm);sfx.spearHit();
           // a little cleave: whatever else is huddled against the target takes some too
           S.enemies.forEach(e=>{if(e!==c&&e.hp>0&&dist(e,c)<BRAWL_CLEAVE_R)damageEnemy(e,dm*BRAWL_CLEAVE)});
           if(t.wall&&rnd(0,1)<BRAWL_KB_CHANCE)brawlerShove(t);
@@ -6549,10 +6569,10 @@ function update(dt){
       if(t.chargeT>0){t.chargeT-=dt;const c=t.chargeTgt;if(c&&c.hp>0)t.ang=Math.atan2(c.y-t.y,c.x-t.x);
         if(t.chargeT<=0){t.chargeT=0;t.chargeTgt=null;
           if(c&&c.hp>0&&dist(t,c)<=range+(c.r||0)){const end=troopPierce(t,c,range*1.15,MARK_DMG*S.mods.troopDmgMult,MARK_PIERCE);tracer(gunMuzzle(t,16),end,'#bfefff',3);t.shotT=S.t;
-            if(sfxReady('mark',0.08)){tone(1500,0.05,'square',0.05);tone(260,0.22,'sawtooth',0.05,0.02,90)}}
+            sfx.rail()}
           t.cd=MARK_CD/squadFireRateMult();if(t.hold&&!t.dest)t.cd/=1+Math.min(HOLD_LINK_MAX,HOLD_LINK_BONUS*(t.holdLinks||0))}}
       else if(t.cd<=0){let best=null,bd=range;S.enemies.forEach(e=>{if(e.hp<=0||!visible(e))return;const d=dist(e,t);if(d<bd){bd=d;best=e}});
-        if(best){t.chargeT=MARK_CHARGE;t.chargeTgt=best;t.ang=Math.atan2(best.y-t.y,best.x-t.x)}}
+        if(best){t.chargeT=MARK_CHARGE;t.chargeTgt=best;t.ang=Math.atan2(best.y-t.y,best.x-t.x);sfx.railCharge()}}
     }
     if(t.cd<=0&&!mark){let best=null,bd=range;S.enemies.forEach(e=>{if(arty&&!visible(e))return;const d=dist(e,t)-(brawl?e.r||0:0);if(d<bd){bd=d;best=e}});
       // a Rocketeer goes for the nearest nest or Quaker in reach before anything else
@@ -6561,7 +6581,7 @@ function update(dt){
         if(gren){if(!t.volley&&(t.pods??GREN_PODS)>=GREN_PODS){t.volley=true;t.volT=0;t.volTgt=best;t.volAt=null}t.cd=0.2}
         else if(brawl){t.ang=Math.atan2(best.y-t.y,best.x-t.x);
           // the spear swings back first (PAL_WIND); the jab lands when it comes forward (see the wind-up tick above)
-          if(!(t.jabT>0)){t.jabT=PAL_WIND;t.jabTgt=best}t.cd=BRAWL_CD/squadFireRateMult()}
+          if(!(t.jabT>0)){t.jabT=PAL_WIND;t.jabTgt=best;sfx.spearSwing()}t.cd=BRAWL_CD/squadFireRateMult()}
         else if(rock){t.ang=Math.atan2(best.y-t.y,best.x-t.x);if(!(t.paintT>0)){t.paintT=ROCKET_PAINT;t.paintTgt=best}t.cd=ROCKET_CD/squadFireRateMult()}
         else if(arty){launchProjectile(t,best,{speed:ARTY_PROJ_SPEED,dmg:ARTY_DMG,splashR:ARTY_SPLASH_R,color:C.condensed,big:true});t.cd=ARTY_CD}
         else if(mech){
@@ -6941,9 +6961,9 @@ function update(dt){
     if(!st.silent){burst(st.x,st.y,C.zone,14,130,0.5);sfx.relayDown();shakeScreen(3,0.2);msg('A Stabilizer was destroyed — the drill needle is slipping!')}}});
   S.stabs=S.stabs.filter(st=>st.hp>0);
   // units killed by an enemy go down and, a moment later, get back up corrupted
-  S.troops.forEach(t=>{if(t.hp<=0){S.sel.troops.delete(t.id);if(t.lastHitBy==='enemy')queueReanimation(t,t.kind||'troop')}});
-  S.harvesters.forEach(h=>{if(h.hp<=0){S.sel.harv.delete(h.id);if(h.lastHitBy==='enemy')queueReanimation(h,'harvester')}});
-  S.builders.forEach(bu=>{if(bu.hp<=0){S.sel.bu.delete(bu.id);if(bu.lastHitBy==='enemy')queueReanimation(bu,'builder')}});
+  S.troops.forEach(t=>{if(t.hp<=0){S.sel.troops.delete(t.id);sfx.death(t.kind||'troop');if(t.lastHitBy==='enemy')queueReanimation(t,t.kind||'troop')}});
+  S.harvesters.forEach(h=>{if(h.hp<=0){S.sel.harv.delete(h.id);sfx.death('harvester');if(h.lastHitBy==='enemy')queueReanimation(h,'harvester')}});
+  S.builders.forEach(bu=>{if(bu.hp<=0){S.sel.bu.delete(bu.id);sfx.death('builder');if(bu.lastHitBy==='enemy')queueReanimation(bu,'builder')}});
   S.troops=S.troops.filter(t=>t.hp>0); S.troops.forEach(t=>{if(dist(t,B)<BASE_FOOTPRINT+60&&!S.enemies.some(e=>dist(e,t)<200))t.hp=Math.min(t.maxHp,t.hp+6*dt)});
   S.harvesters=S.harvesters.filter(h=>h.hp>0); S.harvesters.forEach(h=>{if(dist(h,B)<BASE_FOOTPRINT+60&&!S.enemies.some(e=>dist(e,h)<200))h.hp=Math.min(h.maxHp,h.hp+6*dt)});
   S.builders.forEach(bu=>{if(bu.hp<=0)releaseBuilderClaim(bu)});
