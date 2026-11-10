@@ -5542,12 +5542,22 @@ function tone(freq,dur,type,gain,delay,slideTo){
   osc.connect(g); g.connect(ac.destination);
   osc.start(t0); osc.stop(t0+dur+0.03);
 }
+let noiseBuf=null;
+function noiseCrack(dur,gain,freq,delay){
+  const ac=ensureAudio();if(!ac)return;
+  if(!noiseBuf){noiseBuf=ac.createBuffer(1,Math.floor(ac.sampleRate*0.2),ac.sampleRate);const d=noiseBuf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1}
+  const t0=ac.currentTime+(delay||0),src=ac.createBufferSource(),f=ac.createBiquadFilter(),g=ac.createGain();
+  src.buffer=noiseBuf;f.type='bandpass';f.frequency.value=freq||1800;f.Q.value=0.9;
+  g.gain.setValueAtTime(gain,t0);g.gain.exponentialRampToValueAtTime(0.001,t0+dur);
+  src.connect(f);f.connect(g);g.connect(ac.destination);src.start(t0);src.stop(t0+dur+0.02);
+}
 // v4: a derelict rig's distress call — a rising two-pulse sonar ping and a falling tail
 function distressPing(){tone(1175,0.16,'sine',0.07);tone(1175,0.16,'sine',0.07,0.26);tone(880,0.55,'sine',0.065,0.54,640)}
 const sfx={
   distress:()=>distressPing(),
   click(){tone(520,0.05,'square',0.05)},
   gather(){if(!sfxReady('gather',0.12))return;tone(660,0.06,'sine',0.08);tone(880,0.08,'sine',0.06,0.05)},
+  rifle(){if(!sfxReady('rifle',0.045))return;noiseCrack(0.07,0.09,1600+Math.random()*500);tone(140,0.06,'triangle',0.05,0,70)},
   kill(){if(!sfxReady('kill',0.04))return;tone(200,0.09,'sawtooth',0.07,0,70)},
   build(){tone(300,0.08,'square',0.07);tone(450,0.1,'square',0.06,0.07)},
   veinDone(){tone(523,0.12,'sine',0.1);tone(659,0.12,'sine',0.09,0.1);tone(784,0.22,'sine',0.1,0.2)},
@@ -5639,6 +5649,7 @@ function droneJobs(){
   S.stabs.forEach(st=>{if(st.built&&st.hp>0&&st.hp<st.maxHp)add(st,0)});
   S.relays.forEach(r=>{if(r.built&&needsRepair(r))add(r,1)});
   S.turrets.forEach(t=>{if(t.built&&t.hp<t.maxHp)add(t,2)});
+  (S.wallLines||[]).forEach(L=>{if(L.raiseT0==null)return;L.slats.forEach(sl=>{if(!sl.dead&&sl.up>=1&&sl.hp<sl.maxHp)add(sl,2)})}); // damaged wall slats
   if(B.hp<B.maxHp)jobs.push({o:B,pri:3});
   return jobs;
 }
@@ -5647,6 +5658,7 @@ function droneJobAlive(o){
   if(o===S.base)return S.base.hp<S.base.maxHp;
   if(S.stabs.includes(o))return o.hp>0&&o.hp<o.maxHp&&dist(o,S.base)<=DRONE_RANGE;
   if(S.relays.includes(o)||S.turrets.includes(o))return needsRepair(o)&&dist(o,S.base)<=DRONE_RANGE;
+  if(o.kind==='wallslat')return !o.dead&&S.wallLines&&S.wallLines.includes(o.line)&&o.hp<o.maxHp&&dist(o,S.base)<=DRONE_RANGE;
   return false;
 }
 function updateDrones(dt){
@@ -6263,7 +6275,7 @@ function update(dt){
           t.mechSide=!t.mechSide;
           t.cd=MECH_CD;
         }
-        else{t.ang=Math.atan2(best.y-t.y,best.x-t.x);const end=troopPierce(t,best,range,TROOP_DMG*S.mods.troopDmgMult);tracer(gunMuzzle(t,11),end,C.accent);t.shotT=S.t;t.cd=TROOP_CD/squadFireRateMult()}
+        else{t.ang=Math.atan2(best.y-t.y,best.x-t.x);const end=troopPierce(t,best,range,TROOP_DMG*S.mods.troopDmgMult);tracer(gunMuzzle(t,11),end,C.accent);t.shotT=S.t;sfx.rifle();t.cd=TROOP_CD/squadFireRateMult()}
         if(t.hold&&!t.dest)t.cd/=1+Math.min(HOLD_LINK_MAX,HOLD_LINK_BONUS*(t.holdLinks||0));
         if(t.state==='idle'&&bd>range*0.7)t.target=best;
       }
