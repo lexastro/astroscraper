@@ -1552,7 +1552,7 @@ const UPGRADES={
   ],
 };
 
-const cv=document.getElementById('game'), ctx=cv.getContext('2d');
+const cv=document.getElementById('game');let ctx=cv.getContext('2d'); // let: the unit sprite cache points it at a sprite canvas while it renders one
 const mini=document.getElementById('mini'), mctx=mini.getContext('2d');
 const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const C={ally:css('--ally'),enemy:css('--enemy'),dat:css('--dat'),living:css('--living'),zone:css('--zone'),
@@ -5555,7 +5555,8 @@ function guardMove(t,range,speed,dt){
     return;
   }
   let near=null,nd=Infinity;
-  S.enemies.forEach(e=>{if(!visible(e))return;const dg=dist(e,g);if(dg>GUARD_ENGAGE_R+guardRadius(g))return;const d=dist(e,t);if(d<nd){nd=d;near=e}});
+  const gR=GUARD_ENGAGE_R+guardRadius(g);
+  S.enemies.forEach(e=>{if(dist(e,g)>gR||!visible(e))return;const d=dist(e,t);if(d<nd){nd=d;near=e}});
   if(near){
     if(nd<=range-10)return; // in range — hold and let auto-fire work
     const od=dist(t,g);
@@ -5940,7 +5941,22 @@ function dropoffPoint(h){
   S.depots.forEach(de=>{if(!de.built||de.hp<=0)return;const d=dist(h,de);if(d<bd){bd=d;best={x:de.x,y:de.y,r:26}}});
   return best;
 }
-function visible(p){const vm=S.mods.visionMult;if(dist(p,S.base)<BASE_VISION*vm)return true;if(S.pings.length&&inActivePing(p))return true;if(S.troops.some(t=>dist(t,p)<TROOP_VISION*vm*S.mods.squadRangeMult))return true;if(S.harvesters.some(h=>dist(h,p)<HARV_VISION*vm))return true;return S.builders.some(b=>dist(b,p)<BUILDER_VISION*vm)}
+// Troops are bucketed on a grid (cells one vision radius wide) once per game tick, so asking whether a
+// point is in sight only checks the units in the 3x3 cells round it instead of every unit — the
+// same answer, but a big army no longer turns every enemy's sight check into a sweep of the army.
+let visGrid=null,visGridT=-1,visGridN=-1,visGridR=0,visGridS=null;
+function buildVisGrid(){const r=TROOP_VISION*S.mods.visionMult*S.mods.squadRangeMult,g=new Map();
+  for(const t of S.troops){const k=Math.floor(t.x/r)*65536+Math.floor(t.y/r);let L=g.get(k);if(!L)g.set(k,L=[]);L.push(t)}
+  visGrid=g;visGridR=r;visGridT=S.t;visGridN=S.troops.length;visGridS=S}
+function troopSees(p){
+  if(visGridS!==S||visGridT!==S.t||visGridN!==S.troops.length||visGridR!==TROOP_VISION*S.mods.visionMult*S.mods.squadRangeMult)buildVisGrid();
+  const r=visGridR,cx=Math.floor(p.x/r),cy=Math.floor(p.y/r),r2=r*r;
+  for(let j=-1;j<=1;j++)for(let i=-1;i<=1;i++){const L=visGrid.get((cx+i)*65536+cy+j);if(!L)continue;for(const t of L){const dx=t.x-p.x,dy=t.y-p.y;if(dx*dx+dy*dy<r2)return true}}
+  return false}
+// (an object asked about more than once in the same tick — every guard checks every nearby enemy —
+// gets the answer worked out the first time)
+function visible(p){if(p._vt===S.t&&p._vS===S)return p._vv;const v=visibleNow(p);p._vt=S.t;p._vS=S;p._vv=v;return v}
+function visibleNow(p){const vm=S.mods.visionMult;if(dist(p,S.base)<BASE_VISION*vm)return true;if(S.pings.length&&inActivePing(p))return true;if(troopSees(p))return true;if(S.harvesters.some(h=>dist(h,p)<HARV_VISION*vm))return true;return S.builders.some(b=>dist(b,p)<BUILDER_VISION*vm)}
 function moveToward(o,d,sp,dt){const dx=d.x-o.x,dy=d.y-o.y,L=Math.hypot(dx,dy);if(L<1)return 0;const s=Math.min(L,sp*dt);o.x+=dx/L*s;o.y+=dy/L*s;return L-s}
 function tracer(a,b,col,w){S.tracers.push({x1:a.x,y1:a.y,x2:b.x,y2:b.y,t:0.12,col,w})}
 function hitFlash(o){o.flashT=0.12}
@@ -6412,7 +6428,32 @@ function palShieldEnds(t){
   const rot=t.ang+Math.PI/2,c=Math.cos(rot),sn=Math.sin(rot),w=(x,y)=>({x:t.x+(x*c-y*sn)*PAL_SC,y:t.y+(x*sn+y*c)*PAL_SC});
   return [w(PAL_SH_CX+Math.cos(a1)*PAL_SH_R,cy+Math.sin(a1)*PAL_SH_R),w(PAL_SH_CX+Math.cos(a2)*PAL_SH_R,cy+Math.sin(a2)*PAL_SH_R)];
 }
+// ---- unit sprite cache ----
+// A big army is mostly units standing or walking in a handful of poses, and drawing each one from
+// its ~30 little shapes every frame is what slowed big fights down. So a unit in a calm pose (not
+// firing, charging, jabbing, reloading or flashing) is drawn from a cached image of that pose,
+// rendered once at the current zoom and rotated into place; anything animating draws live as before.
+const USPR=new Map(),USPR_E=30;
+function unitSpriteKey(t){
+  if(t.flashT>0)return null;
+  const k=t.kind||'troop',since=S.t-(t.shotT??-9),aq=Math.round((t.aimV??RIFLE_READY)*5),TAU=Math.PI*2;
+  if(k==='troop')return since>0.9?'t'+aq:null;
+  if(k==='marksman'){if(t.chargeT>0||since<0.9)return null;return 'm'+aq+(t.moving?'w':'')+(((Math.floor((S.t*3+(t.id||0))/TAU*6)%6)+6)%6)}
+  if(k==='brawler'){if(t.jabT>0||S.t-(t.atkT??-9)<0.75||S.t-(t.bashT??-9)<0.85)return null;return 'p'+(((Math.floor((S.t*8+(t.id||0))/TAU*4)%4)+4)%4)}
+  if(k==='grenadier'){if(S.t-(t.podShotT??-9)<0.35||S.t-(t.podGrewT??-9)<0.35)return null;return 'g'+(t.pods??GREN_PODS)}
+  if(k==='rocket'){if(t.paintT>0||since<0.9)return null;return 'r'+aq}
+  return null}
 function drawUnitBody(t){
+  const key=unitSpriteKey(t);if(!key)return drawUnitBodyLive(t);
+  const sc=Math.min(6,Math.ceil(cam.z*gDpr()*2)/2),fk=key+'@'+sc;let c=USPR.get(fk);
+  if(!c){if(USPR.size>500)USPR.clear();
+    c=document.createElement('canvas');c.width=c.height=Math.ceil(USPR_E*2*sc);const x=c.getContext('2d');x.setTransform(sc,0,0,sc,USPR_E*sc,USPR_E*sc);
+    const proxy=Object.create(t);proxy.x=0;proxy.y=0;proxy.ang=0;const keep=ctx;ctx=x;try{drawUnitBodyLive(proxy)}finally{ctx=keep}
+    USPR.set(fk,c)}
+  if(t.kind==='brawler')t._pal=palState(t); // the shield wall reads each Paladin's pose
+  ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang);ctx.drawImage(c,-USPR_E,-USPR_E,USPR_E*2,USPR_E*2);ctx.restore();
+}
+function drawUnitBodyLive(t){
   const gren=t.kind==='grenadier',arty=t.kind==='artillery',mech=t.kind==='mech',rock=t.kind==='rocket',brawl=t.kind==='brawler';
   ctx.fillStyle=t.flashT>0?'#fff':gren?C.accent:arty?C.condensed:mech?C.mech:rock?ROCKET_COLOR:brawl?BRAWL_COLOR:C.ally;
   if(gren)drawGrenadier(t);
@@ -7336,7 +7377,8 @@ function update(dt){
     fogMaskX.fillStyle=g;fogMaskX.beginPath();fogMaskX.arc(x/FOG_S,y/FOG_S,r*FOG_EDGE_OUT/FOG_S,0,Math.PI*2);fogMaskX.fill();
     fogX.fillStyle=g;fogX.beginPath();fogX.arc(x/FOG_S,y/FOG_S,r*FOG_EDGE_OUT/FOG_S,0,Math.PI*2);fogX.fill()}; // remembered as explored
   {const vm=S.mods.visionMult;
-  unveil(B.x,B.y,BASE_VISION*vm);S.pings.forEach(pg=>unveil(pg.x,pg.y,pg.probe?pg.r*Math.min(1,pg.t/2):pg.r));S.troops.forEach(t=>unveil(t.x,t.y,TROOP_VISION*vm*S.mods.squadRangeMult));S.harvesters.forEach(h=>unveil(h.x,h.y,HARV_VISION*vm));S.builders.forEach(bu=>unveil(bu.x,bu.y,BUILDER_VISION*vm));}
+  unveil(B.x,B.y,BASE_VISION*vm);S.pings.forEach(pg=>unveil(pg.x,pg.y,pg.probe?pg.r*Math.min(1,pg.t/2):pg.r));{const r=TROOP_VISION*vm*S.mods.squadRangeMult,q=r*0.09,done=new Map(); // units bunched within q of one already drawn cut practically the same hole: skip them
+   S.troops.forEach(t=>{const k=Math.floor(t.x/q)*65536+Math.floor(t.y/q);if(done.has(k))return;done.set(k,1);unveil(t.x,t.y,r)})}S.harvesters.forEach(h=>unveil(h.x,h.y,HARV_VISION*vm));S.builders.forEach(bu=>unveil(bu.x,bu.y,BUILDER_VISION*vm));}
   softenFogLayers();
 }
 // Blurred copies of the fog veil and vision mask — what actually gets drawn/used each frame.
