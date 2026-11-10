@@ -7700,7 +7700,18 @@ function updateWalker(B){
   if(k<0)return;
   const f=B.feet[k];f.step={from:{x:f.x,y:f.y},to:null,t:0,dur:WK_STEP_T};
 }
-function wkFill(parts,flash){parts.forEach(q=>{ctx.fillStyle=flash?'#fff':q.col;ctx.fill(q.fill);ctx.fillStyle='#000';ctx.fill(q.ring,'evenodd')})}
+// The walker is lit like the units and the ground: each piece muted, washed light-to-dark from the
+// terrain's top-left sun, and bevelled — its own outline re-stroked a hair off toward the sun in a
+// shade and away from it in light, clipped inside the piece, so sunny edges catch a rim and the far
+// ones darken — with a soft dark-grey outline.
+function wkLit(path,col,flash,span,cx,cy){
+  ctx.fillStyle=flash?'#fff':muteCol(col);ctx.fill(path);if(flash)return;
+  const [lx,ly]=uSun();ctx.save();ctx.clip(path);
+  const g=ctx.createLinearGradient(cx+lx*span,cy+ly*span,cx-lx*span,cy-ly*span);g.addColorStop(0,'rgba(255,255,255,0.3)');g.addColorStop(0.5,'rgba(255,255,255,0)');g.addColorStop(1,'rgba(0,0,0,0.42)');
+  ctx.fillStyle=g;ctx.fill(path);
+  ctx.lineWidth=1.3;ctx.translate(-lx*0.9,-ly*0.9);ctx.strokeStyle='rgba(255,255,255,0.5)';ctx.stroke(path);
+  ctx.translate(lx*1.8,ly*1.8);ctx.strokeStyle='rgba(0,0,0,0.5)';ctx.stroke(path);ctx.restore()}
+function wkFill(parts,flash){parts.forEach(q=>{wkLit(q.fill,q.col,flash,60,WK_P.x,WK_P.y);ctx.fillStyle=U_OL;ctx.fill(q.ring,'evenodd')})}
 // The foot plate, drawn in the leg's frame with the hinge at the origin and the leg along -x
 // (the hull side). o: where the planted edge sits along the leg's line, relative to the hinge
 // (+ further out). The raised edge is opposite it, drawn wider (nearer the camera).
@@ -7709,14 +7720,23 @@ function drawPlate(o,lift,flash){
   const wide=WK_PLATE_W/2*(1+0.12*lift), narrow=wide*(1-0.42*tilt);
   const gx=s*a, rx=-s*a, c=Math.min(2.5,a*0.5);
   const pts=[[rx,-wide*0.82],[rx+s*c,-wide],[gx-s*c,-narrow],[gx,-narrow*0.45],[gx+s*Math.min(2,a*0.3),0],[gx,narrow*0.45],[gx-s*c,narrow],[rx+s*c,wide],[rx,wide*0.82]];
-  ctx.beginPath();pts.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.closePath();
-  ctx.fillStyle=flash?'#fff':'#ccc';ctx.fill();ctx.lineWidth=1.2;ctx.strokeStyle='#000';ctx.stroke();
+  const path=new Path2D();pts.forEach((p,i)=>i?path.lineTo(p[0],p[1]):path.moveTo(p[0],p[1]));path.closePath();
+  wkLit(path,'#ccc',flash,WK_PLATE_HALF,0,0);ctx.lineWidth=0.85;ctx.strokeStyle=U_OL;ctx.stroke(path);
 }
+const WK_LEGS_C=document.createElement('canvas'),WK_TOP_C=document.createElement('canvas'),WK_SH_C=document.createElement('canvas'),WK_R=110;
+// Each layer casts its shadow down-right: the legs a short one, the turret riding high above them a longer one.
+const WK_SH_LEGS=6,WK_SH_TOP=12;
 function drawWalker(B){
   updateWalker(B);
+  const sc=Math.min(4,cam.z*gDpr()),S2=Math.ceil(WK_R*2*sc),main=ctx;
+  [WK_LEGS_C,WK_TOP_C,WK_SH_C].forEach(c=>{if(c.width!==S2){c.width=c.height=S2}});
+  const begin=c=>{const x=c.getContext('2d');x.setTransform(1,0,0,1,0,0);x.clearRect(0,0,S2,S2);x.setTransform(sc,0,0,sc,WK_R*sc,WK_R*sc);ctx=x};
+  const shadowOf=(c,off)=>{const x=WK_SH_C.getContext('2d');x.setTransform(1,0,0,1,0,0);x.clearRect(0,0,S2,S2);x.globalCompositeOperation='source-over';x.drawImage(c,0,0);
+    x.globalCompositeOperation='source-in';x.fillStyle='rgba(0,0,0,0.5)';x.fillRect(0,0,S2,S2);x.globalCompositeOperation='source-over';main.drawImage(WK_SH_C,B.x-WK_R+off,B.y-WK_R+off,WK_R*2,WK_R*2)};
   const flash=B.flashT>0;
-  ctx.save();ctx.translate(B.x,B.y);
-  ctx.fillStyle='rgba(0,0,0,0.35)';ctx.beginPath();ctx.ellipse(4,6,B.r*1.25,B.r*1.15,0,0,Math.PI*2);ctx.fill();
+  try{
+  begin(WK_LEGS_C);
+  ctx.save();
   ctx.scale(WK_SCALE,WK_SCALE);
   // lower layer: legs, each pointing at its planted foot
   ctx.save();ctx.rotate(B.heading+Math.PI/2);
@@ -7736,17 +7756,21 @@ function drawWalker(B){
     if(o>0){drawLeg();plate()}else{plate();drawLeg()} // planted further out: the plate leans over the leg
     ctx.restore();
   });
-  ctx.restore();
-  // anchor rings under the planted feet while locked down
-  if(B.plant>0.05){ctx.save();ctx.scale(1/WK_SCALE,1/WK_SCALE);ctx.globalAlpha=B.plant;ctx.strokeStyle=C.accent;ctx.lineWidth=1.5;
-    B.feet.forEach(f=>{ctx.beginPath();ctx.arc(f.x-B.x,f.y-B.y,9,0,Math.PI*2);ctx.stroke()});ctx.globalAlpha=1;ctx.restore()}
+  ctx.restore();ctx.restore();
   // top layer: the turret
+  begin(WK_TOP_C);ctx.save();ctx.scale(WK_SCALE,WK_SCALE);
   ctx.rotate(B.turret+Math.PI/2);ctx.scale(WK_TOP_SCALE,WK_TOP_SCALE);ctx.translate(-WK_P.x,-WK_P.y);
   wkFill(WK_TOP,flash);
-  ctx.lineWidth=1;ctx.strokeStyle='#000';
-  WK_HULL.forEach(q=>{ctx.fillStyle=flash?'#fff':q.col;ctx.fill(q.p);ctx.stroke(q.p)});
+  WK_HULL.forEach(q=>{wkLit(q.p,q.col,flash,40,WK_P.x,WK_P.y-6);ctx.lineWidth=0.7;ctx.strokeStyle=U_OL;ctx.stroke(q.p)});
   ctx.fillStyle=B.locked?C.accent:C.ally;ctx.beginPath();ctx.arc(WK_P.x,77.5,2.6,0,Math.PI*2);ctx.fill();
   ctx.restore();
+  }finally{ctx=main}
+  // onto the ground: shadows first, then the legs, the anchor rings, and the turret on top
+  shadowOf(WK_LEGS_C,WK_SH_LEGS);shadowOf(WK_TOP_C,WK_SH_TOP);
+  ctx.drawImage(WK_LEGS_C,B.x-WK_R,B.y-WK_R,WK_R*2,WK_R*2);
+  if(B.plant>0.05){ctx.save();ctx.globalAlpha=B.plant;ctx.strokeStyle=C.accent;ctx.lineWidth=1.5;
+    B.feet.forEach(f=>{ctx.beginPath();ctx.arc(f.x,f.y,9,0,Math.PI*2);ctx.stroke()});ctx.restore()}
+  ctx.drawImage(WK_TOP_C,B.x-WK_R,B.y-WK_R,WK_R*2,WK_R*2);
 }
 // ---------- draw ----------
 function drawCable(u,col){
