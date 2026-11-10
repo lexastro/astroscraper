@@ -6001,7 +6001,9 @@ function ensureAudio(){
   return actx;
 }
 const sfxCd={};
-function sfxReady(key,minGap){const t=S.t;if(t-(sfxCd[key]||-999)<minGap)return false;sfxCd[key]=t;return true}
+// (real time, not S.t: the game clock starts again at 0 every map, which left every sound used on an
+// earlier map 'too recent' and silent until the new clock caught up with the old timestamps)
+function sfxReady(key,minGap){const t=performance.now()/1000;if(t-(sfxCd[key]??-999)<minGap)return false;sfxCd[key]=t;return true}
 function tone(freq,dur,type,gain,delay,slideTo){
   const ac=ensureAudio(); if(!ac)return;
   const t0=ac.currentTime+(delay||0);
