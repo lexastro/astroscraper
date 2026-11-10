@@ -804,7 +804,7 @@ const MAP_SCALE=0.7, MS=MAP_SCALE;
 let W=Math.round(5020*MS),H=Math.round(5020*MS); const CELL=24;
 // v4: Rim stops are drawn on a map 20% smaller across (MAP_SIZE_BY_BAND) with the same things on it
 // — a tighter, busier start. Everything sized from W/H is redone by setMapSize at the start of reset().
-const MAP_SIZE_BY_BAND={rim:0.8,dense:1.15}; // v4: Dense Field maps a little bigger, room for nests to sit out in the rift
+const MAP_SIZE_BY_BAND={rim:0.64,dense:1.15}; // v4: the Rim shrunk again (was 0.8) for shorter stops; // v4: Dense Field maps a little bigger, room for nests to sit out in the rift
 // The Black Flame epicenter moves map to map (see rollLayout) and the three depth bands are rings
 // around it: Core within CORE_R, Dense Field out to DENSE_R, Rim beyond that. Where the epicenter
 // sits decides the map's whole shape — hugging an edge, tucked in a corner, or dead centre with
@@ -819,6 +819,7 @@ let EPI_REACH=5000;
 const RUN_STOPS=[{band:'rim'},{band:'rim'},{band:'dense'},{band:'dense'},{band:'core'},{band:'core',final:true}];
 const STOP_HP=[1,1.2,1.1,1.3,1.15,1.35];          // enemy toughness per stop, on top of the zone's own
 const STOP_DEPTH=[0,0.1,0.45,0.55,0.9,1];          // how deep each stop counts as, for depth-scaled pressure
+const RIM_VEINS=4; // v4: a Rim stop has 4 ordinary veins (it had about 7), so it plays shorter
 const STOP_NESTS={rim:Math.round(10*MS*1.1),dense:Math.round(11*MS*1.1),core:Math.round(10*MS*1.1)}, STOP_RICH={rim:[20,30],dense:[40,58],core:[75,95]};
 const STOP_GUARDS=[['small','medium','small'],['medium','medium','small'],['medium','large','medium'],['large','large','medium'],['large','large','large']];
 const BARRIER_X=0.64, BARRIER_HALF=150, BREACH_GAP=170, LAND_X=420, BREACH_LAND_MIN=0.45; let EXIT_X=W-200;
@@ -2497,13 +2498,15 @@ function reset(landing){
     S.sites.forEach(t=>{t.band=STOP_BAND;t.richness=Math.round(rnd(r[0],r[1]))});
     S.contractSite.band=STOP_BAND;
     if(st.final){const cp=frameXY(rnd(W*0.72,W-450),rnd(H*0.25,H*0.75));S.contractSite.x=cp.x;S.contractSite.y=cp.y;S.sites=S.sites.filter(t=>dist(t,S.contractSite)>900)}
-    else{const bs=S.breachSite=pickBreachSite(), bx=W*BARRIER_X, f=MAP_SIZE_BY_BAND[STOP_BAND]||1, want=S.sites.length;
+    else{const bs=S.breachSite=pickBreachSite(), bx=W*BARRIER_X, f=MAP_SIZE_BY_BAND[STOP_BAND]||1, want=STOP_BAND==='rim'?RIM_VEINS:S.sites.length;
       const ok=(t,gap)=>dist(t,bs)>1100*f&&Math.abs(frameAB(t.x,t.y).a-bx)>ZONE_R+BARRIER_HALF+200&&!S.sites.some(o=>o!==t&&dist(o,t)<gap);
-      S.sites=S.sites.filter(t=>ok(t,0));
+      S.sites=S.sites.filter(t=>ok(t,0)).slice(0,want);
       // v4: on a smaller map more sites fall foul of the breach and the wall — top them back up to
       // the same number, spaced out as well as the room allows
-      if(f<1)for(let t=0;t<600&&S.sites.length<want;t++){const q={x:rnd(VEIN_X_MARGIN,W-VEIN_X_MARGIN),y:rnd(VEIN_X_MARGIN,H-VEIN_X_MARGIN)};
-        if(ok(q,VEIN_SAME_BAND_GAP*f*(t<300?0.75:0.5)))S.sites.push({x:q.x,y:q.y,band:STOP_BAND,richness:Math.round(rnd(r[0],r[1])),vein:null})}}
+      // (the top-up uses tighter clearances: a small map leaves only a thin strip under the full ones)
+      const ok2=(t,gap)=>dist(t,bs)>800*f&&Math.abs(frameAB(t.x,t.y).a-bx)>ZONE_R+BARRIER_HALF+60&&!S.sites.some(o=>o!==t&&dist(o,t)<gap);
+      if(f<1)for(let t=0;t<1500&&S.sites.length<want;t++){const m=ZONE_R+60,q={x:rnd(m,W-m),y:rnd(m,H-m)};
+        if(ok2(q,VEIN_SAME_BAND_GAP*f*(t<400?0.75:t<900?0.55:0.4)))S.sites.push({x:q.x,y:q.y,band:STOP_BAND,richness:Math.round(rnd(r[0],r[1])),vein:null})}}
   }
   S.crackNet=genCrackNet([...S.sites,S.contractSite,...(S.breachSite?[S.breachSite]:[])]);
   // Which sites start with a live vein (and how far along each is) is part of the map, decided
@@ -7390,7 +7393,7 @@ function shuffled(arr){const a=[...arr];for(let i=a.length-1;i>0;i--){const j=Ma
 // Hive's Legendary cards are as rare. The Core is unchanged.
 const REWARD_RIM_EPIC=0.45, REWARD_DENSE_LEGENDARY=0.15;
 function rewardTierFor(tier,band){
-  if(band==='rim'){if(tier==='Legendary'||tier==='Hive')return 'Epic';if(tier==='Epic'&&Math.random()>REWARD_RIM_EPIC)return 'Rare'}
+  if(band==='rim'&&(tier==='Epic'||tier==='Legendary'||tier==='Hive'))return 'Rare'; // v4: nothing above Rare comes out of the Rim
   if(band==='dense'&&tier==='Legendary'&&Math.random()>REWARD_DENSE_LEGENDARY)return 'Epic';
   return tier;
 }
