@@ -668,7 +668,7 @@ async function run(d){
 
 <div class="help" id="help" hidden>
   <button id="helpClose" aria-label="Close">×</button>
-  <b>The run:</b> six stops, each one map in a single zone and each deeper and tougher than the last — Rim, Rim, Dense Field, Dense Field, Core, and the Core's heart where the contract vein waits. A barrier (rift on the Rim, a crystal wall deeper in) cuts every map: drain the <b>breach vein</b> in front of it to break through, then walk the Bastion off the far edge — which side that is changes from map to map, and you arrive on the opposite one. Everything you have carries on to the next stop.<br>
+  <b>The run:</b> three stops, one map in each zone, each deeper and tougher than the last — the Rim, the Dense Field, and the Core's heart where the contract vein waits. A barrier (rift on the Rim, a crystal wall deeper in) cuts every map: drain the <b>breach vein</b> in front of it to break through, then walk the Bastion off the far edge — which side that is changes from map to map, and you arrive on the opposite one. Everything you have carries on to the next stop.<br>
 <b>Healing:</b> units inside the Bastion's dashed ring slowly regain health (Relays don't heal anyone). <b>Unit limits:</b> up to 5 Grenadiers, 4 Rocketeers (rockets that hit nests and Quakers 4× as hard) and 3 Mechs at once (the button shows how many you have). <b>Stock &amp; troopers:</b> nothing refills on its own any more — every fabricator, Stabilizer and Probe has a free stock, and once it's empty each use costs Dat (the price shows on the button). You have 6 Trooper slots (3 filled for free at the start — the button shows how many you have against the limit) and 8 Paladin slots (4 free to start); each new Trooper or Paladin costs Dat, and right-clicking any build button buys another charge of it (or switch <b>Auto-buy</b> on to buy automatically when a stock runs out). Salvage from Large nests and Mega nests can raise the limit. <b>Wrecks</b> (derelict scrapers) lie hidden on every map, some beyond the barrier — park the Bastion on one for 8s (or send units to stand on it — slower) to salvage it (it draws an ambush): Dat, refilled stocks, drones, a barracks module (+1 Trooper limit) or a few free units of a kind you haven't unlocked yet (they join you, but only the Unlocks panel lets you build more). <b>Quakers</b> — big stone blocks — lumber in while you drill, keep their distance and slam the ground to jolt the drill needle and shake your Stabilizers: send units out to kill them.<br>
 <b>Goal:</b> the ground is cracked all over: <b>follow the pulses of energy</b> running through the cracks back to their source to find a vein, then park the Bastion on its glowing centre and press <kbd>F</kbd> to lock on. Veins <b>emerge, ripen</b> a tier at a time, then go unstable and <b>collapse</b> — and new ones emerge elsewhere. Glowing <b>stray pockets</b> give a bearing toward the nearest vein when a unit reaches one; two bearings from different angles triangulate it. Locking on starts the <b>strike</b> at once: press <kbd>F</kbd> again to stop the needle on a good band of the strip (the thin sliver is a tier above the vein; red ruptures it) — the meter zooms in on where you hit and the drill starts; the first wave arrives about 20s later. While it drills, the needle drifts; Stabilizers hold it steady, and the tier you're paid is where it spends most of its time. If it drifts into the red, the vein ruptures and damages the Bastion. Drain veins for rewards — after 3, the contract vein stirs: it gives off no pulses, so triangulate it with bearings from stray pockets, then drain it to win.<br>
   <b>Controls:</b> drag to select · right-click to move/attack · right-click a friendly unit or building with combat units selected to <b>guard</b> it (escort it, fight off anything that comes near, then fall back) · <kbd>C</kbd> select all your units · <kbd>F</kbd> lock on to a vein / strike · <kbd>H</kbd> jump the camera to the Bastion · <kbd>WASD</kbd> or middle-drag to pan, scroll to zoom<br>
@@ -804,7 +804,7 @@ const MAP_SCALE=0.7, MS=MAP_SCALE;
 let W=Math.round(5020*MS),H=Math.round(5020*MS); const CELL=24;
 // v4: Rim stops are drawn on a map 20% smaller across (MAP_SIZE_BY_BAND) with the same things on it
 // — a tighter, busier start. Everything sized from W/H is redone by setMapSize at the start of reset().
-const MAP_SIZE_BY_BAND={rim:0.64,dense:1.15}; // v4: the Rim shrunk again (was 0.8) for shorter stops; // v4: Dense Field maps a little bigger, room for nests to sit out in the rift
+const MAP_SIZE_BY_BAND={rim:0.64,dense:0.92,core:0.8}; // v4: the Rim shrunk again (was 0.8) for shorter stops; // v4: Dense Field maps a little bigger, room for nests to sit out in the rift
 // The Black Flame epicenter moves map to map (see rollLayout) and the three depth bands are rings
 // around it: Core within CORE_R, Dense Field out to DENSE_R, Rim beyond that. Where the epicenter
 // sits decides the map's whole shape — hugging an edge, tucked in a corner, or dead centre with
@@ -816,12 +816,12 @@ let CORE_R=1080*MS, DENSE_R=2700*MS;
 let EPI_REACH=5000;
 // v4: a run of stops (see "the run" section). STOP_BAND, while set, makes every point of the map
 // read as that one zone; RUN holds which stop the run is on and what carries over.
-const RUN_STOPS=[{band:'rim'},{band:'rim'},{band:'dense'},{band:'dense'},{band:'core'},{band:'core',final:true}];
-const STOP_HP=[1,1.2,1.1,1.3,1.15,1.35];          // enemy toughness per stop, on top of the zone's own
-const STOP_DEPTH=[0,0.1,0.45,0.55,0.9,1];          // how deep each stop counts as, for depth-scaled pressure
+const RUN_STOPS=[{band:'rim'},{band:'dense'},{band:'core',final:true}]; // v4: one stop per zone (was two)
+const STOP_HP=[1,1,1.25];          // enemy toughness per stop, on top of the zone's own
+const STOP_DEPTH=[0,0.4,1];          // how deep each stop counts as, for depth-scaled pressure
 const RIM_VEINS=4; // v4: a Rim stop has 4 ordinary veins (it had about 7), so it plays shorter
-const STOP_NESTS={rim:Math.round(10*MS*1.1),dense:Math.round(11*MS*1.1),core:Math.round(10*MS*1.1)}, STOP_RICH={rim:[20,30],dense:[40,58],core:[75,95]};
-const STOP_GUARDS=[['small','medium','small'],['medium','medium','small'],['medium','large','medium'],['large','large','medium'],['large','large','large']];
+const STOP_NESTS={rim:Math.round(10*MS*1.1),dense:Math.round(11*MS*1.1*0.64),core:Math.round(10*MS*1.1*0.64)}, STOP_RICH={rim:[20,30],dense:[40,58],core:[75,95]};
+const STOP_GUARDS=[['small','medium','small'],['medium','medium','small']];
 const BARRIER_X=0.64, BARRIER_HALF=150, BREACH_GAP=170, LAND_X=420, BREACH_LAND_MIN=0.45; let EXIT_X=W-200;
 // v4: which way a stop runs. Every stop is laid out as if you entered at the back and left across the far
 // side (a runs toward the exit, b runs across); EXIT_DIR (N/E/S/W) says which real edge the exit is on,
@@ -1322,7 +1322,7 @@ const VEIN_DAT_PER_RICH=3;
 // no progress, no Dat burn, and no wave/saboteur clocks running, same as being paused. Throttle
 // is still locked in up front; it just doesn't start spending/spawning until prep finishes.
 const PREP_TIME=60;
-const BASE_SPAWN_INTERVAL={rim:21,dense:17,core:10}; // v4: Rim/Dense waves come much sooner (stretched to leave room for the longer wave warning)
+const BASE_SPAWN_INTERVAL={rim:21,dense:21,core:10}; // v4: Rim/Dense waves come much sooner (stretched to leave room for the longer wave warning)
 const AMBIENT_INTERVAL={rim:45,dense:22,core:7};
 // Off-zone mining pressure: parking harvesters on an open Dat Crystal cluster instead of locking
 // the Bastion down on a vein skips drilling's wave/saboteur spawns entirely — nothing stops the
@@ -1339,7 +1339,7 @@ const WAVE_FRONT_HALF=260; // half-width of the line a wave spawns along, across
 // WAVE_SPAWN_DIST, so it arrives as drilling starts.
 const FIRST_WAVE_LEAD=9;
 const STAB_HUNTER_FRAC=0.35; // share of each drilling wave sent after the Stabilizers
-const WAVE_SPAWN_DIST=820,WAVE_BASE_N={rim:11,dense:17,core:31}; // ~1.4x, in step with the longer gaps between waves
+const WAVE_SPAWN_DIST=820,WAVE_BASE_N={rim:11,dense:13,core:31}; // ~1.4x, in step with the longer gaps between waves
 // v4 horde: every drilling wave brings a flood of swarmlings with it — HORDE_MULT times the wave's
 // own size, each one trivial on its own (a shot or two) but dangerous in a mass. They move as a
 // crowd on one shared flow field toward the Bastion instead of each planning its own path, so they
@@ -1353,7 +1353,7 @@ const WAVE_SPAWN_DIST=820,WAVE_BASE_N={rim:11,dense:17,core:31}; // ~1.4x, in st
 // break on walls (chipping the slat) and on a shield-wall Paladin's shield if it's facing them.
 // SPL_SHARE of each band's drilling-wave enemies come as Splinters.
 const SPL_SHARDS=6, SPL_RANGE=230, SPL_VOLLEY_GAP=0.14, SPL_REGROW=1.1, SPL_SHOT_SPEED=270, SPL_SHOT_DMG=4, SPL_HP=45, SPL_SPEED=62, SPL_SHARE={rim:0.08,dense:0.15,core:0.2};
-const HORDE_MULT={rim:4,dense:5,core:5}, HORDE_CAP=420, HORDE_BIG_EVERY=4, HORDE_BIG_MULT=2.2, HORDE_HP=8, HORDE_SHARD_P=0.06, HORDE_DMG=1, HORDE_STOMP_DPS=14;
+const HORDE_MULT={rim:4,dense:4,core:5}, HORDE_CAP=420, HORDE_BIG_EVERY=4, HORDE_BIG_MULT=2.2, HORDE_HP=8, HORDE_SHARD_P=0.06, HORDE_DMG=1, HORDE_STOMP_DPS=14;
 // (a horde swarmer pressed up against the Bastion is trampled by its legs at HORDE_STOMP_DPS — each one
 // gets a bite or two in before it's crushed, so it's the flow of them that wears the Bastion down)
 const WAVE_WARN_T=11, WAVE_WARN_BIG_T=16;
@@ -1702,7 +1702,7 @@ function hotspotAt(w){
 // time in (~METER_AVG_T seconds), so a moment's wobble is forgiven. Touching red ruptures the vein.
 const STRIP_W={Rare:0.07,Epic:0.05,Legendary:0.032,Hive:0.032}, STRIP_N_TOP=4, STRIP_N_LOWER=3, STRIP_JACKPOT_W=0.018, STRIP_RED_W=0.05; // v4: more, narrower bands
 const STAB_WIDEN=0.2, STRIKE_SHRINK_T=12, STRIKE_SHRINK_MIN=0.2, STRIKE_SWEEP_T=1.6, ZOOM_HALF=0.18, ZOOM_T=0.55, METER_AVG_T=6;
-const METER_TURB={Common:0.17,Rare:0.22,Epic:0.29,Legendary:0.36,Hive:0.38}, METER_K_BASE=1.0, METER_K_STAB=3.5;
+const METER_TURB={Common:0.17,Rare:0.22,Epic:0.25,Legendary:0.36,Hive:0.38}, METER_K_BASE=1.0, METER_K_STAB=3.5;
 function buildStrip(v){
   const ladder=veinLadder(v), idx=v.lockIdx!=null?v.lockIdx:ripeIdx(v);
   const floor=ladder[0], ripe=ladder[idx], ri=TIER_ORDER_ALL.indexOf(ripe), top=TIER_ORDER_ALL.indexOf(ladder[ladder.length-1]);
@@ -2509,7 +2509,7 @@ function reset(landing){
       // the same number, spaced out as well as the room allows
       // (the top-up uses tighter clearances: a small map leaves only a thin strip under the full ones)
       const ok2=(t,gap)=>dist(t,bs)>800*f&&Math.abs(frameAB(t.x,t.y).a-bx)>ZONE_R+BARRIER_HALF+60&&!S.sites.some(o=>o!==t&&dist(o,t)<gap);
-      if(f<1)for(let t=0;t<1500&&S.sites.length<want;t++){const m=ZONE_R+60,q={x:rnd(m,W-m),y:rnd(m,H-m)};
+      if(STOP_BAND==='rim')for(let t=0;t<1500&&S.sites.length<want;t++){const m=ZONE_R+60,q={x:rnd(m,W-m),y:rnd(m,H-m)};
         if(ok2(q,VEIN_SAME_BAND_GAP*f*(t<400?0.75:t<900?0.55:0.4)))S.sites.push({x:q.x,y:q.y,band:STOP_BAND,richness:Math.round(rnd(r[0],r[1])),vein:null})}}
   }
   S.crackNet=genCrackNet([...S.sites,S.contractSite,...(S.breachSite?[S.breachSite]:[])]);
