@@ -414,7 +414,8 @@ body.inMenu :is(#game,#fogGrain,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMet
     <button id="bTurret" data-mode="turret"><span class="icon">⌖</span><span>Turret</span><span class="cost" id="cf_turret">●●</span><span class="key">T</span></button>
     <button id="bWall" data-mode="wall"><span class="icon">▤</span><span>Wall</span><span class="cost" id="cWall">◆2/slat</span><span class="key">Q</span></button>
     <button id="bRelay" data-mode="relay"><span class="icon">⟐</span><span>Relay</span><span class="cost" id="cf_relay">●●●</span><span class="key">R</span></button>
-    <button id="bFabTroop" data-unit="troop"><span class="icon">▲</span><span>Squad</span><span class="cost" id="cf_troop">●●</span></button>
+    <button id="bFabTroop" data-unit="troop"><span class="icon">▲</span><span>Trooper</span><span class="cost" id="cf_troop">●●</span></button>
+    <button id="bFabMarksman" data-unit="marksman"><span class="icon">⌁</span><span>Marksman</span><span class="cost" id="cf_marksman">●</span></button>
     <button id="bFabBrawler" data-unit="brawler"><span class="icon">⛊</span><span>Brawler</span><span class="cost" id="cf_brawler">●●●●○○○○</span></button>
     <button id="bFabGrenadier" data-unit="grenadier" hidden><span class="icon">✺</span><span>Grenadier</span><span class="cost" id="cf_grenadier">●●</span></button>
     <button id="bStab" data-mode="stabilizer"><span class="icon">◈</span><span>Stabilizer</span><span class="cost" id="cStab">●●●</span><span class="key">E</span></button>
@@ -450,17 +451,17 @@ body.inMenu :is(#game,#fogGrain,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMet
 <div class="mini" id="miniWrap"><canvas id="mini" width="180" height="180"></canvas><button id="miniToggle" class="miniToggle" aria-label="Expand minimap">⤢</button></div>
 <div class="unitSelCtrl" id="unitSelCtrl">
   <button id="selBaseBtn2" aria-label="Select Bastion">⛨</button>
-  <button id="selTroopsBtn2" aria-label="Select all Squads">▲<span class="cnt" id="cntTroops2">0</span></button>
+  <button id="selTroopsBtn2" aria-label="Select all Troopers">▲<span class="cnt" id="cntTroops2">0</span></button>
 </div>
 
 <div class="help" id="help" hidden>
   <button id="helpClose" aria-label="Close">×</button>
   <b>The run:</b> six stops, each one map in a single zone and each deeper and tougher than the last — Rim, Rim, Dense Field, Dense Field, Core, and the Core's heart where the contract vein waits. A barrier (rift on the Rim, a crystal wall deeper in) cuts every map: drain the <b>breach vein</b> in front of it to break through, then walk the Bastion off the far edge — which side that is changes from map to map, and you arrive on the opposite one. Everything you have carries on to the next stop.<br>
-<b>Healing:</b> units inside the Bastion's dashed ring slowly regain health (Relays don't heal anyone). <b>Unit limits:</b> up to 5 Grenadiers, 4 Rocketeers (rockets that hit nests and Quakers 4× as hard) and 3 Mechs at once (the button shows how many you have). <b>Stock &amp; squads:</b> nothing refills on its own any more — every fabricator, Stabilizer and Probe has a free stock, and once it's empty each use costs Dat (the price shows on the button). You have 6 Squad slots (3 filled for free at the start — the button shows how many you have against the limit) and 8 Brawler slots (4 free to start); each new Squad or Brawler costs Dat, and right-clicking any build button buys another charge of it (or switch <b>Auto-buy</b> on to buy automatically when a stock runs out). Salvage from Large nests and Mega nests can raise the limit. <b>Wrecks</b> (derelict scrapers) lie hidden on every map, some beyond the barrier — park the Bastion on one for 8s (or send units to stand on it — slower) to salvage it (it draws an ambush): Dat, refilled stocks, drones, a barracks module (+1 Squad limit) or a new fabricator for the run. <b>Quakers</b> — big stone blocks — lumber in while you drill, keep their distance and slam the ground to jolt the drill needle and shake your Stabilizers: send units out to kill them.<br>
+<b>Healing:</b> units inside the Bastion's dashed ring slowly regain health (Relays don't heal anyone). <b>Unit limits:</b> up to 5 Grenadiers, 4 Rocketeers (rockets that hit nests and Quakers 4× as hard) and 3 Mechs at once (the button shows how many you have). <b>Stock &amp; troopers:</b> nothing refills on its own any more — every fabricator, Stabilizer and Probe has a free stock, and once it's empty each use costs Dat (the price shows on the button). You have 6 Trooper slots (3 filled for free at the start — the button shows how many you have against the limit) and 8 Brawler slots (4 free to start); each new Trooper or Brawler costs Dat, and right-clicking any build button buys another charge of it (or switch <b>Auto-buy</b> on to buy automatically when a stock runs out). Salvage from Large nests and Mega nests can raise the limit. <b>Wrecks</b> (derelict scrapers) lie hidden on every map, some beyond the barrier — park the Bastion on one for 8s (or send units to stand on it — slower) to salvage it (it draws an ambush): Dat, refilled stocks, drones, a barracks module (+1 Trooper limit) or a new fabricator for the run. <b>Quakers</b> — big stone blocks — lumber in while you drill, keep their distance and slam the ground to jolt the drill needle and shake your Stabilizers: send units out to kill them.<br>
 <b>Goal:</b> the ground is cracked all over: <b>follow the pulses of energy</b> running through the cracks back to their source to find a vein, then park the Bastion on its glowing centre and press <kbd>F</kbd> to lock on. Veins <b>emerge, ripen</b> a tier at a time, then go unstable and <b>collapse</b> — and new ones emerge elsewhere. Glowing <b>stray pockets</b> give a bearing toward the nearest vein when a unit reaches one; two bearings from different angles triangulate it. Locking on starts the <b>strike</b> at once: press <kbd>F</kbd> again to stop the needle on a good band of the strip (the thin sliver is a tier above the vein; red ruptures it) — the meter zooms in on where you hit and the drill starts; the first wave arrives about 20s later. While it drills, the needle drifts; Stabilizers hold it steady, and the tier you're paid is where it spends most of its time. If it drifts into the red, the vein ruptures and damages the Bastion. Drain veins for rewards — after 3, the contract vein stirs: it gives off no pulses, so triangulate it with bearings from stray pockets, then drain it to win.<br>
   <b>Controls:</b> drag to select · right-click to move/attack · right-click a friendly unit or building with combat units selected to <b>guard</b> it (escort it, fight off anything that comes near, then fall back) · <kbd>C</kbd> select all your units · <kbd>F</kbd> lock on to a vein / strike · <kbd>H</kbd> jump the camera to the Bastion · <kbd>WASD</kbd> or middle-drag to pan, scroll to zoom<br>
   <b>Touch:</b> tap to select · tap empty ground/an enemy/a resource to move/attack/harvest · drag to pan · hold still then drag to box-select · pinch to zoom · double-tap to select all of a kind<br>
-  <b>Fabricators:</b> Turrets and Relays hold a free stock; once it's empty each use costs Dat (shown on the button). Unit buttons (Squad, Brawler, Grenadier, Rocketeer, Mech) show how many you can field against how many you have, and the price of the next one — just click to deploy. <kbd>T</kbd> launch a turret · <kbd>Ctrl</kbd>+<kbd>1</kbd>–<kbd>9</kbd> save the selected units as a control group, <kbd>1</kbd>–<kbd>9</kbd> select it (twice to look at it) · <kbd>R</kbd> launch a relay · <kbd>G</kbd> power up a derelict rig ·  <b>Nests</b>: every enemy patrol comes from one, and the nests near a vein send its drilling waves — destroy them (they fight back) for <b>Dat Crystal</b>. <b>Mega nests</b> glow crimson through the fog: hive veins ringed by brood mounds that pour out its waves — break the mounds, then drain the hive for Hive-tier rewards and salvage. When the contract vein stirs, great mounds rise around it too. <b>Dat Crystal</b>: drive the Bastion or a unit over the Dat a nest drops (or an enemy's shard) to scoop it up — your <b>repair drones</b> fly out on their own and spend it patching up Stabilizers, turrets, relays and the Bastion · <kbd>E</kbd> fire a Stabilizer from the Bastion (3 free, then Dat each; aim at a vein's drifting hotspot and lead it — a hit pins it, buys the vein 15s before it collapses, widens the strike bands and steadies the needle; with all 3 pinned, drag the weight on the steering pad to push the needle — the wider their triangle, the further it goes, but the one you lean on draws the enemy) — turrets and relays land anywhere inside the Bastion's ring (or a relay's)<br>
+  <b>Fabricators:</b> Turrets and Relays hold a free stock; once it's empty each use costs Dat (shown on the button). Unit buttons (Trooper, Brawler, Grenadier, Rocketeer, Mech) show how many you can field against how many you have, and the price of the next one — just click to deploy. <kbd>T</kbd> launch a turret · <kbd>Ctrl</kbd>+<kbd>1</kbd>–<kbd>9</kbd> save the selected units as a control group, <kbd>1</kbd>–<kbd>9</kbd> select it (twice to look at it) · <kbd>R</kbd> launch a relay · <kbd>G</kbd> power up a derelict rig ·  <b>Nests</b>: every enemy patrol comes from one, and the nests near a vein send its drilling waves — destroy them (they fight back) for <b>Dat Crystal</b>. <b>Mega nests</b> glow crimson through the fog: hive veins ringed by brood mounds that pour out its waves — break the mounds, then drain the hive for Hive-tier rewards and salvage. When the contract vein stirs, great mounds rise around it too. <b>Dat Crystal</b>: drive the Bastion or a unit over the Dat a nest drops (or an enemy's shard) to scoop it up — your <b>repair drones</b> fly out on their own and spend it patching up Stabilizers, turrets, relays and the Bastion · <kbd>E</kbd> fire a Stabilizer from the Bastion (3 free, then Dat each; aim at a vein's drifting hotspot and lead it — a hit pins it, buys the vein 15s before it collapses, widens the strike bands and steadies the needle; with all 3 pinned, drag the weight on the steering pad to push the needle — the wider their triangle, the further it goes, but the one you lean on draws the enemy) — turrets and relays land anywhere inside the Bastion's ring (or a relay's)<br>
   <b>Tether:</b> wireless works freely on the Rim; past it, units need a live cable back to the Bastion or a Relay, or they go dark — chain Relays to push your reach further out. A dark unit still takes orders, but its Sanity drains; reconnect in time to recover it, or it defects into a hostile Corrupted enemy<br>
   <kbd>G</kbd> recon probe: click a direction and it flies straight out on its fiber line, lifting the fog along a narrow strip for 20s and permanently finding veins it passes (3 charges, one back every 20s) · <kbd>V</kbd> follow Bastion (escorts it as it moves, until given another order) · right-drag with units selected: line them up along the drag, facing square to it (drag longer to spread them wider) · <kbd>Q</kbd> wall: click and drag to lay a line of wall, or click the end of a wall or a Turret and click again where it should run to (right-click cancels) · right-click a wall with units selected to man it (one rank behind it, as many as fit; they take 25% less damage) · <kbd>Space</kbd> tactical pause: the action stops but you can still give orders, place walls and call in builds (they go ahead when you resume) · <kbd>X</kbd> hold position (held units side by side fire up to 30% faster) · <kbd>Esc</kbd> cancel, or pause the whole game if nothing's open · <kbd>`</kbd> reveal map (debug)
 </div>
@@ -696,17 +697,21 @@ const BRUTE_R=22, BRUTE_HP=420, BRUTE_SPEED=20, BRUTE_DMG=20, BRUTE_CHANCE=0.05,
 // the way saboteurs do. Always Core-tier (black body, red outline) wherever the Brute fell.
 const SWARM_R=5, SWARM_HP=14, SWARM_SPEED=95, SWARM_DMG=2.5;
 const BASE_R=30, BASE_SPEED=42, BUILD_R=270, BASE_VISION=450;
-// Squad firing cooldown, range +50% (165 -> 247.5).
+// Trooper firing cooldown, range +50% (165 -> 247.5).
 const TROOP_R=7, TROOP_SPEED=125, TROOP_VISION=340, TROOP_RANGE=247.5, TROOP_DMG=7, TROOP_CD=1.3/1.2; // fires 20% faster than the old 1.3s
-// A Squad's round punches through: after its target it carries on along the same line out to its
+// A Trooper's round punches through: after its target it carries on along the same line out to its
 // full range and hits up to TROOP_PIERCE more enemies it passes through.
 const TROOP_PIERCE=2;
+// Marksman (kind 'marksman'): a long rail rifle. It only fires on enemies something can see, spends
+// MARK_CHARGE charging (the barrel glows) and then fires one bolt for MARK_DMG that punches through
+// up to MARK_PIERCE more enemies, then cycles for MARK_CD. Up to 6 at once, paid for with Dat.
+const MARK_R=7, MARK_HP=55, MARK_SPEED=105, MARK_RANGE=400, MARK_CD=3.2, MARK_DMG=42, MARK_PIERCE=4, MARK_CHARGE=0.45;
 // Hold position (X): held units plant where they stand and never move or chase on their own (ordered to move, they go and plant again where they arrive). Held units within
 // HOLD_LINK_R of each other back each other up: each neighbour adds HOLD_LINK_BONUS to fire rate, to
 // at most HOLD_LINK_MAX. Swarmers that get right up against a held unit are crushed at HOLD_CRUSH_DPS.
 const HOLD_LINK_R=60, HOLD_LINK_BONUS=0.1, HOLD_LINK_MAX=0.3, HOLD_CRUSH_DPS=10;
 // Grenadier: a squad variant that lobs an explosive round instead of firing instantly — tankier
-// and slower-firing than a plain Squad, but the round splashes every enemy near where it lands.
+// and slower-firing than a plain Trooper, but the round splashes every enemy near where it lands.
 const GREN_HP=100, GREN_RANGE=190, GREN_DMG=14, GREN_CD=1.3, GREN_SPLASH_R=70, GREN_PROJ_SPEED=320;
 // Big Guns (reward card): a Bastion-mounted artillery piece — longer range and a bigger blast
 // than a Grenadier's round, but a much slower fire rate, and it will only ever fire on an enemy
@@ -719,7 +724,7 @@ const BIGGUN_RANGE=460, BIGGUN_CD=2.4, BIGGUN_DMG=22, BIGGUN_SPLASH_R=115, BIGGU
 const ARTY_R=10, ARTY_HP=90, ARTY_SPEED=55, ARTY_RANGE=7000, ARTY_CD=14, ARTY_DMG=70, ARTY_SPLASH_R=150, ARTY_PROJ_SPEED=200;
 // Mech: a meta-unlocked squad variant built for durability over speed — the tankiest combat unit
 // and highly resistant to Sanity drain while severed (MECH_SANITY_RESIST multiplies the normal
-// drain rate), but slower than a plain Squad. Fires a short-range shotgun blast of several weak
+// drain rate), but slower than a plain Trooper. Fires a short-range shotgun blast of several weak
 // pellets that visibly travel as tracer-line projectiles (same S.nades system as a Grenadier
 // round), but resolve as a single direct hit on whatever's nearest where they land — no blast
 // radius of their own — scattered around the target so a cluster of enemies can each eat one,
@@ -740,7 +745,7 @@ const ROCKET_R=8, ROCKET_HP=75, ROCKET_SPEED=100, ROCKET_RANGE=320, ROCKET_CD=3.
 const isBigTarget=e=>e.kind==='nest'||e.kind==='quaker';
 // v4 Brawler: a cheap melee wall. Very durable and hits hard up close (with a little cleave), but short
 // of reach, slow, and not much to look at against a horde on its own — it holds enemies off while
-// the Squads' guns do the killing. No unlock: it's available from the start.
+// the Troopers' guns do the killing. No unlock: it's available from the start.
 const BRAWL_WALL_GAP=28, BRAWL_WALL_ENGAGE=110, BRAWL_WALL_LEASH=55, BRAWL_WALL_SHIELD=1.4; // the wall stands wider; each shield is BRAWL_WALL_SHIELD times bigger to close the gaps
 // A Brawler's swing from a shield wall has BRAWL_KB_CHANCE to shove: everything in a BRAWL_KB_ARC cone
 // out to BRAWL_KB_R in front of it is knocked back (BRAWL_KB_SPEED, easing off) and stunned BRAWL_KB_STUN.
@@ -791,7 +796,7 @@ const WALL_HP=220;
 // manning a wall that's still standing takes MAN_DMG_RED less damage.
 const MAN_OFFSET=14, MAN_DMG_RED=0.25, MAN_PICK_R=16, MAN_GAP=27.5, MAN_END_PAD=34; // one rank only: a wall holds as many as fit MAN_GAP apart, keeping MAN_END_PAD clear at each end // (close enough that a Brawler at the wall reaches what's chewing on it)
 const WALL_SLAT=18, WALL_THICK=8, WALL_SLAT_HP=160, WALL_MIN_LEN=30, WALL_MAX_LEN=420, WALL_SNAP=22, WALL_DAT_BASE=4, WALL_DAT_PER_SLAT=2, WALL_RAISE_STEP=0.07, WALL_RAISE_T=0.25;
-const COST={wall:5,turret:75,relay:15,depot:150,stabilizer:20,harvester:75,troop:30,builder:20,grenadier:45,artillery:140,mech:90,rocket:70,brawler:25};
+const COST={wall:5,turret:75,relay:15,depot:150,stabilizer:20,harvester:75,troop:30,builder:20,grenadier:45,artillery:140,mech:90,rocket:70,brawler:25,marksman:60};
 // v2 fabricators: nothing is bought with Dat any more. Each kind of thing the Bastion can make has
 // its own fabricator holding `charges`; a spent charge comes back after `t` seconds (one at a time,
 // like the Stabilizer and Probe). Structures are aimed and launched into the build ring; units
@@ -799,20 +804,21 @@ const COST={wall:5,turret:75,relay:15,depot:150,stabilizer:20,harvester:75,troop
 const FABS={
   turret:{name:'Turret',charges:2,t:45,kind:'structure'},
   relay:{name:'Relay',charges:3,t:20,kind:'structure'},
-  troop:{name:'Squad',charges:2,t:40,kind:'unit'},
-  brawler:{name:'Brawler',charges:0,t:35,kind:'unit',cap:16,squadLike:true}, // v4: cheap melee wall — fielded up to 16 like Squads, paid for with Dat (no stock)
+  troop:{name:'Trooper',charges:2,t:40,kind:'unit'},
+  brawler:{name:'Brawler',charges:0,t:35,kind:'unit',cap:16,squadLike:true}, // v4: cheap melee wall — fielded up to 16 like Troopers, paid for with Dat (no stock)
   grenadier:{name:'Grenadier',charges:0,t:50,kind:'unit',unlock:'unlockGrenadier',cap:5,squadLike:true}, // v4: at most 5 alive at once, each paid for with Dat
   artillery:{name:'Artillery',charges:1,t:90,kind:'unit',unlock:'unlockArtillery',disabled:true}, // v4: Artillery is out
   rocket:{name:'Rocketeer',charges:0,t:60,kind:'unit',unlock:'unlockRocket',cap:4,squadLike:true}, // v4: at most 4 alive at once, each paid for with Dat
   mech:{name:'Mech',charges:0,t:70,kind:'unit',unlock:'unlockMech',cap:3,squadLike:true}, // v4: at most 3 alive at once
+  marksman:{name:'Marksman',charges:0,t:55,kind:'unit',cap:6,squadLike:true}, // long-range rail rifle, up to 6, paid for with Dat
 };
 const FAB_FLIGHT_SPEED=380;
 // v4: fabricator, Stabilizer and Probe stocks no longer refill over time. While a stock lasts each
 // use is free; once it's empty, every use costs Dat (FAB_DAT / STAB_DAT / PROBE_DAT). Nests and
 // salvage can still put free charges back.
 // v4: build and unit prices doubled
-const FAB_DAT={turret:60,relay:24,grenadier:60,artillery:90,mech:120,rocket:90,brawler:30}, STAB_DAT=24, PROBE_DAT=8;
-// Squads aren't stocked: you can field up to S.squadCap of them at once (SQUAD_CAP_START, raised by
+const FAB_DAT={turret:60,relay:24,grenadier:60,artillery:90,mech:120,rocket:90,brawler:30,marksman:70}, STAB_DAT=24, PROBE_DAT=8;
+// Troopers aren't stocked: you can field up to S.squadCap of them at once (SQUAD_CAP_START, raised by
 // salvage and a reward card up to SQUAD_CAP_MAX), each new one costing SQUAD_DAT.
 const SQUAD_CAP_START=12, SQUAD_CAP_MAX=24, SQUAD_START_N=6, SQUAD_DAT=40;
 // v4: Brawlers work the same way: up to BRAWL_CAP at once, BRAWL_START_N of them free at the start, each new one BRAWL_DAT
@@ -971,8 +977,8 @@ const PRESSURE=[
   {id:'nests',name:'Hardened Nests',icon:'◉',cost:6,bonus:0.15,desc:'Every nest and brood mound has 50% more health.'},
   {id:'tide',name:'Swarm Tide',icon:'≋',cost:6,bonus:0.15,desc:'Drilling waves are 30% bigger.'},
   {id:'frenzy',name:'Frenzied Brood',icon:'⇶',cost:6,bonus:0.15,desc:'Every enemy moves 15% faster.'},
-  {id:'frail',name:'Brittle Units',icon:'✚',cost:8,bonus:0.2,desc:'Squads, Brawlers and the rest have 25% less health.'},
-  {id:'lean',name:'Lean Start',icon:'◇',cost:4,bonus:0.1,desc:'Start with 20 Dat, 2 Squads and no Brawlers (instead of 60 Dat, 3 Squads and 4 Brawlers).'},
+  {id:'frail',name:'Brittle Units',icon:'✚',cost:8,bonus:0.2,desc:'Troopers, Brawlers and the rest have 25% less health.'},
+  {id:'lean',name:'Lean Start',icon:'◇',cost:4,bonus:0.1,desc:'Start with 20 Dat, 2 Troopers and no Brawlers (instead of 60 Dat, 3 Troopers and 4 Brawlers).'},
 ];
 const ARTY_UNLOCK_COST=2, GREN_UNLOCK_COST=1, MECH_UNLOCK_COST=1, ROCKET_UNLOCK_COST=1;
 function loadMeta(){
@@ -1207,14 +1213,14 @@ const TIER_TRADE_DAT={Common:60,Rare:140,Epic:260,Legendary:450,Hive:700};
 // escalation persists for the whole run rather than resetting at every new vein's choice.
 const REROLL_BASE_COST=10, REROLL_COST_STEP=8;
 function rerollCost(){return REROLL_BASE_COST+S.rerollCount*REROLL_COST_STEP}
-// Spawns n fresh Squads / Grenadiers with guaranteed-unique ids, for the recruit-style reward
+// Spawns n fresh Troopers / Grenadiers with guaranteed-unique ids, for the recruit-style reward
 // cards below.
 function spawnFreeTroops(n,kind){for(let i=0;i<n;i++){const u=mkTroop(Date.now()+Math.floor(Math.random()*1000)+i,kind);S.troops.push(u);guardBastion(u)}}
 // v2: fresh units fall in guarding the Bastion until you give them other orders
 function guardBastion(u){u.following=false;u.state='guard';u.guard=S.base;u.dest=null;u.target=null;u.guardAng=rnd(0,Math.PI*2);u.guardDist=rnd(22,48)}
 const UPGRADES={
   Common:[
-    {id:'dmg1',name:'Battle Drills I',desc:'Squad damage +10%.',apply:()=>{S.mods.troopDmgMult*=1.1}},
+    {id:'dmg1',name:'Battle Drills I',desc:'Trooper damage +10%.',apply:()=>{S.mods.troopDmgMult*=1.1}},
     {id:'grenrate1',name:'Lubed Tubes I',desc:'Grenadier fire rate +10%.',apply:()=>{S.mods.grenFireRateMult*=1.1}},
     {id:'grensplash1',name:'Blast Power I',desc:'Explosive blast radius +10%.',apply:()=>{S.mods.grenSplashMult*=1.1}},
     {id:'vis1',name:"Surveyor's Eye",desc:'Vision radius +20% for every unit.',apply:()=>{S.mods.visionMult*=1.2}},
@@ -1222,23 +1228,23 @@ const UPGRADES={
   ],
   Rare:[
     {id:'swarm2',name:'Second Swarm',desc:'A whole second repair swarm: +4 repair drones.',apply:()=>{addDrones(4)}},
-    {id:'dmg2',name:'Battle Drills II',desc:'Squad damage +20%.',apply:()=>{S.mods.troopDmgMult*=1.2}},
+    {id:'dmg2',name:'Battle Drills II',desc:'Trooper damage +20%.',apply:()=>{S.mods.troopDmgMult*=1.2}},
     {id:'grenrate2',name:'Lubed Tubes II',desc:'Grenadier fire rate +20%.',apply:()=>{S.mods.grenFireRateMult*=1.2}},
     {id:'grensplash2',name:'Blast Power II',desc:'Explosive blast radius +20%.',apply:()=>{S.mods.grenSplashMult*=1.2}},
     {id:'tol1',name:'Signal Boost',desc:'Wireless tether range +35% (Bastion & Relays).',apply:()=>{S.mods.relayTolMult*=1.35}},
     {id:'cable1',name:'Spooled Cable',desc:'Max tether cable length +150.',apply:()=>{S.mods.cableLenAdd+=150}},
-    {id:'recruit1',name:'Fresh Recruits',desc:'+3 free Squads, right now.',apply:()=>{spawnFreeTroops(3,'troop')}},
+    {id:'recruit1',name:'Fresh Recruits',desc:'+3 free Troopers, right now.',apply:()=>{spawnFreeTroops(3,'troop')}},
     {id:'biggun',name:'Big Guns',desc:"Mounts an artillery piece on the Bastion — slower fire rate than a Grenadier, but longer range and a bigger blast. Only ever fires on enemies you've actually revealed.",apply:()=>{S.mods.bigGuns=true}},
     {id:'energySurge1',name:'Energy Surge I',desc:'Every 10s while mining, all tethered Relays fire an energy pulse together — enemies it reaches are knocked back and stunned for 1s.',apply:()=>{S.mods.energySurgeLevel=Math.max(S.mods.energySurgeLevel,1)}},
     {id:'armedRelays',name:'Armed Relays',desc:'Tethered Relays fire on enemies like a Turret — half the damage, half the fire rate.',apply:()=>{S.mods.armedRelays=true}},
     {id:'martyrs',name:'Martyrs',desc:'A unit that would corrupt detonates instead, damaging enemies and friendlies alike nearby.',apply:()=>{S.mods.martyrs=true}},
     {id:'resupply1',name:'Resupply',desc:'Every fabricator, Stabilizer and Probe stock is topped up to full, right now.',apply:()=>{Object.keys(FABS).forEach(k=>{S.fab[k].n=FABS[k].charges});S.stabCharges=STAB_CHARGES;S.probeCharges=PROBE_CHARGES}},
-    {id:'barracks1',name:'Barracks Expansion',desc:'Field one more Squad at a time (up to 12).',apply:()=>{raiseSquadCap()}},
+    {id:'barracks1',name:'Barracks Expansion',desc:'Field one more Trooper at a time (up to 24).',apply:()=>{raiseSquadCap()}},
   ],
   Epic:[
-    {id:'hardscopes',name:'Hard Scopes',desc:"Squad vision and firing range +20% (stacks with Surveyor's Eye).",apply:()=>{S.mods.squadRangeMult*=1.2}},
-    {id:'dmg3',name:'Battle Drills III',desc:'Squad damage +30%.',apply:()=>{S.mods.troopDmgMult*=1.3}},
-    {id:'tactical',name:'Tactical Reinforcements',desc:'+5 free Squads, +3 free Grenadiers, right now.',apply:()=>{spawnFreeTroops(5,'troop');spawnFreeTroops(3,'grenadier')}},
+    {id:'hardscopes',name:'Hard Scopes',desc:"Trooper vision and firing range +20% (stacks with Surveyor's Eye).",apply:()=>{S.mods.squadRangeMult*=1.2}},
+    {id:'dmg3',name:'Battle Drills III',desc:'Trooper damage +30%.',apply:()=>{S.mods.troopDmgMult*=1.3}},
+    {id:'tactical',name:'Tactical Reinforcements',desc:'+5 free Troopers, +3 free Grenadiers, right now.',apply:()=>{spawnFreeTroops(5,'troop');spawnFreeTroops(3,'grenadier')}},
     {id:'targeting',name:'Targeting Computer',desc:'The Bastion gun keeps firing while drilling instead of going quiet.',apply:()=>{S.mods.bastionShootWhileDrilling=true}},
     {id:'energySurge2',name:'Energy Surge II',desc:'Energy Surge now pulses every 5s instead of 10s.',apply:()=>{S.mods.energySurgeLevel=Math.max(S.mods.energySurgeLevel,2)}},
   ],
@@ -2086,7 +2092,7 @@ function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
 function key(gx,gy){return gx+','+gy}
 function bandAt(x,y){if(STOP_BAND)return STOP_BAND;const d=epiDist(x,y);return d<=CORE_R?'core':d<=DENSE_R?'dense':'rim'}
 
-function mkTroop(id,kind){kind=kind||'troop';const baseHp=kind==='artillery'?ARTY_HP:kind==='grenadier'?GREN_HP:kind==='mech'?MECH_HP:kind==='rocket'?ROCKET_HP:kind==='brawler'?BRAWL_HP:70;const hp=Math.round(baseHp*unitHpMult());const r=kind==='artillery'?ARTY_R:kind==='mech'?MECH_R:kind==='rocket'?ROCKET_R:kind==='brawler'?BRAWL_R:TROOP_R;return {id,kind,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp,maxHp:hp,r,dest:null,target:null,state:'idle',cd:0,ang:-Math.PI/2,mechSide:false,tetherOk:true,severed:false,sanity:SANITY_MAX,trail:null,cableHp:0,cableLen:0,cableMaxed:false,following:false,followAng:0,followDist:0}}
+function mkTroop(id,kind){kind=kind||'troop';const baseHp=kind==='artillery'?ARTY_HP:kind==='grenadier'?GREN_HP:kind==='mech'?MECH_HP:kind==='rocket'?ROCKET_HP:kind==='brawler'?BRAWL_HP:kind==='marksman'?MARK_HP:70;const hp=Math.round(baseHp*unitHpMult());const r=kind==='artillery'?ARTY_R:kind==='mech'?MECH_R:kind==='rocket'?ROCKET_R:kind==='brawler'?BRAWL_R:kind==='marksman'?MARK_R:TROOP_R;return {id,kind,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp,maxHp:hp,r,dest:null,target:null,state:'idle',cd:0,ang:-Math.PI/2,mechSide:false,tetherOk:true,severed:false,sanity:SANITY_MAX,trail:null,cableHp:0,cableLen:0,cableMaxed:false,following:false,followAng:0,followDist:0}}
 function mkHarv(id){return {id,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp:50,maxHp:50,r:HARV_R,dest:null,node:null,carry:0,state:'idle',autoLoop:true,hv:0,tetherOk:true,severed:false,sanity:SANITY_MAX,trail:null,cableHp:0,cableLen:0,cableMaxed:false,following:false,followAng:0,followDist:0}}
 function mkDrone(){const a=rnd(0,Math.PI*2);return {x:S.base.x+Math.cos(a)*20,y:S.base.y+Math.sin(a)*20,orbit:a,orbitR:rnd(18,30),target:null,state:'dock',ang:a,beamT:0}}
 function addDrones(n){for(let i=0;i<n;i++)S.drones.push(mkDrone())}
@@ -2102,6 +2108,7 @@ const CORRUPT_STATS={
   mech:{r:MECH_R+1,hp:95,speed:MECH_SPEED,dmg:16},
   rocket:{r:ROCKET_R+1,hp:55,speed:ROCKET_SPEED,dmg:9},
   brawler:{r:BRAWL_R+1,hp:150,speed:BRAWL_SPEED,dmg:9},
+  marksman:{r:MARK_R+1,hp:50,speed:MARK_SPEED,dmg:10},
 };
 // reason: 'sanity' (lost signal too long — the default) or 'death' (killed by an enemy and
 // reanimated; see queueReanimation). Only the messages differ.
@@ -2130,7 +2137,7 @@ const REANIMATE_T=1;
 function unitLabel(u,type){
   if(type==='harvester')return 'A fallen Harvester';
   if(type==='builder')return 'A fallen Builder';
-  return 'A fallen '+(u.kind==='grenadier'?'Grenadier':u.kind==='artillery'?'Artillery Piece':u.kind==='mech'?'Mech':u.kind==='rocket'?'Rocketeer':u.kind==='brawler'?'Brawler':'Squad');
+  return 'A fallen '+(u.kind==='grenadier'?'Grenadier':u.kind==='artillery'?'Artillery Piece':u.kind==='mech'?'Mech':u.kind==='rocket'?'Rocketeer':u.kind==='brawler'?'Brawler':u.kind==='marksman'?'Marksman':'Trooper');
 }
 function queueReanimation(u,type){
   S.reanim.push({x:u.x,y:u.y,r:u.r,type,label:unitLabel(u,type),t:REANIMATE_T});
@@ -2296,7 +2303,7 @@ function reset(landing){
 // v4: a run is RUN_STOPS maps in a row, each set wholly in one zone and getting deeper (and tougher)
 // as you go: Rim, Rim, Dense Field, Dense Field, Core, and the Core map holding the contract vein.
 // Every stop but the last is split by a barrier about BARRIER_X of the way across — a band of rift
-// on the Rim (squads can wade it, the Bastion can't) or a wall of crystal deeper in (nothing gets
+// on the Rim (troopers can wade it, the Bastion can't) or a wall of crystal deeper in (nothing gets
 // through). The BREACH VEIN sits on the near side of it, ringed by nests; draining it bridges the
 // rift or shatters the wall, and walking the Bastion off the far (east) edge moves on to the next
 // stop. Everything you have carries over: Dat and crystal, reward cards, fabricators and their
@@ -2458,11 +2465,11 @@ const META_UPGRADES=[
   {key:'bastionHp',name:'Bastion Armor Plating',icon:'⛨',max:3,costs:[10,20,30],stacking:true,perTier:250,unit:'Bastion HP',
    desc:'Reinforces the Bastion\'s hull. +250 HP per purchase.'},
   {key:'unitHp',name:'Kinetic Dampers',icon:'✚',max:3,costs:[10,15,20],stacking:false,pct:[10,20,30],unit:'combat unit HP',
-   desc:'Dampens incoming impacts. +10% Squad/Grenadier/Artillery/Mech HP per purchase.'},
+   desc:'Dampens incoming impacts. +10% Trooper/Grenadier/Artillery/Mech HP per purchase.'},
   {key:'pingRange',name:'Deep Scan Antenna',icon:'◉',max:2,costs:[15,20],stacking:false,pct:[10,20],unit:'ping range',
    desc:'Recon probes fly farther. +10% range per purchase.'},
-  {key:'squadFireRate',name:'Rapid Loaders',icon:'⚡',max:3,costs:[10,15,20],stacking:false,pct:[5,10,15],unit:'Squad fire rate',
-   desc:'Tightens Squad reload cycles. +5% fire rate per purchase.'},
+  {key:'squadFireRate',name:'Rapid Loaders',icon:'⚡',max:3,costs:[10,15,20],stacking:false,pct:[5,10,15],unit:'Trooper fire rate',
+   desc:'Tightens Trooper reload cycles. +5% fire rate per purchase.'},
   {key:'pickupRange',name:'Magnetic Collectors',icon:'✦',max:3,costs:[10,15,20],stacking:false,pct:[20,40,60],unit:'crystal pickup range',
    desc:'Widens the pickup radius for dropped Dat Crystal shards. +20% range per purchase.'},
 ];
@@ -2655,11 +2662,11 @@ const TUTORIAL_STEPS=[
   {title:'Look around',
    text:()=>`Pan the camera with <kbd>WASD</kbd> or the arrow keys (or middle-mouse drag), and scroll to zoom. Press <kbd>H</kbd> any time to snap back to the Bastion.`,
    done:()=>Math.hypot(cam.x-tutorial.cam0.x,cam.y-tutorial.cam0.y)>250||Math.abs(cam.z-tutorial.cam0.z)>0.15},
-  {title:'Select your Squads',
-   text:()=>`The blue triangles are your <b>Squads</b> — your fighters and scouts. Drag a box around them to select them, or press <kbd>C</kbd> to select every Squad at once.`,
+  {title:'Select your Troopers',
+   text:()=>`The blue riflemen are your <b>Troopers</b> — your fighters and scouts. Drag a box around them to select them, or press <kbd>C</kbd> to select every Trooper at once.`,
    done:()=>S.sel.troops.size>0},
   {title:'Scout the vein',
-   text:()=>{const v=tutVein();return `The ground is cracked all over, and veins send pulses of energy out through the cracks — follow the light back to its source to find one. There's one to the <b>${compass(v.x-S.base.x,v.y-S.base.y)}</b> (highlighted). <b>Right-click inside it</b> to send your Squads in — they'll fight off the creatures guarding it and find the exact spot to drill.`},
+   text:()=>{const v=tutVein();return `The ground is cracked all over, and veins send pulses of energy out through the cracks — follow the light back to its source to find one. There's one to the <b>${compass(v.x-S.base.x,v.y-S.base.y)}</b> (highlighted). <b>Right-click inside it</b> to send your Troopers in — they'll fight off the creatures guarding it and find the exact spot to drill.`},
    target:()=>{const v=tutVein();return{x:v.x,y:v.y,r:v.r+20}},
    done:()=>tutVein().mine.found},
   {title:'Dat Crystal',
@@ -2689,7 +2696,7 @@ const TUTORIAL_STEPS=[
   {title:'The price of steering',
    text:()=>`Leaning on the weight <b>loads</b> the Stabilizers you lean toward — watch its card in the console turn LOADED, then STRAINED, and see the <b>rings of light</b> running in to it on the map. That's where the enemy goes: part of every wave and the saboteurs head straight for the Stabilizer you lean on hardest. Lose it and the needle jerks the other way. Cover it, and don't lean harder than you need.`},
   {title:'Hold the line',
-   text:()=>`Waves pour out of the nests around the vein. Keep your Squads near the Bastion — click the Squad button to deploy another (Squads cost Dat). If the needle slips into the red an alarm sounds: steer it back out within a few seconds or the vein ruptures. Hold out until the vein is drained.`,
+   text:()=>`Waves pour out of the nests around the vein. Keep your Troopers near the Bastion — click the Trooper button to deploy another (Troopers cost Dat). If the needle slips into the red an alarm sounds: steer it back out within a few seconds or the vein ruptures. Hold out until the vein is drained.`,
    done:()=>tutVein().done},
   {title:'Pick a reward',
    text:()=>`Vein drained! Every drained vein lets you pick one upgrade card for the rest of the run — or sell it for Dat. Choose one now.`,
@@ -2708,21 +2715,21 @@ const TUTORIAL_STEPS=[
    done:()=>{const d=tutorial.demo;return !d||d.done||d.collapsed}},
   {topic:'The deep zone',title:'Into the Dense Field',
    enter:()=>tutDeepSetup(),
-   text:()=>`We've moved the Bastion to the edge of the <b>Dense Field</b> — the rift-choked ring closer to the Black Flame. Two things change out here. The violet <b>rift</b> is everywhere: Squads can wade through it (slowly), but the Bastion can only walk the grey corridors. And the Rim's free wireless link is gone — <b>every unit needs a cable</b> back to the Bastion.`},
+   text:()=>`We've moved the Bastion to the edge of the <b>Dense Field</b> — the rift-choked ring closer to the Black Flame. Two things change out here. The violet <b>rift</b> is everywhere: Troopers can wade through it (slowly), but the Bastion can only walk the grey corridors. And the Rim's free wireless link is gone — <b>every unit needs a cable</b> back to the Bastion.`},
   {title:'Every unit runs a cable',
-   text:()=>`Select your Squads (<kbd>C</kbd>) and <b>right-click the marked spot</b> out in the rift. Watch the line they trail behind them — that's their cable, paid out from the Bastion as they go.`,
+   text:()=>`Select your Troopers (<kbd>C</kbd>) and <b>right-click the marked spot</b> out in the rift. Watch the line they trail behind them — that's their cable, paid out from the Bastion as they go.`,
    target:()=>{const d=tutorial.deep;return d?{x:d.near.x,y:d.near.y,r:50}:null},
    done:()=>S.troops.some(t=>t.trail&&(t.cableLen||0)>150)},
   {title:'The end of the line',
-   text:()=>`There's a <b>wreck</b> worth salvaging further out (marked). Send the Squads on to it. A cable only reaches <b>${MAX_CABLE_LEN}</b> — when it runs out they stop dead and can't go further.`,
+   text:()=>`There's a <b>wreck</b> worth salvaging further out (marked). Send the Troopers on to it. A cable only reaches <b>${MAX_CABLE_LEN}</b> — when it runs out they stop dead and can't go further.`,
    target:()=>{const d=tutorial.deep;return d?{x:d.wreck.x,y:d.wreck.y,r:60}:null},
    done:()=>S.troops.some(t=>t.cableMaxed)||(tutorial.deep&&tutorial.deep.wreck.done)},
   {title:'Relays carry the line',
-   text:()=>`A <b>Relay</b> is a new anchor out in the field. Press <kbd>R</kbd> and launch one <b>toward the wreck, near the edge of the Bastion's ring</b>. It runs its own cable back to the Bastion, and every unit re-runs its cable from whichever anchor is nearest — so your Squads can push on from there.`,
+   text:()=>`A <b>Relay</b> is a new anchor out in the field. Press <kbd>R</kbd> and launch one <b>toward the wreck, near the edge of the Bastion's ring</b>. It runs its own cable back to the Bastion, and every unit re-runs its cable from whichever anchor is nearest — so your Troopers can push on from there.`,
    target:()=>({x:S.base.x,y:S.base.y,r:BUILD_R}),
    done:()=>S.relays.some(r=>r.built&&r.tetherOk&&dist(r,S.base)>140)||(tutorial.deep&&tutorial.deep.wreck.done)},
   {title:'Chain them out',
-   text:()=>`Still short? A Relay has a <b>launch ring</b> of its own, so you can lob the next one from it — Relays link to each other up to ${MAX_CABLE_LEN} apart, as long as the chain leads back to the Bastion. String another out toward the wreck, then send your Squads onto it to <b>salvage</b> it.`,
+   text:()=>`Still short? A Relay has a <b>launch ring</b> of its own, so you can lob the next one from it — Relays link to each other up to ${MAX_CABLE_LEN} apart, as long as the chain leads back to the Bastion. String another out toward the wreck, then send your Troopers onto it to <b>salvage</b> it.`,
    target:()=>{const d=tutorial.deep;return d?{x:d.wreck.x,y:d.wreck.y,r:60}:null},
    done:()=>!!tutorial.deep&&tutorial.deep.wreck.done},
   {title:'Guard your lines',
@@ -2747,7 +2754,7 @@ function tutSpawnDemo(again){
   tutorial.demo=v;
   if(again)msg('It collapsed — another vein nearby has just gone unstable. Be quicker this time!');
 }
-// The deep-zone lessons: the Bastion and its Squads are set down on a corridor just inside the
+// The deep-zone lessons: the Bastion and its Troopers are set down on a corridor just inside the
 // Dense Field, with a wreck out in the rift far enough away that it takes two Relays to reach.
 function tutDeepSetup(){
   const B=S.base, seen=bfsReachableBastion(B.x,B.y);
@@ -3175,7 +3182,7 @@ function nestDestroyed(n){
 }
 // Salvage: a fabricator you don't own yet, for the rest of the run (or 2 drones if you own them all).
 function salvageFab(){
-  if(S.squadCap<SQUAD_CAP_MAX&&Math.random()<0.5){raiseSquadCap();return ` Salvaged a barracks module \u2014 you can field ${S.squadCap} squads now!`}
+  if(S.squadCap<SQUAD_CAP_MAX&&Math.random()<0.5){raiseSquadCap();return ` Salvaged a barracks module \u2014 you can field ${S.squadCap} troopers now!`}
   const locked=Object.keys(FABS).filter(k=>!fabUnlocked(k)&&!FABS[k].disabled);
   if(locked.length){const k=locked[Math.floor(Math.random()*locked.length)];S.runUnlock[k]=true;S.fab[k].n=FABS[k].charges;S.fab[k].rt=0;updateBuildBar();
     return ` Salvaged a ${FABS[k].name} fabricator \u2014 yours for this run!`}
@@ -3354,7 +3361,7 @@ function salvageWreck(w){
   if(kind==='dat'){const a=WRECK_DAT[w.band];S.dat+=a;floatText(w.x,w.y-20,'+'+a+' Dat',C.dat);text=`a Dat Crystal cache (+${a})`}
   else if(kind==='refill'){Object.keys(FABS).forEach(k=>{S.fab[k].n=FABS[k].charges;S.fab[k].rt=0});S.stabCharges=STAB_CHARGES;text='spare parts: every fabricator is refilled'}
   else if(kind==='drones'){addDrones(2);text='2 intact repair drones'}
-  else if(kind==='squad'&&raiseSquadCap())text=`a barracks module — you can field ${S.squadCap} squads now`
+  else if(kind==='squad'&&raiseSquadCap())text=`a barracks module — you can field ${S.squadCap} troopers now`
   else if(kind==='squad'){const a=WRECK_DAT[w.band];S.dat+=a;floatText(w.x,w.y-20,'+'+a+' Dat',C.dat);text=`a Dat Crystal cache (+${a})`}
   else text=salvageFab().trim().replace(/^Salvaged /,'').replace(/[!.]$/,'');
   burst(w.x,w.y,C.accent,24,150,0.7);sfx.veinDone();updateBuildBar();
@@ -3632,7 +3639,7 @@ function fillDenseRift(){
 // v4: Dense Field stops are a sea of rift crossed by thin, winding corridors the Bastion can walk.
 // The corridors join the landing, every vein site, the breach and the way out (each side of the
 // crystal wall on its own) as a branching network with a loop or two — and they steer well clear
-// of the nests and wrecks, which sit out in the rift: squads can wade out to them, but the
+// of the nests and wrecks, which sit out in the rift: troopers can wade out to them, but the
 // Bastion's reach only gets there by chaining Relays across.
 const MAZE_W=1, MAZE_ROOM=ZONE_R+40, MAZE_AVOID=720, MAZE_LOOPS=2;
 function denseMaze(){
@@ -4349,8 +4356,8 @@ function setLowGfx(on){lowGfx=on;try{localStorage.setItem(LOWGFX_KEY,on?'1':'0')
 addEventListener('resize',resize);resize();
 function toWorld(sx,sy){const r=cv.getBoundingClientRect();return{x:(sx-r.left-r.width/2)/cam.z+cam.x,y:(sy-r.top-r.height/2)/cam.z+cam.y}}
 cv.addEventListener('contextmenu',e=>e.preventDefault());
-// squads vs other combat units (e.g. grenadiers) are distinct "select all of kind" groups, even
-// though they share one "Squads" selection button/hotkey (T) and one production category.
+// troopers vs other combat units (e.g. grenadiers) are distinct "select all of kind" groups, even
+// though they share one "Troopers" selection button/hotkey (T) and one production category.
 function selectAllOfKind(t,h,bu){
   if(t){const kind=t.kind||'troop';S.troops.forEach(x=>{if((x.kind||'troop')===kind)S.sel.troops.add(x.id)})}
   else if(h)S.harvesters.forEach(x=>S.sel.harv.add(x.id));
@@ -4528,8 +4535,8 @@ addEventListener('keydown',e=>{
 addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;keys[e.key]=false});
 document.querySelectorAll('#buildBar button[data-mode]').forEach(b=>b.addEventListener('click',()=>{setBuild(buildMode===b.dataset.mode?null:b.dataset.mode);sfx.click()}));
 document.querySelectorAll('#buildBar button[data-unit]').forEach(b=>b.addEventListener('click',()=>fabUnit(b.dataset.unit)));
-// v4: right-click any build button to buy one more charge of it with Dat (a Squad button buys a
-// Squad outright). Stocks top out at their usual size.
+// v4: right-click any build button to buy one more charge of it with Dat (a Trooper button buys a
+// Trooper outright). Stocks top out at their usual size.
 function refreshAutoBuy(){const b=document.getElementById('bAutoBuy');b.classList.toggle('on',autoBuy);document.getElementById('bAutoBuyLabel')._tc=`Auto-buy: ${autoBuy?'on':'off'}`}
 document.getElementById('bAutoBuy').onclick=()=>{autoBuy=!autoBuy;try{localStorage.setItem(AUTOBUY_KEY,autoBuy?'1':'0')}catch(e){}refreshAutoBuy();sfx.click();
   msg(autoBuy?'Auto-buy on — using an empty stock buys the charge with Dat.':'Auto-buy off — right-click a button to buy charges.')};
@@ -4551,7 +4558,7 @@ document.querySelectorAll('#buildBar button').forEach(b=>{
   const k=b.dataset.mode||b.dataset.unit;if(!k)return; // (probes recharge on their own — nothing to buy)
   b.addEventListener('contextmenu',e=>{e.preventDefault();buyCharge(k)});
   const cost=k==='stabilizer'?STAB_DAT:k==='probe'?PROBE_DAT:isSquadLike(k)?unitPrice(k):FAB_DAT[k];
-  b.title=isSquadLike(k)?`Deploy a ${k==='troop'?'Squad':FABS[k].name} (${cost} Dat) — right-click works too`:`Right-click to buy another charge for ${cost} Dat`;
+  b.title=isSquadLike(k)?`Deploy a ${k==='troop'?'Trooper':FABS[k].name} (${cost} Dat) — right-click works too`:`Right-click to buy another charge for ${cost} Dat`;
 });
 document.getElementById('bLock').onclick=()=>tryLockdown();
 document.getElementById('bPing').onclick=()=>tryProbe();
@@ -4628,9 +4635,9 @@ function updateFabs(dt){} // v4: no timed refills (see FAB_DAT)
 function fabUnit(k){
   if(!S||S.over||menuOpen)return;
   if(!fabUnlocked(k))return;
-  if(k==='troop'){ // squads: up to the cap, each one bought with Dat
-    if(squadCount()>=S.squadCap){msg(`Squad limit reached (${squadCount()}/${S.squadCap}). Salvage from Large nests and Mega nests can raise it.`);return}
-    if(!payDat(SQUAD_DAT,'Squad'))return;
+  if(k==='troop'){ // troopers: up to the cap, each one bought with Dat
+    if(squadCount()>=S.squadCap){msg(`Trooper limit reached (${squadCount()}/${S.squadCap}). Salvage from Large nests and Mega nests can raise it.`);return}
+    if(!payDat(SQUAD_DAT,'Trooper'))return;
   }else if(isSquadLike(k)){
     if(unitHave(k)>=unitLimit(k)){msg(`${FABS[k].name} limit reached (${unitHave(k)}/${unitLimit(k)}).`);return}
     if(!payDat(unitPrice(k),FABS[k].name))return;
@@ -4700,7 +4707,7 @@ function followSelected(){
 // already, are released back to normal).
 function holdSelected(){
   const sel=[...S.sel.troops].map(id=>S.troops.find(t=>t.id===id)).filter(Boolean);
-  if(!sel.length){msg('Select Squads or Brawlers to hold position.');return}
+  if(!sel.length){msg('Select Troopers or Brawlers to hold position.');return}
   const release=sel.every(t=>t.hold);
   sel.forEach(t=>{t.hold=!release;t.wallHome=null;t.following=false;t.guard=null;t.dest=null;t.target=null;t.pace=null;t.state='idle';t.post={x:t.x,y:t.y}});
   msg(release?'Released from hold.':`${sel.length===1?'Unit':sel.length+' units'} holding position. Held units side by side fire faster.`);
@@ -5045,7 +5052,7 @@ function cancelPendingBuild(w){
 // it while doing so, and fall back to it once the threat's gone. Lasts until another order is
 // given or the guarded thing is destroyed.
 const GUARD_ENGAGE_R=280, GUARD_LEASH=340;
-const GUARD_UNIT_NAMES={troop:'Squad',grenadier:'Grenadier',artillery:'Artillery Piece',mech:'Mech',rocket:'Rocketeer',brawler:'Brawler'};
+const GUARD_UNIT_NAMES={marksman:'Marksman',troop:'Trooper',grenadier:'Grenadier',artillery:'Artillery Piece',mech:'Mech',rocket:'Rocketeer',brawler:'Brawler'};
 // The friendly thing under the cursor, if any — whichever the click is most squarely on (distance
 // relative to its own size), so clicking the Bastion's body picks the Bastion even with a Builder
 // parked on it, while clicking right on that Builder still picks the Builder.
@@ -5059,7 +5066,7 @@ function friendlyAt(w){
 }
 function guardName(g){
   if(g===S.base)return 'the Bastion';
-  if(S.troops.includes(g))return 'the '+(GUARD_UNIT_NAMES[g.kind]||'Squad');
+  if(S.troops.includes(g))return 'the '+(GUARD_UNIT_NAMES[g.kind]||'Trooper');
   if(S.harvesters.includes(g))return 'the Harvester';
   if(S.builders.includes(g))return 'the Builder';
   if(S.turrets.includes(g))return 'the Turret';
@@ -5101,18 +5108,18 @@ function guardMove(t,range,speed,dt){
     moveToward(t,waypointFor(t,fx,fy),speed,dt);
   }
 }
-// v4: a right-click move sends a mixed group at the pace of its slowest unit (so Squads don't run on
+// v4: a right-click move sends a mixed group at the pace of its slowest unit (so Troopers don't run on
 // ahead of Brawlers); right-clicking the same spot again straight away lets everyone go at their own pace
 const DBL_RC_MS=450, DBL_RC_R=70; let lastRC={t:-1e9,x:0,y:0};
-function troopBaseSpeed(t){const k=t.kind;return k==='artillery'?ARTY_SPEED:k==='mech'?MECH_SPEED:k==='rocket'?ROCKET_SPEED:k==='brawler'?BRAWL_SPEED:TROOP_SPEED}
+function troopBaseSpeed(t){const k=t.kind;return k==='artillery'?ARTY_SPEED:k==='mech'?MECH_SPEED:k==='rocket'?ROCKET_SPEED:k==='brawler'?BRAWL_SPEED:k==='marksman'?MARK_SPEED:TROOP_SPEED}
 // ---------- formations ----------
 // Right-drag with units selected: the drag is the front line. Units spread evenly along it (the
 // longer the drag, the wider apart), all facing square to it, away from the camera when you drag
 // left to right. If the line is too short for everyone at FORM_MIN_GAP apart, they form extra ranks
 // FORM_RANK_GAP behind it. Each kind of unit gets its own rank(s): Brawlers in front, then Mechs,
-// then Squads, with the long-range units at the back.
+// then Troopers, with the long-range units at the back.
 const FORM_DRAG_PX=14, FORM_MIN_GAP=18, FORM_RANK_GAP=32;
-const FORM_ORDER={brawler:0,mech:1,troop:2,grenadier:3,rocket:3,artillery:4};
+const FORM_ORDER={brawler:0,mech:1,troop:2,grenadier:3,rocket:3,marksman:4,artillery:4};
 function formationUnits(){return [...S.sel.troops].map(id=>S.troops.find(t=>t.id===id)).filter(Boolean)}
 function formationSlots(f,units){
   const dx=f.x1-f.x0,dy=f.y1-f.y0,L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L,fx=uy,fy=-ux,face=Math.atan2(fy,fx);
@@ -5445,7 +5452,7 @@ function dropoffPoint(h){
 }
 function visible(p){const vm=S.mods.visionMult;if(dist(p,S.base)<BASE_VISION*vm)return true;if(S.pings.length&&inActivePing(p))return true;if(S.troops.some(t=>dist(t,p)<TROOP_VISION*vm*S.mods.squadRangeMult))return true;if(S.harvesters.some(h=>dist(h,p)<HARV_VISION*vm))return true;return S.builders.some(b=>dist(b,p)<BUILDER_VISION*vm)}
 function moveToward(o,d,sp,dt){const dx=d.x-o.x,dy=d.y-o.y,L=Math.hypot(dx,dy);if(L<1)return 0;const s=Math.min(L,sp*dt);o.x+=dx/L*s;o.y+=dy/L*s;return L-s}
-function tracer(a,b,col){S.tracers.push({x1:a.x,y1:a.y,x2:b.x,y2:b.y,t:0.12,col})}
+function tracer(a,b,col,w){S.tracers.push({x1:a.x,y1:a.y,x2:b.x,y2:b.y,t:0.12,col,w})}
 function hitFlash(o){o.flashT=0.12}
 // Standalone, one-shot version of the per-frame fog reveal below — used by the Zone Mapping
 // reward to permanently clear a wide area in one go, outside the normal per-unit vision loop.
@@ -5471,7 +5478,7 @@ function launchProjectile(from,target,opts){
 function launchNade(from,target){launchProjectile(from,target,{speed:GREN_PROJ_SPEED})}
 function explodeNade(n){
   // a "pellet" (Mech shotgun round) never explodes — it just resolves as a single direct hit on
-  // whatever enemy is nearest where it landed, same as a Squad's shot, no splash/shake/boom.
+  // whatever enemy is nearest where it landed, same as a Trooper's shot, no splash/shake/boom.
   if(n.pellet){
     let hit=null,hd=MECH_PELLET_HIT_R;
     S.enemies.forEach(e=>{const d=dist(e,{x:n.tx,y:n.ty});if(d<hd){hd=d;hit=e}});
@@ -5837,15 +5844,15 @@ function spawnVeinWave(v){
   msg(`${heavy} incoming from the ${a<Math.PI?'south':'north'}${Math.cos(a)>0?'east':'west'}${why}.${strainMsg}`);
   sfx.wave();
 }
-// A Squad round: hits its target, then carries on along the same line to full range, hitting up to
+// A Trooper round: hits its target, then carries on along the same line to full range, hitting up to
 // TROOP_PIERCE more enemies it passes through. Returns where the round ended (for the tracer).
-function troopPierce(t,best,range,dm){
+function troopPierce(t,best,range,dm,pierce){
   damageEnemy(best,dm);
   const dx=best.x-t.x,dy=best.y-t.y,L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L,hits=[];
   S.enemies.forEach(e=>{if(e===best||e.hp<=0||e.kind==='nest')return;const rx=e.x-t.x,ry=e.y-t.y,along=rx*ux+ry*uy;
     if(along<=L-2||along>range)return;const off=Math.abs(rx*uy-ry*ux);if(off<(e.r||8)+2)hits.push({e,along})});
   hits.sort((a,b)=>a.along-b.along);
-  const n=Math.min(TROOP_PIERCE,hits.length);for(let i=0;i<n;i++)damageEnemy(hits[i].e,dm);
+  const n=Math.min(pierce??TROOP_PIERCE,hits.length);for(let i=0;i<n;i++)damageEnemy(hits[i].e,dm);
   return n?hits[n-1].e:best;
 }
 // A shield-wall Brawler's shove: knocks back and stuns everything in a cone in front of it.
@@ -5854,6 +5861,54 @@ function brawlerShove(t){
     if(d>BRAWL_KB_R+(e.r||0)||d<1)return;let da=Math.atan2(dy,dx)-t.ang;da=Math.atan2(Math.sin(da),Math.cos(da));if(Math.abs(da)>BRAWL_KB_ARC/2)return;
     const k=(e.kind==='brute'?0.35:1)*BRAWL_KB_SPEED*(1-0.4*d/BRAWL_KB_R);e.kbx=dx/d*k;e.kby=dy/d*k;e.stunT=Math.max(e.stunT||0,BRAWL_KB_STUN)});
   (S.shoves||(S.shoves=[])).push({x:t.x,y:t.y,a:t.ang,t:0});
+}
+// ---------- Trooper and Marksman art ----------
+// Drawn top-down facing t.ang. The rifle is shouldered (bladed stance, butt in the right shoulder, right
+// hand on the grip, left arm out under the handguard, head down on the stock) as t.aimV goes to 1, and
+// rests at a ready angle across the body at RIFLE_READY. Each shot kicks back through the shoulder.
+const RIFLE_READY=0.4;
+function gunMuzzle(t,L){const a=t.ang;return {x:t.x+Math.cos(a)*(L+2)-Math.sin(a)*2.4,y:t.y+Math.sin(a)*(L+2)+Math.cos(a)*2.4}}
+function rP(pts,c,lw){ctx.fillStyle=c;ctx.strokeStyle='#000';ctx.lineWidth=lw||0.5;ctx.beginPath();pts.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.closePath();ctx.fill();ctx.stroke()}
+function rO(X,Y,r,c,lw){ctx.fillStyle=c;ctx.strokeStyle='#000';ctx.lineWidth=lw||0.5;ctx.beginPath();ctx.arc(X,Y,r,0,Math.PI*2);ctx.fill();ctx.stroke()}
+function rLimb(pts,w,c){[[w+1,'#000'],[w,c]].forEach(([lw,col])=>{ctx.lineWidth=lw;ctx.strokeStyle=col;ctx.lineCap='round';ctx.lineJoin='round';ctx.beginPath();pts.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.stroke()})}
+function rifleFlash(X,Y,s){ctx.fillStyle=C.accent;ctx.globalAlpha=0.9;ctx.beginPath();ctx.moveTo(X,Y-5*s);ctx.lineTo(X+2*s,Y);ctx.lineTo(X,Y+s);ctx.lineTo(X-2*s,Y);ctx.closePath();ctx.fill();ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(X,Y-1,1.1*s,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1}
+function riflePose(o){
+  const lerp=(a,b,k)=>a+(b-a)*k,a=o.a,blade=lerp(0.15,0.42,a),fl=o.flash;ctx.save();ctx.rotate(-blade*0.6);
+  const sw=4.4,Ls=[-sw,0.6],Rs=[sw,-0.2],butt=[lerp(1.2,Rs[0]-1.2,a),lerp(1.5,-0.6,a)],rang=lerp(-0.75,blade*0.6-0.05,a);
+  const ca=Math.cos(rang),sa=Math.sin(rang),along=d=>[butt[0]+sa*d,butt[1]-ca*d],grip=along(o.gy),guard=along(o.hy);
+  const AL=fl?'#fff':C.ally,G1='#e6e6e6',G3='#999',G4='#4d4d4d';
+  if(o.pack)o.pack();
+  rP([[Ls[0]-1,Ls[1]],[Ls[0]+0.6,-1.8],[Rs[0]-0.6,-2.4],[Rs[0]+1,Rs[1]],[Rs[0]-0.4,2.6],[Ls[0]+0.4,2.8]],AL,0.6);
+  rLimb([Ls,[lerp(Ls[0]+1,-2.6,a),lerp(-2,-3.6,a)],guard],1.9,AL);
+  ctx.save();ctx.translate(butt[0],butt[1]);ctx.rotate(rang);rP([[-o.rw/2,-o.L],[o.rw/2,-o.L],[o.rw/2,0],[-o.rw/2,0]],G4);rP([[-o.rw/2-0.3,-o.L*0.42],[o.rw/2+0.3,-o.L*0.42],[o.rw/2+0.3,-o.L*0.22],[-o.rw/2-0.3,-o.L*0.22]],G3);if(o.rx)o.rx(o.L,o.rw);ctx.restore();
+  rLimb([Rs,[Rs[0]+lerp(1.2,2.2,a),lerp(1,-0.6,a)],grip],1.9,AL);
+  rO(guard[0],guard[1],1,G4);rO(grip[0],grip[1],1,G4);
+  const hx=lerp(0,butt[0]-1.4,a),hy=lerp(-0.4,-1.6,a);o.head(hx,hy);
+  ctx.restore();
+}
+function drawRifleman(t){
+  const since=S.t-(t.shotT??-9),kick=since<0.3?(since<0.05?since/0.05:1-(since-0.05)/0.25):0,a=t.aimV??RIFLE_READY,fl=t.flashT>0;
+  ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2);
+  ctx.fillStyle='rgba(0,0,0,0.3)';ctx.beginPath();ctx.ellipse(1,2,6,5,0,0,Math.PI*2);ctx.fill();
+  ctx.translate(0,kick*1.4);
+  riflePose({a,L:11,rw:1.6,gy:3,hy:7.5,flash:fl,
+    pack:()=>{rP([[-3,2],[3,1.6],[3,5],[-3,5.4]],'#999');rO(0,3.6,1.5,'#4d4d4d');ctx.strokeStyle=C.accent;ctx.lineWidth=0.5;ctx.beginPath();ctx.arc(0,3.6,1,0,Math.PI*2);ctx.stroke()},
+    head:(hx,hy)=>{rO(hx,hy,2.8,fl?'#fff':'#e6e6e6',0.6);ctx.fillStyle='#4d4d4d';ctx.fillRect(hx-1.8,hy-2.3,3.6,1.1);ctx.fillStyle=C.ally;ctx.fillRect(hx-1.4,hy-2.2,2.8,0.5)}});
+  ctx.restore();
+  if(since<0.06){const m=gunMuzzle(t,11);ctx.save();ctx.translate(m.x,m.y);ctx.rotate(t.ang+Math.PI/2);rifleFlash(0,0,0.9);ctx.restore()}
+}
+function drawMarksman(t){
+  const since=S.t-(t.shotT??-9),kick=since<0.4?Math.max(0,1-since/0.4):0,a=t.aimV??RIFLE_READY,fl=t.flashT>0,charge=t.chargeT>0?1-t.chargeT/MARK_CHARGE:0,kneel=!t.moving;
+  ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2);
+  ctx.fillStyle='rgba(0,0,0,0.3)';ctx.beginPath();ctx.ellipse(1,2,6,5,0,0,Math.PI*2);ctx.fill();
+  ctx.translate(0,kick*2);
+  if(kneel)rP([[-1.5,3],[1.5,3],[1.8,8],[-0.8,8.4]],fl?'#fff':'#2f6f93');
+  riflePose({a,L:16,rw:1.4,gy:4,hy:10,flash:fl,
+    rx:(L,w)=>{ctx.fillStyle='#ccc';ctx.fillRect(-w/2-0.4,-L-1.5,w+0.8,1.8);if(charge>0){ctx.fillStyle='#bfefff';ctx.globalAlpha=charge;ctx.fillRect(-0.35,-L+1,0.7,(L-6)*charge);ctx.globalAlpha=0.3*charge;ctx.beginPath();ctx.arc(0,-L-0.6,2.5+charge,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1}},
+    head:(hx,hy)=>{rO(hx,hy,2.6,fl?'#fff':'#ccc',0.6);ctx.fillStyle=C.accent;ctx.fillRect(hx-0.4,hy-2.3,2.2,0.9)}});
+  if(since>0.05&&since<0.8){const k=since/0.8;for(let i=0;i<3;i++){ctx.globalAlpha=(1-k)*0.6;ctx.fillStyle='#cfd8e0';ctx.beginPath();ctx.arc(4+i+k*3,-7-k*4+i,0.8+k*1.5,0,Math.PI*2);ctx.fill()}ctx.globalAlpha=1}
+  ctx.restore();
+  if(since<0.07){const m=gunMuzzle(t,16);ctx.save();ctx.translate(m.x,m.y);ctx.rotate(t.ang+Math.PI/2);rifleFlash(0,0,1.2);ctx.restore()}
 }
 // ---------- update ----------
 function update(dt){
@@ -6004,7 +6059,7 @@ function update(dt){
   updateNests(dt);
   updateMounds(dt);
   updatePOIs(dt);updateRig(dt);
-  {const sig=['troop','brawler','grenadier','rocket','mech'].map(unitHave).join(',');if(sig!==S.unitSig){S.unitSig=sig;updateBuildBar()}} // the Squad / Brawler counts on their buttons follow deaths and deployments
+  {const sig=['troop','brawler','grenadier','rocket','mech','marksman'].map(unitHave).join(',');if(sig!==S.unitSig){S.unitSig=sig;updateBuildBar()}} // the Trooper / Brawler counts on their buttons follow deaths and deployments
   updateFabShots(dt);
   updateDrones(dt);
   if(!B.locked||S.mods.bastionShootWhileDrilling){
@@ -6036,7 +6091,7 @@ function update(dt){
   tetherPass(S.harvesters,HARV_SPEED*S.mods.moveSpeedMult,dt);
   tetherPass(S.builders,BUILDER_SPEED*S.mods.moveSpeedMult,dt);
   // Sanity hit 0 — the unit snaps and defects to the enemy side
-  S.troops=S.troops.filter(t=>{if(t.sanity<=0){corruptUnit(t,t.kind,t.kind==='grenadier'?'A Grenadier':t.kind==='artillery'?'An Artillery Piece':t.kind==='mech'?'A Mech':t.kind==='rocket'?'A Rocketeer':t.kind==='brawler'?'A Brawler':'A Squad');S.sel.troops.delete(t.id);return false}return true});
+  S.troops=S.troops.filter(t=>{if(t.sanity<=0){corruptUnit(t,t.kind,t.kind==='grenadier'?'A Grenadier':t.kind==='artillery'?'An Artillery Piece':t.kind==='mech'?'A Mech':t.kind==='rocket'?'A Rocketeer':t.kind==='brawler'?'A Brawler':t.kind==='marksman'?'A Marksman':'A Trooper');S.sel.troops.delete(t.id);return false}return true});
   S.harvesters=S.harvesters.filter(h=>{if(h.sanity<=0){corruptUnit(h,'harvester','A Harvester');S.sel.harv.delete(h.id);return false}return true});
   S.builders=S.builders.filter(bu=>{if(bu.sanity<=0){releaseBuilderClaim(bu);corruptUnit(bu,'builder','A Builder');S.sel.bu.delete(bu.id);return false}return true});
 
@@ -6047,9 +6102,10 @@ function update(dt){
    for(let i=0;i<hd.length;i++)for(let j=i+1;j<hd.length;j++)if(dist(hd[i],hd[j])<HOLD_LINK_R){hd[i].holdLinks++;hd[j].holdLinks++}}
   S.troops.forEach(t=>{
     t.cd-=dt;
-    const gren=t.kind==='grenadier', arty=t.kind==='artillery', mech=t.kind==='mech', rock=t.kind==='rocket', brawl=t.kind==='brawler';
-    const range=brawl?BRAWL_RANGE:(arty?ARTY_RANGE:gren?GREN_RANGE:mech?MECH_RANGE:rock?ROCKET_RANGE:TROOP_RANGE)*S.mods.squadRangeMult;
-    let speed=arty?ARTY_SPEED:mech?MECH_SPEED:rock?ROCKET_SPEED:brawl?BRAWL_SPEED:TROOP_SPEED;
+    const gren=t.kind==='grenadier', arty=t.kind==='artillery', mech=t.kind==='mech', rock=t.kind==='rocket', brawl=t.kind==='brawler', mark=t.kind==='marksman';
+    const range=brawl?BRAWL_RANGE:(arty?ARTY_RANGE:gren?GREN_RANGE:mech?MECH_RANGE:rock?ROCKET_RANGE:mark?MARK_RANGE:TROOP_RANGE)*S.mods.squadRangeMult;
+    let speed=arty?ARTY_SPEED:mech?MECH_SPEED:rock?ROCKET_SPEED:brawl?BRAWL_SPEED:mark?MARK_SPEED:TROOP_SPEED;
+    const px0=t.x,py0=t.y;
     if(t.pace&&t.state==='move')speed=Math.min(speed,t.pace); // v4: a group move keeps to its slowest unit's pace
     const factor=roughFactor(t.x,t.y);
     if(t.hold&&!t.dest&&t.state!=='attack'){if(!t.post)t.post={x:t.x,y:t.y};t.x=t.post.x;t.y=t.post.y} // planted: no moving, no chasing (an order to move or attack still goes through, and it plants again after)
@@ -6070,7 +6126,17 @@ function update(dt){
     // auto fire — a following troop still defends itself along the way. Artillery only ever
     // fires on an enemy the player has actually revealed (visible()) — its map-spanning range
     // isn't omniscient, same restriction as the Big Guns reward card.
-    if(t.cd<=0){let best=null,bd=range;S.enemies.forEach(e=>{if(arty&&!visible(e))return;const d=dist(e,t)-(brawl?e.r||0:0);if(d<bd){bd=d;best=e}});
+    // a Marksman charges its rail for MARK_CHARGE on a target it can see, then fires one piercing bolt
+    if(mark){
+      if(t.chargeT>0){t.chargeT-=dt;const c=t.chargeTgt;if(c&&c.hp>0)t.ang=Math.atan2(c.y-t.y,c.x-t.x);
+        if(t.chargeT<=0){t.chargeT=0;t.chargeTgt=null;
+          if(c&&c.hp>0&&dist(t,c)<=range+(c.r||0)){const end=troopPierce(t,c,range*1.15,MARK_DMG*S.mods.troopDmgMult,MARK_PIERCE);tracer(gunMuzzle(t,16),end,'#bfefff',3);t.shotT=S.t;
+            if(sfxReady('mark',0.08)){tone(1500,0.05,'square',0.05);tone(260,0.22,'sawtooth',0.05,0.02,90)}}
+          t.cd=MARK_CD/squadFireRateMult();if(t.hold&&!t.dest)t.cd/=1+Math.min(HOLD_LINK_MAX,HOLD_LINK_BONUS*(t.holdLinks||0))}}
+      else if(t.cd<=0){let best=null,bd=range;S.enemies.forEach(e=>{if(e.hp<=0||!visible(e))return;const d=dist(e,t);if(d<bd){bd=d;best=e}});
+        if(best){t.chargeT=MARK_CHARGE;t.chargeTgt=best;t.ang=Math.atan2(best.y-t.y,best.x-t.x)}}
+    }
+    if(t.cd<=0&&!mark){let best=null,bd=range;S.enemies.forEach(e=>{if(arty&&!visible(e))return;const d=dist(e,t)-(brawl?e.r||0:0);if(d<bd){bd=d;best=e}});
       // a Rocketeer goes for the nearest nest or Quaker in reach before anything else
       if(rock){let bb=null,bbd=range;S.enemies.forEach(e=>{if(!isBigTarget(e)||e.hp<=0)return;const d=dist(e,t);if(d<bbd){bbd=d;bb=e}});if(bb){best=bb;bd=bbd}}
       if(best){
@@ -6099,12 +6165,16 @@ function update(dt){
           t.mechSide=!t.mechSide;
           t.cd=MECH_CD;
         }
-        else{const end=troopPierce(t,best,range,TROOP_DMG*S.mods.troopDmgMult);tracer(t,end,C.ally);t.cd=TROOP_CD/squadFireRateMult()}
+        else{t.ang=Math.atan2(best.y-t.y,best.x-t.x);const end=troopPierce(t,best,range,TROOP_DMG*S.mods.troopDmgMult);tracer(gunMuzzle(t,11),end,C.accent);t.shotT=S.t;t.cd=TROOP_CD/squadFireRateMult()}
         if(t.hold&&!t.dest)t.cd/=1+Math.min(HOLD_LINK_MAX,HOLD_LINK_BONUS*(t.holdLinks||0));
         if(t.state==='idle'&&bd>range*0.7)t.target=best;
       }
     }
     t.x=Math.max(10,Math.min(W-10,t.x));t.y=Math.max(10,Math.min(H-10,t.y));
+    // Troopers and Marksmen: face where they walk unless they've just been shooting; raise the rifle to fire
+    if(t.kind==='troop'||mark){const mvx=t.x-px0,mvy=t.y-py0,recent=S.t-(t.shotT??-9)<1.4||t.chargeT>0;
+      if(!recent&&mvx*mvx+mvy*mvy>0.02)t.ang=Math.atan2(mvy,mvx);else if(!recent&&!t.dest&&t.formAng!=null)t.ang=t.formAng;
+      t.moving=mvx*mvx+mvy*mvy>0.02;const want=recent?1:RIFLE_READY;t.aimV=(t.aimV??RIFLE_READY)+(want-(t.aimV??RIFLE_READY))*Math.min(1,dt*(want>0.9?14:5))}
     S.nodes.forEach(n=>{if(!n.found&&dist(n,t)<TROOP_VISION*S.mods.visionMult*S.mods.squadRangeMult)n.found=true});
   });
 
@@ -7278,8 +7348,8 @@ function draw(){
       ctx.fillRect(-bodyW/2,legH/2-bodyH,bodyW,bodyH); // bottom-aligned with the legs, not centered
       ctx.restore();
     }
-    else{ctx.beginPath();ctx.arc(t.x,t.y,t.r,0,Math.PI*2);ctx.fill();
-      if(t.formAng!=null){const a=t.formAng;ctx.beginPath();ctx.moveTo(t.x+Math.cos(a)*(t.r+5),t.y+Math.sin(a)*(t.r+5));ctx.lineTo(t.x+Math.cos(a+0.5)*(t.r+0.5),t.y+Math.sin(a+0.5)*(t.r+0.5));ctx.lineTo(t.x+Math.cos(a-0.5)*(t.r+0.5),t.y+Math.sin(a-0.5)*(t.r+0.5));ctx.closePath();ctx.fill()}}
+    else if(t.kind==='marksman')drawMarksman(t);
+    else drawRifleman(t);
     if(t.hp<t.maxHp)hpbar(t.x,t.y-14,16,t.hp/t.maxHp);
     if(sel&&t.grp!=null){ctx.fillStyle='#bfe6ff';ctx.font='bold 9px monospace';ctx.textAlign='center';ctx.fillText(t.grp,t.x,t.y-20);ctx.textAlign='start'}
     if(t.sanity<SANITY_MAX)sanityBar(t.x,t.y-10,16,t.sanity/SANITY_MAX);
@@ -7345,7 +7415,7 @@ function draw(){
   if(hc){ctx.fillStyle=C.enemy;ctx.fill(hN);ctx.fillStyle='#0a0a0a';ctx.fill(hC);ctx.strokeStyle='#ff2a2a';ctx.lineWidth=1;ctx.stroke(hC);ctx.fillStyle='#fff';ctx.fill(hF)}
   // tracers
   if(S.shardShots)drawShardShots();
-  S.tracers.forEach(t=>{ctx.strokeStyle=t.col;ctx.globalAlpha=t.t/0.12;ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(t.x1,t.y1);ctx.lineTo(t.x2,t.y2);ctx.stroke()});ctx.globalAlpha=1;
+  S.tracers.forEach(t=>{ctx.strokeStyle=t.col;ctx.globalAlpha=t.t/0.12;ctx.lineWidth=t.w||1.5;ctx.beginPath();ctx.moveTo(t.x1,t.y1);ctx.lineTo(t.x2,t.y2);ctx.stroke()});ctx.globalAlpha=1;
   // Energy Surge rings: a bright front with a soft glow behind it, fading as it reaches full size
   S.surgeWaves.forEach(w=>{
     const f=w.r/ENERGY_SURGE_R, a=Math.max(0,1-f);
