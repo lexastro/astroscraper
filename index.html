@@ -485,7 +485,7 @@ async function run(d){
   for(let k=0;k<dep.length;k++){if((k&2047)===0){await Y();if(id!==JOB)return}const x1=net[k*4],y1=net[k*4+1],x2=net[k*4+2],y2=net[k*4+3],dp=dep[k],sd=cid[k],L=Math.hypot(x2-x1,y2-y1);if(L<0.01)continue;
     const ux=(x2-x1)/L,uy=(y2-y1)/L,cw=0.45+0.6*hash(sd,21);
     for(let t=0;t<=L;t+=0.6){const px=x1+ux*t,py=y1+uy*t;if(nearSite(px,py))continue;
-      const jit=(N.val(px/3.1,py/3.1)-0.5)*1.2*dp,cx=px-uy*jit,cy=py+ux*jit;
+      const cx=px,cy=py; // cut right on the segment: the game's pulses of light run down these same lines
       const w=Math.min(2.2,(0.3+1.4*Math.pow(dp,1.5))*cw*(0.3+1.2*N.val(px/13+sd*3.7,py/13))*(0.6+0.7*N.val(px/110+5,py/110)));
       for(let yy=Math.floor(cy-w-1);yy<=cy+w+1;yy++){if(yy<0||yy>=H)continue;for(let xx=Math.floor(cx-w-1);xx<=cx+w+1;xx++){if(xx<0||xx>=W)continue;const i=yy*W+xx,m=mat[i];
         if(m===WALL||m===GLASS||m===RIFT)continue;const dd=Math.hypot(xx+0.5-cx,yy+0.5-cy);if(dd>w)continue;
@@ -2185,10 +2185,11 @@ function drawPulseRing(src,R,col,I,vx0,vy0,vx1,vy1,c){
   const seg=(lo,hi,dlo,dhi)=>{c.beginPath();for(let k=lo;k<hi;k++){const i=pi[k],d=dep[i>>2];if(d<dlo||d>=dhi)continue;const x1=net[i],y1=net[i+1],x2=net[i+2],y2=net[i+3];
     if((x1<vx0&&x2<vx0)||(x1>vx1&&x2>vx1)||(y1<vy0&&y2<vy0)||(y1>vy1&&y2>vy1))continue;c.moveTo(x1,y1);c.lineTo(x2,y2)}c.stroke()};
   c.strokeStyle=col;
-  [[0,0.35],[0.35,0.65],[0.65,1.01]].forEach(([dlo,dhi])=>{
+  // each depth group as wide as its cracks are cut (shallow ones are hairlines), so the light stays in the groove
+  [[0,0.35,0.5,0.9],[0.35,0.65,0.7,1.3],[0.65,1.01,1,1.9]].forEach(([dlo,dhi,core,glow])=>{
     const g=depthGlow((dlo+dhi)/2);
-    c.globalAlpha=0.25*I*g;c.lineWidth=1.7;seg(a,b,dlo,dhi);
-    c.globalAlpha=Math.min(1,I*g*1.1);c.lineWidth=0.8;seg(a,m,dlo,dhi);
+    c.globalAlpha=0.25*I*g;c.lineWidth=glow;seg(a,b,dlo,dhi);
+    c.globalAlpha=Math.min(1,I*g*1.1);c.lineWidth=core;seg(a,m,dlo,dhi);
   });
 }
 // The crack network, drawn live each frame so the fog can hide it: the cracks in view go into a
