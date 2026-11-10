@@ -6119,7 +6119,7 @@ function update(dt){
         }
         if(v.hive)tail=` The Mega nest is broken.${salvageFab()}`+tail;
         msg(`${v.hive?'Hive vein':'Vein'} drained at ${tier} tier — +${datEarned} Dat Crystal and +${condensedEarned} Condensed Crystal.${tail}`);
-        shakeScreen(4,0.3);showRewardChoice(tier);
+        shakeScreen(4,0.3);showRewardChoice(rewardTierFor(tier,v.band),v.band);
       }
     }
     }
@@ -6749,10 +6749,20 @@ function shuffled(arr){const a=[...arr];for(let i=a.length-1;i>0;i--){const j=Ma
 // tiers below it (so a big payout also surfaces a couple of the smaller upgrades you may have
 // been skipping), plus a 4th option to cash the whole reward in for a flat chunk of Dat instead.
 // A Common reward has no tier below it, so all 3 just come from the Common pool as before.
-function rollRewardCards(tier){
-  // Hive tier: three cards, all Epic or Legendary
+// Reward tier by depth: the Rim never offers Legendary rewards (a Legendary or Hive drain pays out at
+// Epic) and only lets an Epic through REWARD_RIM_EPIC of the time (else it's Rare); in the Dense
+// Field a Legendary drain stays Legendary only REWARD_DENSE_LEGENDARY of the time (else Epic), and a
+// Hive's Legendary cards are as rare. The Core is unchanged.
+const REWARD_RIM_EPIC=0.45, REWARD_DENSE_LEGENDARY=0.15;
+function rewardTierFor(tier,band){
+  if(band==='rim'){if(tier==='Legendary'||tier==='Hive')return 'Epic';if(tier==='Epic'&&Math.random()>REWARD_RIM_EPIC)return 'Rare'}
+  if(band==='dense'&&tier==='Legendary'&&Math.random()>REWARD_DENSE_LEGENDARY)return 'Epic';
+  return tier;
+}
+function rollRewardCards(tier,band){
+  // Hive tier: three cards, all Epic or Legendary (in the Dense Field, Legendary ones are rare)
   if(tier==='Hive'){
-    const pool=shuffled(['Epic','Legendary'].flatMap(t=>UPGRADES[t].map(u=>({tier:t,...u}))));
+    const pool=shuffled(['Epic','Legendary'].flatMap(t=>UPGRADES[t].map(u=>({tier:t,...u})))).filter(c=>!(band==='dense'&&c.tier==='Legendary'&&Math.random()>REWARD_DENSE_LEGENDARY));
     const picks=pool.slice(0,3).map(c=>({kind:'upgrade',...c}));
     picks.push({kind:'trade',tier,name:'Sell the Reward',desc:`Skip the upgrade — bank +${TIER_TRADE_DAT[tier]} Dat Crystal instead.`,amt:TIER_TRADE_DAT[tier]});
     return picks;
@@ -6774,9 +6784,9 @@ function rollRewardCards(tier){
   return picks;
 }
 // Pauses the whole sim (update() bails out while S.rewardChoice is set) and shows the pick.
-function showRewardChoice(tier){
-  const cards=rollRewardCards(tier);
-  S.rewardChoice={tier,cards};
+function showRewardChoice(tier,band){
+  const cards=rollRewardCards(tier,band);
+  S.rewardChoice={tier,cards,band};
   document.getElementById('rewardTitle')._tc=`Choose a Reward — ${tier} Tier`;
   const host=document.getElementById('rewardCards');
   host.innerHTML='';
@@ -6807,7 +6817,7 @@ function rerollReward(){
   S.condensed-=cost;
   S.rerollCount++;
   sfx.click();
-  showRewardChoice(choice.tier);
+  showRewardChoice(choice.tier,choice.band);
 }
 document.getElementById('rerollBtn').onclick=rerollReward;
 function pickReward(i){
