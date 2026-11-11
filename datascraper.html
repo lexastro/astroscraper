@@ -1133,6 +1133,9 @@ function payDat(cost,what){
 // turrets and the Bastion itself. Repairs burn Dat Crystal (DRONE_DAT_PER_SEC per drone at work).
 // They fly, so the current (all-melee) enemies can't touch them, and they ignore terrain.
 const DRONE_COUNT=4, DRONE_SPEED=170, DRONE_RANGE=760, DRONE_HPS=9, DRONE_DAT_PER_SEC=0.4, DRONE_WORK_R=18;
+// v4: Stabilizers are tall towers — drones repairing one each work at their own level up it, circling
+// the column there (heights in the tower's own units, 0 at the ground; most drones hover at DRONE_HOVER)
+const STAB_DRONE_LEVELS=[24,100,62,128,44,84], STAB_TOWER_R=10, DRONE_HOVER=6;
 // Dat Crystal deposits are pickups now: the Bastion or any unit that rolls over one scoops up the lot.
 const DAT_PICKUP_R=26;
 // v4: the derelict RIG — a rare find on the Dense Field stops. A mining rig (a long-bodied walker, not a
@@ -3328,7 +3331,7 @@ function updateShardShots(dt){
       sh.x+=sh.vx*dt/steps;sh.y+=sh.vy*dt/steps;
       const w=wallAt(sh.x,sh.y);if(w){damageWall(w,sh.dmg);spark(sh.x,sh.y,'#8d9aa8',3);return false}
       if(terrainAt(sh.x,sh.y)===2||sh.x<0||sh.y<0||sh.x>W||sh.y>H)return false;
-      for(const u of hitList){const r=u===B?BASE_R:(u.r||10);if(Math.hypot(u.x-sh.x,u.y-sh.y)>r+3)continue;
+      for(const u of hitList){const r=u===B?BASE_R:(u.r||10);if(u.kind==='stabilizer'?!stabTowerHit(u,sh.x,sh.y):Math.hypot(u.x-sh.x,u.y-sh.y)>r+3)continue;
         // a Paladin holding a shield wall turns shards that come at its face
         if(u.kind==='brawler'&&u.wall&&!u.dest){let da=Math.atan2(sh.y-u.y,sh.x-u.x)-u.ang;da=Math.atan2(Math.sin(da),Math.cos(da));if(Math.abs(da)<1.1){spark(sh.x,sh.y,BRAWL_COLOR,4);if(sfxReady('block',0.08))tone(1400,0.04,'square',0.03);return false}}
         u.hp-=u.kind?allyHit(u,sh.dmg):sh.dmg;u.lastHitBy='enemy';hitFlash(u);spark(sh.x,sh.y,C.enemy,2);if(u===B&&sfxReady('damage',0.3))sfx.damage();return false}
@@ -3336,6 +3339,10 @@ function updateShardShots(dt){
     sh.ang+=sh.spin*dt;return (sh.life-=dt)>0;
   });
 }
+// The Stabilizer's tower as it stands on screen: the splayed legs round its foot, then the column
+// running up to the dish (its top is STAB_TOWER_TOP up the screen) — a shot crossing any of it hits.
+const STAB_TOWER_TOP=76; // 152 tall × the 0.5 height tilt
+function stabTowerHit(st,x,y){const dx=Math.abs(x-st.x);if(Math.hypot(x-st.x,(y-st.y)*1.2)<20)return true;return dx<STAB_TOWER_R+1&&y<st.y+4&&y>st.y-STAB_TOWER_TOP}
 function drawShardShots(){
   S.shardShots.forEach(sh=>{ctx.save();ctx.translate(sh.x,sh.y);ctx.rotate(sh.ang);ctx.fillStyle='#55626f';ctx.strokeStyle=C.enemy;ctx.lineWidth=0.8;
     ctx.beginPath();ctx.moveTo(4,0);ctx.lineTo(-2.5,-2);ctx.lineTo(-1.5,2.2);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();
@@ -6446,7 +6453,7 @@ function updateDrones(dt){
     if(!d.target&&jobs.length){
       let best=null,bs=Infinity;
       jobs.forEach(j=>{const sc=j.pri*1e5+(load.get(j.o)||0)*450+dist(d,j.o);if(sc<bs){bs=sc;best=j.o}});
-      d.target=best;d.state='fly';d.workAng=rnd(0,Math.PI*2);load.set(best,(load.get(best)||0)+1);
+      const nOn=load.get(best)||0;d.target=best;d.state='fly';d.workAng=rnd(0,Math.PI*2);d.workZ=best.kind==='stabilizer'?STAB_DRONE_LEVELS[nOn%STAB_DRONE_LEVELS.length]+rnd(-6,6):0;load.set(best,nOn+1);
     }
     // nothing to repair: go and fetch a dropped Dat Crystal that no other drone is already after
     if(!d.target){
@@ -6461,10 +6468,11 @@ function updateDrones(dt){
     }else d.loot=null;
     let gx,gy;
     if(d.loot){gx=d.loot.x;gy=d.loot.y}
-    else if(d.target){const r=(d.target.r||12)+DRONE_WORK_R;d.workAng+=dt*0.8;gx=d.target.x+Math.cos(d.workAng)*r;gy=d.target.y+Math.sin(d.workAng)*r}
+    else if(d.target){const r=(d.target.kind==='stabilizer'?STAB_TOWER_R:(d.target.r||12))+DRONE_WORK_R;d.workAng+=dt*0.8;gx=d.target.x+Math.cos(d.workAng)*r;gy=d.target.y+Math.sin(d.workAng)*r}
     else{d.orbit+=dt*1.4;gx=B.x+Math.cos(d.orbit)*d.orbitR;gy=B.y+Math.sin(d.orbit)*d.orbitR}
     const dx=gx-d.x,dy=gy-d.y,L=Math.hypot(dx,dy);
     if(L>0.5){d.ang=Math.atan2(dy,dx);const st=Math.min(L,DRONE_SPEED*dt);d.x+=dx/L*st;d.y+=dy/L*st}
+    {const wantZ=d.target&&d.target.kind==='stabilizer'&&L<60?d.workZ||0:DRONE_HOVER;d.z=(d.z??DRONE_HOVER)+(wantZ-(d.z??DRONE_HOVER))*Math.min(1,dt*2.2)} // climb to its level as it arrives, back down after
     if(d.target&&!needsRepair(d.target))d.target.droneWorkT=0;
     d.state=d.target?(L<10?'repair':'fly'):d.loot?'fly':'dock';
     if(d.loot&&L<12){const o=d.loot,amt=o.amt;
@@ -6482,13 +6490,15 @@ function updateDrones(dt){
 }
 function drawDrones(){
   S.drones.forEach(d=>{
-    if(d.state==='repair'&&d.target){
+    const z=d.z??DRONE_HOVER,sy=d.y-z*SK_TILT; // drawn up the screen by its height, like the towers
+    if(d.state==='repair'&&d.target){const o=d.target,tall=o.kind==='stabilizer',side=Math.atan2(d.y-o.y,d.x-o.x),tx=o.x+(tall?Math.cos(side)*8:0)+rnd(-2,2),ty=o.y+(tall?Math.sin(side)*6-z*SK_TILT:0)+rnd(-2,2);
       ctx.strokeStyle=C.builder;ctx.globalAlpha=0.35+0.4*Math.abs(Math.sin(d.beamT*18));ctx.lineWidth=1.2;
-      ctx.beginPath();ctx.moveTo(d.x,d.y);ctx.lineTo(d.target.x+rnd(-3,3),d.target.y+rnd(-3,3));ctx.stroke();ctx.globalAlpha=1;
-    }
-    // flying: a soft shadow below and a small dart above it
-    ctx.fillStyle='rgba(0,0,0,0.3)';ctx.beginPath();ctx.arc(d.x+3,d.y+5,2.2,0,Math.PI*2);ctx.fill();
-    ctx.save();ctx.translate(d.x,d.y);ctx.rotate(d.ang);
+      ctx.beginPath();ctx.moveTo(d.x,sy);ctx.lineTo(tx,ty);ctx.stroke();
+      if(tall){ctx.globalAlpha=0.5+0.4*Math.abs(Math.sin(d.beamT*23));ctx.fillStyle='#bff7f0';ctx.beginPath();ctx.arc(tx,ty,1.6,0,Math.PI*2);ctx.fill()}
+      ctx.globalAlpha=1}
+    // a soft shadow on the ground (falling down-right further the higher it flies), the dart above it
+    ctx.fillStyle=`rgba(0,0,0,${Math.max(0.1,0.3-z*0.0012)})`;ctx.beginPath();ctx.arc(d.x+3+z*SK_SH*0.5,d.y+5+z*SK_SH*0.5,2.2,0,Math.PI*2);ctx.fill();
+    ctx.save();ctx.translate(d.x,sy);ctx.rotate(d.ang);
     ctx.fillStyle=C.builder;ctx.strokeStyle='#000';ctx.lineWidth=0.8;
     ctx.beginPath();ctx.moveTo(4.5,0);ctx.lineTo(-3,-3);ctx.lineTo(-1.5,0);ctx.lineTo(-3,3);ctx.closePath();ctx.fill();ctx.stroke();
     ctx.restore();
