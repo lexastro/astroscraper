@@ -654,6 +654,7 @@ async function run(d){
     <button id="bRig" hidden><span class="icon">⛭</span><span id="bRigLabel">Power the Rig</span><span class="cost" id="cRig"></span><span class="key">Y</span></button>
     <button id="bStrand" hidden><span class="icon">⚑</span><span>Take on Squad</span><span class="cost" id="cStrand"></span><span class="key">Y</span></button>
     <button id="bPing"><span class="icon">◬</span><span id="bPingLabel">Probe</span><span class="cost" id="cProbe">●●●</span><span class="key">G</span></button>
+    <span id="callBar" hidden style="display:none"></span>
     <button id="bAutoBuy" title="When on, using an empty stock buys the charge with Dat automatically"><span class="icon">⟳</span><span id="bAutoBuyLabel">Auto-buy: off</span></button>
   </div>
 </div>
@@ -996,7 +997,7 @@ const BRAWL_KB_CHANCE=0.3, BRAWL_KB_R=70, BRAWL_KB_ARC=Math.PI/2, BRAWL_KB_SPEED
 const BRAWL_R=9, BRAWL_HP=240, BRAWL_SPEED=88, BRAWL_RANGE=30, BRAWL_CD=1.0, BRAWL_DMG=5, BRAWL_CLEAVE_R=36, BRAWL_CLEAVE=0.4, BRAWL_COLOR='#9fb6d0';
 const HARV_R=8, HARV_SPEED=105, HARV_VISION=280, CARRY=24;
 const BUILDER_R=7, BUILDER_SPEED=100, BUILDER_VISION=200;
-const WALL_BUILD_T=1, TURRET_BUILD_T=5, RELAY_BUILD_T=3, DEPOT_BUILD_T=4, REPAIR_HPS=25, REPAIR_DAT_PER_SEC=1;
+const WALL_BUILD_T=1, TURRET_BUILD_T=5, RELAY_BUILD_T=3, DEPOT_BUILD_T=4, REPAIR_HPS=25; // v4: repairs are free
 const RELAY_RECONNECT_T=2.5;
 // Turret firing rate +100% (cooldown halved from 0.65s to 0.325s), range -25% (240 -> 180).
 const TURRET_RANGE=180, TURRET_DMG=14, TURRET_CD=0.325, TURRET_HP=150;
@@ -1041,7 +1042,7 @@ const MARTYR_R=90, MARTYR_DMG=40;
 const DEPOT_HP=150;
 const BASE_GUN_RANGE=260, BASE_GUN_DMG=18, BASE_GUN_CD=0.5;
 // Bastion ability, two steps: press Ping (N), then click a spot within PING_REACH of the Bastion
-// (scaled by the Deep Scan Antenna upgrade). A sensor pulse lands there and:
+// A sensor pulse lands there and:
 //  - permanently discovers everything in PING_REVEAL_R: Dat Crystal deposits and vein mining
 //    points (never the hidden contract vein — that still has to be triangulated);
 //  - lifts the fog over that circle and shows the enemies in it for PING_ENEMY_T seconds only.
@@ -1122,7 +1123,7 @@ const FAB_FLIGHT_SPEED=380;
 const FAB_DAT={turret:60,podturret:150,relay:24,grenadier:60,artillery:90,mech:120,rocket:90,brawler:30,marksman:70}, STAB_DAT=24, PROBE_DAT=8;
 // Troopers aren't stocked: you can field up to S.squadCap of them at once (SQUAD_CAP_START, raised by
 // salvage and a reward card up to SQUAD_CAP_MAX), each new one costing SQUAD_DAT.
-const SQUAD_CAP_START=12, SQUAD_CAP_MAX=24, SQUAD_START_N=6, SQUAD_DAT=40;
+const SQUAD_CAP_START=12, SQUAD_CAP_MAX=36, BARRACKS_SLOTS=3, SQUAD_START_N=6, SQUAD_DAT=40;
 // v4: Paladins work the same way: up to BRAWL_CAP at once, BRAWL_START_N of them free at the start, each new one BRAWL_DAT
 const BRAWL_CAP=16, BRAWL_START_N=8, BRAWL_DAT=30;
 function brawlerCount(){return S.troops.filter(t=>t.kind==='brawler').length}
@@ -1133,7 +1134,8 @@ const unitPrice=k=>k==='troop'?SQUAD_DAT:k==='brawler'?BRAWL_DAT:FAB_DAT[k];
 const unitLimit=k=>k==='troop'?S.squadCap:FABS[k].cap;
 const unitHave=k=>k==='troop'?squadCount():unitAlive(k);
 function squadCount(){return S.troops.filter(t=>(t.kind||'troop')==='troop').length}
-function raiseSquadCap(){if(S.squadCap>=SQUAD_CAP_MAX)return false;S.squadCap++;updateBuildBar();return true}
+// raises the Trooper limit by up to n and sends that many Troopers out for free; returns how many it added
+function raiseSquadCap(n){n=Math.min(n||1,SQUAD_CAP_MAX-S.squadCap);if(n<=0)return 0;S.squadCap+=n;spawnFreeTroops(n,'troop');updateBuildBar();return n}
 // pay for one use of an empty stock; false (with a message) if there isn't the Dat
 // an empty stock: buy the charge only if Auto-buy is on; otherwise say how to get one
 function takeStock(cost,what){
@@ -1146,9 +1148,9 @@ function payDat(cost,what){
 }
 // Repair drones (replace Builders): a small flying swarm that lives on the Bastion and launches on
 // its own to patch up anything damaged within DRONE_RANGE of it — Stabilizers first, then relays,
-// turrets and the Bastion itself. Repairs burn Dat Crystal (DRONE_DAT_PER_SEC per drone at work).
+// turrets and the Bastion itself. Repairs are free (v4).
 // They fly, so the current (all-melee) enemies can't touch them, and they ignore terrain.
-const DRONE_COUNT=4, DRONE_SPEED=170, DRONE_RANGE=760, DRONE_HPS=9, DRONE_DAT_PER_SEC=0.4, DRONE_WORK_R=18;
+const DRONE_COUNT=4, DRONE_SPEED=170, DRONE_RANGE=760, DRONE_HPS=9, DRONE_WORK_R=18;
 // v4: Stabilizers are tall towers — drones repairing one each work at their own level up it, circling
 // the column there (heights in the tower's own units, 0 at the ground; most drones hover at DRONE_HOVER)
 const STAB_DRONE_LEVELS=[24,100,62,128,44,84], STAB_TOWER_R=10, DRONE_HOVER=6;
@@ -1609,7 +1611,7 @@ const UPGRADES={
     {id:'martyrs',name:'Martyrs',desc:'A unit that would corrupt detonates instead, damaging enemies and friendlies alike nearby.',apply:()=>{S.mods.martyrs=true}},
     {id:'resupply1',name:'Resupply',desc:'Every fabricator, Stabilizer and Probe stock is topped up to full, right now.',apply:()=>{Object.keys(FABS).forEach(k=>{S.fab[k].n=FABS[k].charges});S.stabCharges=STAB_CHARGES;S.probeCharges=PROBE_CHARGES}},
     wallCard('heavy','Heavy Armour Walls'),
-    {id:'barracks1',name:'Barracks Expansion',desc:'Field one more Trooper at a time (up to 24).',apply:()=>{raiseSquadCap()}},
+    {id:'barracks1',name:'Barracks Expansion',get desc(){return `Field ${BARRACKS_SLOTS} more Troopers at a time (up to ${SQUAD_CAP_MAX}), and ${BARRACKS_SLOTS} free Troopers join you to fill them.`},apply:()=>{raiseSquadCap(BARRACKS_SLOTS)}},
   ],
   Epic:[
     {id:'hardscopes',name:'Hard Scopes',desc:"Trooper vision and firing range +20% (stacks with Surveyor's Eye).",apply:()=>{S.mods.squadRangeMult*=1.2}},
@@ -2556,7 +2558,7 @@ function reset(landing){
   const land=landing||defaultLanding();
   S={t:0,surveyVein:null,wrecks:[],beacons:[],squadCap:SQUAD_CAP_START,quakes:[],quakeMsg:false,barrier:null,breachSite:null,breachVein:null,rigSite:null,rig:null,glass:null,glassShards:[],glassB:null,glassCov:null,dat:tutorialMap?TUTORIAL_START_DAT:pressureOn('lean')?20:60,living:0,condensed:0,over:null,rerollCount:0,
     base:{x:land.x,y:land.y,hp:450+bastionHpBonus(),maxHp:450+bastionHpBonus(),r:BASE_R,dest:null,locked:false,gunCd:0,bigGunCd:0,pingCd:0},
-    troops:[],harvesters:[],builders:[],relays:[],depots:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],shards:[],nades:[],shardShots:[],lances:[],smears:[],
+    troops:[],harvesters:[],builders:[],relays:[],depots:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],shards:[],nades:[],shardShots:[],lances:[],smears:[],calls:{},callsIn:[],
     veins:[],activeVein:null,throttleMul:1,ambientT:30,
     minedWindowAmt:0,minedWindowT:0,offZonePatrolCd:OFFZONE_MINE_WINDOW,
     particles:[],floaters:[],shake:{t:0,dur:0,mag:0},surgeWaves:[],surgeT:10,
@@ -2763,13 +2765,13 @@ function openBreach(v){
 // what carries from one stop to the next
 function captureCarry(){
   return {dat:S.dat,living:S.living,condensed:S.condensed,rerollCount:S.rerollCount,mods:{...S.mods},runUnlock:{...S.runUnlock},
-    fab:JSON.parse(JSON.stringify(S.fab)),stabCharges:S.stabCharges,probeCharges:S.probeCharges,
+    fab:JSON.parse(JSON.stringify(S.fab)),stabCharges:S.stabCharges,probeCharges:S.probeCharges,calls:{...S.calls},
     hp:S.base.hp,maxHp:S.base.maxHp,drones:S.drones.length,squadCap:S.squadCap,troops:S.troops.map(t=>({kind:t.kind||'troop',hp:t.hp,maxHp:t.maxHp,grp:t.grp}))};
 }
 function applyCarry(c){
   if(!c)return;
   Object.assign(S,{dat:c.dat,living:c.living,condensed:c.condensed,rerollCount:c.rerollCount,stabCharges:c.stabCharges,probeCharges:c.probeCharges});
-  S.mods={...S.mods,...c.mods};S.runUnlock={...c.runUnlock};S.fab=c.fab;
+  S.mods={...S.mods,...c.mods};S.runUnlock={...c.runUnlock};S.fab=c.fab;S.calls={...(c.calls||{})};
   S.base.hp=c.hp;S.base.maxHp=c.maxHp;S.squadCap=c.squadCap||SQUAD_CAP_START;
   S.drones=[];addDrones(c.drones);
   S.troops=[];c.troops.forEach((t,i)=>{const u=mkTroop(Date.now()+i,t.kind);u.hp=t.hp;u.maxHp=t.maxHp;if(t.grp!=null)u.grp=t.grp;S.troops.push(u);guardBastion(u)});
@@ -2859,8 +2861,8 @@ const META_UPGRADES=[
    desc:'Reinforces the Bastion\'s hull. +250 HP per purchase.'},
   {key:'unitHp',name:'Kinetic Dampers',icon:'✚',max:3,costs:[10,15,20],stacking:false,pct:[10,20,30],unit:'combat unit HP',
    desc:'Dampens incoming impacts. +10% Trooper/Grenadier/Artillery/Mech HP per purchase.'},
-  {key:'pingRange',name:'Deep Scan Antenna',icon:'◉',max:2,costs:[15,20],stacking:false,pct:[10,20],unit:'ping range',
-   desc:'Recon probes fly farther. +10% range per purchase.'},
+  {key:'pingRange',name:'Deep Scan Antenna',icon:'◉',max:2,costs:[15,20],stacking:false,pct:[25,50],unit:'probe sweep width',
+   desc:'Recon probes sweep a wider strip either side of their flight. +25% width per purchase.'},
   {key:'squadFireRate',name:'Rapid Loaders',icon:'⚡',max:3,costs:[10,15,20],stacking:false,pct:[5,10,15],unit:'Trooper fire rate',
    desc:'Tightens Trooper reload cycles. +5% fire rate per purchase.'},
   {key:'pickupRange',name:'Magnetic Collectors',icon:'✦',max:3,costs:[10,15,20],stacking:false,pct:[20,40,60],unit:'crystal pickup range',
@@ -2868,7 +2870,7 @@ const META_UPGRADES=[
 ];
 function bastionHpBonus(){return (meta.upgrades.bastionHp||0)*250}
 function unitHpMult(){const t=meta.upgrades.unitHp||0;return (t>0?1+META_UPGRADES[1].pct[t-1]/100:1)*(pressureOn('frail')?0.75:1)}
-function pingRangeMult(){const t=meta.upgrades.pingRange||0;return t>0?1+META_UPGRADES[2].pct[t-1]/100:1}
+function probeWidthMult(){const t=meta.upgrades.pingRange||0;return t>0?1+META_UPGRADES[2].pct[t-1]/100:1}
 function squadFireRateMult(){const t=meta.upgrades.squadFireRate||0;return t>0?1+META_UPGRADES[3].pct[t-1]/100:1}
 function pickupRangeMult(){const t=meta.upgrades.pickupRange||0;return t>0?1+META_UPGRADES[4].pct[t-1]/100:1}
 function refreshMenuMeta(){
@@ -3915,7 +3917,7 @@ function nestDestroyed(n){
 // or 2 drones if you own them all. It never unlocks buying more: only the Unlocks panel does that,
 // so a locked unit's button stays hidden however you came by the ones you have.
 function salvageFab(){
-  if(S.squadCap<SQUAD_CAP_MAX&&Math.random()<0.5){raiseSquadCap();return ` Salvaged a barracks module \u2014 you can field ${S.squadCap} troopers now!`}
+  if(S.squadCap<SQUAD_CAP_MAX&&Math.random()<0.5){const n=raiseSquadCap(BARRACKS_SLOTS);return ` Salvaged a barracks module \u2014 ${n} Troopers join you and you can field ${S.squadCap} now!`}
   const locked=Object.keys(FABS).filter(k=>FABS[k].kind==='unit'&&!fabUnlocked(k)&&!FABS[k].disabled);
   if(locked.length){const k=locked[Math.floor(Math.random()*locked.length)],n=k==='mech'?1:2;spawnFreeTroops(n,k);updateBuildBar();
     return ` Salvaged ${n===1?'a':n} ${FABS[k].name}${n===1?'':'s'} from the wreck \u2014 they join you (unlock them to build more)!`}
@@ -4094,7 +4096,7 @@ function salvageWreck(w){
   if(kind==='dat'){const a=WRECK_DAT[w.band];S.dat+=a;floatText(w.x,w.y-20,'+'+a+' Dat',C.dat);text=`a Dat Crystal cache (+${a})`}
   else if(kind==='refill'){Object.keys(FABS).forEach(k=>{S.fab[k].n=FABS[k].charges;S.fab[k].rt=0});S.stabCharges=STAB_CHARGES;text='spare parts: every fabricator is refilled'}
   else if(kind==='drones'){addDrones(2);text='2 intact repair drones'}
-  else if(kind==='squad'&&raiseSquadCap())text=`a barracks module — you can field ${S.squadCap} troopers now`
+  else if(kind==='squad'&&S.squadCap<SQUAD_CAP_MAX){const n=raiseSquadCap(BARRACKS_SLOTS);text=`a barracks module — ${n} Troopers join you and you can field ${S.squadCap} now`}
   else if(kind==='squad'){const a=WRECK_DAT[w.band];S.dat+=a;floatText(w.x,w.y-20,'+'+a+' Dat',C.dat);text=`a Dat Crystal cache (+${a})`}
   else text=salvageFab().trim().replace(/^Salvaged /,'').replace(/[!.]$/,'');
   burst(w.x,w.y,C.accent,24,150,0.7);sfx.veinDone();updateBuildBar();
@@ -5244,6 +5246,7 @@ cv.addEventListener('pointerdown',e=>{
       pinch={dist:Math.hypot(a.x-b.x,a.y-b.y),z:cam.z,mid:{x:(a.x+b.x)/2,y:(a.y+b.y)/2}};
       return;
     }
+    if(callMode){fireCall(w);return}
     if(probeMode){fireProbe(w);return}
     if(pingMode){firePing(w);return}
     if(buildMode==='wall'){if(mouse.wallDraw&&mouse.wallDraw.sticky){moveWallDraw(w);finishWallDraw()}else startWallDraw(w);return}
@@ -5273,9 +5276,10 @@ cv.addEventListener('pointerdown',e=>{
   if(e.button===2){
     // with combat units selected, a right-drag lays out a formation (see formationSlots); a plain
     // right-click (no drag) is still an ordinary order, issued on release
-    if(S.sel.troops.size&&!buildMode&&!probeMode&&!pingMode){mouse.form={x0:w.x,y0:w.y,x1:w.x,y1:w.y,sx:e.clientX,sy:e.clientY,moved:false};return}
+    if(S.sel.troops.size&&!buildMode&&!probeMode&&!pingMode&&!callMode){mouse.form={x0:w.x,y0:w.y,x1:w.x,y1:w.y,sx:e.clientX,sy:e.clientY,moved:false};return}
     rightClick(w);return}
   if(e.button===0){
+    if(callMode){fireCall(w);return}
     if(probeMode){fireProbe(w);return}
     if(pingMode){firePing(w);return}
     if(buildMode==='wall'){if(mouse.wallDraw&&mouse.wallDraw.sticky){moveWallDraw(w);finishWallDraw()}else startWallDraw(w);return}
@@ -5390,7 +5394,7 @@ addEventListener('keydown',e=>{
   if(menuOpen||e.target.tagName==='INPUT')return; keys[e.key.toLowerCase()]=true; keys[e.key]=true;
   if(/^Digit[0-9]$/.test(e.code||'')&&!e.altKey){e.preventDefault();const n=+e.code.slice(5);if(e.ctrlKey||e.metaKey)assignGroup(n);else if(!e.repeat)recallGroup(n);return}
   if(e.key.toLowerCase()==='q')setBuild(buildMode==='wall'?null:'wall'); else if(e.key.toLowerCase()==='t')setBuild(buildMode==='turret'?null:'turret'); else if(e.key.toLowerCase()==='r')setBuild(buildMode==='relay'?null:'relay'); else if(e.key.toLowerCase()==='e')setBuild(buildMode==='stabilizer'?null:'stabilizer'); else if(e.key.toLowerCase()==='m'&&fabUnlocked('podturret'))setBuild(buildMode==='podturret'?null:'podturret');
-  else if(e.key==='Escape'){if(!document.getElementById('drillSelectOverlay').hidden){closeDrillSelect()}else if(probeMode){setProbeMode(false)}else if(pingMode){setPingMode(false)}else if(buildMode||prodMenuOpen){setBuild(null);closeProdMenu()}else togglePause()} else if(e.key.toLowerCase()==='b'){S.sel.troops.clear();S.sel.harv.clear();S.sel.bu.clear();S.sel.base=true}
+  else if(e.key==='Escape'){if(!document.getElementById('drillSelectOverlay').hidden){closeDrillSelect()}else if(callMode){setCallMode(null)}else if(probeMode){setProbeMode(false)}else if(pingMode){setPingMode(false)}else if(buildMode||prodMenuOpen){setBuild(null);closeProdMenu()}else togglePause()} else if(e.key.toLowerCase()==='b'){S.sel.troops.clear();S.sel.harv.clear();S.sel.bu.clear();S.sel.base=true}
   // v4: Q wall, T turret, E Stabilizer, G probe, Y power a rig, C all units, F drill (lock on / strike)
   else if(e.key==='F8'){e.preventDefault();setLowGfx(!lowGfx)}
   else if(e.key==='F9'){e.preventDefault();perf.on=!perf.on;if(perf.el)perf.el.hidden=!perf.on}
@@ -5494,7 +5498,7 @@ document.addEventListener('selectstart',e=>{const t=e.target;if(!(t&&t.closest&&
 document.getElementById('selBaseBtn2').onclick=()=>selectAllUnitsOfKind('base');
 // ---- on-screen controls (they fill the gaps keys leave on a phone, and work with a mouse too)
 const anySelected=()=>S.sel.troops.size>0||S.sel.harv.size>0||S.sel.bu.size>0||S.sel.base;
-function cancelMode(){mouse.wallDraw=null;mouse.form=null;if(buildMode)setBuild(null);if(probeMode)setProbeMode(false);if(pingMode)setPingMode(false)}
+function cancelMode(){mouse.wallDraw=null;mouse.form=null;if(callMode)setCallMode(null);if(buildMode)setBuild(null);if(probeMode)setProbeMode(false);if(pingMode)setPingMode(false)}
 document.getElementById('cancelBtn').onclick=()=>{cancelMode();sfx.click()};
 document.getElementById('tacBtn').onclick=()=>toggleTacPause();
 document.getElementById('camBtn').onclick=()=>{cam.x=S.base.x;cam.y=S.base.y;clampCam();sfx.click()};
@@ -5507,7 +5511,7 @@ document.getElementById('bGroup').onclick=()=>{const sel=S.troops.filter(t=>S.se
   assignGroup(n);note(`Saved as group ${n}`)};
 let grpSig='';
 function updateTouchCtrls(){
-  const busy=!!(buildMode||probeMode||pingMode||mouse.wallDraw||mouse.form);
+  const busy=!!(buildMode||probeMode||pingMode||callMode||mouse.wallDraw||mouse.form);
   document.getElementById('cancelBtn')._hd=!busy;
   const tb=document.getElementById('tacBtn');tb.classList.toggle('on',!!S.tacPause);tb._tc=S.tacPause?'▶':'⏸';
   document.getElementById('bDeselect')._hd=!anySelected();
@@ -5661,7 +5665,7 @@ function toggleRepairMode(){
   sfx.click();
   updateBuildBar();
 }
-function setBuild(m){buildMode=m;mouse.wallDraw=null;if(m){pingMode=false;probeMode=false}closeProdMenu();updateBuildBar()}
+function setBuild(m){buildMode=m;mouse.wallDraw=null;if(m){pingMode=false;probeMode=false;callMode=null}closeProdMenu();updateBuildBar()}
 function updateBuildBar(){
   document.querySelectorAll('#buildBar button[data-mode]').forEach(b=>{
     b.classList.toggle('on',b.dataset.mode===buildMode);
@@ -5699,6 +5703,7 @@ function updateBuildBar(){
     sb._hd=!(g&&g.seen&&!g.done);
     if(!sb.hidden){const reach=strandInReach();sb.classList.toggle('dry',!reach||S.dat<g.cost);
       document.getElementById('cStrand')._tc=`${reach?'in reach':'out of reach'} · ◆${g.cost}`}}
+  buildCallBar();
   const pgb=document.getElementById('bPing');
   if(pgb){
     pgb._ds=S.probeCharges<=0&&!probeMode;pgb.classList.remove('dry');
@@ -5837,7 +5842,7 @@ function togglePause(){
 // Ping, step one: arm targeting (see PING_* above). Pressing it again, right-clicking or Esc
 // cancels. 60s cooldown once fired, usable locked down or not.
 let pingMode=false;
-function pingReach(){return PING_REACH*pingRangeMult()}
+function pingReach(){return PING_REACH}
 function tryPing(){
   if(pingMode){setPingMode(false);return}
   if(S.base.pingCd>0){return}
@@ -5873,19 +5878,62 @@ function inActivePing(p){return S.pings.some(pg=>dist(p,pg)<pg.r)}
 // ---------- recon probe ----------
 // Wireless doesn't work out here, so the probe trails a long fiber-optic line back to where it was
 // launched. It's fire-and-forget: press N (or the Probe button), click a direction, and it flies
-// dead straight from the Bastion until it reaches PROBE_RANGE (stretched by Deep Scan Antenna) or
+// dead straight from the Bastion until it reaches PROBE_RANGE or
 // the map edge — it can't turn. Along the way it lifts the fog over a narrow strip under it
-// (PROBE_R either side), which stays lifted for PROBE_REVEAL_T seconds so you can see enemies there,
+// (PROBE_R either side, widened by Deep Scan Antenna), which stays lifted for PROBE_REVEAL_T seconds so you can see enemies there,
 // just like a Ping did, and permanently discovers the deposits and veins it passes. Flying over a
 // stray energy pocket takes a bearing from it. PROBE_CHARGES held, one back every PROBE_RECHARGE_T.
-const PROBE_CHARGES=3, PROBE_RECHARGE_T=20, PROBE_SPEED=340, PROBE_RANGE=2600, PROBE_R=110, PROBE_DROP=36, PROBE_REVEAL_T=20;
+const PROBE_CHARGES=3, PROBE_RECHARGE_T=20, PROBE_SPEED=340, PROBE_RANGE=2600, PROBE_R=170, PROBE_DROP=36, PROBE_REVEAL_T=20;
 // recon drone icon (icons/reconDrone.svg), in its own 200-unit viewBox: a lens body and a dome
 const PROBE_VB=200, PROBE_SIZE=34;
 const PROBE_BODY=new Path2D('M130.66,100s-13.13,19.75-30.66,19.75-30.66-19.75-30.66-19.75c0,0,4.25-6.41,11.17-11.92,4.36,3.79,11.39,6.21,19.5,6.21s15.14-2.42,19.5-6.21c6.9,5.51,11.17,11.92,11.17,11.92Z');
 const PROBE_DOME=new Path2D('M114.79,84.77c-3.48,2.42-8.92,4.03-14.79,4.03s-11.31-1.61-14.79-4.03c4.34-2.62,9.35-4.52,14.79-4.52s10.45,1.9,14.79,4.52Z');
+
+// ---------- call-downs ----------
+// v4: one-shot strikes and drops called onto a spot within CALL_REACH of the Bastion. Each kind in
+// CALLDOWNS has a Dat price and a stock you can be gifted (S.calls[id] — wrecks, nests and cards
+// hand them out with grantCall). Using one spends a gifted charge first, otherwise the price. It
+// lands after its delay with a marker closing in, then the kind's land(x,y,c) does its thing.
+// Modifier cards set S.mods fields that every call-down reads: callPriceMult, callDelayMult,
+// callRadiusMult, callReachMult, and callEcho (the chance it lands a second time nearby).
+// A kind: {name, icon, desc, dat, delay, r, land(x,y,c), drawFall?(c,f), unlocked?()}.
+const CALLDOWNS={}, CALL_REACH=1500;
+let callMode=null;
+const callIds=()=>Object.keys(CALLDOWNS).filter(id=>!CALLDOWNS[id].unlocked||CALLDOWNS[id].unlocked()||(S.calls[id]||0)>0);
+function callPrice(id){return Math.round(CALLDOWNS[id].dat*(S.mods.callPriceMult||1))}
+function callR(id){return CALLDOWNS[id].r*(S.mods.callRadiusMult||1)}
+function callDelay(id){return CALLDOWNS[id].delay*(S.mods.callDelayMult||1)}
+function callReach(){return CALL_REACH*(S.mods.callReachMult||1)}
+function grantCall(id,n){if(!CALLDOWNS[id])return;S.calls[id]=(S.calls[id]||0)+(n||1);updateBuildBar()}
+function setCallMode(id){callMode=id;updateBuildBar()}
+function tryCall(id){
+  if(callMode===id){setCallMode(null);return}
+  if(!((S.calls[id]||0)>0)&&S.dat<callPrice(id)){note(`${CALLDOWNS[id].name} costs ◆${callPrice(id)}`);return}
+  setBuild(null);probeMode=false;pingMode=false;setCallMode(id);note('Click where to call it in · Esc cancels');sfx.click()}
+function fireCall(w){const id=callMode,K=CALLDOWNS[id];if(!K){setCallMode(null);return}
+  if(dist(w,S.base)>callReach()){note('Too far from the Bastion');return}
+  if((S.calls[id]||0)>0)S.calls[id]--;else{const p=callPrice(id);if(S.dat<p){note(`${K.name} costs ◆${p}`);setCallMode(null);return}S.dat-=p}
+  const c={id,x:w.x,y:w.y,t:0,T:callDelay(id),r:callR(id)};S.callsIn.push(c);
+  if(rand()<(S.mods.callEcho||0)){const a=rnd(0,Math.PI*2),d=rnd(0.6,1.1)*c.r;S.callsIn.push({...c,x:c.x+Math.cos(a)*d,y:c.y+Math.sin(a)*d,T:c.T+0.6,echo:true})}
+  setCallMode(null);sfx.click()}
+function updateCalls(dt){if(!S.callsIn.length)return;S.callsIn=S.callsIn.filter(c=>{c.t+=dt;if(c.t<c.T)return true;const K=CALLDOWNS[c.id];if(K)K.land(c.x,c.y,c);return false})}
+function drawCalls(){
+  S.callsIn.forEach(c=>{const f=Math.min(1,c.t/c.T),K=CALLDOWNS[c.id];ctx.save();ctx.strokeStyle=C.accent;ctx.lineWidth=2/cam.z;ctx.setLineDash([10/cam.z,7/cam.z]);ctx.globalAlpha=0.45+0.5*f;
+    ctx.beginPath();ctx.arc(c.x,c.y,c.r*(1.6-0.6*f),0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=0.25+0.5*f;ctx.beginPath();ctx.arc(c.x,c.y,c.r,0,Math.PI*2);ctx.stroke();ctx.restore();
+    if(K&&K.drawFall)K.drawFall(c,f)});
+  if(callMode&&CALLDOWNS[callMode]){const B=S.base,ok=dist({x:mouse.wx,y:mouse.wy},B)<=callReach(),col=ok?C.accent:C.enemy;ctx.save();ctx.strokeStyle=col;ctx.lineWidth=1.5/cam.z;
+    ctx.globalAlpha=0.35;ctx.setLineDash([8/cam.z,8/cam.z]);ctx.beginPath();ctx.arc(B.x,B.y,callReach(),0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
+    ctx.globalAlpha=0.8;ctx.beginPath();ctx.arc(mouse.wx,mouse.wy,callR(callMode),0,Math.PI*2);ctx.stroke();ctx.restore()}}
+// the call-down buttons, one per kind on offer; the row stays hidden until there is one
+function buildCallBar(){const bar=document.getElementById('callBar');if(!bar||!S)return;const ids=callIds();bar.hidden=!ids.length;bar.style.display=ids.length?'contents':'none';
+  if(bar._ids!==ids.join()){bar._ids=ids.join();bar.innerHTML='';ids.forEach(id=>{const K=CALLDOWNS[id],b=document.createElement('button');b.dataset.call=id;
+    b.innerHTML=`<span class="icon">${K.icon}</span><span>${K.name}</span><span class="cost" id="cc_${id}"></span>`;b.title=K.desc;b.onclick=()=>tryCall(id);bar.appendChild(b)})}
+  ids.forEach(id=>{const b=bar.querySelector(`[data-call="${id}"]`),n=S.calls[id]||0;if(!b)return;b.classList.toggle('on',callMode===id);b.classList.toggle('dry',!n&&S.dat<callPrice(id));
+    const el=document.getElementById('cc_'+id);if(el)el.textContent=callMode===id?'Aim…':(n?'●'.repeat(Math.min(n,5))+(n>5?'+'+(n-5):'')+' · ':'')+'◆'+callPrice(id)})}
 let probeMode=false;
-function probeRange(){return PROBE_RANGE*pingRangeMult()}
-function setProbeMode(on){probeMode=on;updateBuildBar()}
+function probeRange(){return PROBE_RANGE}
+function probeR(){return PROBE_R*probeWidthMult()}
+function setProbeMode(on){probeMode=on;if(on)callMode=null;updateBuildBar()}
 function tryProbe(){
   if(probeMode){setProbeMode(false);return}
   if(S.probeCharges<=0){note(`No probes — one back every ${PROBE_RECHARGE_T}s`);return}
@@ -5906,11 +5954,11 @@ function fireProbe(w){
 }
 // what a probe sees as it passes: deposits, veins (and their mining points), stray pockets
 function probeDiscover(p){
-  S.nodes.forEach(n=>{if(!n.found&&n.amt>0&&dist(n,p)<=PROBE_R)n.found=true});
+  const PR=probeR();S.nodes.forEach(n=>{if(!n.found&&n.amt>0&&dist(n,p)<=PR)n.found=true});
   S.veins.forEach(v=>{if(v.contract||!veinAlive(v))return;
-    if(dist(v,p)<=PROBE_R+v.r*0.6)v.seen=true;
-    if(!v.mine.found&&dist(v.mine,p)<=PROBE_R){v.mine.found=true;v.seen=true;msg('The probe flew over a vein.')}});
-  S.strays.forEach(st=>{if(st.live&&dist(st,p)<=PROBE_R)takeBearing(st)});
+    if(dist(v,p)<=PR+v.r*0.6)v.seen=true;
+    if(!v.mine.found&&dist(v.mine,p)<=PR){v.mine.found=true;v.seen=true;msg('The probe flew over a vein.')}});
+  S.strays.forEach(st=>{if(st.live&&dist(st,p)<=PR)takeBearing(st)});
 }
 function updateProbes(dt){
   // v4: probes recharge on their own (one every PROBE_RECHARGE_T), not bought with Dat
@@ -5921,7 +5969,7 @@ function updateProbes(dt){
     const step=Math.min(PROBE_SPEED*dt,p.max-p.d);
     p.d+=step;p.x+=p.ux*step;p.y+=p.uy*step;
     const out=p.x<20||p.y<20||p.x>W-20||p.y>H-20, end=out||p.d>=p.max;
-    if(p.d-p.lastDrop>=PROBE_DROP||end){p.lastDrop=p.d;S.pings.push({x:p.x,y:p.y,r:PROBE_R,t:PROBE_REVEAL_T,probe:true});probeDiscover(p)}
+    if(p.d-p.lastDrop>=PROBE_DROP||end){p.lastDrop=p.d;S.pings.push({x:p.x,y:p.y,r:probeR(),t:PROBE_REVEAL_T,probe:true});probeDiscover(p)}
     if(end)p.done=true;
     return true;
   });
@@ -6423,7 +6471,7 @@ function updateCradles(dt){
     if((c.scan-=dt)<=0){c.scan=0.5;if(!c.target&&r.tetherOk){const j=cradleJobs(r);let best=null,bf=1;j.forEach(o=>{const f=o.hp/o.maxHp;if(f<bf){bf=f;best=o}});c.target=best}}
     const g=c.target?{x:c.target.x,y:c.target.y,z:10}:dock,dx=g.x-c.x,dy=g.y-c.y,L=Math.hypot(dx,dy);
     if(L>1){const st=Math.min(L,CRADLE_SPEED*dt);c.x+=dx/L*st;c.y+=dy/L*st}c.z+=(g.z-c.z)*Math.min(1,dt*3);
-    c.working=!!c.target&&L<14&&S.dat>0;if(c.working){const o=c.target;o.hp=Math.min(o.maxHp,o.hp+CRADLE_HPS*dt);S.dat=Math.max(0,S.dat-DRONE_DAT_PER_SEC*dt);c.beamT+=dt}})}
+    c.working=!!c.target&&L<14;if(c.working){const o=c.target;o.hp=Math.min(o.maxHp,o.hp+CRADLE_HPS*dt);c.beamT+=dt}})}
 function updateWallLines(dt){
   if(!S.wallLines)return;
   wallTowers();
@@ -6875,9 +6923,9 @@ function updateDrones(dt){
     if(d.loot&&L<12){const o=d.loot,amt=o.amt;
       if(S.shards.includes(o))S.shards=S.shards.filter(x=>x!==o);else o.amt=0;
       S.dat+=amt;floatText(o.x,o.y-10,'+'+amt,C.dat);sfx.gather();spark(o.x,o.y,C.dat,3);updateBuildBar();d.loot=null}
-    if(d.state==='repair'&&S.dat>0){
+    if(d.state==='repair'){
       const o=d.target;
-      if(o.hp<o.maxHp){S.dat=Math.max(0,S.dat-DRONE_DAT_PER_SEC*dt);o.hp=Math.min(o.maxHp,o.hp+DRONE_HPS*dt)}
+      if(o.hp<o.maxHp)o.hp=Math.min(o.maxHp,o.hp+DRONE_HPS*dt)
       if(o.kind==='relay'&&o.state==='cut'){o.reconnectT+=dt;if(o.reconnectT>=RELAY_RECONNECT_T){o.state=null;o.reconnectT=0;msg('Relay tether spliced — reconnecting to the network.')}}
       d.beamT+=dt;
       if(!S.stabs.includes(o)){o.droneWorkT=(o.droneWorkT||0)+dt;
@@ -7582,6 +7630,7 @@ function update(dt){
   if(S.reanim.length)updateReanimation(dt);
   updateStabilizerShots(dt);
   updateProbes(dt);
+  if(!S.callsIn)S.callsIn=[];updateCalls(dt);
   updateFabs(dt);
   updateQuakes(dt);
   updateNests(dt);
@@ -7822,11 +7871,7 @@ function update(dt){
       if(!site||!siteStillValid(site)||!site.built||!needsRepair(site)){if(site)site.repairer=null;bu.target=null;bu.state='idle'}
       else if(dist(bu,site)>26){const aim=waypointFor(bu,site.x,site.y);moveToward(bu,aim,BUILDER_SPEED*S.mods.moveSpeedMult*factor,dt)}
       else{
-        if(site.hp<site.maxHp&&S.dat>=REPAIR_DAT_PER_SEC*dt){
-          S.dat-=REPAIR_DAT_PER_SEC*dt;
-          site.hp=Math.min(site.maxHp,site.hp+REPAIR_HPS*dt);
-          updateBuildBar();
-        }
+        if(site.hp<site.maxHp)site.hp=Math.min(site.maxHp,site.hp+REPAIR_HPS*dt);
         if(site.kind==='relay'&&site.state==='cut'){
           site.reconnectT+=dt;
           if(site.reconnectT>=RELAY_RECONNECT_T){
@@ -9278,8 +9323,9 @@ function draw(){
   drawFabShots();
   drawStabShots();
   drawProbes();
+  drawCalls();
   // probe aiming: the straight line it will fly, out to its full range, and the strip it will reveal
-  if(probeMode){const dx=mouse.wx-B.x,dy=mouse.wy-B.y,L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L,R=probeRange(),ex=B.x+ux*R,ey=B.y+uy*R,nx=-uy*PROBE_R,ny=ux*PROBE_R;
+  if(probeMode){const dx=mouse.wx-B.x,dy=mouse.wy-B.y,L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L,R=probeRange(),ex=B.x+ux*R,ey=B.y+uy*R,PW=probeR(),nx=-uy*PW,ny=ux*PW;
     ctx.save();ctx.strokeStyle='#bfefff';ctx.lineWidth=1.5/cam.z;ctx.setLineDash([10/cam.z,8/cam.z]);
     ctx.globalAlpha=0.7;ctx.beginPath();ctx.moveTo(B.x,B.y);ctx.lineTo(ex,ey);ctx.stroke();
     ctx.globalAlpha=0.25;ctx.beginPath();ctx.moveTo(B.x+nx,B.y+ny);ctx.lineTo(ex+nx,ey+ny);ctx.moveTo(B.x-nx,B.y-ny);ctx.lineTo(ex-nx,ey-ny);ctx.stroke();
