@@ -804,7 +804,7 @@ const MAP_SCALE=0.7, MS=MAP_SCALE;
 let W=Math.round(5020*MS),H=Math.round(5020*MS); const CELL=24;
 // v4: Rim stops are drawn on a map 20% smaller across (MAP_SIZE_BY_BAND) with the same things on it
 // — a tighter, busier start. Everything sized from W/H is redone by setMapSize at the start of reset().
-const MAP_SIZE_BY_BAND={rim:0.64,dense:0.92,core:0.8}; // v4: the Rim shrunk again (was 0.8) for shorter stops; // v4: Dense Field maps a little bigger, room for nests to sit out in the rift
+const MAP_SIZE_BY_BAND={rim:0.64,dense:1.15,core:0.8}; // v4: the Rim shrunk again (was 0.8) for shorter stops; // v4: Dense Field maps a little bigger, room for nests to sit out in the rift
 // The Black Flame epicenter moves map to map (see rollLayout) and the three depth bands are rings
 // around it: Core within CORE_R, Dense Field out to DENSE_R, Rim beyond that. Where the epicenter
 // sits decides the map's whole shape — hugging an edge, tucked in a corner, or dead centre with
@@ -820,7 +820,7 @@ const RUN_STOPS=[{band:'rim'},{band:'dense'},{band:'core',final:true}]; // v4: o
 const STOP_HP=[1,1,1.25];          // enemy toughness per stop, on top of the zone's own
 const STOP_DEPTH=[0,0.4,1];          // how deep each stop counts as, for depth-scaled pressure
 const RIM_VEINS=4; // v4: a Rim stop has 4 ordinary veins (it had about 7), so it plays shorter
-const STOP_NESTS={rim:Math.round(10*MS*1.1),dense:Math.round(11*MS*1.1*0.64),core:Math.round(10*MS*1.1*0.64)}, STOP_RICH={rim:[20,30],dense:[40,58],core:[75,95]};
+const STOP_NESTS={rim:Math.round(10*MS*1.1),dense:Math.round(11*MS*1.1),core:Math.round(10*MS*1.1*0.64)}, STOP_RICH={rim:[20,30],dense:[40,58],core:[75,95]};
 const STOP_GUARDS=[['small','medium','small'],['medium','medium','small']];
 const BARRIER_X=0.64, BARRIER_HALF=150, BREACH_GAP=170, LAND_X=420, BREACH_LAND_MIN=0.45; let EXIT_X=W-200;
 // v4: which way a stop runs. Every stop is laid out as if you entered at the back and left across the far
