@@ -323,6 +323,11 @@ body.lowGfx #fogGrain{display:none}
   font:inherit;font-size:14px;line-height:1;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.4)}
 .unitSelCtrl button:active{transform:scale(.92);background:var(--panel2)}
 .unitSelCtrl button.sel{border-color:var(--ally);color:var(--ally)}
+.unitSelCtrl button.warn{border-color:var(--enemy);color:var(--enemy)}
+.unitSelCtrl button.on{border-color:var(--accent);color:var(--accent);background:var(--panel2)}
+.grpChips{display:flex;flex-direction:column;gap:6px}
+.grpChips:empty{display:none}
+.grpChips button{font-family:var(--mono);font-weight:700}
 .unitSelCtrl button .cnt{position:absolute;bottom:-5px;right:-5px;min-width:15px;height:15px;padding:0 3px;
   border-radius:8px;background:var(--panel2);border:1px solid var(--line);font-family:var(--mono);
   font-size:9px;line-height:13px;color:var(--fg)}
@@ -617,6 +622,8 @@ async function run(d){
   <div class="unitActions" id="unitActions">
     <button id="bFollow" hidden><span class="icon">➤</span><span id="bFollowLabel">Follow Bastion</span><span class="key">V</span></button>
     <button id="bHold" hidden><span class="icon">⚓</span><span>Hold</span><span class="key">X</span></button>
+    <button id="bGroup" hidden title="Save the selected units as a control group (Ctrl+1–9)"><span class="icon">⧉</span><span id="bGroupLabel">Save group</span></button>
+    <button id="bDeselect" hidden title="Clear the selection"><span class="icon">✕</span><span>Deselect</span></button>
   </div>
   <!-- v2: every button is a Bastion fabricator — charges that refill on their own timer, no Dat
        cost. Structures (data-mode) are aimed and launched; units (data-unit) deploy at once. -->
@@ -662,6 +669,10 @@ async function run(d){
 
 <div class="mini" id="miniWrap"><canvas id="mini" width="180" height="180"></canvas><button id="miniToggle" class="miniToggle" aria-label="Expand minimap">⤢</button></div>
 <div class="unitSelCtrl" id="unitSelCtrl">
+  <button id="cancelBtn" class="warn" aria-label="Cancel" title="Cancel (Esc)" hidden>✕</button>
+  <button id="tacBtn" aria-label="Tactical pause" title="Tactical pause (Space)">⏸</button>
+  <button id="camBtn" aria-label="Centre on the Bastion" title="Centre on the Bastion (H)">⌂</button>
+  <div id="grpChips" class="grpChips"></div>
   <button id="selBaseBtn2" aria-label="Select Bastion">⛨</button>
   <button id="selTroopsBtn2" aria-label="Select all Troopers">▲<span class="cnt" id="cntTroops2">0</span></button>
 </div>
@@ -672,7 +683,7 @@ async function run(d){
 <b>Healing:</b> units inside the Bastion's dashed ring slowly regain health (Relays don't heal anyone). <b>Unit limits:</b> up to 5 Grenadiers, 4 Rocketeers (rockets that hit nests and Quakers 4× as hard) and 3 Mechs at once (the button shows how many you have). <b>Stock &amp; troopers:</b> nothing refills on its own any more — every fabricator, Stabilizer and Probe has a free stock, and once it's empty each use costs Dat (the price shows on the button). You have 6 Trooper slots (3 filled for free at the start — the button shows how many you have against the limit) and 8 Paladin slots (4 free to start); each new Trooper or Paladin costs Dat, and right-clicking any build button buys another charge of it (or switch <b>Auto-buy</b> on to buy automatically when a stock runs out). Salvage from Large nests and Mega nests can raise the limit. <b>Wrecks</b> (derelict scrapers) lie hidden on every map, some beyond the barrier — park the Bastion on one for 8s (or send units to stand on it — slower) to salvage it (it draws an ambush): Dat, refilled stocks, drones, a barracks module (+1 Trooper limit) or a few free units of a kind you haven't unlocked yet (they join you, but only the Unlocks panel lets you build more). <b>Quakers</b> — big stone blocks — lumber in while you drill, keep their distance and slam the ground to jolt the drill needle and shake your Stabilizers: send units out to kill them.<br>
 <b>Goal:</b> the ground is cracked all over: <b>follow the pulses of energy</b> running through the cracks back to their source to find a vein, then park the Bastion on its glowing centre and press <kbd>F</kbd> to lock on. Veins <b>emerge, ripen</b> a tier at a time, then go unstable and <b>collapse</b> — and new ones emerge elsewhere. Glowing <b>stray pockets</b> give a bearing toward the nearest vein when a unit reaches one; two bearings from different angles triangulate it. Locking on starts the <b>strike</b> at once: press <kbd>F</kbd> again to stop the needle on a good band of the strip (the thin sliver is a tier above the vein; red ruptures it) — the meter zooms in on where you hit and the drill starts; the first wave arrives about 20s later. While it drills, the needle drifts; Stabilizers hold it steady, and the tier you're paid is where it spends most of its time. If it drifts into the red, the vein ruptures and damages the Bastion. Drain veins for rewards — after 3, the contract vein stirs: it gives off no pulses, so triangulate it with bearings from stray pockets, then drain it to win.<br>
   <b>Controls:</b> drag to select · right-click to move/attack · right-click a friendly unit or building with combat units selected to <b>guard</b> it (escort it, fight off anything that comes near, then fall back) · <kbd>C</kbd> select all your units · <kbd>F</kbd> lock on to a vein / strike · <kbd>H</kbd> jump the camera to the Bastion · <kbd>WASD</kbd> or middle-drag to pan, scroll to zoom<br>
-  <b>Touch:</b> tap to select · tap empty ground/an enemy/a resource to move/attack/harvest · drag to pan · hold still then drag to box-select · pinch to zoom · double-tap to select all of a kind<br>
+  <b>Touch:</b> tap to select · tap empty ground/an enemy/a wall to move/attack/man it · drag to pan · pinch to zoom · double-tap a unit to select all of its kind · hold still then drag: box-select (nothing selected) or lay out a formation (units selected) · hold on a friendly unit or building with units selected to guard it · hold a build button to buy another charge · the round buttons by the minimap: ⏸ tactical pause, ⌂ back to the Bastion, ✕ cancel what you're placing, and your control groups (save one with ⧉ while units are selected)<br>
   <b>Fabricators:</b> Turrets and Relays hold a free stock; once it's empty each use costs Dat (shown on the button). Unit buttons (Trooper, Paladin, Grenadier, Rocketeer, Mech) show how many you can field against how many you have, and the price of the next one — just click to deploy. <kbd>T</kbd> launch a turret · <kbd>Ctrl</kbd>+<kbd>1</kbd>–<kbd>9</kbd> save the selected units as a control group, <kbd>1</kbd>–<kbd>9</kbd> select it (twice to look at it) · <kbd>R</kbd> launch a relay · <kbd>G</kbd> power up a derelict rig ·  <b>Nests</b>: every enemy patrol comes from one, and the nests near a vein send its drilling waves — destroy them (they fight back) for <b>Dat Crystal</b>. <b>Mega nests</b> glow crimson through the fog: hive veins ringed by brood mounds that pour out its waves — break the mounds, then drain the hive for Hive-tier rewards and salvage. When the contract vein stirs, great mounds rise around it too. <b>Dat Crystal</b>: drive the Bastion or a unit over the Dat a nest drops (or an enemy's shard) to scoop it up — your <b>repair drones</b> fly out on their own and spend it patching up Stabilizers, turrets, relays and the Bastion · <kbd>E</kbd> fire a Stabilizer from the Bastion (3 free, then Dat each; aim at a vein's drifting hotspot and lead it — a hit pins it, buys the vein 15s before it collapses, widens the strike bands and steadies the needle; with all 3 pinned, drag the weight on the steering pad to push the needle — the wider their triangle, the further it goes, but the one you lean on draws the enemy) — turrets and relays land anywhere inside the Bastion's ring (or a relay's)<br>
   <b>Tether:</b> wireless works freely on the Rim; past it, units need a live cable back to the Bastion or a Relay, or they go dark — chain Relays to push your reach further out. A dark unit still takes orders, but its Sanity drains; reconnect in time to recover it, or it defects into a hostile Corrupted enemy<br>
   <kbd>G</kbd> recon probe: click a direction and it flies straight out on its fiber line, lifting the fog along a narrow strip for 20s and permanently finding veins it passes (3 charges, one back every 20s) · <kbd>V</kbd> follow Bastion (escorts it as it moves, until given another order) · right-drag with units selected: line them up along the drag, facing square to it (drag longer to spread them wider) · <kbd>Q</kbd> wall: click and drag to lay a line of wall, or click the end of a wall or a Turret and click again where it should run to (right-click cancels) · right-click a wall with units selected to man it (one rank behind it, as many as fit; they take 25% less damage and ranged units shoot 15% further) · <kbd>Space</kbd> tactical pause: the action stops but you can still give orders, place walls and call in builds (they go ahead when you resume) · <kbd>X</kbd> hold position (held units side by side fire up to 30% faster) · <kbd>Esc</kbd> cancel, or pause the whole game if nothing's open · <kbd>`</kbd> reveal map (debug)
@@ -4828,7 +4839,7 @@ cv.addEventListener('pointerdown',e=>{
     touchPts.set(e.pointerId,{x:e.clientX,y:e.clientY});
     if(touchPts.size>=2){
       if(longPressTimer){clearTimeout(longPressTimer);longPressTimer=null}
-      mouse.touchStart=null;mouse.drag=null;mouse.panning=false;
+      mouse.touchStart=null;mouse.drag=null;mouse.form=null;mouse.panning=false;
       const ids=[...touchPts.keys()];const a=touchPts.get(ids[0]),b=touchPts.get(ids[1]);
       pinch={dist:Math.hypot(a.x-b.x,a.y-b.y),z:cam.z,mid:{x:(a.x+b.x)/2,y:(a.y+b.y)/2}};
       return;
@@ -4848,8 +4859,11 @@ cv.addEventListener('pointerdown',e=>{
     longPressTimer=setTimeout(()=>{
       longPressTimer=null;
       if(mouse.touchStart&&!mouse.touchStart.moved){
-        mouse.drag={x0:mouse.touchStart.wx,y0:mouse.touchStart.wy,x1:mouse.touchStart.wx,y1:mouse.touchStart.wy,moved:false};
-        mouse.touchStart=null; // decided: box-select now, stop the pan-threshold check in pointermove
+        const ts=mouse.touchStart;
+        if(S.sel.troops.size)mouse.form={x0:ts.wx,y0:ts.wy,x1:ts.wx,y1:ts.wy,sx:ts.x,sy:ts.y,moved:false,touch:true}; // formation / guard, like the right-button
+        else mouse.drag={x0:ts.wx,y0:ts.wy,x1:ts.wx,y1:ts.wy,moved:false};
+        if(navigator.vibrate)navigator.vibrate(12);
+        mouse.touchStart=null; // decided: stop the pan-threshold check in pointermove
       }
     },300);
     return;
@@ -4901,7 +4915,7 @@ cv.addEventListener('pointerup',e=>{
     // a click (no drag) on a wall end or Turret starts the wall there: it follows the cursor until the next click
     if(!d.sticky&&d.s0&&Math.hypot(d.x1-d.x0,d.y1-d.y0)<WALL_MIN_LEN){d.sticky=true}else finishWallDraw();
     if(e.pointerType==='touch')touchPts.delete(e.pointerId);return}
-  if(mouse.form){const f=mouse.form;mouse.form=null;if(f.moved)orderFormation(f);else rightClick({x:f.x0,y:f.y0});return}
+  if(mouse.form){const f=mouse.form;mouse.form=null;if(e.pointerType==='touch')touchPts.delete(e.pointerId);if(f.moved)orderFormation(f);else rightClick({x:f.x0,y:f.y0});return}
   if(mouse.wallDragging){
     mouse.wallDragging=false;
     if(e.pointerType==='touch'){
@@ -5014,7 +5028,10 @@ function buyCharge(k){
 }
 document.querySelectorAll('#buildBar button').forEach(b=>{
   const k=b.dataset.mode||b.dataset.unit;if(!k)return; // (probes recharge on their own — nothing to buy)
-  b.addEventListener('contextmenu',e=>{e.preventDefault();buyCharge(k)});
+  b.addEventListener('contextmenu',e=>{e.preventDefault();if(!b._lpDone)buyCharge(k)});
+  let lp=null;b.addEventListener('pointerdown',e=>{if(e.pointerType!=='touch')return;b._lpDone=false;clearTimeout(lp);lp=setTimeout(()=>{b._lpDone=true;buyCharge(k);if(navigator.vibrate)navigator.vibrate(15)},520)});
+  ['pointerup','pointercancel','pointerleave'].forEach(ev=>b.addEventListener(ev,()=>clearTimeout(lp)));
+  b.addEventListener('click',e=>{if(b._lpDone){b._lpDone=false;e.stopImmediatePropagation();e.preventDefault()}},true); // the press already bought it
   const cost=k==='stabilizer'?STAB_DAT:k==='probe'?PROBE_DAT:isSquadLike(k)?unitPrice(k):FAB_DAT[k];
   b.title=isSquadLike(k)?`Deploy a ${k==='troop'?'Trooper':FABS[k].name} (${cost} Dat) — right-click works too`:`Right-click to buy another charge for ${cost} Dat`;
 });
@@ -5072,6 +5089,40 @@ function selectAllUnitsOfKind(kind){
   else if(kind==='bu')S.builders.forEach(bu=>S.sel.bu.add(bu.id));
 }
 document.getElementById('selBaseBtn2').onclick=()=>selectAllUnitsOfKind('base');
+// ---- on-screen controls (they fill the gaps keys leave on a phone, and work with a mouse too)
+const anySelected=()=>S.sel.troops.size>0||S.sel.harv.size>0||S.sel.bu.size>0||S.sel.base;
+function cancelMode(){mouse.wallDraw=null;mouse.form=null;if(buildMode)setBuild(null);if(probeMode)setProbeMode(false);if(pingMode)setPingMode(false)}
+document.getElementById('cancelBtn').onclick=()=>{cancelMode();sfx.click()};
+document.getElementById('tacBtn').onclick=()=>toggleTacPause();
+document.getElementById('camBtn').onclick=()=>{cam.x=S.base.x;cam.y=S.base.y;clampCam();sfx.click()};
+document.getElementById('bDeselect').onclick=()=>{S.sel.troops.clear();S.sel.harv.clear();S.sel.bu.clear();S.sel.base=false;closeProdMenu();sfx.click()};
+// Save group: the selected units become a control group (the group they already all share, else the
+// lowest free number 1–9); its chip then appears by the minimap — tap to select it, twice to look.
+document.getElementById('bGroup').onclick=()=>{const sel=S.troops.filter(t=>S.sel.troops.has(t.id));if(!sel.length)return;
+  const shared=sel.every(t=>t.grp!=null&&t.grp===sel[0].grp)?sel[0].grp:null;if(shared!=null){note(`Already group ${shared}`);return}
+  let n=1;while(n<=9&&S.troops.some(t=>t.grp===n&&!S.sel.troops.has(t.id)))n++;if(n>9){note('All nine groups are taken');return}
+  assignGroup(n);note(`Saved as group ${n}`)};
+let grpSig='';
+function updateTouchCtrls(){
+  const busy=!!(buildMode||probeMode||pingMode||mouse.wallDraw||mouse.form);
+  document.getElementById('cancelBtn')._hd=!busy;
+  const tb=document.getElementById('tacBtn');tb.classList.toggle('on',!!S.tacPause);tb._tc=S.tacPause?'▶':'⏸';
+  document.getElementById('bDeselect')._hd=!anySelected();
+  document.getElementById('bGroup')._hd=S.sel.troops.size===0;
+  // phone, upright: the build bar's height depends on how its buttons wrap, so the minimap and the round
+  // buttons above it are stacked from its real top edge (with a margin) instead of a fixed guess
+  {const mini=document.getElementById('miniWrap'),ctl=document.getElementById('unitSelCtrl');
+   if(innerWidth<=720&&innerHeight>500){const top=document.getElementById('buildBar').getBoundingClientRect().top,ua=document.getElementById('unitActions'),uaR=ua.getBoundingClientRect(),barTop=uaR.height>4?Math.min(top,uaR.top):top;
+     const mb=Math.round(innerHeight-barTop+8);if(mini._mb!==mb){mini._mb=mb;mini.style.bottom=mb+'px'}
+     const cb=mb+mini.getBoundingClientRect().height+10;if(ctl._cb!==cb){ctl._cb=cb;ctl.style.bottom=cb+'px'}}
+   else if(mini._mb!=null){mini._mb=null;mini.style.bottom='';ctl._cb=null;ctl.style.bottom=''}}
+  const g={};S.troops.forEach(t=>{if(t.grp!=null&&t.hp>0)g[t.grp]=(g[t.grp]||0)+1});
+  const sig=Object.keys(g).sort().map(k=>k+':'+g[k]).join(',')+'|'+[...S.sel.troops].length;
+  if(sig!==grpSig){grpSig=sig;const host=document.getElementById('grpChips');host.innerHTML='';
+    Object.keys(g).sort().forEach(k=>{const n=+k,b=document.createElement('button');b.innerHTML=`${n}<span class="cnt">${g[k]}</span>`;b.title=`Group ${n} (${n}) — tap to select, twice to look`;
+      const all=S.troops.filter(t=>t.grp===n);if(all.length&&all.every(t=>S.sel.troops.has(t.id)))b.classList.add('sel');
+      b.onclick=()=>recallGroup(n);host.appendChild(b)})}
+}
 document.getElementById('selTroopsBtn2').onclick=()=>selectAllUnitsOfKind('troops');
 document.getElementById('drillCancelBtn').onclick=()=>closeDrillSelect();
 document.getElementById('helpClose').onclick=()=>{const h=document.getElementById('help');h._hd=true;h.classList.remove('open')};
@@ -5364,7 +5415,7 @@ function drawTacPause(vw,vh){
   if(!S.tacPause)return;
   ctx.save();
   ctx.strokeStyle='rgba(94,200,255,0.55)';ctx.lineWidth=4;ctx.strokeRect(2,2,vw-4,vh-4);
-  const txt='TACTICAL PAUSE',sub='orders and builds still work · Space to resume';
+  const txt='TACTICAL PAUSE',sub=matchMedia('(pointer:coarse)').matches?'orders and builds still work · tap ▶ to resume':'orders and builds still work · Space to resume';
   ctx.font='700 16px '+css('--mono');ctx.textAlign='center';ctx.textBaseline='middle';
   const w=Math.max(ctx.measureText(txt).width,(ctx.font='500 12px '+css('--mono'),ctx.measureText(sub).width))+32;
   ctx.fillStyle='rgba(11,14,18,0.85)';ctx.fillRect(vw/2-w/2,100,w,48);ctx.strokeStyle='rgba(94,200,255,0.6)';ctx.lineWidth=1;ctx.strokeRect(vw/2-w/2+0.5,100.5,w-1,47);
@@ -8504,6 +8555,7 @@ function hud(){
   $('cntTroops2')._tc=S.troops.length;
   document.getElementById('selBaseBtn2').classList.toggle('sel',S.sel.base);
   document.getElementById('selTroopsBtn2').classList.toggle('sel',S.sel.troops.size>0);
+  updateTouchCtrls();
   updateBuildBar();
 }
 
