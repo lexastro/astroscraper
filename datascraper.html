@@ -5929,7 +5929,7 @@ function finishWallDraw(){
   tone(200,0.12,'square',0.06,0,420);
 }
 // A free wall between a and b, built exactly as a drawn one is — posts lobbed from the Bastion, slats
-// rising between them once both land, none on rock. auto marks the Siege Ring's (no towers on those).
+// rising between them once both land, none on rock. auto marks the Siege Ring's.
 function addWallLine(a,b,auto){
   const L=Math.hypot(b.x-a.x,b.y-a.y);if(L<WALL_MIN_LEN)return null;
   const n=Math.max(1,Math.round(L/WALL_SLAT)),ux=(b.x-a.x)/L,uy=(b.y-a.y)/L,seg=L/n;
@@ -5943,7 +5943,7 @@ function addWallLine(a,b,auto){
 // Siege Ring (reward card): when the Bastion locks on to drill, SIEGE_RING_N wall sections go up along
 // its build ring, just inside it. A section is skipped where a wall already stands at its middle, where
 // both its ends would be on rock, or where it would run off the map.
-const SIEGE_RING_N=12,SIEGE_RING_IN=18;
+const SIEGE_RING_N=6,SIEGE_RING_IN=18; // a hexagon: its corners take Bulwark Towers / Missile Battery Walls like any wall's
 function buildSiegeRing(){
   const B=S.base,R=BUILD_R-SIEGE_RING_IN,off=Math.PI/SIEGE_RING_N,pts=[]; // a fixed orientation, so a second ring from the same spot lines up with the first and is skipped
   for(let i=0;i<SIEGE_RING_N;i++){const a=off+i/SIEGE_RING_N*Math.PI*2;pts.push({x:B.x+Math.cos(a)*R,y:B.y+Math.sin(a)*R})}
@@ -5963,7 +5963,7 @@ function wallTowers(){
   const k=S.mods.podTowers?'podturret':'turret';
   const near=(p)=>S.turrets.some(t=>dist(t,p)<4)||S.fabShots.some(sh=>(sh.k==='turret'||sh.k==='podturret')&&Math.hypot(sh.tx-p.x,sh.ty-p.y)<4);
   S.wallLines.forEach(L=>{L.tower=L.tower||[false,false];
-    [[L.x0,L.y0],[L.x1,L.y1]].forEach(([x,y],i)=>{if(L.auto||L.tower[i]||!L.posts[i])return;L.tower[i]=true;const p={x,y};
+    [[L.x0,L.y0],[L.x1,L.y1]].forEach(([x,y],i)=>{if(L.tower[i]||!L.posts[i])return;L.tower[i]=true;const p={x,y};
       if(near(p))return;
       const dd=Math.hypot(x-S.base.x,y-S.base.y);S.fabShots.push({k,free:true,x0:S.base.x,y0:S.base.y,tx:x,ty:y,t:0,dur:Math.max(0.4,dd/FAB_FLIGHT_SPEED)})})});
 }
