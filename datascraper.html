@@ -2827,14 +2827,28 @@ function advanceStop(){
   RUN.stop++;buildStop(RUN.carry);
 }
 document.getElementById('stopBtn').onclick=advanceStop;
-// debug: a button that skips to the next map, shown only while the fog is switched off with `
-const dbgSkip=document.createElement('button');dbgSkip.textContent='Debug: next map';dbgSkip.hidden=true;
-dbgSkip.style.cssText='position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:50;padding:6px 12px;background:#2a1a12;color:#ff9a5a;border:1px solid #ff9a5a;border-radius:4px;font:12px var(--mono,monospace);cursor:pointer';
-dbgSkip.addEventListener('click',e=>{e.stopPropagation();
+// debug: a row of buttons shown only while debug mode is on (` switches it, and the fog, on and off):
+// skip to the next map; God mode (Dat never runs out, every unit unlocked, the Bastion can't be
+// hurt); Invincible units (your units never lose health or sanity). Leaving debug mode turns both off.
+const DBG_DAT=99999;let dbgGod=false,dbgInvuln=false,dbgDatSave=null;
+const dbgBar=document.createElement('div');dbgBar.hidden=true;
+dbgBar.style.cssText='position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:50;display:flex;gap:6px';
+const dbgBtnCss='padding:6px 12px;background:#2a1a12;color:#ff9a5a;border:1px solid #ff9a5a;border-radius:4px;font:12px var(--mono,monospace);cursor:pointer';
+function dbgButton(label,fn){const b=document.createElement('button');b.textContent=label;b.style.cssText=dbgBtnCss;b.addEventListener('click',e=>{e.stopPropagation();fn(b)});b.addEventListener('keydown',e=>e.preventDefault());dbgBar.appendChild(b);return b}
+function setGod(on){if(!S)return;dbgGod=on;
+  if(on){dbgDatSave={S,dat:S.dat};S.dat=Math.max(S.dat,DBG_DAT)}else if(dbgDatSave){if(dbgDatSave.S===S)S.dat=dbgDatSave.dat;dbgDatSave=null}
+  dbgGodBtn.textContent='God mode: '+(on?'ON':'off');dbgGodBtn.style.background=on?'#5a2a12':'#2a1a12';updateBuildBar()}
+function setInvuln(on){dbgInvuln=on;dbgInvBtn.textContent='Invincible units: '+(on?'ON':'off');dbgInvBtn.style.background=on?'#5a2a12':'#2a1a12'}
+// run every frame (before anything is checked for death): keeps the debug promises
+function debugPass(){if(!S)return;
+  if(dbgGod){if(S.dat<DBG_DAT)S.dat=DBG_DAT;S.base.hp=S.base.maxHp}
+  if(dbgInvuln)for(const a of [S.troops,S.harvesters,S.builders])for(const u of a){u.hp=u.maxHp;if(u.sanity!=null)u.sanity=SANITY_MAX}}
+function setDebugMode(on){debugNoFog=on;dbgBar.hidden=!on;if(!on){if(dbgGod)setGod(false);if(dbgInvuln)setInvuln(false)}msg(on?'Debug on: fog of war off, debug buttons at the top':'Debug off: fog of war back on')}
+const dbgSkip=dbgButton('Next map',()=>{
   if(!RUN||!S||S.over||tutorialMap||stopInfo().final){msg('Debug: no next map to skip to');return}
-  RUN.carry=captureCarry();advanceStop()});
-dbgSkip.addEventListener('keydown',e=>e.preventDefault());
-document.body.appendChild(dbgSkip);
+  if(dbgGod&&dbgDatSave)dbgDatSave.S=null;RUN.carry=captureCarry();advanceStop()});
+const dbgGodBtn=dbgButton('God mode: off',()=>setGod(!dbgGod)),dbgInvBtn=dbgButton('Invincible units: off',()=>setInvuln(!dbgInvuln));
+document.body.appendChild(dbgBar);
 // the way out: a band of gold chevrons along the east edge once the breach is open
 function drawExit(){
   if(!S.barrier||!S.barrier.open)return;
@@ -5429,7 +5443,7 @@ addEventListener('keydown',e=>{
   else if(e.key.toLowerCase()==='g'){tryProbe()}
   else if(e.key.toLowerCase()==='v'){followSelected()}
   else if(e.key.toLowerCase()==='x'){holdSelected()}
-  else if(e.key==='`'){debugNoFog=!debugNoFog;dbgSkip.hidden=!debugNoFog;msg(debugNoFog?'Debug: fog of war disabled':'Debug: fog of war re-enabled')}
+  else if(e.key==='`'){setDebugMode(!debugNoFog)}
   if(e.key===' '){e.preventDefault();if(!e.repeat)toggleTacPause()}
 });
 addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;keys[e.key]=false});
@@ -5578,7 +5592,7 @@ document.getElementById('helpToggleBtn').onclick=()=>{const h=document.getElemen
 function closeProdMenu(){prodMenuOpen=false}
 // ---------- fabricators (v2) ----------
 function unitAlive(k){return S.troops.filter(t=>(t.kind||'troop')===k&&t.hp>0).length}
-function fabUnlocked(k){const f=FABS[k];if(f.disabled)return false;return !f.unlock||!!meta[f.unlock]}
+function fabUnlocked(k){const f=FABS[k];if(f.disabled)return false;return dbgGod||!f.unlock||!!meta[f.unlock]}
 function fabPips(k){const f=FABS[k],st=S.fab[k],n=Math.max(0,Math.min(f.charges,st.n));return '●'.repeat(n)+'○'.repeat(f.charges-n)+(st.n<=0?` ◆${FAB_DAT[k]}`:'')+(f.cap?` · ${unitAlive(k)} / ${unitLimit(k)}`:'')}
 function unitPips(k){const n=unitHave(k),c=unitLimit(k);return `${n} / ${c}`+(n<c?`  ◆${unitPrice(k)}`:'')}
 function squadPips(){const n=squadCount(),c=S.squadCap;return `${n} / ${c}`+(n<c?`  ◆${SQUAD_DAT}`:'')}
@@ -7766,6 +7780,7 @@ function update(dt){
   tetherPass(S.troops,TROOP_SPEED,dt);
   tetherPass(S.harvesters,HARV_SPEED*S.mods.moveSpeedMult,dt);
   tetherPass(S.builders,BUILDER_SPEED*S.mods.moveSpeedMult,dt);
+  debugPass();
   // Sanity hit 0 — the unit snaps and defects to the enemy side
   S.troops=S.troops.filter(t=>{if(t.sanity<=0){sfx.death(t.kind||'troop');corruptUnit(t,t.kind,t.kind==='grenadier'?'A Grenadier':t.kind==='artillery'?'An Artillery Piece':t.kind==='mech'?'A Mech':t.kind==='rocket'?'A Rocketeer':t.kind==='brawler'?'A Paladin':t.kind==='marksman'?'A Marksman':'A Trooper');S.sel.troops.delete(t.id);return false}return true});
   S.harvesters=S.harvesters.filter(h=>{if(h.sanity<=0){corruptUnit(h,'harvester','A Harvester');S.sel.harv.delete(h.id);return false}return true});
@@ -8230,6 +8245,7 @@ function update(dt){
     if(!st.silent){burst(st.x,st.y,C.zone,14,130,0.5);sfx.relayDown();shakeScreen(3,0.2);banner('A Stabilizer was destroyed — the drill needle is slipping!','danger')}}});
   S.stabs=S.stabs.filter(st=>st.hp>0);
   // units killed by an enemy go down and, a moment later, get back up corrupted
+  debugPass();
   S.troops.forEach(t=>{if(t.hp<=0){S.sel.troops.delete(t.id);sfx.death(t.kind||'troop');if(t.lastHitBy==='enemy')queueReanimation(t,t.kind||'troop')}});
   S.harvesters.forEach(h=>{if(h.hp<=0){S.sel.harv.delete(h.id);sfx.death('harvester');if(h.lastHitBy==='enemy')queueReanimation(h,'harvester')}});
   S.builders.forEach(bu=>{if(bu.hp<=0){S.sel.bu.delete(bu.id);sfx.death('builder');if(bu.lastHitBy==='enemy')queueReanimation(bu,'builder')}});
@@ -8257,6 +8273,7 @@ function update(dt){
   if(!S.lances)S.lances=[];updateLances(dt);
   if(!S.smears)S.smears=[];updateSmears();
   S.nades=S.nades.filter(n=>{n.t+=dt;if(n.track&&n.track.hp>0&&S.enemies.includes(n.track)){n.tx=n.track.x;n.ty=n.track.y}const pt=Math.min(1,n.t/n.dur);n.x=n.x0+(n.tx-n.x0)*pt;n.y=n.y0+(n.ty-n.y0)*pt;if(pt>=1){explodeNade(n);return false}return true});
+  debugPass();
   if(B.hp<=0){S.over='lose';sfx.lose();shakeScreen(10,0.6);burst(B.x,B.y,C.enemy,30,160,0.9);showOverlay('Bastion destroyed','The crew and the crystal are lost to the zone. Try fortifying before you push deeper.',0.5)}
 
   // juice: particles drift and fade, floating text rises and fades, screen shake decays, hit
