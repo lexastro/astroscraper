@@ -8333,7 +8333,7 @@ function drawStabShots(){
     P.push(skPrism(0,0,0,6,6.6,7.4,10,spin,DK,{top:'#5d6670'}));P.push(skPrism(0,0,6,22,6,5.6,8,Math.PI/8+spin,'#5d6670',{top:'#6f7c89'}));
     for(let i=0;i<8;i++){const pn=skPanel(5.85,8,Math.PI/8+spin,i,9,19,0.32,'#8fe3ff',{emit:0.2+0.15*Math.sin(S.t*6+i)});P.push(pn)}
     P.push(skPrism(0,0,13,13.8,6.2,6.2,8,Math.PI/8+spin,'#8d9aa8'));P.push(skPrism(0,0,22,25,5.6,3.6,8,Math.PI/8+spin,'#8d9aa8',{top:'#a9b6c4'}));P.push(skPrism(0,0,25,26,5,4.6,12,spin,'#8d9aa8',{top:'#a9b6c4'}));
-    SKO.x=x;SKO.y=y;SKO.lean=[0,0];SKO.shk=[0,0];
+    SKO.x=x;SKO.y=y;SKO.lean=[0,0];SKO.shk=[0,0];SKO.s=SK_SCALE;
     // a puff trail behind it, and the thruster glow at its foot
     for(let q=1;q<=5;q++){const g=f-q*0.035;if(g<=0)break;const gx=sh.x0+(sh.tx-sh.x0)*g-x,gy=sh.y0+(sh.ty-sh.y0)*g-y,gh=Math.sin(Math.PI*g)*Math.min(60,30+L*0.08)/SK_SCALE,[px,py]=skPJ([gx/SK_SCALE,gy/SK_SCALE,gh]);
       ctx.globalAlpha=0.22*(1-q/6);ctx.fillStyle='#cfd8e0';ctx.beginPath();ctx.arc(px,py,2+q*0.9,0,Math.PI*2);ctx.fill()}ctx.globalAlpha=1;
@@ -8380,7 +8380,7 @@ function drawStabilizer(st){
   ctx.restore();
   drawCoreColumn(st,en.col,dmg,sn);
   if(!st.built){ctx.fillStyle=C.builder;ctx.fillRect(st.x-12,st.y+19,24*(st.buildT/st.buildTotal),3)}
-  else if(st.hp<st.maxHp)hpbar(st.x,st.y-22,24,st.hp/st.maxHp);
+  else if(st.hp<st.maxHp)hpbar(st.x,st.y-84,28,st.hp/st.maxHp);
 }
 // ---- the Stabilizer as a Core column: a sealed tower on four deployed legs, the vein's energy glowing
 // through narrow windows down its panelled column. Drawn in real 3D with the nests' height trick (a
@@ -8388,8 +8388,8 @@ function drawStabilizer(st){
 // shadow falls down-right as long as it's tall). When it lands, its pieces pop up one at a time from
 // the ground up, each springing slightly past full size and settling.
 const SK_TILT=0.5,SK_VIEW=[0,0.447,0.894],SK_SUN=[-0.62,-0.62,0.48],SK_SH=0.7,SK_SCALE=0.82,SK_POP_GAP=0.085,SK_POP_T=0.22;
-const SKO={x:0,y:0,lean:[0,0],shk:[0,0]};
-const skW=p=>{const x=p[0]*SK_SCALE,y=p[1]*SK_SCALE,z=p[2]*SK_SCALE;return [x+SKO.lean[0]*z+SKO.shk[0],y+SKO.lean[1]*z+SKO.shk[1],z]};
+const SKO={x:0,y:0,lean:[0,0],shk:[0,0],s:SK_SCALE};
+const skW=p=>{const x=p[0]*SKO.s,y=p[1]*SKO.s,z=p[2]*SKO.s;return [x+SKO.lean[0]*z+SKO.shk[0],y+SKO.lean[1]*z+SKO.shk[1],z]};
 const skPJ=p=>{const q=skW(p);return [SKO.x+q[0],SKO.y+q[1]-q[2]*SK_TILT]};
 const skGJ=p=>{const q=skW(p);return [SKO.x+q[0]+q[2]*SK_SH,SKO.y+q[1]+q[2]*SK_SH]};
 const skDot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
@@ -8415,7 +8415,7 @@ function skHull(P){P=P.slice().sort((a,b)=>a[0]-b[0]||a[1]-b[1]);const cr=(o,a,b
 // a piece popping up: it springs from nothing to a touch past full size at its own foot, then settles
 function skPop(S0,u){if(u>=1)return S0;const e=u<0.6?(1-Math.pow(1-u/0.6,3))*1.15:1.15-0.15*((u-0.6)/0.4),drop=(1-Math.min(1,u*1.6))*3;
   let cx=0,cy=0,z0=1e9;S0.pts.forEach(q=>{cx+=q[0];cy+=q[1];z0=Math.min(z0,q[2])});cx/=S0.pts.length;cy/=S0.pts.length;
-  const T=q=>[cx+(q[0]-cx)*e,cy+(q[1]-cy)*e,z0+(q[2]-z0)*e+drop];return {F:S0.F.map(f=>({...f,pts:f.pts.map(T)})),pts:S0.pts.map(T),bias:S0.bias}}
+  const T=q=>[cx+(q[0]-cx)*e,cy+(q[1]-cy)*e,z0+(q[2]-z0)*e+drop*2];return {F:S0.F.map(f=>({...f,pts:f.pts.map(T)})),pts:S0.pts.map(T),bias:S0.bias}}
 function skRender(solids,flash){
   const sh=[];solids.forEach(S0=>S0.pts.forEach(q=>{sh.push(skGJ(q));if(q[2]<0.6)sh.push(skPJ(q))}));
   if(sh.length>2){const h=skHull(sh);ctx.fillStyle='rgba(0,0,0,0.38)';ctx.beginPath();h.forEach((q,i)=>i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]));ctx.closePath();ctx.fill()}
@@ -8424,31 +8424,40 @@ function skRender(solids,flash){
   solids.slice().sort((a,b)=>key(a)-key(b)).forEach(S0=>S0.F.forEach(f=>{if(skDot(f.n,SK_VIEW)<=0.02)return;
     ctx.beginPath();f.pts.forEach((q,i)=>{const P=skPJ(q);i?ctx.lineTo(P[0],P[1]):ctx.moveTo(P[0],P[1])});ctx.closePath();ctx.fillStyle=skShade(f.col,f.n,flash);ctx.fill();
     if(f.o.emit){ctx.save();ctx.globalCompositeOperation='lighter';ctx.globalAlpha=Math.min(1,f.o.emit);ctx.fillStyle=f.col;ctx.fill();ctx.restore()}ctx.stroke()}))}
-function skGlow(p3,r,col,a){if(a<=0.01)return;const [x,y]=skPJ(p3),R=r*SK_SCALE,[cr,cg,cb]=parseCol(col),g=ctx.createRadialGradient(x,y,0,x,y,R);g.addColorStop(0,`rgba(${cr},${cg},${cb},${Math.min(1,a)})`);g.addColorStop(1,`rgba(${cr},${cg},${cb},0)`);
+function skGlow(p3,r,col,a){if(a<=0.01)return;const [x,y]=skPJ(p3),R=r*SKO.s,[cr,cg,cb]=parseCol(col),g=ctx.createRadialGradient(x,y,0,x,y,R);g.addColorStop(0,`rgba(${cr},${cg},${cb},${Math.min(1,a)})`);g.addColorStop(1,`rgba(${cr},${cg},${cb},0)`);
   ctx.save();ctx.globalCompositeOperation='lighter';ctx.fillStyle=g;ctx.fillRect(x-R,y-R,R*2,R*2);ctx.restore()}
-// The tower, as pieces in build order (k): each leg, the base rings, the body, the column, its windows,
-// its bands, the shoulder, the dish, the canisters, the lamp.
-function coreColumnPieces(col,t,strain,dmg,flick){const P=[],add=(k,S0)=>{S0.k=k;P.push(S0)},bk=dmg>0.6,G='#999',DK='#4a4f57',HOTC='#ffb36b';
-  for(let i=0;i<4;i++){if(bk&&i===1)continue;const a=i*Math.PI/2+0.2,c=Math.cos(a),s=Math.sin(a);add(i,skBeam([c*5,s*5,12],[c*13,s*13,1.2],1.8,G));add(i+0.3,skBeam([c*6,s*6,7],[c*11,s*11,1.4],1.1,'#6f7c89'));add(i+0.15,skBox(c*13.5,s*13.5,0,1.4,4.4,3.4,a,'#6f7c89',{top:'#8d9aa8'}))}
-  add(4,skPrism(0,0,4,8,6,7.6,10,0,DK,{top:'#5d6670'}));add(5,skPrism(0,0,8,12,7.6,7.6,10,0,'#3b4652'));add(6,skPrism(0,0,12,20,6.6,7.2,8,Math.PI/8,'#8d9aa8',{top:'#a9b6c4'}));
-  add(7,skPrism(0,0,20,47,6,5.6,8,Math.PI/8,'#5d6670',{top:'#6f7c89'}));
-  const wc=strain>0.3?mixCol(col,HOTC,strain):col;for(let i=0;i<8;i++){if(bk&&i===2)continue;add(8+i*0.12,skPanel(5.85,8,Math.PI/8,i,23,44,0.32,wc,{emit:(0.55+0.3*Math.sin(t*(3+strain*8)+i))*flick}))}
-  [24,32,40].forEach((z,j)=>add(9+j*0.3,skPrism(0,0,z,z+0.9,6.2,6.2,8,Math.PI/8,'#8d9aa8')));
-  add(10,skPrism(0,0,47,50,5.6,3.6,8,Math.PI/8,'#8d9aa8',{top:'#a9b6c4'}));add(11,skPrism(0,0,50,52,1.4,1.4,6,0,DK));add(12,skPrism(0,0,52,53,6.2,5.8,12,0,'#8d9aa8',{top:'#a9b6c4'}));add(12.2,skPrism(0,0,53,53.6,2.2,1.6,8,0,DK));
-  add(13,skPrism(7.4,2.6,14,23,1.7,1.7,10,0,'#e6e6e6',{top:'#f2f2f2'}));add(13.5,skPrism(-7.2,3.4,15,21,1.5,1.5,10,0,'#e6e6e6',{top:'#f2f2f2'}));
+// The tower, modelled at full size in world units (about 130 tall, 38 across its feet), as pieces in
+// build order (k): the four legs, the base rings, the lower body, the column, its two tiers of windows,
+// the bands and the mid collar with its pods, the shoulder, the dish and the antenna, the canisters.
+function coreColumnPieces(col,t,strain,dmg,flick){const P=[],add=(k,S0)=>{S0.k=k;P.push(S0)},bk=dmg>0.6,G='#999',DK='#4a4f57',HOTC='#ffb36b',R8=Math.PI/8;
+  for(let i=0;i<4;i++){if(bk&&i===1)continue;const a=i*Math.PI/2+0.2,c=Math.cos(a),s=Math.sin(a);
+    add(i,skBeam([c*8,s*8,30],[c*21,s*21,2],3,G));add(i+0.3,skBeam([c*9,s*9,16],[c*17,s*17,2],1.8,'#6f7c89'));add(i+0.15,skBox(c*21.5,s*21.5,0,2.2,7,5.5,a,'#6f7c89',{top:'#8d9aa8'}))}
+  add(4,skPrism(0,0,6,14,9.5,11.5,10,0,DK,{top:'#5d6670'}));add(4.5,skPrism(0,0,14,22,11.5,11.5,10,0,'#3b4652'));
+  add(5,skPrism(0,0,22,36,10,10.8,8,R8,'#8d9aa8',{top:'#a9b6c4'}));
+  add(6,skPrism(0,0,36,120,9.2,8.4,8,R8,'#5d6670',{top:'#6f7c89'}));
+  const wc=strain>0.3?mixCol(col,HOTC,strain):col;
+  [[42,74],[82,114]].forEach(([z0,z1],tier)=>{for(let i=0;i<8;i++){if(bk&&i===2&&tier===0)continue;const r=9.2-(z0-36)/84*0.8;
+    add(7+tier*1.2+i*0.1,skPanel(r-0.1,8,R8,i,z0,z1,0.3,wc,{emit:(0.55+0.3*Math.sin(t*(3+strain*8)+i+tier*2))*flick}))}});
+  [39,116].forEach((z,j)=>add(8+j*2,skPrism(0,0,z,z+1.6,9.7,9.5,8,R8,'#8d9aa8')));
+  add(9,skPrism(0,0,75,81,10.6,10.6,8,R8,'#8d9aa8',{top:'#a9b6c4'}));add(9.3,skBox(10.4,3,72,84,3.4,5,0.25,'#e6e6e6',{top:'#f2f2f2'}));add(9.5,skBox(-10.2,4.4,73,82,3,4.4,-0.3,'#e6e6e6',{top:'#f2f2f2'}));
+  add(10.5,skPrism(0,0,120,127,8.4,5.6,8,R8,'#8d9aa8',{top:'#a9b6c4'}));add(11,skPrism(0,0,127,132,2.4,2.4,6,0,DK));
+  add(11.5,skPrism(0,0,132,134,10,9.4,12,0,'#8d9aa8',{top:'#a9b6c4'}));add(11.8,skPrism(0,0,134,135,3.4,2.6,8,0,DK));add(12.2,skPrism(-3,3,135,152,0.7,0.5,6,0,'#c9ced4'));
+  add(12.6,skPrism(12.4,4,22,40,2.8,2.8,10,0,'#e6e6e6',{top:'#f2f2f2'}));add(12.9,skPrism(-12,5.2,24,36,2.4,2.4,10,0,'#e6e6e6',{top:'#f2f2f2'}));
   return P}
-const SK_PIECES=14;
+const SK_PIECES=14,SK_GAP=0.07;
 function drawCoreColumn(st,col,dmg,sn){
   const since=st.landT!=null?S.t-st.landT:99,flick=dmg>0.6&&Math.random()<0.25?0.25:1;
-  SKO.x=st.x;SKO.y=st.y;SKO.lean=dmg>0.6?[0.05*dmg,0.03*dmg]:[0,0];SKO.shk=sn>0.3?[(Math.random()-0.5)*sn*0.8,(Math.random()-0.5)*sn*0.8]:[0,0];
+  SKO.x=st.x;SKO.y=st.y;SKO.s=1;SKO.lean=dmg>0.6?[0.05*dmg,0.03*dmg]:[0,0];SKO.shk=sn>0.3?[(Math.random()-0.5)*sn*1.6,(Math.random()-0.5)*sn*1.6]:[0,0];
   let solids=coreColumnPieces(col,S.t,sn,dmg,flick);
-  if(since<SK_PIECES*SK_POP_GAP+SK_POP_T+0.1)solids=solids.map(S0=>{const u=(since-S0.k*SK_POP_GAP)/SK_POP_T;return u<=0?null:skPop(S0,Math.min(1,u))}).filter(Boolean);
-  if(!solids.length)return;
+  if(since<SK_PIECES*SK_GAP+SK_POP_T+0.1)solids=solids.map(S0=>{const u=(since-S0.k*SK_GAP)/SK_POP_T;return u<=0?null:skPop(S0,Math.min(1,u))}).filter(Boolean);
+  if(!solids.length){SKO.s=SK_SCALE;return}
   skRender(solids,st.flashT>0);
-  const lampOn=dmg>0.6?(Math.random()<0.35?0.15:0.9):sn>0.3?(Math.sin(S.t*14)>0?1:0.25):0.85+0.15*Math.sin(S.t*3),lampCol=sn>0.3?'#ffb36b':col,done=since>12*SK_POP_GAP+SK_POP_T;
-  skGlow([0,0,34],13,col,0.3*flick*(1+sn)*(since>8*SK_POP_GAP?1:0));
-  if(since>15*SK_POP_GAP){skGlow([3.2,-3,53.6],7,lampCol,0.55*lampOn);skGlow([3.2,-3,53.6],2.2,'#ffffff',0.6*lampOn)}
-  if(done&&since<99&&since<12*SK_POP_GAP+SK_POP_T+0.4){const q=(since-(12*SK_POP_GAP+SK_POP_T))/0.4;ctx.save();ctx.globalAlpha=(1-q)*0.6;ctx.strokeStyle=col;ctx.lineWidth=1.5;ctx.beginPath();ctx.ellipse(st.x,st.y,10+q*18,(10+q*18)*0.9,0,0,Math.PI*2);ctx.stroke();ctx.restore()}
+  const lampOn=dmg>0.6?(Math.random()<0.35?0.15:0.9):sn>0.3?(Math.sin(S.t*14)>0?1:0.25):0.85+0.15*Math.sin(S.t*3),lampCol=sn>0.3?'#ffb36b':col,built=12.6*SK_GAP+SK_POP_T;
+  if(since>7*SK_GAP){skGlow([0,0,58],22,col,0.28*flick*(1+sn));skGlow([0,0,98],20,col,0.24*flick*(1+sn))}
+  if(since>11.6*SK_GAP){skGlow([6,-5,134.5],11,lampCol,0.55*lampOn);skGlow([6,-5,134.5],3,'#ffffff',0.6*lampOn)}
+  if(since>12.3*SK_GAP){const b=(Math.sin(S.t*3.2+st.x)>0.2?1:0.15);skGlow([-3,3,152.5],6,'#ff3a24',0.7*b);skGlow([-3,3,152.5],1.6,'#ffffff',0.8*b)}
+  if(since<99&&since>built&&since<built+0.45){const q=(since-built)/0.45;ctx.save();ctx.globalAlpha=(1-q)*0.6;ctx.strokeStyle=col;ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(st.x,st.y,16+q*26,(16+q*26)*0.9,0,0,Math.PI*2);ctx.stroke();ctx.restore()}
+  SKO.s=SK_SCALE;
 }
 // Small shield above a unit on a guard order.
 function drawGuardGlyph(x,y){
