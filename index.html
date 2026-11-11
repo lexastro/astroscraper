@@ -985,7 +985,7 @@ const MECH_ENGAGE_R=300, MECH_LEASH=200;
 // a tight blast that does little to a crowd — but its rockets hit ROCKET_VS_BIG times as hard on a
 // nest or a Quaker, from long range, and it picks those over anything else in reach.
 const ROCKET_R=8, ROCKET_HP=75, ROCKET_SPEED=100, ROCKET_RANGE=320, ROCKET_CD=3.6, ROCKET_DMG=40, ROCKET_SPLASH_R=44, ROCKET_PROJ_SPEED=270, ROCKET_VS_BIG=4, ROCKET_COLOR='#ff8a4c';
-const isBigTarget=e=>e.kind==='nest'||e.kind==='quaker';
+const isBigTarget=e=>e.kind==='nest'||e.kind==='quaker'||e.shard==='colossus';
 // v4 Paladin: a cheap melee wall. Very durable and hits hard up close (with a little cleave), but short
 // of reach, slow, and not much to look at against a horde on its own — it holds enemies off while
 // the Troopers' guns do the killing. No unlock: it's available from the start.
@@ -2556,7 +2556,7 @@ function reset(landing){
   const land=landing||defaultLanding();
   S={t:0,surveyVein:null,wrecks:[],beacons:[],squadCap:SQUAD_CAP_START,quakes:[],quakeMsg:false,barrier:null,breachSite:null,breachVein:null,rigSite:null,rig:null,glass:null,glassShards:[],glassB:null,glassCov:null,dat:tutorialMap?TUTORIAL_START_DAT:pressureOn('lean')?20:60,living:0,condensed:0,over:null,rerollCount:0,
     base:{x:land.x,y:land.y,hp:450+bastionHpBonus(),maxHp:450+bastionHpBonus(),r:BASE_R,dest:null,locked:false,gunCd:0,bigGunCd:0,pingCd:0},
-    troops:[],harvesters:[],builders:[],relays:[],depots:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],shards:[],nades:[],shardShots:[],lances:[],
+    troops:[],harvesters:[],builders:[],relays:[],depots:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],shards:[],nades:[],shardShots:[],lances:[],smears:[],
     veins:[],activeVein:null,throttleMul:1,ambientT:30,
     minedWindowAmt:0,minedWindowT:0,offZonePatrolCd:OFFZONE_MINE_WINDOW,
     particles:[],floaters:[],shake:{t:0,dur:0,mag:0},surgeWaves:[],surgeT:10,
@@ -3316,6 +3316,7 @@ function spawnEnemy(x,y,kind,opts){
   // that comes at you in a rush.
   if(kind==='roam'&&core&&rand()<BRUTE_CHANCE)kind='brute';
   const brute=kind==='brute';
+  if(core&&(kind==='wave'||kind==='roam')&&!(opts&&(opts.horde||opts.plain||opts.hp))){const sk=rollShard(kind);if(sk){spawnShard(x,y,sk,kind);return}}
   if(kind==='wave'&&!(opts&&opts.noSplinter)&&rand()<(SPL_SHARE[bandAt(x,y)]||0)){spawnSplinter(x,y,core);return}
   const big=kind==='wave'&&rand()<((opts&&opts.bigP!=null)?opts.bigP:0.2);
   const sab=kind==='saboteur', swarm=kind==='swarm';
@@ -3469,6 +3470,191 @@ function drawEcho(e){
 }
 function drawSwarm(e){const c=swarmSprite(e);glBlit(e.flashT>0?glTint(c,'#fff'):c,c,e.x,e.y)}
 function drawSaboteur(e){const c=sabSprite(e);glBlit(c,c,e.x,e.y);if(e.flashT>0){ctx.globalAlpha=0.85;glBlit(glTint(c,'#fff'),c,e.x,e.y);ctx.globalAlpha=1}}
+// ---------- Core shard enemies ----------
+// v4: five enemies that only come out of the Core: the Stalker, Static, Husk, Lantern and Colossus.
+// They share one look: limbs built from stacked black slabs with crimson edges and maroon splinters,
+// a blocky red core for a head, and torn scanlines that slip sideways as they glitch. Each is drawn
+// into a small buffer (sh* below, in local units facing +x), given a shadow, then copied back in
+// horizontal bands, a few of them slipped sideways.
+// In play each is a 'wave' or 'roam' enemy with e.shard naming which it is, so targeting, patrols and
+// pathing are the ordinary ones; shardStep adds what is its own.
+const SH_BLK='#0a0506',SH_EDGE='#4e0c15',SH_EDGE2='#7d1420',SH_MAR='#3a0910',SH_HOT='#ff3a24',SH_HOT2='#ffd0a0',SH_SUN=[-0.6,-0.8],SH_SC=1.2,SH_Q=2,SH_BS=300;
+let shx=null,shSeed=1,shQ=0,shRi=0,shSi=0,shGlows=[];
+const shRR=()=>glHash(shSeed,shQ,1000+shRi++); // jitter that re-rolls ten times a second
+const shRS=()=>glHash(shSeed,3,shSi++);        // shape that stays put
+function shShard(x,y,len,w,ang,fill,edge){const c=shx;c.save();c.translate(x,y);c.rotate(ang);c.fillStyle=fill||SH_BLK;c.fillRect(-len/2,-w/2,len,w);
+  const s=-Math.sin(ang)*SH_SUN[0]+Math.cos(ang)*SH_SUN[1],e=Math.max(0.3,w*0.3);c.fillStyle=edge||SH_EDGE;c.fillRect(-len/2,s>0?w/2-e:-w/2,len,e);c.restore()}
+// a limb: a chain of slightly misaligned slabs, with splinters flaking off it
+function shLimb(x0,y0,x1,y1,w,spl){spl=spl==null?0.35:spl;
+  const dx=x1-x0,dy=y1-y0,L=Math.hypot(dx,dy)||0.01,a=Math.atan2(dy,dx),px=-dy/L,py=dx/L,n=Math.max(1,Math.round(L/(w*1.5)));
+  for(let i=0;i<n;i++){const t=(i+0.5)/n,j=(shRS()-0.5)*w*0.5+(shRR()-0.5)*w*0.22;
+    const len=L/n*(0.85+shRS()*0.7),ww=w*(0.7+shRS()*0.5),aa=a+(shRS()-0.5)*0.22,cx=x0+dx*t+px*j,cy=y0+dy*t+py*j;
+    shShard(cx,cy,len,ww,aa);
+    if(shRS()<spl){const sd=shRS()<0.5?-1:1,sa=a+sd*(0.35+shRS()*0.9)+(shRR()-0.5)*0.18,sl=w*(1+shRS()*2.2),ox=cx+px*sd*ww*0.4,oy=cy+py*sd*ww*0.4;
+      shShard(ox+Math.cos(sa)*sl*0.4,oy+Math.sin(sa)*sl*0.4,sl,Math.max(0.3,w*0.22),sa,shRS()<0.5?SH_MAR:SH_BLK,SH_EDGE2)}}}
+// the head: a blocky red core with dark notches. open>0 splits it to show a white-hot seam.
+function shCore(x,y,s,ang,glow,open){const c=shx;c.save();c.translate(x,y);c.rotate(ang+(shRR()-0.5)*0.14);
+  const m=c.getTransform();shGlows.push({x:m.e,y:m.f,r:Math.hypot(m.a,m.b)*s*2.4,a:Math.min(0.7,0.16*glow)});
+  const half=sy=>{c.save();c.translate(0,sy);c.fillStyle=SH_BLK;c.fillRect(-s*0.7,-s*0.42,s*1.4,s*0.84);
+    c.fillStyle=SH_HOT;c.fillRect(-s*0.58,-s*0.34,s*1.16,s*0.68);c.fillStyle='#b8160f';c.fillRect(-s*0.5,-s*0.3,s*0.3,s*0.24);c.restore()};
+  if(open>0.02){const o=open*s*0.55;c.fillStyle=SH_HOT2;c.fillRect(-s*0.5,-o,s,o*2);half(-s*0.38-o);half(s*0.38+o)}
+  else{c.fillStyle=SH_BLK;c.fillRect(-s*0.68,-s*0.82,s*1.36,s*1.64);c.fillStyle=SH_HOT;c.fillRect(-s*0.56,-s*0.72,s*1.12,s*1.44);
+    c.fillStyle=SH_BLK;c.fillRect(-s*0.56,-s*0.22,s*0.56,s*0.17);c.fillRect(-s*0.04,-s*0.22,s*0.17,s*0.62);c.fillRect(-s*0.04,s*0.26,s*0.42,s*0.15);
+    c.fillStyle='#b8160f';c.fillRect(-s*0.48,-s*0.64,s*0.3,s*0.3);c.fillStyle='#ff7a52';c.fillRect(s*0.18,-s*0.64,s*0.3,s*0.14)}
+  c.restore()}
+let SH_BUF=null,SH_SHB=null,SH_BX=null,SH_SX=null;
+// Draws drawFn (a figure of half-size ext, turned to ang) at world X,Y: shadow, torn bands, core glow.
+function shFigure(X,Y,ang,ext,seed,t,drawFn,tear,alpha,flash){
+  if(!SH_BUF){SH_BUF=document.createElement('canvas');SH_SHB=document.createElement('canvas');SH_BUF.width=SH_BUF.height=SH_SHB.width=SH_SHB.height=SH_BS;SH_BX=SH_BUF.getContext('2d');SH_SX=SH_SHB.getContext('2d')}
+  const k=SH_SC*SH_Q,Sz=Math.min(SH_BS,Math.ceil(ext*2*k)),Wd=Sz/SH_Q,b=SH_BX,s=SH_SX;shSeed=seed;shQ=Math.floor(t*10+seed*0.37);shRi=0;shSi=0;shGlows=[];
+  b.setTransform(1,0,0,1,0,0);b.clearRect(0,0,Sz,Sz);b.setTransform(k,0,0,k,Sz/2,Sz/2);b.rotate(ang);shx=b;drawFn();
+  s.setTransform(1,0,0,1,0,0);s.globalCompositeOperation='source-over';s.clearRect(0,0,Sz,Sz);s.drawImage(SH_BUF,0,0,Sz,Sz,0,0,Sz,Sz);s.globalCompositeOperation='source-in';s.fillStyle='rgba(0,0,0,0.4)';s.fillRect(0,0,Sz,Sz);
+  const off=SH_SC*2.2,L=X-Wd/2,T=Y-Wd/2;ctx.save();ctx.globalAlpha=alpha;ctx.drawImage(SH_SHB,0,0,Sz,Sz,L+off,T+off,Wd,Wd);
+  // bands: untorn runs go down in one piece, a torn band is drawn slipped, with a faint copy slipped the other way
+  let y=0,bi=0,run=0;const flush=to=>{if(to>run)ctx.drawImage(SH_BUF,0,run,Sz,to-run,L,T+run/SH_Q,Wd,(to-run)/SH_Q);run=to};
+  while(y<Sz){const h=Math.min(Sz-y,Math.max(2,Math.round((1.5+glHash(seed,shQ,900+bi)*6)*k*0.5)));
+    if(glHash(seed,shQ,500+bi)<tear){const dx=(glHash(seed,shQ,700+bi)-0.5)*SH_SC*7*(0.4+tear);flush(y);
+      ctx.globalAlpha=alpha*0.35;ctx.drawImage(SH_BUF,0,y,Sz,h,L-dx*0.8,T+y/SH_Q,Wd,h/SH_Q);ctx.globalAlpha=alpha;ctx.drawImage(SH_BUF,0,y,Sz,h,L+dx,T+y/SH_Q,Wd,h/SH_Q);run=y+h}
+    y+=h;bi++}
+  flush(Sz);
+  if(flash){s.fillStyle='#fff';s.fillRect(0,0,Sz,Sz);ctx.globalAlpha=0.75*alpha;ctx.drawImage(SH_SHB,0,0,Sz,Sz,L,T,Wd,Wd)}
+  ctx.globalAlpha=1;ctx.globalCompositeOperation='lighter';
+  shGlows.forEach(g=>{const gx=L+g.x/SH_Q,gy=T+g.y/SH_Q,R=g.r/SH_Q,gr=ctx.createRadialGradient(gx,gy,0,gx,gy,R);gr.addColorStop(0,`rgba(255,70,40,${g.a*alpha})`);gr.addColorStop(1,'rgba(255,40,20,0)');ctx.fillStyle=gr;ctx.fillRect(gx-R,gy-R,2*R,2*R)});
+  ctx.restore()}
+// splinters flying out and fading, u 0..1
+function shSlivers(X,Y,u,seed,n){ctx.save();ctx.globalAlpha=Math.max(0,1-u);shx=ctx;const sc=SH_SC;
+  for(let i=0;i<n;i++){const a=glHash(seed,i,1)*6.283,d=(4+glHash(seed,i,2)*14)*u*sc,len=(2+glHash(seed,i,3)*4)*sc;
+    shShard(X+Math.cos(a)*d,Y+Math.sin(a)*d,len,0.5*sc,a+glHash(seed,i,4)*2,i%2?SH_MAR:SH_BLK,SH_EDGE2)}
+  ctx.restore()}
+// ---- the five figures (local units, facing +x; a Trooper is about 6 across here) ----
+function shStalker(t,walk,atk){const sw=Math.sin(t*3.2)*walk;
+  shLimb(-1,-3,-3+sw*6,-4,2.2,0.25);shLimb(-1,3,-3-sw*6,4,2.2,0.25);shLimb(-4,0,3,0,3.2,0.5);shLimb(2,-8,2,8,3.4,0.6);
+  for(const sd of[-1,1]){const lunge=atk*(sd<0?1:0.75),s2=sd*sw,ex=8+s2*3+lunge*6,ey=sd*10,hx=15+s2*5+lunge*16,hy=sd*(8-lunge*5);
+    shLimb(2,sd*8,ex,ey,2.3,0.4);shLimb(ex,ey,hx,hy,1.9,0.45);
+    const ca0=Math.atan2(hy-ey,hx-ex);for(let c=-1;c<=1;c++){const ca=ca0+c*(0.3+atk*0.25);shShard(hx+Math.cos(ca)*2.4,hy+Math.sin(ca)*2.4,4.2,0.6,ca,SH_MAR,SH_EDGE2)}}
+  shCore(4.5,0,3.4,0.3,1+atk*1.5,0)}
+function shStatic(t,walk,sl){const ph=t*7;
+  shLimb(-4,-2,0,-1,3,0.6);shLimb(-4,2,0,1,3,0.6);shLimb(-3,0,3,0,4.2,0.8);
+  for(const sd of[-1,1]){const s=Math.sin(ph+sd)*1.5*walk,sw=sd<0?sl:sl*0.4;
+    shLimb(1,sd*4,5+s+sw*3,sd*(5-sw*2),1.8,0.6);shLimb(5+s+sw*3,sd*(5-sw*2),9+s+sw*6,sd*(2.5-sw*4),1.4,0.7)}
+  shLimb(-5,-1,-10,-3+Math.sin(ph),1,0.9);shLimb(-5,1,-9,3-Math.sin(ph),0.9,0.9);
+  shCore(3,0,2.6,-0.2,1,0)}
+function shHusk(t,walk){const ph=t*6*walk;
+  [[4,-1,0],[4,1,1],[-4,-1,1],[-4,1,0]].forEach(([hx,sd,o])=>{const g=Math.sin(ph+o*Math.PI),kx=hx*1.1+g*2,ky=sd*8,fx=hx*1.5+g*3.5,fy=sd*5.5;shLimb(hx*0.6,sd*2.5,kx,ky,1.8,0.3);shLimb(kx,ky,fx,fy,1.4,0.4)});
+  shLimb(-8,0,6,0,5.5,0.5);shLimb(-6,-2.5,-2,-4,1.2,0.9);shLimb(-4,2.5,0,4.5,1.2,0.9);shLimb(6,0,9,0,2.6,0.6);
+  shCore(-1,0,3.4,0,1.4,0)}
+function shHuskCore(t){const ph=t*16;
+  for(const sd of[-1,1])for(const o of[0,1]){const g=Math.sin(ph+o*Math.PI+sd);shLimb(o?-1:1,sd*1.5,(o?-2:2)+g*1.5,sd*4,0.7,0.2)}
+  shCore(0,0,3,0,2,0)}
+function shLantern(t,charge,open){const sw=Math.sin(t*1.6)*0.6;
+  shLimb(-2,-2,-4+sw*2,-3,1.6,0.2);shLimb(-2,2,-4-sw*2,3,1.6,0.2);shLimb(-3,0,2,0,2.2,0.4);shLimb(1,-6,1,6,2.4,0.5);
+  for(const sd of[-1,1]){shLimb(1,sd*6,-4,sd*8+sw*sd,1.5,0.4);shLimb(-4,sd*8+sw*sd,-9,sd*7,1.2,0.5)}
+  shCore(4.5,0,5.2,0,1+charge*2.5,open)}
+function shColossus(t,walk,sl,cores){const sw=Math.sin(t*1.6)*walk;
+  shLimb(-4,-6,-8+sw*7,-8,4.5,0.3);shLimb(-4,6,-8-sw*7,8,4.5,0.3);shLimb(-9,0,6,0,9,0.6);shLimb(2,-16,2,16,7,0.7);shLimb(-6,-12,-6,12,6,0.6);
+  for(const sd of[-1,1]){const fw=sl*14,s2=sd*sw,ex=4+s2*3+fw*0.4,ey=sd*22,hx=10+s2*6+fw,hy=sd*(24-sl*12);
+    shLimb(2,sd*15,ex,ey,5,0.5);shLimb(ex,ey,hx,hy,4.4,0.5);shLimb(hx,hy,hx+6,hy+sd,6.5,0.8)}
+  shLimb(-14,-4,-20,-9,1.4,0.9);shLimb(-14,4,-21,8,1.4,0.9);
+  shCore(7,0,5,0.2,1.3,0);if(cores>=2)shCore(-1,-6,2.4,0.5,0.7,0);if(cores>=3)shCore(-2,6,2.2,-0.4,0.7,0)}
+// ---- what each one is and does ----
+// Stalker: slow and tall, its arms reach STALK_REACH past an ordinary enemy's, so it hits the unit
+//   behind the front rank or the one manning a wall; each lunge is telegraphed (claws spread, core flares).
+// Static: small, fast and fragile. It moves in blinks of STATIC_HOP, and a blink can carry it across a
+//   wall. It goes for Harvesters and Builders first.
+// Husk: an armoured crawler. When the shell dies its core runs for the nearest nest, and if it gets
+//   there a fresh Husk grows.
+// Lantern: plants itself at LANT_RANGE, splits its head open over LANT_CHARGE seconds (its aim locks
+//   LANT_LOCK before the end) and fires a beam that goes through every unit in line. Walls and rock stop it.
+// Colossus: the Core's elite, one at a time while you drill there. It leaves a black smear that slows
+//   your units, slams both fists for a ring of damage, and loses a core (and some speed) at each third of its health.
+const SHARD={stalker:{hp:90,r:9,speed:50,dmg:10},static:{hp:22,r:6,speed:40,dmg:6},husk:{hp:110,r:10,speed:46,dmg:8},lantern:{hp:50,r:9,speed:40,dmg:22},colossus:{hp:1400,r:24,speed:22,dmg:30}};
+const SHARD_WAVE=[['stalker',0.14],['static',0.14],['husk',0.16],['lantern',0.07]],SHARD_ROAM=[['stalker',0.2],['husk',0.25],['static',0.1]];
+const STALK_REACH=30,STALK_LUNGE=0.5,STALK_CD=1.5,STATIC_HOP=46,STATIC_CD=0.6,STATIC_HUNT_R=520;
+const HUSKCORE_HP=14,HUSKCORE_SPEED=150,HUSKCORE_LIFE=9;
+const LANT_RANGE=300,LANT_CHARGE=1.4,LANT_LOCK=0.4,LANT_CD=2.6,LANT_LEN=440,LANT_WALL_DMG=25;
+const COL_SLAM=0.8,COL_CD=2.8,COL_SLAM_R=70,COL_WALL_DMG=45,COL_FIRST=45,COL_EVERY=80,COL_PER_VEIN=2,COL_DAT=40;
+const SMEAR_LIFE=12,SMEAR_R=17,SMEAR_SLOW=0.55,SMEAR_STEP=12;
+function rollShard(kind){let r=rand();for(const [k,p] of (kind==='roam'?SHARD_ROAM:SHARD_WAVE)){if(r<p)return k;r-=p}return null}
+function spawnShard(x,y,k,kind){const D=SHARD[k],hp=Math.round(D.hp*(RUN?stopHpMult():1));
+  S.enemies.push({x,y,r:D.r,hp,maxHp:hp,speed:D.speed*(RUN&&pressureOn('frenzy')?1.15:1),dmg:D.dmg,cd:0,kind,shard:k,core:true,target:null,aggro:kind==='roam'?260:1e9,home:{x,y},
+    ang:rnd(0,Math.PI*2),faceT:rnd(1,3),stunT:0,seed:Math.floor(rnd(1,9999)),blinkT:rnd(0.3,0.9),cores:3,scd:0,chg:0,lungeT:0,slamT:0});
+  return S.enemies[S.enemies.length-1]}
+function shardHit(u,dmg){u.hp-=allyHit(u,dmg);u.lastHitBy='enemy';hitFlash(u);spark(u.x,u.y,C.enemy,2);if(u===S.base&&sfxReady('damage',0.3)){shakeScreen(3,0.15);sfx.damage()}}
+// One of them with a target: returns true when it has done its own thing this frame, false to walk
+// up (and chew through walls) the ordinary way.
+function shardStep(e,tgt,dt){const k=e.shard;if(k==='husk')return false;
+  let d=dist(e,tgt),tr=tgt.r||12;e.scd-=dt;
+  if(k==='stalker'){const reach=e.r+tr+STALK_REACH;
+    if(e.lungeT>0){const was=e.lungeT;e.lungeT-=dt;if(was>STALK_LUNGE*0.5&&e.lungeT<=STALK_LUNGE*0.5&&e.lt&&e.lt.hp>0&&dist(e,e.lt)<=reach+12){shardHit(e.lt,e.dmg);if(sfxReady('stalk',0.08))tone(260,0.07,'sawtooth',0.035,0,120)}
+      if(e.lungeT<=0)e.scd=STALK_CD;return true}
+    if(d>reach)return false;e.ang=Math.atan2(tgt.y-e.y,tgt.x-e.x);if(e.scd<=0){e.lungeT=STALK_LUNGE;e.lt=tgt}return true}
+  if(k==='static'){let w=null,wd=STATIC_HUNT_R;S.harvesters.forEach(h=>{const q=dist(h,e);if(h.hp>0&&q<wd){wd=q;w=h}});S.builders.forEach(h=>{const q=dist(h,e);if(h.hp>0&&q<wd){wd=q;w=h}});
+    if(w){tgt=e.target=w;d=wd;tr=w.r||8}
+    const reach=e.r+tr+4;e.ang=Math.atan2(tgt.y-e.y,tgt.x-e.x);
+    if(d<=reach&&!wallBetween(e,tgt)){if(e.cd<=0){shardHit(tgt,e.dmg);e.cd=STATIC_CD;e.atkT=S.t}return true}
+    e.blinkT-=dt;if(e.blinkT>0)return true;e.blinkT=rnd(0.55,0.95);
+    const aim=enemyApproachPoint(e,tgt),a=Math.atan2(aim.y-e.y,aim.x-e.x)+rnd(-0.25,0.25);
+    for(const hop of [Math.min(STATIC_HOP,Math.max(12,d-reach+2)),STATIC_HOP*0.6,STATIC_HOP*1.3]){const nx=e.x+Math.cos(a)*hop,ny=e.y+Math.sin(a)*hop;
+      if(nx<10||ny<10||nx>W-10||ny>H-10||terrainAt(nx,ny)===2||wallAt(nx,ny))continue;
+      e.bx=e.x;e.by=e.y;e.bt=S.t;e.x=nx;e.y=ny;if(sfxReady('blink',0.12))tone(1800,0.03,'square',0.015,0,600);return true}
+    return true}
+  if(k==='lantern'){
+    if(e.chg>0){e.chg+=dt;if(e.chg<LANT_CHARGE-LANT_LOCK)e.ang=Math.atan2(tgt.y-e.y,tgt.x-e.x);
+      if(sfxReady('lantchg',0.2))tone(300+500*e.chg/LANT_CHARGE,0.1,'sine',0.02,0,340+560*e.chg/LANT_CHARGE);
+      if(e.chg>=LANT_CHARGE){lanternFire(e);e.chg=0;e.scd=LANT_CD}return true}
+    if(d>LANT_RANGE+tr)return false;e.ang=Math.atan2(tgt.y-e.y,tgt.x-e.x);if(e.scd<=0)e.chg=0.001;return true}
+  if(k==='colossus'){e.cd=9; // never the ordinary bite: it only slams
+    const want=Math.max(1,Math.ceil(e.hp/e.maxHp*3));if(want<e.cores){e.cores=want;e.speed*=0.8;burst(e.x,e.y,SH_HOT,20,160,0.6);sfx.kill();msg(`One of the Colossus's cores burst — ${want} left, and it is slowing.`)}
+    if(e.lsx==null||Math.hypot(e.x-e.lsx,e.y-e.lsy)>SMEAR_STEP){S.smears.push({x:e.x,y:e.y,t:S.t,s:Math.random()});e.lsx=e.x;e.lsy=e.y}
+    if(e.slamT>0){const was=e.slamT;e.slamT-=dt;if(was>COL_SLAM*0.4&&e.slamT<=COL_SLAM*0.4)colossusSlam(e);return true}
+    const aim=enemyApproachPoint(e,tgt),a=Math.atan2(aim.y-e.y,aim.x-e.x),wall=wallAt(e.x+Math.cos(a)*(e.r+8),e.y+Math.sin(a)*(e.r+8));
+    if(d<=e.r+tr+14||wall){e.ang=wall?a:Math.atan2(tgt.y-e.y,tgt.x-e.x);if(e.scd<=0){e.slamT=COL_SLAM;e.scd=COL_CD}return true}
+    return false}
+  return false}
+function lanternFire(e){const ux=Math.cos(e.ang),uy=Math.sin(e.ang),hx=e.x+ux*5.4,hy=e.y+uy*5.4,B=S.base;let L=0,ex=hx,ey=hy;
+  for(;L<LANT_LEN;L+=6){ex=hx+ux*L;ey=hy+uy*L;if(ex<0||ey<0||ex>W||ey>H)break;const w=wallAt(ex,ey);if(w){damageWall(w,LANT_WALL_DMG);spark(ex,ey,'#8d9aa8',4);break}if(terrainAt(ex,ey)===2)break}
+  [B].concat(S.troops,S.harvesters,S.builders,S.turrets.filter(t=>t.built),S.relays.filter(r=>r.built&&r.hp>0),S.stabs.filter(st=>st.built&&st.hp>0),S.depots.filter(de=>de.built&&de.hp>0)).forEach(u=>{if(u.hp<=0)return;
+    const rx=u.x-hx,ry=u.y-hy,al=rx*ux+ry*uy;if(al<0||al>L)return;if(Math.abs(rx*uy-ry*ux)<(u===B?BASE_R:(u.r||10))+4)shardHit(u,e.dmg)});
+  e.bhx=hx;e.bhy=hy;e.bex=ex;e.bey=ey;e.beamAt=S.t;tone(900,0.25,'sawtooth',0.05,0,160)}
+function colossusSlam(e){const fx=e.x+Math.cos(e.ang)*(e.r+10),fy=e.y+Math.sin(e.ang)*(e.r+10),B=S.base,hit=new Set();
+  [B].concat(S.troops,S.harvesters,S.builders,S.turrets.filter(t=>t.built),S.relays.filter(r=>r.built&&r.hp>0),S.stabs.filter(st=>st.built&&st.hp>0),S.depots.filter(de=>de.built&&de.hp>0)).forEach(u=>{if(u.hp>0&&Math.hypot(u.x-fx,u.y-fy)<COL_SLAM_R+(u===B?BASE_R:(u.r||10)))shardHit(u,e.dmg)});
+  for(const rr of [8,28,48,66])for(let i=0;i<12;i++){const a=i/12*Math.PI*2,w=wallAt(fx+Math.cos(a)*rr,fy+Math.sin(a)*rr);if(w)hit.add(w)}
+  hit.forEach(w=>damageWall(w,COL_WALL_DMG));e.ringAt=S.t;e.rx=fx;e.ry=fy;burst(fx,fy,'#3a0910',16,170,0.5);shakeScreen(5,0.3);sfx.explode()}
+function spawnColossus(v){const c0=waveSources(v)[0],cd=Math.hypot(v.x-c0.x,v.y-c0.y)||1,c={x:c0.x+(v.x-c0.x)/cd*70,y:c0.y+(v.y-c0.y)/cd*70},p=nearestPlain(Math.max(60,Math.min(W-60,c.x)),Math.max(60,Math.min(H-60,c.y)));spawnShard(p.x,p.y,'colossus','wave');
+  banner(`A Colossus is coming from the ${compassName(Math.atan2(p.y-v.y,p.x-v.x))||'dark'}. Its trail slows your units and its fists hit everything round them — burst its three cores.`,'danger');sfx.wave()}
+// the smear a Colossus leaves: slows your units while it lasts
+function updateSmears(){if(S.smears.length&&S.t-S.smears[0].t>SMEAR_LIFE)S.smears=S.smears.filter(p=>S.t-p.t<=SMEAR_LIFE)}
+function inSmear(x,y){const M=S.smears;for(let i=0;i<M.length;i++){const dx=M[i].x-x,dy=M[i].y-y;if(dx*dx+dy*dy<SMEAR_R*SMEAR_R)return true}return false}
+function drawSmears(){const M=S.smears;if(!M||!M.length)return;ctx.fillStyle='#050203';M.forEach(p=>{ctx.globalAlpha=0.34*Math.min(1,(SMEAR_LIFE-(S.t-p.t))/3);ctx.beginPath();ctx.ellipse(p.x,p.y,9+p.s*7,7+p.s*9,p.s*3,0,Math.PI*2);ctx.fill()});ctx.globalAlpha=1}
+// a Husk's core, loose: runs for the nearest nest and regrows there; with no nest left it just runs and burns out
+function spawnHuskCore(p){const hp=Math.round(HUSKCORE_HP*(RUN?stopHpMult():1));
+  burst(p.x,p.y,'#1a0a0c',14,120,0.5);
+  S.enemies.push({x:p.x,y:p.y,r:5,hp,maxHp:hp,speed:HUSKCORE_SPEED,dmg:0,cd:0,kind:'huskcore',core:true,target:null,aggro:0,home:{x:p.x,y:p.y},ang:rnd(0,Math.PI*2),faceT:9,stunT:0,seed:p.seed+7,life:0})}
+function huskCoreStep(e,dt){e._enemy=true;e.life+=dt;let n=null,nd=Infinity;liveNests().forEach(q=>{const d=dist(q,e);if(d<nd){nd=d;n=q}});
+  const B=S.base,to=n||{x:e.x+(e.x-B.x),y:e.y+(e.y-B.y)},aim=n?waypointFor(e,n.x,n.y):to,a=Math.atan2(aim.y-e.y,aim.x-e.x)+Math.sin(e.life*9+e.seed)*0.5;
+  const sp=e.speed*enemyRoughFactor(e.x,e.y)*dt,nx=e.x+Math.cos(a)*sp,ny=e.y+Math.sin(a)*sp;if(nx>10&&ny>10&&nx<W-10&&ny<H-10&&terrainAt(nx,ny)!==2&&!wallAt(nx,ny)){e.x=nx;e.y=ny}e.ang=a;
+  if(n&&nd<n.r+16){e.hp=0;e.silent=true;const h=spawnShard(e.x,e.y,'husk','roam');h.home={x:n.x,y:n.y};burst(e.x,e.y,SH_HOT,10,90,0.4);return}
+  if(e.life>HUSKCORE_LIFE){e.hp=0;e.silent=true;burst(e.x,e.y,SH_HOT,6,60,0.3)}}
+function drawShard(e){const k=e.shard||'huskcore',t=S.t+e.seed%50,fl=e.flashT>0,sm=x=>x<=0?0:x>=1?1:x*x*(3-2*x);
+  const mv=Math.hypot(e.x-(e._lx==null?e.x:e._lx),e.y-(e._ly==null?e.y:e._ly));e._lx=e.x;e._ly=e.y;e.wk=(e.wk||0)+((mv>0.03?1:0)-(e.wk||0))*0.15;
+  if(e.da==null)e.da=e.ang;e.da+=Math.atan2(Math.sin(e.ang-e.da),Math.cos(e.ang-e.da))*0.2;const a=e.da,wk=e.wk;let top=e.r+12;
+  if(k==='stalker'){const atk=e.lungeT>0?Math.sin(Math.PI*(1-e.lungeT/STALK_LUNGE)):0;shFigure(e.x,e.y,a,36,e.seed,t,()=>shStalker(t,wk,atk),0.07,1,fl);top=22}
+  else if(k==='static'){const since=e.bt!=null?S.t-e.bt:9,as=e.atkT!=null?S.t-e.atkT:9,atk=as<0.3?Math.sin(as/0.3*Math.PI):0;
+    if(since<0.25){shSlivers(e.bx,e.by,since/0.25,e.seed,8);shSlivers(e.x,e.y,1-since/0.25,e.seed+1,8)}
+    shFigure(e.x+(Math.random()<0.05?2.4:0),e.y,e.ang,16,e.seed,t,()=>shStatic(t,1,atk),e.blinkT<0.15?0.9:0.28,since<0.12?since/0.12:1,fl);
+    if(atk>0.05){ctx.save();ctx.globalAlpha=atk;ctx.strokeStyle=SH_HOT;ctx.lineWidth=1.1;ctx.beginPath();ctx.arc(e.x+Math.cos(e.ang)*5,e.y+Math.sin(e.ang)*5,15,e.ang-0.9*atk,e.ang+0.9*atk);ctx.stroke();ctx.restore()}}
+  else if(k==='husk')shFigure(e.x,e.y,a,22,e.seed,t,()=>shHusk(t,wk),0.05,1,fl);
+  else if(k==='huskcore'){shFigure(e.x,e.y,e.ang,8,e.seed,t,()=>shHuskCore(t),0.25,1,fl);top=12}
+  else if(k==='lantern'){const c=e.chg>0?Math.min(1,e.chg/LANT_CHARGE):0,bs=e.beamAt!=null?S.t-e.beamAt:9,beam=bs<0.4?1-bs/0.4:0,open=beam?1:c>0?sm(c)*0.8:bs<1?Math.max(0,1-(bs-0.4)/0.6):0,fa=c>0||beam?e.ang:a;
+    if(c>0&&!beam){const lock=e.chg>=LANT_CHARGE-LANT_LOCK,hx=e.x+Math.cos(e.ang)*5.4,hy=e.y+Math.sin(e.ang)*5.4;ctx.save();ctx.globalAlpha=lock?0.85:0.15+0.35*c;ctx.strokeStyle=SH_HOT;ctx.lineWidth=lock?1.4:0.9;if(!lock)ctx.setLineDash([5,5]);
+      ctx.beginPath();ctx.moveTo(hx,hy);ctx.lineTo(hx+Math.cos(e.ang)*LANT_LEN,hy+Math.sin(e.ang)*LANT_LEN);ctx.stroke();ctx.restore()}
+    shFigure(e.x,e.y,fa,22,e.seed,t,()=>shLantern(t,c,open),0.05+c*0.3,1,fl);
+    if(beam){ctx.save();ctx.globalCompositeOperation='lighter';ctx.lineCap='round';ctx.globalAlpha=beam;ctx.strokeStyle='rgba(255,60,35,0.55)';ctx.lineWidth=8;ctx.beginPath();ctx.moveTo(e.bhx,e.bhy);ctx.lineTo(e.bex,e.bey);ctx.stroke();
+      ctx.strokeStyle=SH_HOT2;ctx.lineWidth=2;ctx.stroke();ctx.restore()}}
+  else{const p=e.slamT>0?1-e.slamT/COL_SLAM:0,slam=e.slamT>0?(p<0.6?sm(p/0.6):1-sm((p-0.6)/0.4)):0,rs=e.ringAt!=null?(S.t-e.ringAt)/0.9:9;
+    if(rs<1){ctx.save();ctx.globalAlpha=1-rs;ctx.strokeStyle=SH_HOT;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(e.rx,e.ry,12+rs*(COL_SLAM_R-12),0,Math.PI*2);ctx.stroke();ctx.restore();shSlivers(e.rx,e.ry,rs,e.seed+3,18)}
+    shFigure(e.x,e.y,a,46,e.seed,t,()=>shColossus(t,wk,slam,e.cores),0.06,1,fl);top=40}
+  if(e.hp<e.maxHp)hpbar(e.x,e.y-top,e.r*2+6,e.hp/e.maxHp)}
 // ---------- Lance Splinters ----------
 // v4: the Dense Field's artillery, the Splinter's big sibling. One comes with each drilling wave in
 // the Dense Field and the Core (up to LANCE_MAX at once), from where the wave comes. It ignores your
@@ -4655,7 +4841,7 @@ function terrainAt(x,y){
   return terrain[cy*TGX+cx];
 }
 // Movement slowdown for anything that isn't the Bastion — mud and rift both count as rough ground.
-function roughFactor(x,y){const v=terrainAt(x,y);return(v===1||v===RIFT)?MUD_MULT:1}
+function roughFactor(x,y){const v=terrainAt(x,y),f=(v===1||v===RIFT)?MUD_MULT:1;return S.smears&&S.smears.length&&inSmear(x,y)?f*SMEAR_SLOW:f}
 // Enemies are native to the rift — only mud slows them down, so they can't be kited into a rift
 // lobe to buy free time the way a player unit's own mud penalty would.
 function enemyRoughFactor(x,y){return terrainAt(x,y)===1?MUD_MULT:1}
@@ -7296,6 +7482,9 @@ function update(dt){
       spawnVeinWave(v);
       v.waveT=veinWaveInterval(v);
     }
+    // v4: in the Core, a Colossus comes for the drill: one at a time, COL_PER_VEIN in all
+    if(v.band==='core'){if(v.colT==null)v.colT=COL_FIRST;v.colT-=dt;
+      if(v.colT<=0){v.colT=COL_EVERY;if((v.colN||0)<COL_PER_VEIN&&!S.enemies.some(e=>e.shard==='colossus'&&e.hp>0)){v.colN=(v.colN||0)+1;spawnColossus(v)}}}
     // v4: Quakers come lumbering in now and then while the drill runs
     if(v.quakerT==null)v.quakerT=QUAKER_INTERVAL[v.band]*0.55;
     v.quakerT-=dt;
@@ -7762,6 +7951,7 @@ function update(dt){
     }
     // horde: re-pick a target only a few times a second
     if(e.kind==='lancer'){lancerStep(e,dt);return}
+    if(e.kind==='huskcore'){huskCoreStep(e,dt);return}
     if(e.horde&&e.target&&e.target.hp>0&&S.t<e._tT){hordeStep(e,e.target,dt);return}
     let tgt=null,bd=e.aggro;
     if(e.kind==='saboteur'){
@@ -7799,6 +7989,7 @@ function update(dt){
     e.target=tgt;
     if(e.horde&&tgt){e._tT=S.t+rnd(0.25,0.45);hordeStep(e,tgt,dt);return}
     if(e.kind==='splinter'&&tgt){splinterStep(e,tgt,dt);return}
+    if(e.shard&&tgt&&shardStep(e,tgt,dt))return;
     // face whoever they're engaging; otherwise idle fidget with a random heading
     if(tgt)e.ang=Math.atan2(tgt.y-e.y,tgt.x-e.x);
     else{e.faceT-=dt;if(e.faceT<=0){e.ang=rnd(0,Math.PI*2);e.faceT=rnd(1.5,3.5)}}
@@ -7849,6 +8040,9 @@ function update(dt){
   const bruteDeaths=[];
   S.enemies=S.enemies.filter(e=>{if(e.hp<=0){
     if(e.kind==='nest'){nestDestroyed(e);sfx.kill();return false}
+    if(e.silent)return false;
+    if(e.shard==='colossus'){S.nodes.push({x:e.x,y:e.y,amt:COL_DAT,max:COL_DAT,found:true});burst(e.x,e.y,SH_HOT,34,200,0.8);burst(e.x,e.y,'#1a0a0c',26,150,0.9);shakeScreen(6,0.4);sfx.explode();msg(`Colossus down — it dropped ${COL_DAT} Dat.`);return false}
+    if(e.shard==='husk')bruteDeaths.push({x:e.x,y:e.y,husk:true,seed:e.seed});
     if(e.kind==='quaker'){S.nodes.push({x:e.x,y:e.y,amt:QUAKER_DAT,max:QUAKER_DAT,found:true});burst(e.x,e.y,'#c9a46b',26,170,0.7);sfx.kill();msg(`Quaker down — it dropped ${QUAKER_DAT} Dat.`);return false}
     const brute=e.kind==='brute';
     burst(e.x,e.y,brute?'#ff2a2a':e.kind==='saboteur'?C.cable:C.enemy,brute?20:e.horde?3:5,brute?150:90,brute?0.6:undefined);
@@ -7858,6 +8052,7 @@ function update(dt){
     return false}return true});
   // a Brute going down ruptures into a swarm of swarmlings right where it fell, instead of just dying
   bruteDeaths.forEach(p=>{
+    if(p.husk){spawnHuskCore(p);return}
     const n=Math.round(rnd(BRUTE_BURST_MIN,BRUTE_BURST_MAX));
     for(let i=0;i<n;i++){
       const ang=rnd(0,Math.PI*2),rad=rnd(10,60);
@@ -7914,6 +8109,7 @@ function update(dt){
   S.tracers=S.tracers.filter(t=>(t.t-=dt)>0);
   if(!S.shardShots)S.shardShots=[];updateShardShots(dt);
   if(!S.lances)S.lances=[];updateLances(dt);
+  if(!S.smears)S.smears=[];updateSmears();
   S.nades=S.nades.filter(n=>{n.t+=dt;if(n.track&&n.track.hp>0&&S.enemies.includes(n.track)){n.tx=n.track.x;n.ty=n.track.y}const pt=Math.min(1,n.t/n.dur);n.x=n.x0+(n.tx-n.x0)*pt;n.y=n.y0+(n.ty-n.y0)*pt;if(pt>=1){explodeNade(n);return false}return true});
   if(B.hp<=0){S.over='lose';sfx.lose();shakeScreen(10,0.6);burst(B.x,B.y,C.enemy,30,160,0.9);showOverlay('Bastion destroyed','The crew and the crystal are lost to the zone. Try fortifying before you push deeper.',0.5)}
 
@@ -9040,11 +9236,13 @@ function draw(){
     ctx.globalAlpha=1});
   drawPOIs();drawRig();drawStrand();positionPoiBtns();
   // enemies (only visible)
-    S.enemies.forEach(e=>{if(e.kind==='nest'){if(debugNoFog||e.seen)drawNest(e);return}
+    drawSmears();
+  S.enemies.forEach(e=>{if(e.kind==='nest'){if(debugNoFog||e.seen)drawNest(e);return}
     if(e.kind==='quaker'){if(debugNoFog||visible(e))drawQuaker(e);return}
     if(e.horde){if(e.x<x0-10||e.x>x1+10||e.y<y0-10||e.y>y1+10||(!debugNoFog&&!visible(e)))return; // horde: one baked glass splinter each
       drawSwarm(e);return}
     if(!debugNoFog&&!visible(e))return;
+    if(e.shard||e.kind==='huskcore'){if(e.x>x0-90&&e.x<x1+90&&e.y>y0-90&&e.y<y1+90)drawShard(e);return}
     if(e.kind==='splinter'){drawSplinter(e);if(e.hp<e.maxHp)hpbar(e.x,e.y-e.r-10,e.r*2+4,e.hp/e.maxHp);return}
     if(e.kind==='wave'||e.kind==='roam'){drawEcho(e);if(e.hp<e.maxHp)hpbar(e.x,e.y-e.r-14,e.r*2+4,e.hp/e.maxHp);return}
     if(e.kind==='lancer'){drawLancer(e);return}
