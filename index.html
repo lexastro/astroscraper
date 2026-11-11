@@ -73,6 +73,7 @@ body.lowGfx #fogGrain{display:none}
 .build button{background:var(--panel);border:1px solid var(--line);color:var(--fg);font:inherit;padding:8px 10px;border-radius:4px;cursor:pointer;display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:86px}
 .build button:hover{background:var(--panel2)} .build button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .build button.on{border-color:var(--accent);background:var(--panel2)}
+.rcPair{display:block;margin-top:6px;color:#7d8996;font-size:12px}.rcPair.on{color:#f2b84b}
 .build button.dry{opacity:.55} .build button.dry:hover{opacity:.8}
 .build button .key{font-family:var(--mono);font-size:10px;color:var(--muted)}
 .build button .cost{font-family:var(--mono);font-size:11px;color:var(--dat)}
@@ -1607,6 +1608,107 @@ function rerollCost(){return REROLL_BASE_COST+S.rerollCount*REROLL_COST_STEP}
 function spawnFreeTroops(n,kind){for(let i=0;i<n;i++){const u=mkTroop(Date.now()+Math.floor(Math.random()*1000)+i,kind);S.troops.push(u);guardBastion(u)}}
 // v2: fresh units fall in guarding the Bastion until you give them other orders
 function guardBastion(u){u.following=false;u.state='guard';u.guard=S.base;u.dest=null;u.target=null;u.guardAng=rnd(0,Math.PI*2);u.guardDist=rnd(22,48)}
+// ---------- unit kits ----------
+// v4: each unit type holds one kit at a time (S.kits[kind]); a new kit for that type replaces the old,
+// like the wall cards. A kit is worth taking on its own, and its second line switches on when it
+// meets the matching wall type or relay card (pairOn). Once you hold one half of a pair, the other
+// half turns up three times as often in rewards (cardWeight). Units wearing a kit carry a band in
+// its colour across their shoulders.
+const KITS={
+  shock:{kind:'troop',name:'Shock Rounds',tier:'Rare',col:'#8fe3ff',solo:'Every hit stuns the target for a moment.',pair:'Electric Fence walls',pairTxt:'a Trooper manning one has every shot jump on to a second enemy',on:()=>S.mods.wallType==='elec',wall:'elec'},
+  lmg:{kind:'troop',name:'Line Holders',tier:'Rare',col:'#f2b84b',solo:'Light machine guns: 2.5× a rifle’s rate of fire, with more spread and 20% less range. They can’t fire on the move and move 25% slower.',pair:'Heavy Armour walls',pairTxt:'behind one they take half damage',on:()=>S.mods.wallType==='heavy',wall:'heavy'},
+  warden:{kind:'brawler',name:'Glass Wardens',tier:'Epic',col:'#b48bff',solo:'Their shields are glass: a shot they block shatters and flies back at whoever fired it, for double.',pair:'Glass Ridge walls',pairTxt:'a Glass Ridge wall next to a Warden throws blocked shots back too',on:()=>S.mods.wallType==='glass',wall:'glass'},
+  razor:{kind:'brawler',name:'Razor Guard',tier:'Rare',col:'#ff5c6a',solo:'Every strike makes the enemy bleed for 4 seconds.',pair:'Razor Line walls',pairTxt:'a bleeding enemy takes double from the wire',on:()=>S.mods.wallType==='razor',wall:'razor'},
+  cryo:{kind:'grenadier',name:'Cryo Shells',tier:'Rare',col:'#8fe3ff',solo:'Blasts freeze: enemies caught are slowed to a crawl for 3 seconds.',pair:'Sonic Deterrent relays',pairTxt:'the relay horns shatter frozen enemies, for heavy damage',on:()=>S.mods.relayOff==='sonic',relay:'sonic'},
+  fire:{kind:'grenadier',name:'Incendiary',tier:'Epic',col:'#ff8a4c',solo:'Blasts leave the ground burning for 4 seconds.',pair:'Razor Line walls',pairTxt:'fire that reaches the wire runs along the whole line, which burns red-hot for 4 seconds',on:()=>S.mods.wallType==='razor',wall:'razor'},
+  spotter:{kind:'marksman',name:'Spotter',tier:'Rare',col:'#f2b84b',solo:'Its target is marked for 6 seconds and takes +25% damage from everyone.',pair:'Radar Mast relays',pairTxt:'Marksmen near a Radar Mast get +40% range',on:()=>S.mods.relayDef==='radar',relay:'radar'},
+  rail:{kind:'marksman',name:'Rail Pierce',tier:'Epic',col:'#dff7ff',solo:'Each shot goes through every enemy in its line.',pair:'Shield Pane walls',pairTxt:'a shot fired through your own Shield Pane comes out charged: +50% damage',on:()=>S.mods.wallType==='shield',wall:'shield'},
+  cluster:{kind:'rocket',name:'Cluster Rockets',tier:'Epic',col:'#ff8a4c',solo:'Each rocket splits into four bomblets over the target.',pair:'Bastion Relays',pairTxt:'relay turrets near the target lob a rocket at it too',on:()=>S.mods.relayOff==='armored',relay:'armored'},
+  flak:{kind:'rocket',name:'Flak',tier:'Rare',col:'#c7d0da',solo:'Rockets burst in the air: a wide cloud of shrapnel that shreds the swarm, but does little to anything big. Rocketeers go for the swarm first.',pair:'Radar Mast relays',pairTxt:'they fire at any swarm a Radar Mast sees, out to twice their range',on:()=>S.mods.relayDef==='radar',relay:'radar'},
+  breaker:{kind:'mech',name:'Breaker',tier:'Legendary',col:'#c79a4a',solo:'Your Mechs become Breakers: no gun, two huge fists. Punches splash round the target; it works round a group so a wall is behind them, then a haymaker throws them all, and anything that hits a wall takes heavy damage.',pair:'any wall type',pairTxt:'each wall type adds a twist: Electric Fence stuns, Razor Line bleeds, Glass Ridge throws shards, Heavy Armour doubles the impact, Shield Pane bounces them back',on:()=>!!(S.wallLines&&S.wallLines.length),anyWall:true},
+  fieldrelay:{kind:'mech',name:'Field Relay',tier:'Epic',col:'#7bd389',solo:'Your Mechs become Field Relays: no gun, a relay mast. Up to 6 units can tether to one as it walks, and it heals the units round it while they are out of combat.',pair:'Repair Cradle relays',pairTxt:'it heals them in combat too',on:()=>S.mods.relayDef==='repair',relay:'repair'},
+};
+const kitOf=t=>{const k=S.kits&&S.kits[t.kind||'troop'];return k||null};
+const hasKit=(t,id)=>S.kits&&S.kits[t.kind||'troop']===id;
+function setKit(id){const K=KITS[id];S.kits[K.kind]=id;S.troops.forEach(u=>{if((u.kind||'troop')===K.kind){u._bkPunch=0}});updateBuildBar()}
+function kitCard(id){const K=KITS[id],nm=FABS[K.kind]?FABS[K.kind].name:'Trooper';
+  return {id:'kit_'+id,name:K.name,kit:id,get desc(){const cur=S&&S.kits&&S.kits[K.kind],on=K.on();
+    return `<b>${nm} kit.</b> ${K.solo}<span class="rcPair${on?' on':''}">Pairs with ${K.pair}${on?' ✓':' (you don’t have it)'}: ${K.pairTxt}.</span><span class="rcSwap">⟲ ${cur&&cur!==id?`Replaces ${KITS[cur].name}`:`Replaces any other ${nm} kit`}</span>`},
+    has:()=>S.kits[K.kind]===id||!fabUnlocked(K.kind),apply:()=>setKit(id)}}
+// a reward card's weight: 3 when it completes a pair you've started, else 1
+function cardWeight(u){if(!S||!S.kits)return 1;
+  if(u.kit){const K=KITS[u.kit];return K.on()&&!K.anyWall?3:1}
+  const held=Object.values(S.kits).map(id=>KITS[id]);
+  if(/^wall_/.test(u.id)){const w=u.id.slice(5);return held.some(K=>K.wall===w)?3:1}
+  const rel={energySurge1:'sonic',energySurge2:'sonic',energySurge3:'sonic',relayArmored:'armored',relayRadar:'radar',relayRepair:'repair'}[u.id];
+  return rel&&held.some(K=>K.relay===rel)?3:1}
+// a weighted shuffle: heavier cards tend to come first (Efraimidis–Spirakis keys)
+function wShuffle(arr){return arr.map(c=>({c,k:Math.pow(Math.random(),1/cardWeight(c))})).sort((p,q)=>q.k-p.k).map(o=>o.c)}
+// the kit's band across a unit's shoulders, in its colour
+function kitBand(t){const id=kitOf(t);if(!id||t.kind==='mech')return;ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2);ctx.fillStyle=KITS[id].col;ctx.fillRect(-4.6,1.6,9.2,1.7);ctx.strokeStyle='rgba(16,19,23,0.85)';ctx.lineWidth=0.5;ctx.strokeRect(-4.6,1.6,9.2,1.7);ctx.restore()}
+// Line Holders' light machine gun: a long, heavy barrel with a box magazine, over the rifle
+function lmgOn(t){ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang);rP([[2,1.2],[17,1.6],[17,3.6],[2,4.2]],'#3a4048');rP([[5,4],[10,4],[10,8.4],[5,8.4]],'#6f7b6a');rLimb([[17,2.6],[20,2.6]],1.4,'#2a2f36');ctx.restore()}
+// ---- kit numbers ----
+const SHOCK_STUN=0.3, SHOCK_CHAIN_R=90, LMG_RATE=2.5, LMG_RANGE=0.8, LMG_SPEED=0.75, LMG_MISS=0.25;
+const BLEED_T=4, BLEED_DPS=4, CRYO_T=3, CRYO_SLOW=0.3, CRYO_SHATTER=60, FIRE_T=4, FIRE_DPS=8, FIRE_LINE_T=4;
+const SPOT_T=6, SPOT_MULT=1.25, SPOT_RADAR_R=420, SPOT_RADAR_RANGE=1.4, CLUSTER_N=4, CLUSTER_DMG=0.35, FLAK_R=1.8, FLAK_BIG=0.4;
+const BRK_RANGE=24, BRK_CD=0.55, BRK_DMG=15, BRK_SPLASH=6, BRK_SPLASH_R=26, BRK_HAY_EVERY=4, BRK_HAY_R=44, BRK_HAY_KB=380, BRK_IMPACT=45, BRK_SEEK=200;
+const FR_CAP=6, FR_HEAL=4, FR_R=150, FR_COMBAT_R=220;
+// Breaker: the impact when a thrown enemy hits a wall, with that wall type's twist
+function breakerImpact(e,w){e.thrownT=0;const L=w&&w.line,type=L?L.type:'std';let dm=BRK_IMPACT*(type==='heavy'?2:1);damageEnemy(e,dm);burst(e.x,e.y,'#ffd28a',8,120,0.3);if(sfxReady('brkHit',0.06))sfx.explode();
+  if(type==='elec')e.stunT=Math.max(e.stunT||0,2);
+  else if(type==='razor'){e.bleedT=BLEED_T}
+  else if(type==='glass')S.enemies.forEach(o=>{if(o!==e&&o.hp>0&&o.kind!=='nest'&&dist(o,e)<40)damageEnemy(o,12)});
+  else if(type==='shield'&&e.thrownBy){const a=Math.atan2(e.thrownBy.y-e.y,e.thrownBy.x-e.x);e.kbx=Math.cos(a)*260;e.kby=Math.sin(a)*260;e.stunT=Math.max(e.stunT||0,0.4)}}
+// Breaker AI: where to stand so the nearest wall is behind the enemy (the far side of it from the wall)
+function breakerSpot(e){let best=null,bd=BRK_SEEK;(S.wallLines||[]).forEach(L=>L.slats.forEach(sl=>{if(sl.dead||!(sl.up>=1))return;const d=dist(sl,e);if(d<bd){bd=d;best=sl}}));
+  if(!best)return null;const dx=e.x-best.x,dy=e.y-best.y,l=Math.hypot(dx,dy)||1;return {x:e.x+dx/l*(BRK_RANGE+8),y:e.y+dy/l*(BRK_RANGE+8)}}
+// Field Relay: the units tethered to one (it's an anchor too), and its healing
+const fieldRelays=()=>S.troops.filter(u=>u.kind==='mech'&&hasKit(u,'fieldrelay')&&u.hp>0&&u.tetherOk);
+function updateFieldRelays(dt){fieldRelays().forEach(m=>{const inCombat=u=>S.enemies.some(e=>e.hp>0&&e.kind!=='nest'&&dist(e,u)<FR_COMBAT_R);
+    const near=S.troops.filter(u=>u!==m&&u.hp>0&&u.hp<u.maxHp&&dist(u,m)<FR_R).sort((a,b)=>dist(a,m)-dist(b,m)).slice(0,FR_CAP);
+    near.forEach(u=>{if(S.mods.relayDef==='repair'||!inCombat(u)){u.hp=Math.min(u.maxHp,u.hp+FR_HEAL*dt);if(Math.random()<dt*2)spark(u.x,u.y,'#7bd389',1)}})})}
+// the burning ground, bleeding and freezing: kit status effects on enemies
+function updateKitEffects(dt){
+  S.enemies.forEach(e=>{if(e.hp<=0)return;
+    if(e.bleedT>0){e.bleedT-=dt;e.hp-=BLEED_DPS*dt}
+    if(e.markT>0)e.markT-=dt;
+    if(e.slowT>0){if(e._spd==null)e._spd=e.speed;e.speed=e._spd*CRYO_SLOW;e.slowT-=dt;if(e.slowT<=0){e.speed=e._spd;e._spd=null}}});
+  if(S.fires.length){S.fires=S.fires.filter(q=>{q.t-=dt;S.enemies.forEach(e=>{if(e.hp>0&&e.kind!=='nest'&&dist(e,q)<q.r+(e.r||8))e.hp-=FIRE_DPS*dt});
+      if(!q.lit&&S.mods.wallType==='razor'){(S.wallLines||[]).forEach(L=>{if(L.type==='razor'&&!L.relayRing&&L.slats.some(sl=>!sl.dead&&dist(sl,q)<q.r+6)){L.burnT=FIRE_LINE_T;q.lit=true}})}
+      return q.t>0})}
+  (S.wallLines||[]).forEach(L=>{if(!(L.burnT>0))return;L.burnT-=dt;L.slats.forEach(sl=>{if(sl.dead)return;S.enemies.forEach(e=>{if(e.hp>0&&e.kind!=='nest'&&dist(e,sl)<16+(e.r||8))e.hp-=FIRE_DPS*1.5*dt})})})}
+function drawKitEffects(){const t=S.t;
+  S.fires.forEach(q=>{const k=Math.min(1,q.t/0.6);for(let i=0;i<8;i++){const a=i*2.39,d=q.r*((i*0.37)%1),px=q.x+Math.cos(a)*d,py=q.y+Math.sin(a)*d,f=0.5+0.5*Math.sin(t*9+i*1.7);
+    ctx.save();ctx.globalCompositeOperation='lighter';ctx.globalAlpha=k;const gr=ctx.createRadialGradient(px,py,0,px,py,7+5*f);gr.addColorStop(0,`rgba(255,${150+80*f|0},60,${0.5*f})`);gr.addColorStop(1,'rgba(255,90,30,0)');ctx.fillStyle=gr;ctx.fillRect(px-12,py-12,24,24);ctx.restore()}});
+  (S.wallLines||[]).forEach(L=>{if(!(L.burnT>0))return;L.slats.forEach((sl,i)=>{if(sl.dead)return;const f=0.5+0.5*Math.sin(t*10+i);ctx.save();ctx.globalCompositeOperation='lighter';const gr=ctx.createRadialGradient(sl.x,sl.y,0,sl.x,sl.y,10);gr.addColorStop(0,`rgba(255,120,40,${0.5*f})`);gr.addColorStop(1,'rgba(255,60,20,0)');ctx.fillStyle=gr;ctx.fillRect(sl.x-10,sl.y-10,20,20);ctx.restore()})});
+  S.enemies.forEach(e=>{if(e.hp<=0||e.kind==='nest'||(!debugNoFog&&!visible(e)))return;
+    if(e.slowT>0){ctx.save();ctx.globalAlpha=Math.min(1,e.slowT);ctx.fillStyle='rgba(180,230,255,0.3)';ctx.strokeStyle='rgba(220,245,255,0.85)';ctx.lineWidth=1;ctx.beginPath();for(let i=0;i<6;i++){const a=i/6*Math.PI*2;ctx.lineTo(e.x+Math.cos(a)*(e.r+4),e.y+Math.sin(a)*(e.r+4))}ctx.closePath();ctx.fill();ctx.stroke();ctx.restore()}
+    if(e.bleedT>0){ctx.fillStyle='#d4202a';for(let i=0;i<2;i++){const f=((t*1.5+i/2)%1);ctx.globalAlpha=1-f;ctx.beginPath();ctx.arc(e.x-2+i*4,e.y+e.r*0.6+f*8,1.2,0,Math.PI*2);ctx.fill()}ctx.globalAlpha=1}
+    if(e.markT>0){const y=e.y-e.r-12;ctx.strokeStyle='#f2b84b';ctx.lineWidth=1.3;ctx.beginPath();ctx.moveTo(e.x,y-6);ctx.lineTo(e.x+6,y);ctx.lineTo(e.x,y+6);ctx.lineTo(e.x-6,y);ctx.closePath();ctx.stroke()}});
+  // Field Relay: a soft ring where it heals
+  fieldRelays().forEach(m=>{ctx.save();ctx.strokeStyle='#7bd389';ctx.globalAlpha=0.18;ctx.lineWidth=1.5/cam.z;ctx.setLineDash([5/cam.z,6/cam.z]);ctx.beginPath();ctx.arc(m.x,m.y,FR_R,0,Math.PI*2);ctx.stroke();ctx.restore()})}
+// ---- Mech art for the two kits (lit like the other units) ----
+// The Breaker, from above: a squat biped. A round dome of a body with one amber eye and a white chevron
+// pointing ahead, heavy shoulder pads, long segmented arms with huge blocky fists held low at its
+// sides, short thick legs that stomp. A punch drives one fist straight out ahead.
+function drawBreaker(t){const HULL='#d6cfc3',JOINT='#858b95',DARKJ='#5d636c',st=t.moving?Math.sin(S.t*7):0,ps=S.t-(t.punchT??-9),pk=ps<0.26?Math.sin(ps/0.26*Math.PI)*(t.hay?1.15:1):0,pl=t.punchSide?0:pk,pr=t.punchSide?pk:0;
+  ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2);
+  [-1,1].forEach(sd=>{const k=st*sd*2.6;rLimb([[sd*4.2,2],[sd*5.6,6+k]],3.4,JOINT);rP([[sd*5.6-3,5.4+k],[sd*5.6+3,5.4+k],[sd*5.6+3.4,10.4+k],[sd*5.6-3.4,10.4+k]],HULL);rP([[sd*5.6-2.6,9.2+k],[sd*5.6+2.6,9.2+k],[sd*5.6+3.4,10.4+k],[sd*5.6-3.4,10.4+k]],DARKJ)});
+  [[-1,pl],[1,pr]].forEach(([sd,e])=>{const sh=[sd*8.6,-0.6],el=[sd*(12.6-e*2.4),0.6-e*9],fi=[sd*(12.4-e*7.4),-3.6-e*17];
+    rLimb([sh,el],3.6,JOINT);rLimb([el,fi],4.4,HULL);rO(el[0],el[1],2,DARKJ);
+    ctx.save();ctx.translate(fi[0],fi[1]);ctx.rotate(-sd*e*0.18);rP([[-3.4,-3.6],[3.4,-3.6],[3.8,3.2],[-3.8,3.2]],HULL);rP([[-3.6,-4.8],[3.6,-4.8],[3.4,-3],[-3.4,-3]],JOINT);ctx.restore();
+    rP([[sd*5.6,-5.2],[sd*11.4,-4.4],[sd*12.2,1.6],[sd*6.2,2.8]],HULL);rO(sd*9.2,-1.4,1.1,JOINT)});
+  rO(0,0.6,7.6,HULL);ctx.strokeStyle='rgba(16,19,23,0.4)';ctx.lineWidth=0.4;ctx.beginPath();ctx.moveTo(-5.4,3.4);ctx.lineTo(5.4,3.4);ctx.stroke();
+  ctx.strokeStyle='#f2f2ee';ctx.lineWidth=1.3;ctx.lineJoin='round';ctx.beginPath();ctx.moveTo(-3.2,-0.4);ctx.lineTo(0,-2.4);ctx.lineTo(3.2,-0.4);ctx.stroke();
+  rO(0,-5,2.3,'#f2f2ee');ctx.fillStyle='#f2a63c';ctx.beginPath();ctx.arc(0,-5,1.5,0,Math.PI*2);ctx.fill();ctx.fillStyle='#ffe9a8';ctx.beginPath();ctx.arc(-0.4,-5.4,0.6,0,Math.PI*2);ctx.fill();
+  ctx.restore()}
+// The Field Relay: a squat hull on two legs carrying a relay mast and crossarm, a green lamp up front
+function drawFieldRelay(t){const st=t.moving?Math.sin(S.t*6):0;ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2);
+  [[-1,1],[1,-1]].forEach(([sd,ph])=>{const k=st*ph*2.5;rLimb([[sd*6,2],[sd*9,6+k],[sd*8,11+k]],2.4,'#7f93a8');rLimb([[sd*6,-2],[sd*9,-6-k],[sd*8,-10-k]],2.4,'#7f93a8')});
+  rP([[-7,-7],[7,-7],[8,6],[-8,6]],'#9fb6d0');rLimb([[0,2],[0,10]],1.6,'#8d9aa8');rO(0,10,3,'#c3ccd6');rP([[-5,8.6],[5,8.6],[5,10],[-5,10]],'#6f7b88');rO(0,-2,3,'#7bd389');
+  ctx.restore()}
+
 const UPGRADES={
   Common:[
     {id:'dmg1',name:'Battle Drills I',desc:'Trooper damage +10%.',apply:()=>{S.mods.troopDmgMult*=1.1}},
@@ -1630,6 +1732,7 @@ const UPGRADES={
     {id:'martyrs',name:'Martyrs',desc:'A unit that would corrupt detonates instead, damaging enemies and friendlies alike nearby.',apply:()=>{S.mods.martyrs=true}},
     {id:'resupply1',name:'Resupply',desc:'Every fabricator, Stabilizer and Probe stock is topped up to full, right now.',apply:()=>{Object.keys(FABS).forEach(k=>{S.fab[k].n=FABS[k].charges});S.stabCharges=STAB_CHARGES;S.probeCharges=PROBE_CHARGES}},
     wallCard('heavy','Heavy Armour Walls'),
+    kitCard('shock'),kitCard('lmg'),kitCard('razor'),kitCard('cryo'),kitCard('spotter'),kitCard('flak'),
     {id:'callDelay',name:'Priority Uplink',desc:'Call-downs land twice as fast.',has:()=>S.mods.callDelayMult<1,apply:()=>{S.mods.callDelayMult=0.5}},
     {id:'callRadius',name:'Wide Payload',desc:'Call-downs cover 40% more ground.',has:()=>S.mods.callRadiusMult>1,apply:()=>{S.mods.callRadiusMult=1.4}},
     {id:'callCrate',name:'Requisition Crate',desc:'Two free call-downs, chosen at random.',apply:()=>{msg(`Requisitioned: ${giftCall(2)}.`)}},
@@ -1637,6 +1740,7 @@ const UPGRADES={
     barracksCard('brawler'),barracksCard('grenadier'),
   ],
   Epic:[
+    kitCard('warden'),kitCard('fire'),kitCard('rail'),kitCard('cluster'),kitCard('fieldrelay'),
     {id:'callPrice',name:'Bulk Contract',desc:'Call-downs cost 35% less Dat.',has:()=>S.mods.callPriceMult<1,apply:()=>{S.mods.callPriceMult=0.65}},
     {id:'callEcho',name:'Echo Strike',desc:'Each call-down has a 30% chance to land a second time close by.',has:()=>S.mods.callEcho>0,apply:()=>{S.mods.callEcho=0.3}},
     {id:'callReq',name:'Field Requisition',desc:'Every time you start drilling, two free call-downs arrive.',has:()=>S.mods.callReq,apply:()=>{S.mods.callReq=true}},
@@ -1655,7 +1759,7 @@ const UPGRADES={
     {id:'wallTowers',name:'Bulwark Towers',desc:'Every wall end gets a free Turret — on the walls you have now and every wall you build from here on. A tower that falls is not replaced. Drawback: walls cost twice as much.',has:()=>S.mods.wallTowers||S.mods.podTowers,apply:()=>{S.mods.wallTowers=true;wallTowers();updateBuildBar()}},
   ],
   Legendary:[
-    barracksCard('mech'),
+    barracksCard('mech'),kitCard('breaker'),
     {id:'overdrive',name:'Overdrive Capacitor',desc:'Drill rate +40%.',apply:()=>{S.mods.drillRateMult*=1.4}},
     {id:'cablehp2',name:'Hardened Network',desc:'All tether cable HP +150%.',apply:()=>{S.mods.cableHpMult*=2.5}},
     {id:'living1',name:'Rich Vein Memory',desc:'Living Crystal yield ×2 for the rest of the run.',apply:()=>{S.mods.livingMult*=2}},
@@ -2586,7 +2690,7 @@ function reset(landing){
   const land=landing||defaultLanding();
   S={t:0,surveyVein:null,wrecks:[],beacons:[],squadCap:SQUAD_CAP_START,quakes:[],quakeMsg:false,barrier:null,breachSite:null,breachVein:null,rigSite:null,rig:null,glass:null,glassShards:[],glassB:null,glassCov:null,dat:tutorialMap?TUTORIAL_START_DAT:pressureOn('lean')?20:60,living:0,condensed:0,over:null,rerollCount:0,
     base:{x:land.x,y:land.y,hp:450+bastionHpBonus(),maxHp:450+bastionHpBonus(),r:BASE_R,dest:null,locked:false,gunCd:0,bigGunCd:0,pingCd:0},
-    troops:[],harvesters:[],builders:[],relays:[],depots:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],shards:[],nades:[],shardShots:[],lances:[],smears:[],calls:{},capAdd:{},callsIn:[],callFx:[],decoys:[],mines:[],fields:[],
+    troops:[],harvesters:[],builders:[],relays:[],depots:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],shards:[],nades:[],shardShots:[],lances:[],smears:[],calls:{},capAdd:{},kits:{},fires:[],callsIn:[],callFx:[],decoys:[],mines:[],fields:[],
     veins:[],activeVein:null,throttleMul:1,ambientT:30,
     minedWindowAmt:0,minedWindowT:0,offZonePatrolCd:OFFZONE_MINE_WINDOW,
     particles:[],floaters:[],shake:{t:0,dur:0,mag:0},surgeWaves:[],surgeT:10,
@@ -2793,13 +2897,13 @@ function openBreach(v){
 // what carries from one stop to the next
 function captureCarry(){
   return {dat:S.dat,living:S.living,condensed:S.condensed,rerollCount:S.rerollCount,mods:{...S.mods},runUnlock:{...S.runUnlock},
-    fab:JSON.parse(JSON.stringify(S.fab)),stabCharges:S.stabCharges,probeCharges:S.probeCharges,calls:{...S.calls},capAdd:{...S.capAdd},
+    fab:JSON.parse(JSON.stringify(S.fab)),stabCharges:S.stabCharges,probeCharges:S.probeCharges,calls:{...S.calls},capAdd:{...S.capAdd},kits:{...S.kits},
     hp:S.base.hp,maxHp:S.base.maxHp,drones:S.drones.length,squadCap:S.squadCap,troops:S.troops.map(t=>({kind:t.kind||'troop',hp:t.hp,maxHp:t.maxHp,grp:t.grp}))};
 }
 function applyCarry(c){
   if(!c)return;
   Object.assign(S,{dat:c.dat,living:c.living,condensed:c.condensed,rerollCount:c.rerollCount,stabCharges:c.stabCharges,probeCharges:c.probeCharges});
-  S.mods={...S.mods,...c.mods};S.runUnlock={...c.runUnlock};S.fab=c.fab;S.calls={...(c.calls||{})};S.capAdd={...(c.capAdd||{})};
+  S.mods={...S.mods,...c.mods};S.runUnlock={...c.runUnlock};S.fab=c.fab;S.calls={...(c.calls||{})};S.capAdd={...(c.capAdd||{})};S.kits={...(c.kits||{})};
   S.base.hp=c.hp;S.base.maxHp=c.maxHp;S.squadCap=c.squadCap||SQUAD_CAP_START;
   S.drones=[];addDrones(c.drones);
   S.troops=[];c.troops.forEach((t,i)=>{const u=mkTroop(Date.now()+i,t.kind);u.hp=t.hp;u.maxHp=t.maxHp;if(t.grp!=null)u.grp=t.grp;S.troops.push(u);guardBastion(u)});
@@ -3383,24 +3487,26 @@ function splinterStep(e,tgt,dt){
   if(inRange&&!e.volley&&e.shards>=SPL_SHARDS){e.volley=true;e.volT=0}
   if(e.volley){e.volT-=dt;if(e.volT<=0){
       if(e.shards>0&&inRange){e.shards--;e.volT=SPL_VOLLEY_GAP;const a=e.ang+rnd(-0.07,0.07);
-        S.shardShots.push({x:e.x+Math.cos(a)*10,y:e.y+Math.sin(a)*10,vx:Math.cos(a)*SPL_SHOT_SPEED,vy:Math.sin(a)*SPL_SHOT_SPEED,life:SPL_RANGE*1.4/SPL_SHOT_SPEED,dmg:e.dmg,ang:a,spin:rnd(-12,12)});
+        S.shardShots.push({src:e,x:e.x+Math.cos(a)*10,y:e.y+Math.sin(a)*10,vx:Math.cos(a)*SPL_SHOT_SPEED,vy:Math.sin(a)*SPL_SHOT_SPEED,life:SPL_RANGE*1.4/SPL_SHOT_SPEED,dmg:e.dmg,ang:a,spin:rnd(-12,12)});
         if(sfxReady('splshot',0.06))tone(900+Math.random()*300,0.05,'triangle',0.035,0,500)}
       else{e.volley=false;e.regrowT=0}}}
   if(d>SPL_RANGE*0.85+(tgt.r||12)&&!e.volley){const aim=enemyApproachPoint(e,tgt);moveToward(e,aim,e.speed*enemyRoughFactor(e.x,e.y),dt)}
 }
 // Splinter shards in flight: they hit the first of your units or structures they touch; walls and a
 // facing shield-wall Paladin stop them; rock swallows them.
+// Glass Wardens: a blocked shard flies back at whoever fired it, for double
+function wardenReflect(sh,from){const e=sh.src;if(!e||e.hp<=0||!S.enemies.includes(e))return;damageEnemy(e,sh.dmg*2);tracer(from,e,'#c8a2ff',2);spark(e.x,e.y,'#c8a2ff',4)}
 function updateShardShots(dt){
   if(!S.shardShots.length)return;
   const B=S.base,hitList=[B].concat(S.troops,S.harvesters,S.builders,S.turrets.filter(t=>t.built),S.relays.filter(r=>r.built&&r.hp>0),S.stabs.filter(st=>st.built&&st.hp>0),S.depots.filter(de=>de.built&&de.hp>0));
   S.shardShots=S.shardShots.filter(sh=>{
     const steps=2;for(let k=0;k<steps;k++){
       sh.x+=sh.vx*dt/steps;sh.y+=sh.vy*dt/steps;
-      const w=wallAt(sh.x,sh.y);if(w){damageWall(w,sh.dmg);spark(sh.x,sh.y,'#8d9aa8',3);return false}
+      const w=wallAt(sh.x,sh.y);if(w){if(w.line&&w.line.type==='glass'&&S.kits.brawler==='warden'&&S.troops.some(u=>u.kind==='brawler'&&u.hp>0&&dist(u,w)<60))wardenReflect(sh,{x:sh.x,y:sh.y});else damageWall(w,sh.dmg);spark(sh.x,sh.y,'#8d9aa8',3);return false}
       if(terrainAt(sh.x,sh.y)===2||sh.x<0||sh.y<0||sh.x>W||sh.y>H)return false;
       for(const u of hitList){const r=u===B?BASE_R:(u.r||10);if(u.kind==='stabilizer'?!stabTowerHit(u,sh.x,sh.y):Math.hypot(u.x-sh.x,u.y-sh.y)>r+3)continue;
         // a Paladin holding a shield wall turns shards that come at its face
-        if(u.kind==='brawler'&&u.wall&&!u.dest){let da=Math.atan2(sh.y-u.y,sh.x-u.x)-u.ang;da=Math.atan2(Math.sin(da),Math.cos(da));if(Math.abs(da)<1.1){spark(sh.x,sh.y,BRAWL_COLOR,4);if(sfxReady('block',0.08))tone(1400,0.04,'square',0.03);return false}}
+        if(u.kind==='brawler'&&u.wall&&!u.dest){let da=Math.atan2(sh.y-u.y,sh.x-u.x)-u.ang;da=Math.atan2(Math.sin(da),Math.cos(da));if(Math.abs(da)<1.1){spark(sh.x,sh.y,BRAWL_COLOR,4);if(sfxReady('block',0.08))tone(1400,0.04,'square',0.03);if(hasKit(u,'warden'))wardenReflect(sh,u);return false}}
         u.hp-=u.kind?allyHit(u,sh.dmg):sh.dmg;u.lastHitBy='enemy';hitFlash(u);spark(sh.x,sh.y,C.enemy,2);if(u===B&&sfxReady('damage',0.3))sfx.damage();return false}
     }
     sh.ang+=sh.spin*dt;return (sh.life-=dt)>0;
@@ -5202,6 +5308,8 @@ function mechEngage(t,range,speed,dt){
   const wall=t.kind==='brawler'&&t.wall, eR=wall?BRAWL_WALL_ENGAGE:MECH_ENGAGE_R, leash=wall?BRAWL_WALL_LEASH:MECH_LEASH;
   let near=null,nd=eR;
   S.enemies.forEach(e=>{if(!visible(e))return;const d=dist(e,t);if(d<nd&&dist(e,t.post)<leash+range){nd=d;near=e}});
+  if(near&&t.kind==='mech'&&hasKit(t,'breaker')){const sp=breakerSpot(near);
+    if(sp&&dist(t,sp)>10&&nd<range+70&&terrainAt(sp.x,sp.y)!==2&&!wallAt(sp.x,sp.y)){t.ang=Math.atan2(near.y-t.y,near.x-t.x);moveToward(t,waypointFor(t,sp.x,sp.y),speed,dt);return}}
   if(near){
     if(nd-(t.kind==='brawler'?near.r||0:0)<=range-10)return; // already in range — the auto-fire below handles it
     const ox=t.x,oy=t.y,od=dist(t,t.post);
@@ -5293,7 +5401,7 @@ function coarseWaypoint(u,tx,ty){
 // Only a relay that's itself tethered back to the network counts as an anchor for others —
 // a relay cut off from the Bastion (or a chain back to it) is just dead weight until it
 // reconnects.
-function anchorsList(){return [S.base,...S.relays.filter(r=>r.built&&r.tetherOk)]}
+function anchorsList(){return [S.base,...S.relays.filter(r=>r.built&&r.tetherOk),...fieldRelays()]}
 // Wireless is disabled in the Dense Field and Core for now — a unit/relay there always needs a
 // live physical cable back to an anchor. The Rim keeps its free wireless range. Flip
 // WIRELESS_ENABLED back on to restore the old Dense tolerance (and its range-circle visuals).
@@ -5317,7 +5425,7 @@ function tetherPass(units,speed,dt){
     const band=bandAt(u.x,u.y);
     const tol=wirelessTol(band);
     let bestA=null,nd=Infinity;
-    anchors.forEach(a=>{const d=dist(u,a);if(d<nd){nd=d;bestA=a}});
+    anchors.forEach(a=>{if(a===u)return;if(a.kind==='mech'&&a!==u.anchorRef&&units.filter(o=>o.anchorRef===a).length>=FR_CAP)return;const d=dist(u,a);if(d<nd){nd=d;bestA=a}});
     if(u.severed){
       const maxLen=MAX_CABLE_LEN+S.mods.cableLenAdd;
       if(nd<=tol||nd<=maxLen){u.severed=false;u.tetherOk=true;u.trail=null;return}
@@ -6159,6 +6267,7 @@ const PROBE_VB=200, PROBE_SIZE=34;
 const PROBE_BODY=new Path2D('M130.66,100s-13.13,19.75-30.66,19.75-30.66-19.75-30.66-19.75c0,0,4.25-6.41,11.17-11.92,4.36,3.79,11.39,6.21,19.5,6.21s15.14-2.42,19.5-6.21c6.9,5.51,11.17,11.92,11.17,11.92Z');
 const PROBE_DOME=new Path2D('M114.79,84.77c-3.48,2.42-8.92,4.03-14.79,4.03s-11.31-1.61-14.79-4.03c4.34-2.62,9.35-4.52,14.79-4.52s10.45,1.9,14.79,4.52Z');
 
+
 // ---------- call-downs ----------
 // v4: one-shot strikes and drops called onto any spot your network reaches: the Bastion's ring or a
 // live, tethered Relay's (the same BUILD_R a Turret is placed in) — a cut Relay can't call anything
@@ -6559,7 +6668,7 @@ function manWall(L,units){
   sfx.click();
 }
 // damage an enemy deals to one of your units: less if it's manning a standing wall
-function allyHit(t,d){return t.manning&&!t.dest&&S.wallLines&&S.wallLines.includes(t.manning)?d*(1-MAN_DMG_RED):d}
+function allyHit(t,d){if(!(t.manning&&!t.dest&&S.wallLines&&S.wallLines.includes(t.manning)))return d;return d*(1-MAN_DMG_RED)*(hasKit(t,'lmg')&&t.manning.type==='heavy'?0.5:1)}
 function drawManHover(){
   if(buildMode||mouse.form||!S.sel.troops.size)return;
   const L=wallLineAt({x:mouse.wx,y:mouse.wy});if(!L)return;
@@ -6884,7 +6993,7 @@ function wallTouch(w,e){const L=w.line;if(!L||e.hp<=0)return;
   if(L.type==='elec'&&L.powered){e.hp-=ELEC_DMG;hitFlash(e);e.stunT=Math.max(e.stunT||0,ELEC_STUN);
     (S.zaps||(S.zaps=[])).push({x0:w.x,y0:w.y,x1:e.x,y1:e.y,t:0,seed:Math.floor(Math.random()*999)});
     if(sfxReady('zap',0.07)){noiseCrack(0.05,0.05,3200);tone(1500+Math.random()*500,0.05,'square',0.022,0,700)}}
-  else if(L.type==='razor'){e.hp-=RAZOR_DMG;hitFlash(e);spark(e.x,e.y,C.enemy,2)}}
+  else if(L.type==='razor'){e.hp-=RAZOR_DMG*(e.bleedT>0&&S.kits.brawler==='razor'?2:1);hitFlash(e);spark(e.x,e.y,C.enemy,2)}}
 // ---- wall art: each slat lit like the units (muted colour, a wash from the top-left sun, bevel rims),
 // drawn once per type / damage stage / variant / facing into a small cached sprite. The lighting is
 // baked for the line's facing (one of WS_ANG steps), so a sprite is drawn at the line's exact angle.
@@ -7068,7 +7177,7 @@ function revealCircle(x,y,r){
   g.addColorStop(0,'rgba(0,0,0,1)');g.addColorStop(1,'rgba(0,0,0,0)');
   fogX.fillStyle=g;fogX.beginPath();fogX.arc(x/FOG_S,y/FOG_S,r/FOG_S,0,Math.PI*2);fogX.fill();
 }
-function damageEnemy(e,d){e.hp-=d;hitFlash(e);spark(e.x,e.y,C.accent,2)}
+function damageEnemy(e,d){if(e.markT>0)d*=SPOT_MULT;e.hp-=d;hitFlash(e);spark(e.x,e.y,C.accent,2)}
 // Grenadier round: travels to where the target is right now (not a lead/intercept shot) and
 // explodes there, splashing every enemy within GREN_SPLASH_R of the landing point.
 // Shared by Grenadier rounds and the Big Guns artillery shell — opts lets a shell carry its own
@@ -7078,8 +7187,8 @@ function launchProjectile(from,target,opts){
   opts=opts||{};
   const tx=target.x,ty=target.y,d=dist(from,{x:tx,y:ty});
   const speed=opts.speed||GREN_PROJ_SPEED;
-  S.nades.push({x:from.x,y:from.y,x0:from.x,y0:from.y,tx,ty,t:0,dur:Math.max(opts.minDur||0.12,d/speed),
-    dmg:opts.dmg,splashR:opts.splashR,color:opts.color,big:!!opts.big,pellet:!!opts.pellet,vsBig:opts.vsBig||1,style:opts.style||null,track:opts.track||null,spin:rnd(-3,3)});
+  (S._nadeBirth||S.nades).push({x:from.x,y:from.y,x0:from.x,y0:from.y,tx,ty,t:0,dur:Math.max(opts.minDur||0.12,d/speed),
+    dmg:opts.dmg,splashR:opts.splashR,color:opts.color,big:!!opts.big,pellet:!!opts.pellet,vsBig:opts.vsBig||1,style:opts.style||null,track:opts.track||null,spin:rnd(-3,3),kit:opts.kit||null,sub:!!opts.sub});
 }
 function launchNade(from,target){launchProjectile(from,target,{speed:GREN_PROJ_SPEED})}
 function explodeNade(n){
@@ -7093,7 +7202,10 @@ function explodeNade(n){
   }
   const splashR=n.splashR!=null?n.splashR:GREN_SPLASH_R*S.mods.grenSplashMult;
   const dmg=n.dmg!=null?n.dmg:GREN_DMG*S.mods.troopDmgMult;
-  S.enemies.forEach(e=>{if(dist(e,{x:n.tx,y:n.ty})<=splashR+(e.kind==='nest'?e.r*0.6:0))damageEnemy(e,n.vsBig>1&&isBigTarget(e)?dmg*n.vsBig:dmg)});
+  S.enemies.forEach(e=>{if(dist(e,{x:n.tx,y:n.ty})<=splashR+(e.kind==='nest'?e.r*0.6:0)){damageEnemy(e,n.vsBig!==1&&isBigTarget(e)?dmg*n.vsBig:n.kit==='flak'&&!e.horde?dmg*FLAK_BIG:dmg);
+    if(n.kit==='cryo'&&e.kind!=='nest')e.slowT=CRYO_T}});
+  if(n.kit==='fire')S.fires.push({x:n.tx,y:n.ty,r:splashR*0.9,t:FIRE_T});
+  if(n.kit==='cluster'&&!n.sub)for(let i=0;i<CLUSTER_N;i++){const a=i/CLUSTER_N*Math.PI*2+0.6,d=rnd(22,34);launchProjectile({x:n.tx,y:n.ty},{x:n.tx+Math.cos(a)*d,y:n.ty+Math.sin(a)*d},{speed:160,minDur:0.3,dmg:dmg*CLUSTER_DMG,splashR:splashR*0.6,color:'#ffd28a',sub:true,kit:'cluster'})}
   burst(n.tx,n.ty,n.color||C.enemy,n.big?22:14,n.big?170:140,n.big?0.55:0.4);
   sfx.explode();
   shakeScreen(n.big?4:2,n.big?0.25:0.15);
@@ -7498,6 +7610,7 @@ function spawnVeinWave(v){
 }
 // A Trooper round: hits its target, then carries on along the same line to full range, hitting up to
 // TROOP_PIERCE more enemies it passes through. Returns where the round ended (for the tracer).
+function crossesShield(a,b){const d=dist(a,b),n=Math.ceil(d/8);for(let i=1;i<n;i++){const w=wallAt(a.x+(b.x-a.x)*i/n,a.y+(b.y-a.y)*i/n);if(w&&w.line&&w.line.type==='shield')return true}return false}
 function troopPierce(t,best,range,dm,pierce){
   damageEnemy(best,dm);
   const dx=best.x-t.x,dy=best.y-t.y,L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L,hits=[];
@@ -7546,7 +7659,8 @@ function palShieldEnds(t){
 // firing, charging, jabbing, reloading or flashing) is drawn from a cached image of that pose,
 // rendered once at the current zoom and rotated into place; anything animating draws live as before.
 const USPR=new Map(),USPR_E=28,USPR_ANG=16,USPR_SH=5; // 16 facings; USPR_SH: how far (world px) a unit's shadow falls down-right
-function unitSpriteKey(t){
+function unitSpriteKey(t){const kk=kitOf(t);const k0=unitSpriteKey0(t);return k0&&kk?k0+'~'+kk:k0}
+function unitSpriteKey0(t){
   if(t.flashT>0)return null;
   const k=t.kind||'troop',since=S.t-(t.shotT??-9),aq=Math.round((t.aimV??RIFLE_READY)*5),TAU=Math.PI*2;
   if(k==='troop')return since>0.9?'t'+aq:null;
@@ -7554,6 +7668,7 @@ function unitSpriteKey(t){
   if(k==='brawler'){if(t.jabT>0||S.t-(t.atkT??-9)<0.75||S.t-(t.bashT??-9)<0.85)return null;return 'p'}
   if(k==='grenadier'){if(S.t-(t.podShotT??-9)<0.35||S.t-(t.podGrewT??-9)<0.35)return null;return 'g'+(t.pods??GREN_PODS)}
   if(k==='rocket'){if(t.paintT>0||since<0.9)return null;return 'r'+aq}
+  if(k==='mech'&&hasKit(t,'breaker'))return S.t-(t.punchT??-9)<0.3||t.moving?null:'B';
   return null}
 // Unit images are cached by pose and facing (USPR_ANG steps): the body in one cache, and the cast
 // shadow in another keyed only by unit type and facing (one calm pose's silhouette serves every
@@ -7574,7 +7689,7 @@ function blitUnit(c,t,a){let da=t.ang-a;da=Math.atan2(Math.sin(da),Math.cos(da))
 function drawUnitBody(t){
   const sc=Math.min(4,Math.ceil(cam.z*gDpr()*2)/2),step=Math.PI*2/USPR_ANG,ai=((Math.round(t.ang/step)%USPR_ANG)+USPR_ANG)%USPR_ANG,a=ai*step,kind=t.kind||'troop';
   // the cast shadow, down-right
-  const sk=kind+'@'+sc+'#'+ai;let sh=cacheGet(USHD,sk);if(!sh){sh=renderUnit(t,a,sc,true);cachePut(USHD,sk,sh,USHD_CAP)}
+  const sk=kind+(kitOf(t)||'')+'@'+sc+'#'+ai;let sh=cacheGet(USHD,sk);if(!sh){sh=renderUnit(t,a,sc,true);cachePut(USHD,sk,sh,USHD_CAP)}
   blitUnit(sh,t,a);
   const key=unitSpriteKey(t);
   if(!key)return drawUnitBodyLive(t); // animating: drawn live, so effects that reach out (lasers, sparks) stay put
@@ -7589,11 +7704,14 @@ function drawUnitBodyLive(t){
   else if(brawl)drawPaladin(t);
   else if(rock)drawRocketeer(t);
   else if(arty){const r=t.r;ctx.fillRect(t.x-r,t.y-r*0.6,r*2,r*1.2);ctx.strokeStyle=ctx.fillStyle;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(t.x,t.y);ctx.lineTo(t.x+r*1.7,t.y-r*0.9);ctx.stroke()}
+  else if(mech&&hasKit(t,'breaker'))drawBreaker(t);
+  else if(mech&&hasKit(t,'fieldrelay'))drawFieldRelay(t);
   else if(mech){ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2);
     const legW=t.r*0.42,legH=t.r*1.7,bodyW=t.r*1.7,bodyH=t.r*0.95;
     ctx.fillRect(-bodyW/2-legW,-legH/2,legW,legH);ctx.fillRect(bodyW/2,-legH/2,legW,legH);ctx.fillRect(-bodyW/2,legH/2-bodyH,bodyW,bodyH);ctx.restore()}
   else if(t.kind==='marksman')drawMarksman(t);
-  else drawRifleman(t);
+  else{drawRifleman(t);if(hasKit(t,'lmg'))lmgOn(t)}
+  kitBand(t);
 }
 function drawPaladin(t){
   const s=palState(t);t._pal=s;const fl=t.flashT>0,L=(a,b,k)=>a+(b-a)*k;
@@ -8065,8 +8183,10 @@ function update(dt){
     t.cd-=dt;
     const gren=t.kind==='grenadier', arty=t.kind==='artillery', mech=t.kind==='mech', rock=t.kind==='rocket', brawl=t.kind==='brawler', mark=t.kind==='marksman';
     const onWall=!brawl&&t.manning&&!t.dest&&S.wallLines&&S.wallLines.includes(t.manning);
-    const range=brawl?BRAWL_RANGE:(arty?ARTY_RANGE:gren?GREN_RANGE:mech?MECH_RANGE:rock?ROCKET_RANGE:mark?MARK_RANGE:TROOP_RANGE)*S.mods.squadRangeMult*(onWall?1+MAN_RANGE_BONUS:1);
-    let speed=arty?ARTY_SPEED:mech?MECH_SPEED:rock?ROCKET_SPEED:brawl?BRAWL_SPEED:mark?MARK_SPEED:TROOP_SPEED;
+    const kit=kitOf(t),brk=mech&&kit==='breaker',frl=mech&&kit==='fieldrelay';
+    const radarBoost=mark&&kit==='spotter'&&S.mods.relayDef==='radar'&&radarRelays().some(r=>dist(r,t)<SPOT_RADAR_R)?SPOT_RADAR_RANGE:1;
+    const range=brawl?BRAWL_RANGE:brk?BRK_RANGE:(arty?ARTY_RANGE:gren?GREN_RANGE:mech?MECH_RANGE:rock?ROCKET_RANGE:mark?MARK_RANGE:TROOP_RANGE)*S.mods.squadRangeMult*(onWall?1+MAN_RANGE_BONUS:1)*(kit==='lmg'?LMG_RANGE:1)*radarBoost;
+    let speed=(arty?ARTY_SPEED:mech?MECH_SPEED:rock?ROCKET_SPEED:brawl?BRAWL_SPEED:mark?MARK_SPEED:TROOP_SPEED)*(kit==='lmg'?LMG_SPEED:1);
     const px0=t.x,py0=t.y;
     if(t.pace&&t.state==='move')speed=Math.min(speed,t.pace); // v4: a group move keeps to its slowest unit's pace
     const factor=roughFactor(t.x,t.y);
@@ -8084,6 +8204,7 @@ function update(dt){
       else if(dist(t,t.target)-(brawl?t.target.r||0:0)>range-10){if(mech||brawl)t.ang=Math.atan2(t.target.y-t.y,t.target.x-t.x);const aim=waypointFor(t,t.target.x,t.target.y);moveToward(t,aim,speed*factor,dt)}
     }
     else if(t.state==='guard')guardMove(t,range,speed*factor,dt);
+    else if(frl&&t.state==='idle'){if(!t.post)t.post={x:t.x,y:t.y};if(dist(t,t.post)>6)moveToward(t,waypointFor(t,t.post.x,t.post.y),speed*factor,dt)}
     else if((mech||brawl)&&t.state==='idle')mechEngage(t,range,speed*factor,dt);
     // auto fire — a following troop still defends itself along the way. Artillery only ever
     // fires on an enemy the player has actually revealed (visible()) — its map-spanning range
@@ -8094,20 +8215,21 @@ function update(dt){
       if(t.volley){t.volT-=dt;if(t.volT<=0){const c=t.volTgt&&t.volTgt.hp>0&&S.enemies.includes(t.volTgt)?t.volTgt:null;
           if(t.pods>0&&(c||t.volAt)){const at=c?{x:c.x,y:c.y}:t.volAt;t.volAt=at;t.ang=Math.atan2(at.y-t.y,at.x-t.x);
             const a=rnd(0,Math.PI*2),r=Math.sqrt(Math.random())*GREN_POD_SPREAD,cell=GREN_PODS-t.pods,back=podCellPos(t,cell);
-            launchProjectile(back,{x:at.x+Math.cos(a)*r,y:at.y+Math.sin(a)*r},{speed:GREN_PROJ_SPEED*0.8,minDur:0.55,dmg:GREN_POD_DMG*S.mods.troopDmgMult,splashR:GREN_POD_SPLASH*S.mods.grenSplashMult,color:ROCKET_COLOR,style:'pod'});
+            launchProjectile(back,{x:at.x+Math.cos(a)*r,y:at.y+Math.sin(a)*r},{speed:GREN_PROJ_SPEED*0.8,minDur:0.55,dmg:GREN_POD_DMG*S.mods.troopDmgMult,splashR:GREN_POD_SPLASH*S.mods.grenSplashMult,color:kit==='cryo'?'#8fe3ff':ROCKET_COLOR,style:'pod',kit});
             t.pods--;t.podShotT=S.t;t.volT=GREN_POD_GAP;if(sfxReady('podShot',0.05)){noiseCrack(0.09,0.06,900);tone(320,0.12,'sawtooth',0.035,0,640)}}
           if(t.pods<=0||!(c||t.volAt)){t.volley=false;t.volTgt=null;t.volAt=null;t.podT=0}}}}
     // Rocketeer: paint the target with the laser; when the paint holds for ROCKET_PAINT, fire the Javelin
     if(rock&&t.paintT>0){const c=t.paintTgt;
-      if(!c||c.hp<=0||!S.enemies.includes(c)||dist(t,c)>range*1.25){t.paintT=0;t.paintTgt=null;t.cd=Math.min(t.cd,0.4)}
+      if(!c||c.hp<=0||!S.enemies.includes(c)||dist(t,c)>range*(kit==='flak'&&S.mods.relayDef==='radar'?2.5:1.25)){t.paintT=0;t.paintTgt=null;t.cd=Math.min(t.cd,0.4)}
       else{t.ang=Math.atan2(c.y-t.y,c.x-t.x);t.paintT-=dt;
         if(t.paintT<=0){t.paintT=0;t.paintTgt=null;t.shotT=S.t;const m=gunMuzzle(t,10);
-          launchProjectile(m,c,{speed:ROCKET_PROJ_SPEED,minDur:1.1,dmg:ROCKET_DMG*S.mods.troopDmgMult,splashR:ROCKET_SPLASH_R,color:ROCKET_COLOR,big:true,vsBig:ROCKET_VS_BIG,style:'javelin',track:c});
+          launchProjectile(m,c,{speed:ROCKET_PROJ_SPEED,minDur:1.1,dmg:ROCKET_DMG*S.mods.troopDmgMult,splashR:ROCKET_SPLASH_R*(kit==='flak'?FLAK_R:1),color:kit==='flak'?'#c7d0da':ROCKET_COLOR,big:true,vsBig:kit==='flak'?FLAK_BIG:ROCKET_VS_BIG,style:'javelin',track:c,kit});
+          if(kit==='cluster'&&S.mods.relayOff==='armored')S.relays.forEach(r=>{if(r.built&&r.tetherOk&&r.hp>0&&dist(r,c)<TURRET_RANGE*1.6)launchProjectile({x:r.x,y:r.y-14},c,{speed:ROCKET_PROJ_SPEED,minDur:0.9,dmg:ROCKET_DMG*0.6,splashR:ROCKET_SPLASH_R,color:ROCKET_COLOR,big:true,style:'javelin',track:c})});
           if(sfxReady('jav',0.1)){noiseCrack(0.12,0.07,700);tone(180,0.5,'sawtooth',0.04,0.15,520)}}}}
     // a Paladin's jab: once the wind-up runs out it lands on its target if that's still in reach
     if(brawl&&t.jabT>0){t.jabT-=dt;const c=t.jabTgt;if(c&&c.hp>0)t.ang=Math.atan2(c.y-t.y,c.x-t.x);
       if(t.jabT<=0){t.jabT=0;t.jabTgt=null;t.atkT=S.t;
-        if(c&&c.hp>0&&dist(t,c)-(c.r||0)<=range+6){const dm=BRAWL_DMG*S.mods.troopDmgMult;damageEnemy(c,dm);sfx.spearHit();
+        if(c&&c.hp>0&&dist(t,c)-(c.r||0)<=range+6){const dm=BRAWL_DMG*S.mods.troopDmgMult;damageEnemy(c,dm);sfx.spearHit();if(kit==='razor')c.bleedT=BLEED_T;
           // a little cleave: whatever else is huddled against the target takes some too
           S.enemies.forEach(e=>{if(e!==c&&e.hp>0&&dist(e,c)<BRAWL_CLEAVE_R)damageEnemy(e,dm*BRAWL_CLEAVE)});
           if(t.wall&&rnd(0,1)<BRAWL_KB_CHANCE)brawlerShove(t);
@@ -8116,15 +8238,18 @@ function update(dt){
     if(mark){
       if(t.chargeT>0){t.chargeT-=dt;const c=t.chargeTgt;if(c&&c.hp>0)t.ang=Math.atan2(c.y-t.y,c.x-t.x);
         if(t.chargeT<=0){t.chargeT=0;t.chargeTgt=null;
-          if(c&&c.hp>0&&dist(t,c)<=range+(c.r||0)){const end=troopPierce(t,c,range*1.15,MARK_DMG*S.mods.troopDmgMult,MARK_PIERCE);tracer(gunMuzzle(t,16),end,'#bfefff',3);t.shotT=S.t;
+          if(c&&c.hp>0&&dist(t,c)<=range+(c.r||0)){const pane=kit==='rail'&&crossesShield(t,c),end=troopPierce(t,c,range*1.15,MARK_DMG*S.mods.troopDmgMult*(pane?1.5:1),kit==='rail'?99:MARK_PIERCE);tracer(gunMuzzle(t,16),end,pane?'#8fe3ff':'#bfefff',pane?5:3);t.shotT=S.t;if(kit==='spotter')c.markT=SPOT_T;
             sfx.rail()}
           t.cd=MARK_CD/squadFireRateMult();if(t.hold&&!t.dest)t.cd/=1+Math.min(HOLD_LINK_MAX,HOLD_LINK_BONUS*(t.holdLinks||0))}}
       else if(t.cd<=0){let best=null,bd=range;S.enemies.forEach(e=>{if(e.hp<=0||!visible(e))return;const d=dist(e,t);if(d<bd){bd=d;best=e}});
         if(best){t.chargeT=MARK_CHARGE;t.chargeTgt=best;t.ang=Math.atan2(best.y-t.y,best.x-t.x);sfx.railCharge()}}
     }
-    if(t.cd<=0&&!mark){let best=null,bd=range;S.enemies.forEach(e=>{if(arty&&!visible(e))return;const d=dist(e,t)-(brawl?e.r||0:0);if(d<bd){bd=d;best=e}});
+    const movedNow=(t.x-px0)**2+(t.y-py0)**2>0.02;
+    if(t.cd<=0&&!mark&&!frl&&!(kit==='lmg'&&movedNow)){let best=null,bd=range;S.enemies.forEach(e=>{if(arty&&!visible(e))return;const d=dist(e,t)-(brawl?e.r||0:0);if(d<bd){bd=d;best=e}});
       // a Rocketeer goes for the nearest nest or Quaker in reach before anything else
-      if(rock){let bb=null,bbd=range;S.enemies.forEach(e=>{if(!isBigTarget(e)||e.hp<=0)return;const d=dist(e,t);if(d<bbd){bbd=d;bb=e}});if(bb){best=bb;bd=bbd}}
+      if(rock&&kit!=='flak'){let bb=null,bbd=range;S.enemies.forEach(e=>{if(!isBigTarget(e)||e.hp<=0)return;const d=dist(e,t);if(d<bbd){bbd=d;bb=e}});if(bb){best=bb;bd=bbd}}
+      if(rock&&kit==='flak'){const far=S.mods.relayDef==='radar'?range*2:range,rr=radarRelays();let sw=null,sd=far;
+        S.enemies.forEach(e=>{if(!e.horde||e.hp<=0)return;const d=dist(e,t);if(d>=sd)return;if(d>range&&!rr.some(r=>dist(r,e)<RELAY_RADAR_VISION))return;sd=d;sw=e});if(sw){best=sw;bd=Math.min(sd,range-1)}}
       if(best){
         if(gren){if(!t.volley&&(t.pods??GREN_PODS)>=GREN_PODS){t.volley=true;t.volT=0;t.volTgt=best;t.volAt=null}t.cd=0.2}
         else if(brawl){t.ang=Math.atan2(best.y-t.y,best.x-t.x);
@@ -8132,6 +8257,11 @@ function update(dt){
           if(!(t.jabT>0)){t.jabT=PAL_WIND;t.jabTgt=best;sfx.spearSwing()}t.cd=BRAWL_CD/squadFireRateMult()}
         else if(rock){t.ang=Math.atan2(best.y-t.y,best.x-t.x);if(!(t.paintT>0)){t.paintT=ROCKET_PAINT;t.paintTgt=best}t.cd=ROCKET_CD/squadFireRateMult()}
         else if(arty){launchProjectile(t,best,{speed:ARTY_PROJ_SPEED,dmg:ARTY_DMG,splashR:ARTY_SPLASH_R,color:C.condensed,big:true});t.cd=ARTY_CD}
+        else if(brk){t.ang=Math.atan2(best.y-t.y,best.x-t.x);t.punchN=(t.punchN||0)+1;t.punchSide=!t.punchSide;t.punchT=S.t;t.hay=t.punchN%BRK_HAY_EVERY===0;
+          damageEnemy(best,BRK_DMG*S.mods.troopDmgMult);S.enemies.forEach(e=>{if(e!==best&&e.hp>0&&e.kind!=='nest'&&dist(e,best)<BRK_SPLASH_R)damageEnemy(e,BRK_SPLASH*S.mods.troopDmgMult)});
+          if(t.hay)S.enemies.forEach(e=>{if(e.hp<=0||e.kind==='nest'||e.kind==='quaker'||dist(e,best)>BRK_HAY_R)return;const dx=e.x-t.x,dy=e.y-t.y,d=Math.hypot(dx,dy)||1,k=(e.kind==='brute'||e.shard==='colossus'?0.35:1)*BRK_HAY_KB;
+            e.kbx=dx/d*k;e.kby=dy/d*k;e.stunT=Math.max(e.stunT||0,0.7);e.thrownT=S.t+0.7;e.thrownBy=t});
+          burst(best.x,best.y,'#ffd28a',t.hay?10:4,t.hay?160:90,0.25);if(sfxReady('punch',0.05))sfx.spearHit();t.cd=BRK_CD/squadFireRateMult()}
         else if(mech){
           // shotgun blast: several weak pellets, each a visible travelling tracer-line projectile
           // (see launchProjectile/explodeNade's pellet branch) scattered around the target, so a
@@ -8148,7 +8278,14 @@ function update(dt){
           t.mechSide=!t.mechSide;
           t.cd=MECH_CD;
         }
-        else{t.ang=Math.atan2(best.y-t.y,best.x-t.x);const end=troopPierce(t,best,range,TROOP_DMG*S.mods.troopDmgMult);tracer(gunMuzzle(t,11),end,C.accent);t.shotT=S.t;sfx.rifle();t.cd=TROOP_CD/squadFireRateMult()}
+        else if(kit==='lmg'){t.ang=Math.atan2(best.y-t.y,best.x-t.x);t.shotT=S.t;
+          if(Math.random()<LMG_MISS){const a=t.ang+rnd(-0.25,0.25);tracer(gunMuzzle(t,16),{x:t.x+Math.cos(a)*range,y:t.y+Math.sin(a)*range},C.accent)}
+          else{damageEnemy(best,TROOP_DMG*S.mods.troopDmgMult);const j=rnd(-6,6);tracer(gunMuzzle(t,16),{x:best.x+j,y:best.y-j},C.accent)}
+          if(sfxReady('lmg',0.05))sfx.rifle();t.cd=TROOP_CD/LMG_RATE/squadFireRateMult()}
+        else{t.ang=Math.atan2(best.y-t.y,best.x-t.x);const end=troopPierce(t,best,range,TROOP_DMG*S.mods.troopDmgMult);tracer(gunMuzzle(t,11),end,kit==='shock'?'#8fe3ff':C.accent);t.shotT=S.t;sfx.rifle();t.cd=TROOP_CD/squadFireRateMult();
+          if(kit==='shock'){best.stunT=Math.max(best.stunT||0,SHOCK_STUN);
+            if(onWall&&t.manning.type==='elec'){let n2=null,nd2=SHOCK_CHAIN_R;S.enemies.forEach(e=>{if(e===best||e.hp<=0||e.kind==='nest')return;const d=dist(e,best);if(d<nd2){nd2=d;n2=e}});
+              if(n2){damageEnemy(n2,TROOP_DMG*0.7*S.mods.troopDmgMult);n2.stunT=Math.max(n2.stunT||0,SHOCK_STUN);(S.zaps||(S.zaps=[])).push({x0:best.x,y0:best.y,x1:n2.x,y1:n2.y,t:0,seed:Math.floor(Math.random()*999)})}}}}
         if(t.hold&&!t.dest)t.cd/=1+Math.min(HOLD_LINK_MAX,HOLD_LINK_BONUS*(t.holdLinks||0));
         if(t.state==='idle'&&bd>range*0.7)t.target=best;
       }
@@ -8336,6 +8473,7 @@ function update(dt){
       const d=dist(e,w);
       if(d-e.r>w.r)return;
       w.hit.add(e);
+      if(e.slowT>0&&S.kits.grenadier==='cryo'){damageEnemy(e,CRYO_SHATTER);e.slowT=0;burst(e.x,e.y,'#dff7ff',10,130,0.35)}
       e.stunT=Math.max(e.stunT||0,ENERGY_SURGE_STUN_T);
       const ux=d>0.5?(e.x-w.x)/d:Math.cos(e.ang||0), uy=d>0.5?(e.y-w.y)/d:Math.sin(e.ang||0);
       e.kbx=ux*ENERGY_SURGE_KB; e.kby=uy*ENERGY_SURGE_KB;
@@ -8372,7 +8510,7 @@ function update(dt){
       e.stunT-=dt;
       if(e.kbx||e.kby){
         const nx=e.x+e.kbx*dt, ny=e.y+e.kby*dt;
-        if(nx>0&&ny>0&&nx<W&&ny<H&&!wallAt(nx,ny)&&terrainAt(nx,ny)!==2){e.x=nx;e.y=ny}else{e.kbx=0;e.kby=0}
+        if(nx>0&&ny>0&&nx<W&&ny<H&&!wallAt(nx,ny)&&terrainAt(nx,ny)!==2){e.x=nx;e.y=ny}else{const hw=wallAt(nx,ny);e.kbx=0;e.kby=0;if((e.thrownT||0)>S.t&&(hw||terrainAt(nx,ny)===2))breakerImpact(e,hw)}
         const k=Math.exp(-ENERGY_SURGE_KB_DECAY*dt); e.kbx*=k; e.kby*=k;
         if(e.stunT<=0||Math.hypot(e.kbx,e.kby)<5){e.kbx=0;e.kby=0}
       }
@@ -8540,8 +8678,11 @@ function update(dt){
   S.tracers=S.tracers.filter(t=>(t.t-=dt)>0);
   if(!S.shardShots)S.shardShots=[];updateShardShots(dt);
   if(!S.lances)S.lances=[];updateLances(dt);
+  if(!S.fires)S.fires=[];if(!S.kits)S.kits={};updateKitEffects(dt);updateFieldRelays(dt);
   if(!S.smears)S.smears=[];updateSmears();
+  S._nadeBirth=[]; // projectiles launched by an explosion (cluster bomblets) join after this pass
   S.nades=S.nades.filter(n=>{n.t+=dt;if(n.track&&n.track.hp>0&&S.enemies.includes(n.track)){n.tx=n.track.x;n.ty=n.track.y}const pt=Math.min(1,n.t/n.dur);n.x=n.x0+(n.tx-n.x0)*pt;n.y=n.y0+(n.ty-n.y0)*pt;if(pt>=1){explodeNade(n);return false}return true});
+  S.nades.push(...S._nadeBirth);S._nadeBirth=null;
   debugPass();
   if(B.hp<=0){S.over='lose';sfx.lose();shakeScreen(10,0.6);burst(B.x,B.y,C.enemy,30,160,0.9);showOverlay('Bastion destroyed','The crew and the crystal are lost to the zone. Try fortifying before you push deeper.',0.5)}
 
@@ -8647,17 +8788,17 @@ const cardOpen=u=>!(u.has&&u.has());
 function rollRewardCards(tier,band){
   // Hive tier: three cards, all Epic or Legendary (in the Dense Field, Legendary ones are rare)
   if(tier==='Hive'){
-    const pool=shuffled(['Epic','Legendary'].flatMap(t=>UPGRADES[t].filter(cardOpen).map(u=>({tier:t,...u})))).filter(c=>!(band==='dense'&&c.tier==='Legendary'&&Math.random()>REWARD_DENSE_LEGENDARY));
+    const pool=wShuffle(['Epic','Legendary'].flatMap(t=>UPGRADES[t].filter(cardOpen).map(u=>({tier:t,...u})))).filter(c=>!(band==='dense'&&c.tier==='Legendary'&&Math.random()>REWARD_DENSE_LEGENDARY));
     const picks=pool.slice(0,3).map(c=>({kind:'upgrade',...c}));
     picks.push({kind:'trade',tier,name:'Sell the Reward',desc:`Skip the upgrade — bank +${TIER_TRADE_DAT[tier]} Dat Crystal instead.`,amt:TIER_TRADE_DAT[tier]});
     return picks;
   }
   const topIdx=TIER_ORDER.indexOf(tier);
-  const topPool=shuffled(UPGRADES[tier].filter(cardOpen));
+  const topPool=wShuffle(UPGRADES[tier].filter(cardOpen));
   const picks=[{kind:'upgrade',tier,...topPool[0]}];
   const used=new Set([topPool[0].id]);
   const lowerTiers=TIER_ORDER.slice(0,topIdx);
-  let lowerPool=shuffled((lowerTiers.length?lowerTiers:[tier]).flatMap(t=>UPGRADES[t].filter(cardOpen).map(u=>({tier:t,...u}))));
+  let lowerPool=wShuffle((lowerTiers.length?lowerTiers:[tier]).flatMap(t=>UPGRADES[t].filter(cardOpen).map(u=>({tier:t,...u})))).reverse(); // popped from the end
   lowerPool=lowerPool.filter(c=>!used.has(c.id));
   while(picks.length<3&&lowerPool.length){
     const c=lowerPool.pop();
@@ -9388,7 +9529,7 @@ function drawHoses(pts3,n,seed,hot){if(pts3.length<2)return;SKO.x=0;SKO.y=0;SKO.
     ctx.beginPath();ctx.moveTo(q[0]+nx*hw-ux,q[1]+ny*hw-uy);ctx.lineTo(q[0]+nx*hw+ux,q[1]+ny*hw+uy);ctx.lineTo(q[0]-nx*hw+ux,q[1]-ny*hw+uy);ctx.lineTo(q[0]-nx*hw-ux,q[1]-ny*hw-uy);ctx.closePath();ctx.fillStyle=k===1?'#c99a3a':'#25282c';ctx.fill()})}
   SKO.s=SK_SCALE}
 // where a cable leaves its anchor: a Relay's hook facing the far end, or the Bastion's back
-function anchorHook(a,to){if(!a)return null;if(a===S.base){const an=Math.atan2(to.y-a.y,to.x-a.x);return [a.x+Math.cos(an)*14,a.y+Math.sin(an)*14,20]}return relayHookFor(a,to)}
+function anchorHook(a,to){if(!a)return null;if(a.kind==='mech')return [a.x,a.y,12];if(a===S.base){const an=Math.atan2(to.y-a.y,to.x-a.x);return [a.x+Math.cos(an)*14,a.y+Math.sin(an)*14,20]}return relayHookFor(a,to)}
 // ---- the pooling rope (visual only; the trail still decides length, snapping and what enemies cut).
 // Links ROPE_SEG apart, pinned at the touchdown under the hook and at the unit; 8 relaxation passes;
 // links only pull, so slack bunches on the floor; the winch feeds out when pulled and winds in toward
@@ -9711,6 +9852,7 @@ function draw(){
   drawFabShots();
   drawStabShots();
   drawProbes();
+  drawKitEffects();
   drawMinesFields();
   drawCallFx();
   drawCalls();
