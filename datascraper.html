@@ -4670,6 +4670,7 @@ function tetherPass(units,speed,dt){
 // neighbor (each one's stale/same-tick "true" propping up the other's), since neither ever gets
 // re-checked against the actual root. A fresh graph search from Base has no such blind spot: a
 // relay is only ever tetherOk if something in the search actually traced back to the Bastion.
+const RELAY_RECABLE_T=3; // seconds a cut Relay waits before re-running its own cable (drones can splice it sooner: RELAY_RECONNECT_T)
 function relayTetherPass(){
   const hops=S.relays.filter(r=>r.built&&r.hp>0&&r.state!=='cut');
   const reached=[S.base];
@@ -4684,9 +4685,13 @@ function relayTetherPass(){
   S.relays.forEach(r=>{
     if(!r.built||r.hp<=0)return; // destroyed — can't anchor anything until repaired back above 0
     if(r.state==='cut'){
-      const tol=wirelessTol(bandAt(r.x,r.y));
-      if(reached.some(a=>dist(r,a)<=tol)){r.state=null;r.tetherOk=true;r.trail=null;r.cableLen=0;r.cableMaxed=false;r.reconnectT=0}
-      return; // otherwise still waits — can't walk back, and a cable needs a builder or real proximity
+      // back on the network: at once within wireless range, or — after RELAY_RECABLE_T — by running
+      // a fresh cable to the Bastion or a live Relay within cable reach (wireless is off in the Dense
+      // Field and Core, so without this a cut Relay stayed dark for good, and so did everything
+      // chained through it). The fresh cable starts at full HP on the next tick.
+      const tol=wirelessTol(bandAt(r.x,r.y)),reach=MAX_CABLE_LEN+S.mods.cableLenAdd;
+      if(reached.some(a=>dist(r,a)<=tol)||(S.t-(r.cutT??-99)>=RELAY_RECABLE_T&&reached.some(a=>a!==r&&dist(r,a)<=reach))){r.state=null;r.tetherOk=false;r.trail=null;r.cableLen=0;r.cableMaxed=false;r.reconnectT=0}
+      return;
     }
     if(!reached.includes(r)){
       if(r.tetherOk||r.trail){r.tetherOk=false;r.trail=null;r.cableLen=0;r.cableMaxed=false}
@@ -4766,7 +4771,7 @@ function severUnit(u){
   releaseBuilderClaim(u);
   burst(u.x,u.y,C.cable,8,100,0.4);
   if(u.kind==='relay'){
-    u.state='cut';u.tetherOk=false;u.trail=null;u.cableLen=0;u.cableMaxed=false;
+    u.state='cut';u.cutT=S.t;u.tetherOk=false;u.trail=null;u.cableLen=0;u.cableMaxed=false;
   } else {
     u.severed=true;u.tetherOk=false;u.trail=null;u.cableLen=0;u.cableMaxed=false;
   }
