@@ -4119,7 +4119,7 @@ function placePOI(band,reachable){
 function placePOIs(){
   S.wrecks=[];S.beacons=[];
   if(tutorialMap)return;
-  Object.entries(STOP_BAND?{[STOP_BAND]:WRECK_STOP_N}:WRECK_N).forEach(([band,cnt])=>{for(let i=0;i<cnt;i++){const p=placePOI(band,true);if(p)S.wrecks.push({x:p.x,y:p.y,band,r:WRECK_R,prog:0,done:false,ambushed:false,seen:false,ang:rnd(0,Math.PI*2),blink:rnd(0,6)})}});
+  Object.entries(STOP_BAND?{[STOP_BAND]:WRECK_STOP_N}:WRECK_N).forEach(([band,cnt])=>{for(let i=0;i<cnt;i++){const p=placePOI(band,true);if(p)S.wrecks.push({x:p.x,y:p.y,band,r:WRECK_R,prog:0,done:false,ambushed:false,seen:false,ang:rnd(0,Math.PI*2),blink:rnd(0,6),kind:WRECK_KINDS[Math.floor(rand()*WRECK_KINDS.length)],vessel:WRECK_VESSELS[Math.floor(rand()*WRECK_VESSELS.length)],seed:Math.floor(rand()*1e6)})}});
   Object.keys(BEACON_N).forEach(band=>{for(let i=0;i<BEACON_N[band];i++){const p=placePOI(band,false);if(p)S.beacons.push({x:p.x,y:p.y,band,prog:0,on:false,seen:false,sweep:-1})}});
 }
 function rollWreckLoot(band){
@@ -4171,19 +4171,242 @@ function updatePOIs(dt){
     }
   });
 }
+// ---------- wreck sites ----------
+// v4: a wreck is drawn as satellite imagery of a crash site, baked once into a sprite with no ground
+// of its own (laid over whatever terrain is under it): a pale blast fan and dark burn, a skid trench,
+// crater or fuel spill, a debris field, and the broken vessel, all tinted to the zone's ground. Five
+// crash kinds × six vessels, rolled per wreck. Only the smoke, embers and the blinking amber light
+// move. Once salvaged it's baked again cold, with its crates broken open, and stays as a landmark.
+// (The art is from art/wrecks_lab.html, kept in its own scope.)
+const WRECKART=(()=>{
+// ---------- palette (the game terrain painter's, per zone) ----------
+const PAL={rim:{ground:[27,30,33],rock:[78,82,86],mud:[60,47,33],rift:[20,8,30],glow:[190,100,255],glass:[150,80,220],ember:null},
+  dense:{ground:[30,25,38],rock:[84,76,96],mud:[52,40,40],rift:[24,8,36],glow:[200,110,255],glass:[160,85,235],ember:null},
+  core:{ground:[30,23,21],rock:[64,57,55],mud:[44,32,26],rift:[26,8,14],glow:[255,110,60],glass:[175,90,230],ember:[255,110,40]}};
+const SUN=[-0.62,-0.62];
+function mulberry(a){return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const rgb=(c,a)=>`rgba(${c[0]|0},${c[1]|0},${c[2]|0},${a==null?1:a})`,mix=(a,b,k)=>[a[0]+(b[0]-a[0])*k,a[1]+(b[1]-a[1])*k,a[2]+(b[2]-a[2])*k],sc=(c,k)=>[c[0]*k,c[1]*k,c[2]*k];
+// ---------- ground ----------
+function groundPatch(w,h,band,seed,opts={}){const c=document.createElement('canvas');c.width=w;c.height=h;const g=c.getContext('2d'),P=PAL[band],R=mulberry(seed);
+  g.fillStyle=rgb(P.ground);g.fillRect(0,0,w,h);
+  for(let i=0;i<w*h/90;i++){const x=R()*w,y=R()*h,k=0.75+R()*0.5;g.fillStyle=rgb(sc(P.ground,k),0.6);g.fillRect(x,y,1+R()*2,1+R()*2)}
+  for(let i=0;i<w*h/9000;i++){const x=R()*w,y=R()*h,r=20+R()*60;const gr=g.createRadialGradient(x,y,0,x,y,r);gr.addColorStop(0,rgb(R()<0.5?P.mud:sc(P.ground,1.25),0.35));gr.addColorStop(1,rgb(P.ground,0));g.fillStyle=gr;g.fillRect(x-r,y-r,r*2,r*2)}
+  g.lineCap='round';for(let i=0;i<w*h/5000;i++){let x=R()*w,y=R()*h,a=R()*6.28;g.beginPath();g.moveTo(x,y);for(let k=0;k<6;k++){a+=(R()-0.5)*1.2;x+=Math.cos(a)*(6+R()*14);y+=Math.sin(a)*(6+R()*14);g.lineTo(x,y)}g.strokeStyle=rgb(sc(P.ground,0.55),0.7);g.lineWidth=1+R()*1.5;g.stroke()}
+  for(let i=0;i<w*h/30000;i++){const x=R()*w,y=R()*h,r=60+R()*140;const gr=g.createRadialGradient(x,y,0,x,y,r);gr.addColorStop(0,rgb(sc(P.ground,R()<0.5?1.3:0.75),0.35));gr.addColorStop(1,rgb(P.ground,0));g.fillStyle=gr;g.fillRect(x-r,y-r,r*2,r*2)}
+  for(let i=0;i<w*h/45000;i++){const x=R()*w,y=R()*h,r=4+R()*9;rockLump(g,x,y,r,mix(P.rock,P.ground,0.45),R)}
+  if(opts.rift){const {x0,y0,x1,y1,wd}=opts.rift;g.save();g.lineCap='round';g.strokeStyle=rgb(mix(P.rift,P.glass,0.1));g.lineWidth=wd;g.beginPath();g.moveTo(x0,y0);g.bezierCurveTo((x0+x1)/2+60,y0+40,(x0+x1)/2-60,y1-40,x1,y1);g.stroke();
+    g.globalCompositeOperation='lighter';g.strokeStyle=rgb(P.glow,0.12);g.lineWidth=wd*0.5;g.stroke();g.restore()}
+  return c}
+function rockLump(g,x,y,r,col,R){const n=6+(R()*4|0),P=[];for(let i=0;i<n;i++){const a=i/n*6.28,rr=r*(0.65+R()*0.45);P.push([x+Math.cos(a)*rr,y+Math.sin(a)*rr*0.85])}
+  g.fillStyle='rgba(0,0,0,0.35)';g.beginPath();P.forEach((p,i)=>i?g.lineTo(p[0]+r*0.35,p[1]+r*0.35):g.moveTo(p[0]+r*0.35,p[1]+r*0.35));g.fill();
+  const gr=g.createLinearGradient(x-r,y-r,x+r,y+r);gr.addColorStop(0,rgb(sc(col,1.12)));gr.addColorStop(1,rgb(sc(col,0.7)));g.fillStyle=gr;g.beginPath();P.forEach((p,i)=>i?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1]));g.closePath();g.fill()}
+// ---------- ground marks ----------
+// a soft irregular stain: many overlapping soft dots
+function stain(g,x,y,r,col,a,R,n=26,squash=1,ang=0){g.save();g.translate(x,y);g.rotate(ang);for(let i=0;i<n;i++){const t=R()*6.28,d=Math.pow(R(),0.7)*r*0.7,px=Math.cos(t)*d,py=Math.sin(t)*d*squash,rr=r*(0.25+R()*0.35);
+  const gr=g.createRadialGradient(px,py,0,px,py,rr);gr.addColorStop(0,rgb(col,a));gr.addColorStop(1,rgb(col,0));g.fillStyle=gr;g.fillRect(px-rr,py-rr,rr*2,rr*2)}g.restore()}
+function scorch(g,x,y,r,P,R,rays=14){stain(g,x,y,r*2.1,sc(P.ground,2.2),0.2,R,36);stain(g,x,y,r*1.4,sc(P.ground,2.6),0.22,R,30);stain(g,x,y,r*0.95,[6,5,5],0.6,R,40);
+  for(let i=0;i<rays;i++){const a=R()*6.28,l=r*(1.3+R()*1.2);stain(g,x+Math.cos(a)*l*0.65,y+Math.sin(a)*l*0.65,r*0.45,sc(P.ground,2.4),0.2,R,5,0.35,a)}
+  g.save();g.lineCap='round';for(let i=0;i<rays;i++){const a=R()*6.28,l=r*(0.8+R()*0.9),w=1+R()*3;const gr=g.createLinearGradient(x,y,x+Math.cos(a)*l,y+Math.sin(a)*l);gr.addColorStop(0,'rgba(8,7,7,0.55)');gr.addColorStop(1,'rgba(8,7,7,0)');
+    g.strokeStyle=gr;g.lineWidth=w;g.beginPath();g.moveTo(x+Math.cos(a)*r*0.3,y+Math.sin(a)*r*0.3);g.lineTo(x+Math.cos(a)*l,y+Math.sin(a)*l);g.stroke()}g.restore()}
+// a gouge ploughed by something heavy sliding: dark floor, a sunlit lip and a shadowed lip, berms of spoil either side
+function furrow(g,x0,y0,x1,y1,w,P,R){const dx=x1-x0,dy=y1-y0,L=Math.hypot(dx,dy),ux=dx/L,uy=dy/L,nx=-uy,ny=ux,N=24,pts=[];
+  for(let i=0;i<=N;i++){const f=i/N,ww=w*(0.35+0.65*Math.sin(Math.min(1,f*1.3)*Math.PI*0.5))*(0.85+R()*0.3),wob=(R()-0.5)*w*0.25;pts.push({x:x0+dx*f+nx*wob,y:y0+dy*f+ny*wob,w:ww})}
+  pts.forEach((p,i)=>{if(i%2)return;stain(g,p.x+nx*p.w*1.6,p.y+ny*p.w*1.6,p.w*1.5,sc(P.ground,2.3),0.3,R,7);stain(g,p.x-nx*p.w*1.6,p.y-ny*p.w*1.6,p.w*1.5,sc(P.ground,2.3),0.3,R,7)});
+  const side=s=>pts.map(p=>[p.x+nx*p.w*s,p.y+ny*p.w*s]);const A=side(1),B=side(-1);
+  g.fillStyle=rgb(sc(P.mud,0.45));g.beginPath();A.forEach((p,i)=>i?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1]));B.reverse().forEach(p=>g.lineTo(p[0],p[1]));g.closePath();g.fill();B.reverse();
+  const lit=nx*SUN[0]+ny*SUN[1]<0; // the lip whose wall faces the sun
+  const lip=(S,col,lw)=>{g.strokeStyle=col;g.lineWidth=lw;g.beginPath();S.forEach((p,i)=>i?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1]));g.stroke()};
+  lip(lit?A:B,rgb(sc(P.ground,2.1),0.55),2.2);lip(lit?B:A,'rgba(0,0,0,0.55)',2.6);
+  for(let i=0;i<14;i++){const f=R(),p=pts[Math.floor(f*N)];g.strokeStyle='rgba(0,0,0,0.35)';g.lineWidth=0.8;g.beginPath();g.moveTo(p.x-nx*p.w*0.7,p.y-ny*p.w*0.7);g.lineTo(p.x-nx*p.w*0.7+ux*8,p.y-ny*p.w*0.7+uy*8);g.stroke()}
+  return pts}
+// an impact crater: a bowl lit on its far wall, a raised rim, rays of thrown-out spoil
+function crater(g,x,y,r,P,R){for(let i=0;i<22;i++){const a=R()*6.28,l=r*(1.4+R()*1.6);stain(g,x+Math.cos(a)*l*0.6,y+Math.sin(a)*l*0.6,r*0.35,sc(P.ground,1.5),0.16,R,4,0.4,a)}
+  stain(g,x,y,r*1.35,sc(P.ground,1.6),0.3,R,30);
+  const gr=g.createRadialGradient(x+SUN[0]*r*0.35,y+SUN[1]*r*0.35,r*0.1,x,y,r);gr.addColorStop(0,rgb(sc(P.ground,0.35)));gr.addColorStop(0.75,rgb(sc(P.ground,0.6)));gr.addColorStop(1,rgb(sc(P.ground,1.5)));
+  g.fillStyle=gr;g.beginPath();for(let i=0;i<=24;i++){const a=i/24*6.28,rr=r*(0.92+R()*0.12);i?g.lineTo(x+Math.cos(a)*rr,y+Math.sin(a)*rr):g.moveTo(x+Math.cos(a)*rr,y+Math.sin(a)*rr)}g.closePath();g.fill();
+  g.lineWidth=3;g.strokeStyle='rgba(0,0,0,0.45)';g.beginPath();g.arc(x,y,r,Math.PI*1.25-1.4,Math.PI*1.25+1.4);g.stroke();
+  g.strokeStyle=rgb(sc(P.ground,2.3),0.5);g.beginPath();g.arc(x,y,r,Math.PI*0.25-1.3,Math.PI*0.25+1.3);g.stroke()}
+// spilled fuel / coolant: a glossy dark pool with a sheen
+function spill(g,x,y,r,R,tint){stain(g,x,y,r,[10,9,12],0.5,R,30,0.7,R()*3);stain(g,x+r*0.2,y-r*0.1,r*0.45,tint||[90,80,120],0.12,R,8,0.6)}
+// debris: small plates and specks, thinning out from (x,y) — or along a path
+function debris(g,pts,spread,n,P,R,band){for(let i=0;i<n;i++){const p=pts[Math.floor(R()*pts.length)],a=R()*6.28,d=Math.pow(R(),1.6)*spread,x=p.x+Math.cos(a)*d,y=p.y+Math.sin(a)*d,s=1+Math.pow(R(),3)*6,ang=R()*6.28;
+  g.save();g.translate(x,y);g.rotate(ang);g.fillStyle='rgba(0,0,0,0.4)';g.fillRect(-s/2+s*0.35,-s*0.3+s*0.35,s,s*0.6);
+  const mtl=R();g.fillStyle=mtl<0.55?rgb(mix([96,104,112],P.ground,0.35+R()*0.3)):mtl<0.85?rgb([44,46,50]):rgb([120,88,58]);g.fillRect(-s/2,-s*0.3,s,s*0.6);
+  if(R()<0.12){g.fillStyle='rgba(235,240,245,0.85)';g.fillRect(-s/2,-s*0.3,Math.max(1,s*0.3),Math.max(0.8,s*0.2))}g.restore()}
+  if(band==='dense')for(let i=0;i<n/5;i++){const p=pts[Math.floor(R()*pts.length)],a=R()*6.28,d=Math.pow(R(),1.3)*spread;glassShard(g,p.x+Math.cos(a)*d,p.y+Math.sin(a)*d,2+R()*4,R()*6.28,PAL.dense)}}
+function glassShard(g,x,y,s,a,P){g.save();g.translate(x,y);g.rotate(a);g.fillStyle='rgba(0,0,0,0.35)';g.beginPath();g.moveTo(s*0.4,s*0.4);g.lineTo(s*1.6,s*0.5);g.lineTo(s*0.5,s*1.1);g.fill();
+  g.fillStyle=rgb(sc(P.glass,0.6));g.beginPath();g.moveTo(-s*0.5,-s*0.3);g.lineTo(s*1.2,0);g.lineTo(-s*0.3,s*0.5);g.closePath();g.fill();g.fillStyle=rgb(sc(P.glass,1.35),0.9);g.beginPath();g.moveTo(-s*0.5,-s*0.3);g.lineTo(s*1.2,0);g.lineTo(0,0);g.closePath();g.fill();g.restore()}
+// crystal grown up through a wreck that has lain a while in the Dense Field
+function crystalCluster(g,x,y,r,P,R){for(let i=0;i<7;i++){const a=R()*6.28,d=R()*r*0.6,s=r*(0.25+R()*0.35);const bx=x+Math.cos(a)*d,by=y+Math.sin(a)*d,ta=-2.35+(R()-0.5)*0.9,tx=bx+Math.cos(ta)*s*1.6,ty=by+Math.sin(ta)*s*1.6;
+  g.fillStyle='rgba(10,0,20,0.4)';g.beginPath();g.moveTo(bx-s*0.3,by);g.lineTo(bx+s*1.4,by+s*1.2);g.lineTo(bx+s*0.3,by);g.fill();
+  g.fillStyle=rgb(sc(P.glass,0.55));g.beginPath();g.moveTo(bx-s*0.35,by);g.lineTo(tx,ty);g.lineTo(bx+s*0.35,by);g.closePath();g.fill();
+  g.fillStyle=rgb(sc(P.glass,1.3),0.9);g.beginPath();g.moveTo(bx-s*0.35,by);g.lineTo(tx,ty);g.lineTo(bx,by+s*0.1);g.closePath();g.fill()}}
+// ---------- the scraper's hull, in pieces ----------
+const HULL=[138,142,146],HULL2=[98,102,108],DARK=[30,32,36];
+function plate(g,poly,col,P,R,burn,dust){const sh=6;g.fillStyle='rgba(0,0,0,0.5)';g.beginPath();poly.forEach((p,i)=>i?g.lineTo(p[0]+sh,p[1]+sh):g.moveTo(p[0]+sh,p[1]+sh));g.closePath();g.fill();
+  let mnx=1e9,mny=1e9,mxx=-1e9,mxy=-1e9;poly.forEach(p=>{mnx=Math.min(mnx,p[0]);mny=Math.min(mny,p[1]);mxx=Math.max(mxx,p[0]);mxy=Math.max(mxy,p[1])});
+  const base=mix(col,P.ground,dust),gr=g.createLinearGradient(mnx,mny,mxx,mxy);gr.addColorStop(0,rgb(sc(base,1.18)));gr.addColorStop(1,rgb(sc(base,0.78)));
+  g.save();g.beginPath();poly.forEach((p,i)=>i?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1]));g.closePath();g.fillStyle=gr;g.fill();g.clip();
+  g.strokeStyle='rgba(0,0,0,0.28)';g.lineWidth=1;const step=7+R()*4;for(let x=mnx;x<mxx;x+=step){g.beginPath();g.moveTo(x,mny);g.lineTo(x+(mxy-mny)*0.15,mxy);g.stroke()}
+  for(let i=0;i<burn;i++){const x=mnx+R()*(mxx-mnx),y=mny+R()*(mxy-mny),r=4+R()*12;const b=g.createRadialGradient(x,y,0,x,y,r);b.addColorStop(0,'rgba(8,7,7,0.75)');b.addColorStop(1,'rgba(8,7,7,0)');g.fillStyle=b;g.fillRect(x-r,y-r,r*2,r*2)}
+  for(let i=0;i<40;i++){g.fillStyle=rgb(sc(P.ground,1.6),0.25);g.fillRect(mnx+R()*(mxx-mnx),mny+R()*(mxy-mny),1+R()*2,1)}
+  g.restore();g.strokeStyle='rgba(10,12,14,0.85)';g.lineWidth=1.4;g.beginPath();poly.forEach((p,i)=>i?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1]));g.closePath();g.stroke();
+  // the sunlit edge
+  g.strokeStyle='rgba(240,245,250,0.35)';g.lineWidth=1;g.beginPath();for(let i=0;i<poly.length;i++){const a=poly[i],b=poly[(i+1)%poly.length],nx=b[1]-a[1],ny=-(b[0]-a[0]);if(nx*SUN[0]+ny*SUN[1]>0){g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1])}}g.stroke()}
+// a torn-open section: dark interior with ribs and a few hot glints
+function interior(g,poly,R){g.save();g.beginPath();poly.forEach((p,i)=>i?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1]));g.closePath();g.fillStyle='#0d0e10';g.fill();g.clip();
+  let mnx=1e9,mny=1e9,mxx=-1e9,mxy=-1e9;poly.forEach(p=>{mnx=Math.min(mnx,p[0]);mny=Math.min(mny,p[1]);mxx=Math.max(mxx,p[0]);mxy=Math.max(mxy,p[1])});
+  g.strokeStyle='#3a3d42';g.lineWidth=1.6;for(let x=mnx;x<mxx;x+=6){g.beginPath();g.moveTo(x,mny);g.lineTo(x,mxy);g.stroke()}g.restore()}
+// rotate+translate a local polygon
+const place=(poly,x,y,a)=>poly.map(([px,py])=>[x+px*Math.cos(a)-py*Math.sin(a),y+px*Math.sin(a)+py*Math.cos(a)]);
+function jag(x0,y0,x1,y1,R,n=5,amp=4){const out=[];for(let i=1;i<n;i++){const f=i/n;out.push([x0+(x1-x0)*f+(R()-0.5)*amp,y0+(y1-y0)*f+(R()-0.5)*amp])}return out}
+// the main body, broken at one end: a long hull with a jagged tear, a torn-open bay, the drill housing
+function hullBody(g,x,y,a,len,wid,P,R,o={}){const L=len/2,Wd=wid/2,tear=o.tear??0.75;
+  const poly=[[-L,-Wd],[L*0.6,-Wd],[L,-Wd*0.5],[L,Wd*0.5],[L*0.6,Wd],[-L*tear,Wd],...jag(-L*tear,Wd,-L,-Wd*0.6,R,6,wid*0.25),[-L,-Wd]];
+  plate(g,place(poly,x,y,a),HULL,P,R,o.burn??4,o.dust??0.32);
+  interior(g,place([[-L*0.7,-Wd*0.55],[-L*0.15,-Wd*0.7],[-L*0.05,Wd*0.4],[-L*0.6,Wd*0.6]],x,y,a),R);
+  plate(g,place([[L*0.15,-Wd*0.45],[L*0.55,-Wd*0.45],[L*0.55,Wd*0.45],[L*0.15,Wd*0.45]],x,y,a),HULL2,P,R,1,o.dust??0.32); // drill housing
+  return {x,y,a,L,Wd}}
+function hullChunk(g,x,y,a,s,P,R,o={}){const n=5+(R()*3|0),poly=[];for(let i=0;i<n;i++){const t=i/n*6.28,r=s*(0.55+R()*0.5);poly.push([Math.cos(t)*r*1.4,Math.sin(t)*r*0.8])}plate(g,place(poly,x,y,a),R()<0.5?HULL:HULL2,P,R,o.burn??2,o.dust??0.35)}
+function leg(g,x,y,a,len,P,R,bent=0.5){const k=[x+Math.cos(a)*len*0.55,y+Math.sin(a)*len*0.55],e=[k[0]+Math.cos(a+bent)*len*0.5,k[1]+Math.sin(a+bent)*len*0.5];
+  g.lineCap='round';[[6,'rgba(0,0,0,0.45)',5],[0,rgb(mix(HULL2,P.ground,0.25)),5],[0,'rgba(10,12,14,0.9)',1.2]].forEach(([off,col,w],i)=>{g.strokeStyle=col;g.lineWidth=i===2?w:w;g.beginPath();g.moveTo(x+off,y+off);g.lineTo(k[0]+off,k[1]+off);g.lineTo(e[0]+off,e[1]+off);g.stroke()});
+  g.fillStyle=rgb(mix(HULL,P.ground,0.2));g.beginPath();g.arc(k[0],k[1],2.6,0,6.28);g.fill()}
+// salvage crates spilled from the cargo bay (what you come for)
+let OPENED=false;
+function crates(g,x,y,n,P,R,opened){opened=opened||OPENED;for(let i=0;i<n;i++){const a=R()*6.28,d=R()*16,cx=x+Math.cos(a)*d,cy=y+Math.sin(a)*d,s=4+R()*3,ang=R()*1.5;g.save();g.translate(cx,cy);g.rotate(ang);
+  g.fillStyle='rgba(0,0,0,0.45)';g.fillRect(-s+2.5,-s*0.7+2.5,s*2,s*1.4);g.fillStyle=opened?'#3a3530':'#8a6a3e';g.fillRect(-s,-s*0.7,s*2,s*1.4);g.strokeStyle='rgba(0,0,0,0.6)';g.lineWidth=0.8;g.strokeRect(-s,-s*0.7,s*2,s*1.4);
+  if(!opened){g.fillStyle='rgba(242,182,60,0.75)';g.fillRect(-s*0.2,-s*0.7,s*0.4,s*1.4)}g.restore()}}
+// ---------- what came down: six kinds of vessel ----------
+// Each is drawn from local polygons (facing +x, about 100 long at s=1) placed at x,y turned to a,
+// using the same plates, torn interiors and shadows as the rest of the site.
+const PAINT={teal:[70,110,112],rust:[128,84,52],olive:[96,104,72],slate:[86,96,110]};
+const P2=(poly,x,y,a,s)=>place(poly.map(([px,py])=>[px*s,py*s]),x,y,a);
+function capsulePoly(x0,x1,y,r,n=8){const P=[];for(let i=0;i<=n;i++){const t=-Math.PI/2+i/n*Math.PI;P.push([x1+Math.cos(t)*r,y+Math.sin(t)*r])}for(let i=0;i<=n;i++){const t=Math.PI/2+i/n*Math.PI;P.push([x0+Math.cos(t)*r,y+Math.sin(t)*r])}return P}
+function ngon(cx,cy,r,n,rot=0){const P=[];for(let i=0;i<n;i++){const t=rot+i/n*Math.PI*2;P.push([cx+Math.cos(t)*r,cy+Math.sin(t)*r])}return P}
+function glassPane(g,poly){g.fillStyle='#14202a';g.beginPath();poly.forEach((p,i)=>i?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1]));g.closePath();g.fill();
+  g.strokeStyle='rgba(160,210,235,0.45)';g.lineWidth=1;g.beginPath();g.moveTo(poly[0][0],poly[0][1]);g.lineTo(poly[1][0],poly[1][1]);g.stroke()}
+function sheen(g,x0,y0,x1,y1,w){g.strokeStyle='rgba(235,240,245,0.28)';g.lineWidth=w;g.lineCap='round';g.beginPath();g.moveTo(x0,y0);g.lineTo(x1,y1);g.stroke()}
+const VESSELS={
+ // the scraper walker: a long boxy hull with a drill housing; its legs are strewn round it by the crash
+ walker:{name:'Scraper walker',legs:true,draw(g,x,y,a,s,P,R,o){hullBody(g,x,y,a,96*s,40*s,P,R,o)}},
+ // a dropship: a pointed fuselage, swept wings (one torn off and lying apart), a dark canopy, twin engine bells
+ lander:{name:'Dropship',draw(g,x,y,a,s,P,R,o){const d=o.dust??0.32,b=o.burn??4;
+   const lw=[[8,-9],[-26,-44],[-40,-42],[-32,-10]];const off=place([[-18,-58]],0,0,a).map(p=>[p[0]*s,p[1]*s])[0];
+   plate(g,P2(lw,x+off[0],y+off[1],a+0.5,s),PAINT.slate,P,R,2,d); // the torn-off wing, lying apart
+   plate(g,P2([[8,9],[-26,44],[-40,42],[-32,10]],x,y,a,s),PAINT.slate,P,R,b,d);
+   plate(g,P2([[50,0],[30,-10],[-30,-12],[-46,-8],[-46,8],[-30,12],[30,10]],x,y,a,s),HULL,P,R,b,d);
+   interior(g,P2([[-6,-11],[10,-10],[8,-2],[-12,-3]],x,y,a,s),R);
+   glassPane(g,P2([[46,0],[33,-6],[24,-5],[24,5],[33,6]],x,y,a,s));
+   [[-48,-5],[-48,5]].forEach(([ex,ey])=>{const p=place([[ex*s,ey*s]],x,y,a)[0];g.fillStyle='rgba(0,0,0,0.5)';g.beginPath();g.arc(p[0]+4,p[1]+4,5*s,0,6.28);g.fill();g.fillStyle='#2a2c30';g.beginPath();g.arc(p[0],p[1],5*s,0,6.28);g.fill();g.fillStyle='#0b0b0c';g.beginPath();g.arc(p[0],p[1],3*s,0,6.28);g.fill()});
+   const s0=place([[40*s,-4*s],[-28*s,-8*s]],x,y,a);sheen(g,s0[0][0],s0[0][1],s0[1][0],s0[1][1],1.4)}},
+ // a tracked hauler: a long chassis on two treads, a cab up front, cargo containers on its back (one thrown off)
+ hauler:{name:'Tracked hauler',draw(g,x,y,a,s,P,R,o){const d=o.dust??0.32,b=o.burn??3;
+   [-1,1].forEach(sd=>{const T=P2([[-52,sd*13],[50,sd*13],[50,sd*21],[-52,sd*21]],x,y,a,s);plate(g,T,DARK,P,R,0,d*0.6);g.strokeStyle='rgba(120,120,120,0.35)';g.lineWidth=1;
+     for(let i=0;i<=20;i++){const f=-52+i*5.1,q=place([[f*s,sd*13*s],[f*s,sd*21*s]],x,y,a);g.beginPath();g.moveTo(q[0][0],q[0][1]);g.lineTo(q[1][0],q[1][1]);g.stroke()}});
+   plate(g,P2([[-48,-13],[46,-13],[46,13],[-48,13]],x,y,a,s),HULL2,P,R,b,d);
+   plate(g,P2([[30,-12],[48,-10],[48,10],[30,12]],x,y,a,s),HULL,P,R,1,d);glassPane(g,P2([[46,-7],[40,-8],[40,8],[46,7]],x,y,a,s));
+   const cols=[PAINT.rust,PAINT.teal,PAINT.olive];[[-44,-11,-24,11],[-20,-11,0,11]].forEach(([x0,y0,x1,y1],i)=>plate(g,P2([[x0,y0],[x1,y0],[x1,y1],[x0,y1]],x,y,a,s),cols[i],P,R,i?1:3,d));
+   const tp=place([[16*s,30*s]],x,y,a)[0];plate(g,P2([[-10,-10],[10,-10],[10,10],[-10,10]],tp[0],tp[1],a+0.7,s),cols[2],P,R,2,d); // the container thrown off
+   interior(g,P2([[4,-11],[26,-11],[26,11],[4,11]],x,y,a,s),R)}},
+ // a survey satellite: an octagonal body, a dish, two long solar wings (one snapped and folded back)
+ satellite:{name:'Survey satellite',draw(g,x,y,a,s,P,R,o){const d=o.dust??0.3;
+   const wing=(x0,x1,ang,ox,oy)=>{const W=P2([[x0,-9],[x1,-9],[x1,9],[x0,9]],x+ox,y+oy,a+ang,s);plate(g,W,[34,46,70],P,R,1,d*0.6);
+     g.save();g.beginPath();W.forEach((p,i)=>i?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1]));g.closePath();g.clip();g.strokeStyle='rgba(150,180,220,0.35)';g.lineWidth=0.8;
+     for(let i=0;i<=8;i++){const f=x0+(x1-x0)*i/8,q=place([[f*s,-9*s],[f*s,9*s]],x+ox,y+oy,a+ang);g.beginPath();g.moveTo(q[0][0],q[0][1]);g.lineTo(q[1][0],q[1][1]);g.stroke()}
+     const m=place([[x0*s,0],[x1*s,0]],x+ox,y+oy,a+ang);g.beginPath();g.moveTo(m[0][0],m[0][1]);g.lineTo(m[1][0],m[1][1]);g.stroke();
+     for(let i=0;i<5;i++){const f=x0+(x1-x0)*R(),q=place([[f*s,(R()-0.5)*14*s]],x+ox,y+oy,a+ang)[0];g.fillStyle='rgba(190,215,255,0.45)';g.fillRect(q[0],q[1],2,2)}g.restore()};
+   wing(18,70,0,0,0);const fold=place([[-10*s,14*s]],0,0,a)[0];wing(-62,-14,0.9,fold[0],fold[1]);
+   plate(g,P2(ngon(0,0,17,8,0.39),x,y,a,s),HULL,P,R,o.burn??3,d);interior(g,P2([[-6,-8],[6,-9],[8,3],[-5,6]],x,y,a,s),R);
+   const dp=place([[4*s,-24*s]],x,y,a)[0];g.fillStyle='rgba(0,0,0,0.45)';g.beginPath();g.arc(dp[0]+4,dp[1]+4,11*s,0,6.28);g.fill();
+   const dg=g.createRadialGradient(dp[0]-4*s,dp[1]-4*s,1,dp[0],dp[1],11*s);dg.addColorStop(0,rgb(mix([230,232,236],P.ground,d*0.6)));dg.addColorStop(1,rgb(mix([110,114,120],P.ground,d)));g.fillStyle=dg;g.beginPath();g.arc(dp[0],dp[1],11*s,0,6.28);g.fill();
+   g.strokeStyle='rgba(10,12,14,0.8)';g.lineWidth=1.2;g.stroke();g.fillStyle='#2a2c30';g.beginPath();g.arc(dp[0],dp[1],2*s,0,6.28);g.fill()}},
+ // a drilling rig: a long lattice boom with an engine house at one end and the drill head at the other, kinked where it broke
+ rig:{name:'Drilling rig',draw(g,x,y,a,s,P,R,o){const d=o.dust??0.32;const k=0.35,mid=place([[-4*s,0]],x,y,a)[0];
+   const boom=(x0,x1,ox,oy,ang)=>{const col=rgb(mix([150,120,60],P.ground,d)),pts=(px,py)=>place([[px*s,py*s]],ox,oy,ang)[0];
+     [[0,'rgba(0,0,0,0.45)',5],[1,col,0]].forEach(([pass,c,off])=>{g.strokeStyle=c;g.lineWidth=pass?2:2.6;g.beginPath();[-8,8].forEach(yy=>{const p0=pts(x0,yy),p1=pts(x1,yy);g.moveTo(p0[0]+off,p0[1]+off);g.lineTo(p1[0]+off,p1[1]+off)});
+       for(let i=0;i<=Math.round((x1-x0)/8);i++){const f=x0+i*8,p=pts(f,i%2?-8:8),q=pts(Math.min(x1,f+8),i%2?8:-8);g.moveTo(p[0]+off,p[1]+off);g.lineTo(q[0]+off,q[1]+off)}g.stroke()})};
+   boom(-40,-4,x,y,a);boom(0,46,mid[0],mid[1],a+k);
+   plate(g,P2([[-62,-15],[-38,-15],[-38,15],[-62,15]],x,y,a,s),PAINT.rust,P,R,o.burn??4,d);interior(g,P2([[-58,-10],[-46,-11],[-45,4],[-57,6]],x,y,a,s),R);
+   const hd=place([[50*s,0]],mid[0],mid[1],a+k)[0];plate(g,P2([[-6,-10],[4,-8],[16,0],[4,8],[-6,10]],hd[0],hd[1],a+k,s),HULL2,P,R,2,d);
+   const t0=place([[-62*s,-15*s],[-38*s,-15*s]],x,y,a);sheen(g,t0[0][0],t0[0][1],t0[1][0],t0[1][1],1.2)}},
+ // a fuel tanker: three long tanks side by side on a chassis, the middle one ruptured
+ tanker:{name:'Fuel tanker',draw(g,x,y,a,s,P,R,o){const d=o.dust??0.32;
+   plate(g,P2([[-52,-20],[44,-20],[44,20],[-52,20]],x,y,a,s),DARK,P,R,0,d*0.7);
+   [-12,0,12].forEach((ty,i)=>{plate(g,P2(capsulePoly(-44,26,ty,6.2),x,y,a,s),i===1?PAINT.rust:[178,170,150],P,R,i===1?6:2,d);
+     const q=place([[-38*s,(ty-3)*s],[22*s,(ty-3)*s]],x,y,a);sheen(g,q[0][0],q[0][1],q[1][0],q[1][1],1.2)});
+   interior(g,P2([[-14,-5],[4,-6],[10,0],[2,6],[-16,5]],x,y,a,s),R);
+   plate(g,P2([[30,-18],[50,-14],[50,14],[30,18]],x,y,a,s),HULL,P,R,1,d);glassPane(g,P2([[48,-9],[42,-10],[42,10],[48,9]],x,y,a,s))}},
+};
+// a vessel broken in two: drawn whole onto a scratch canvas, then each half (cut along a jagged line
+// across its middle) copied back at its own offset and turn
+function brokenVessel(g,v,x,y,a,s,P,R,o,{gap=26,twist=0.5}={}){const S=320,c=document.createElement('canvas');c.width=c.height=S;const cg=c.getContext('2d');
+  VESSELS[v].draw(cg,S/2,S/2,0,s,P,R,o);const cut=[[0,-S]];for(let i=-6;i<=6;i++)cut.push([(R()-0.5)*14,i*12]);cut.push([0,S]);
+  [[-1,-twist*0.5],[1,twist*0.5]].forEach(([sd,tw])=>{g.save();g.translate(x+Math.cos(a)*gap*sd,y+Math.sin(a)*gap*sd);g.rotate(a+tw);g.beginPath();
+    cut.forEach((p,i)=>i?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1]));g.lineTo(sd*S,S);g.lineTo(sd*S,-S);g.closePath();g.clip();g.drawImage(c,-S/2,-S/2);g.restore()})}
+const legIf=(v,...a)=>{if(VESSELS[v].legs)leg(...a)};
+// ---------- the five crash kinds: each bakes into a sprite and returns its live bits (smoke sources, light, embers) ----------
+const KINDS={
+ skid:{name:'Skid crash',role:'came in low and ploughed a furrow',desc:'<b>A long trench</b> gouged into the ground, its sunlit lip and shadowed lip reading as depth, with spoil heaped either side. Debris is strewn all down its length, and the hull lies at the end, nose buried and torn open. Smoke trails off downwind.',
+  bake(g,cx,cy,P,R,band,v){const a=-0.35,x0=cx-150*Math.cos(a)-20,y0=cy-150*Math.sin(a),x1=cx+20*Math.cos(a),y1=cy+20*Math.sin(a);scorch(g,x1+10,y1,58,P,R,10);
+   const pts=furrow(g,x0,y0,x1,y1,17,P,R);debris(g,pts,26,170,P,R,band);VESSELS[v].draw(g,cx+42,cy+8,a+0.12,1,P,R,{tear:0.8,burn:5});
+   legIf(v,g,cx+10,cy+28,2.2,34,P,R,0.8);hullChunk(g,cx-40,cy-2,1.2,10,P,R);hullChunk(g,cx-90,cy+28,0.4,7,P,R);legIf(v,g,cx-70,cy-30,-2.6,30,P,R,-0.9);crates(g,cx+10,cy-26,4,P,R);
+   return {smoke:[[cx+20,cy+4,1],[cx+60,cy+14,0.6]],light:[cx+64,cy+2],embers:[[cx+30,cy+10,26]]}}},
+ crater:{name:'Blast crater',role:'its reactor went up',desc:'<b>A crater</b> with its far wall lit and its near rim in shadow, rays of thrown spoil fanning out, and the hull blown into pieces round it. The biggest piece lies on the rim; the rest is scattered across a wide ring of scorched ground.',
+  bake(g,cx,cy,P,R,band,v){scorch(g,cx,cy,110,P,R,22);crater(g,cx,cy,40,P,R);const ring=[];for(let i=0;i<20;i++){const a=i/20*6.28;ring.push({x:cx+Math.cos(a)*60,y:cy+Math.sin(a)*60})}debris(g,ring,60,190,P,R,band);
+   VESSELS[v].draw(g,cx+60,cy-32,2.6,0.88,P,R,{tear:0.6,burn:7});[[-62,22,0.4,14],[-20,64,2,11],[40,52,1.1,9],[-58,-44,2.6,10],[8,-70,0.2,8]].forEach(([dx,dy,a,s])=>hullChunk(g,cx+dx,cy+dy,a,s,P,R,{burn:3}));
+   legIf(v,g,cx-90,cy-10,3.1,32,P,R,0.6);legIf(v,g,cx+70,cy+44,0.7,28,P,R,-0.7);crates(g,cx-30,cy+40,3,P,R);
+   return {smoke:[[cx,cy,1.2],[cx+58,cy-30,0.6]],light:[cx+70,cy-36],embers:[[cx,cy,36]]}}},
+ split:{name:'Broken in two',role:'snapped on landing',desc:'<b>The hull broke across its middle</b> and the halves came to rest apart, skewed against each other. A fuel spill spreads from the break, with a burnt line between the halves, and its legs lie folded under it.',
+  bake(g,cx,cy,P,R,band,v){scorch(g,cx,cy,64,P,R,10);spill(g,cx-6,cy+18,46,R);debris(g,[{x:cx,y:cy}],70,140,P,R,band);
+   brokenVessel(g,v,cx,cy+4,0.1,1.05,P,R,{tear:0.98,burn:4},{gap:30,twist:0.55});
+   legIf(v,g,cx-70,cy+16,1.8,30,P,R,0.9);legIf(v,g,cx-24,cy-34,-1.5,30,P,R,-0.8);legIf(v,g,cx+70,cy+44,0.9,30,P,R,0.7);crates(g,cx+4,cy-30,4,P,R);
+   return {smoke:[[cx,cy+6,1],[cx+30,cy+16,0.5]],light:[cx-60,cy-14],embers:[[cx,cy+6,22]]}}},
+ swallowed:{name:'Half swallowed',role:'lain here a long time',desc:'<b>An old wreck the zone is taking back</b>: it has sunk into the mud at the edge of a rift, dust lies thick in its seams, and on the Dense Field purple glass has grown up through its hull. No smoke any more, only a faint glow in the crystal. Good loot, but it looks like it has been here for years.',
+  bake(g,cx,cy,P,R,band,v){stain(g,cx,cy,90,P.mud,0.55,R,40,0.75,0.3);stain(g,cx+20,cy-10,50,sc(P.mud,0.6),0.4,R,20);
+   VESSELS[v].draw(g,cx-10,cy,-0.6,0.95,P,R,{tear:0.7,burn:1,dust:0.45});stain(g,cx-48,cy+30,30,P.mud,0.75,R,20,0.6,-0.6);stain(g,cx+34,cy-26,22,P.mud,0.6,R,14,0.6,-0.6);
+   hullChunk(g,cx+50,cy+30,1.4,9,P,R,{dust:0.45,burn:0});legIf(v,g,cx-56,cy-20,-2.4,28,P,R,0.5);
+   if(band!=='core'){crystalCluster(g,cx-20,cy+6,16,P,R);crystalCluster(g,cx+30,cy-24,11,P,R);crystalCluster(g,cx-62,cy+34,9,P,R)}debris(g,[{x:cx,y:cy}],60,60,P,R,band);crates(g,cx+20,cy+20,3,P,R);
+   return {smoke:[],light:[cx+16,cy-14],embers:band==='core'?[[cx,cy,24]]:[],glow:band!=='core'?[[cx-20,cy+2,30],[cx+30,cy-26,22]]:[]}}},
+ convoy:{name:'Burned-out convoy',role:'a supply column caught in the open',desc:'<b>Three small haulers</b>, not a scraper: one burned out where it stopped, one flipped on its back, one slewed off the track. Twin track marks run in and stop. More but smaller pickings, spread over a wider site.',
+  bake(g,cx,cy,P,R,band,v){const tr=(ox)=>{g.strokeStyle=rgb(sc(P.ground,0.6),0.7);g.lineWidth=3;g.setLineDash([3,2]);g.beginPath();g.moveTo(cx-200,cy+ox+40);g.bezierCurveTo(cx-100,cy+ox+30,cx-40,cy+ox+10,cx+40,cy+ox-6);g.stroke();g.setLineDash([])};tr(-6);tr(6);
+   const truck=(x,y,a,flip)=>{scorch(g,x,y,30,P,R,6);plate(g,place([[-17,-8],[11,-8],[17,-4],[17,4],[11,8],[-17,8]],x,y,a),flip?DARK:HULL2,P,R,flip?0:3,0.2);
+     if(flip){g.strokeStyle='rgba(10,12,14,0.9)';g.lineWidth=1.2;[[-12,-8],[-12,8],[8,-8],[8,8]].forEach(([px,py])=>{const p=place([[px,py]],x,y,a)[0];g.fillStyle='#16181b';g.beginPath();g.arc(p[0],p[1],3.4,0,6.28);g.fill();g.stroke()})}
+     else interior(g,place([[-14,-6],[0,-6],[0,6],[-14,6]],x,y,a),R)};
+   truck(cx-60,cy+28,-0.15,false);truck(cx+10,cy+4,0.9,true);truck(cx+60,cy-26,-0.5,false);debris(g,[{x:cx-60,y:cy+28},{x:cx+10,y:cy+4},{x:cx+60,y:cy-26}],36,150,P,R,band);crates(g,cx-20,cy-14,5,P,R);
+   return {smoke:[[cx-60,cy+28,0.7],[cx+60,cy-26,0.6]],light:[cx-50,cy+24],embers:[[cx-60,cy+28,14],[cx+60,cy-26,14]]}}},
+};
+const DEFAULT_V={skid:'lander',crater:'tanker',split:'walker',swallowed:'satellite',convoy:'hauler'};
+// ---------- bake a site, then animate its live parts ----------
+// opts.bare: no ground of its own, only the marks — how the game would bake it, to lay over its own terrain
+function bakeSite(kind,band,seed,W,H,cx,cy,opts={}){const c=opts.bare?Object.assign(document.createElement('canvas'),{width:W,height:H}):groundPatch(W,H,band,seed*7+1,opts),g=c.getContext('2d'),R=mulberry(seed),P=opts.ground?{...PAL[band],ground:opts.ground,mud:mix(PAL[band].mud,opts.ground,0.5)}:PAL[band];
+  OPENED=!!opts.opened;g.save();g.filter='blur(0.35px)';const live=KINDS[kind].bake(g,cx,cy,P,R,band,opts.vessel||DEFAULT_V[kind]);g.restore();
+  if(opts.salvaged){g.save();g.fillStyle=rgb(P.ground,0.0);g.restore()}
+  // satellite grain: a faint dither over everything
+  if(!opts.bare){const id=g.getImageData(0,0,W,H),d=id.data,Rg=mulberry(seed+99);for(let i=0;i<d.length;i+=4){const n=(Rg()-0.5)*10;d[i]+=n;d[i+1]+=n;d[i+2]+=n}g.putImageData(id,0,0)}
+  return {c,live,P,band}}
+function drawLive(g,site,t,o={}){const {live,P}=site,wind=[0.9,-0.35];
+  if(!o.salvaged){(live.embers||[]).forEach(([x,y,r],k)=>{for(let i=0;i<10;i++){const a=i*2.4+k,d=r*((i*0.37)%1),px=x+Math.cos(a)*d,py=y+Math.sin(a)*d,f=0.4+0.6*Math.abs(Math.sin(t*2+i*1.7+k));
+      g.fillStyle=`rgba(255,${120+60*f|0},40,${0.35+0.5*f})`;g.fillRect(px,py,1.6,1.6);g.save();g.globalCompositeOperation='lighter';const gr=g.createRadialGradient(px,py,0,px,py,6);gr.addColorStop(0,`rgba(255,110,40,${0.25*f})`);gr.addColorStop(1,'rgba(255,110,40,0)');g.fillStyle=gr;g.fillRect(px-6,py-6,12,12);g.restore()}});
+    (live.smoke||[]).forEach(([x,y,s],k)=>{for(let i=0;i<14;i++){const life=((t*0.18+i/14+k*0.31)%1),px=x+wind[0]*life*170*s+Math.sin(life*7+i)*6,py=y+wind[1]*life*170*s+Math.cos(life*5+i)*6,r=(8+life*46)*s,a=(1-life)*0.42*Math.min(1,life*6);
+      const gr=g.createRadialGradient(px-r*0.3,py-r*0.3,0,px,py,r);gr.addColorStop(0,`rgba(${mix([150,150,150],P.ground,0.3).map(v=>v|0).join(',')},${a})`);gr.addColorStop(0.6,`rgba(60,60,64,${a*0.6})`);gr.addColorStop(1,'rgba(40,40,44,0)');g.fillStyle=gr;g.fillRect(px-r,py-r,r*2,r*2)}})}
+  (live.glow||[]).forEach(([x,y,r])=>{g.save();g.globalCompositeOperation='lighter';const f=0.6+0.4*Math.sin(t*1.5+x);const gr=g.createRadialGradient(x,y,0,x,y,r);gr.addColorStop(0,rgb(P.glow,0.22*f));gr.addColorStop(1,rgb(P.glow,0));g.fillStyle=gr;g.fillRect(x-r,y-r,r*2,r*2);g.restore()});
+  if(!o.salvaged&&live.light){const [x,y]=live.light,on=Math.sin(t*3)>0.3;g.fillStyle=on?'#f2b63c':'#6b5420';g.beginPath();g.arc(x,y,3,0,6.28);g.fill();if(on){g.save();g.globalCompositeOperation='lighter';const gr=g.createRadialGradient(x,y,0,x,y,16);gr.addColorStop(0,'rgba(242,182,60,0.5)');gr.addColorStop(1,'rgba(242,182,60,0)');g.fillStyle=gr;g.fillRect(x-16,y-16,32,32);g.restore()}}}
+
+return {bakeSite,drawLive}})();
+const WRECK_KINDS=['skid','crater','split','swallowed','convoy'],WRECK_VESSELS=['walker','lander','hauler','satellite','rig','tanker'],WRECK_SPR=[620,520];
+// the colour of the ground actually under a wreck (rift, mud or plain), read off the painted terrain,
+// so its blast fan, spoil and dust match what's round it
+function groundUnder(x,y,r){if(TPAINT.on&&TPAINT.done&&!TPAINT.done.has(Math.floor(y/TP_TS)*TPAINT.NTX+Math.floor(x/TP_TS)))return null; // not painted yet
+  try{const k=terrainCv.width/W,sx=Math.max(0,Math.round((x-r)*k)),sy=Math.max(0,Math.round((y-r)*k)),sw=Math.max(1,Math.round(r*2*k));
+  const d=terrainCv.getContext('2d').getImageData(sx,sy,sw,sw).data;let R=0,G=0,B=0,n=0;for(let i=0;i<d.length;i+=16){R+=d[i];G+=d[i+1];B+=d[i+2];n++}return n?[R/n,G/n,B/n]:null}catch(e){return null}}
+function wreckSprite(w){if(!w.ground)w.ground=groundUnder(w.x,w.y,90);if(w._spr&&w._spr.done===w.done&&w._spr.hasGround===!!w.ground)return w._spr; // baked again once the terrain under it is painted
+  const s=WRECKART.bakeSite(w.kind,w.band,w.seed,WRECK_SPR[0],WRECK_SPR[1],WRECK_SPR[0]/2,WRECK_SPR[1]/2,{bare:true,vessel:w.vessel,opened:w.done,ground:w.ground});s.done=w.done;s.hasGround=!!w.ground;return w._spr=s}
 function drawPOIs(){
   if(!S.wrecks)return;
   const t=S.t;
   S.wrecks.forEach(w=>{if(!(w.seen||debugNoFog))return;
-    ctx.save();ctx.translate(w.x,w.y);ctx.rotate(w.ang);
-    ctx.fillStyle='rgba(0,0,0,0.35)';ctx.beginPath();ctx.ellipse(4,6,w.r*1.1,w.r*0.7,0,0,Math.PI*2);ctx.fill();
-    // a broken hull: body, a torn-off plate, two dead legs
-    ctx.fillStyle=w.done?'#3a3f46':'#59606a';ctx.strokeStyle='#1b1f24';ctx.lineWidth=2;
-    ctx.beginPath();ctx.moveTo(-w.r,-w.r*0.45);ctx.lineTo(w.r*0.55,-w.r*0.6);ctx.lineTo(w.r*0.9,-w.r*0.1);ctx.lineTo(w.r*0.6,w.r*0.5);ctx.lineTo(-w.r*0.7,w.r*0.55);ctx.closePath();ctx.fill();ctx.stroke();
-    ctx.fillStyle=w.done?'#2e3238':'#7b5a3c';ctx.fillRect(-w.r*0.55,-w.r*0.25,w.r*0.6,w.r*0.45);ctx.strokeRect(-w.r*0.55,-w.r*0.25,w.r*0.6,w.r*0.45);
-    ctx.strokeStyle=w.done?'#2e3238':'#4b5159';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(w.r*0.7,w.r*0.4);ctx.lineTo(w.r*1.3,w.r*0.9);ctx.moveTo(-w.r*0.9,-w.r*0.3);ctx.lineTo(-w.r*1.5,-w.r*0.7);ctx.stroke();
-    if(!w.done){const on=Math.sin(t*3+w.blink)>0.3;ctx.fillStyle=on?C.accent:'#6b5420';ctx.beginPath();ctx.arc(w.r*0.3,-w.r*0.2,3.5,0,Math.PI*2);ctx.fill()}
-    ctx.restore();
+    const sp=wreckSprite(w),hx=WRECK_SPR[0]/2,hy=WRECK_SPR[1]/2;
+    ctx.drawImage(sp.c,w.x-hx,w.y-hy);ctx.save();ctx.translate(w.x-hx,w.y-hy);WRECKART.drawLive(ctx,sp,t+w.blink,{salvaged:w.done});ctx.restore();
     if(!w.done&&w.prog>0){ctx.strokeStyle=C.accent;ctx.lineWidth=3;ctx.beginPath();ctx.arc(w.x,w.y,w.r+14,-Math.PI/2,-Math.PI/2+w.prog*Math.PI*2);ctx.stroke()}
   });
   S.beacons.forEach(b=>{if(!(b.seen||debugNoFog))return;
@@ -8812,13 +9035,13 @@ function buildTerrainBlur(){
 // quick placeholder ground is what shows there. Nothing about movement changes: the cells decide that.
 let terrainWorker=null;
 try{terrainWorker=new Worker(URL.createObjectURL(new Blob([document.getElementById('terrainWorkerSrc').textContent],{type:'text/javascript'})))}catch(e){terrainWorker=null}
-const TPAINT={id:0,items:null,buckets:null,todo:0,got:0,focusT:-9,NTX:1};
+const TPAINT={id:0,items:null,buckets:null,todo:0,got:0,focusT:-9,NTX:1,done:null,on:false};
 const TP_TS=256,TP_L={x:-0.62,y:-0.62,z:0.48};
 function terrainKinds(){const K=new Uint8Array(TGX*TGY),B=S.barrier;
   for(let i=0;i<K.length;i++){const v=terrain[i];K[i]=(S.glass&&S.glass[i])?5:v===1?1:v===RIFT?3:v===2?((B&&B.type===2&&B.mask&&B.mask[i])?4:2):0}return K}
 function startTerrainPaint(loading){
   if(!terrainWorker||!S.crackNet)return;
-  const id=++TPAINT.id;TPAINT.items=null;TPAINT.buckets=null;TPAINT.got=0;TPAINT.NTX=Math.ceil(W/TP_TS);TPAINT.todo=TPAINT.NTX*Math.ceil(H/TP_TS);
+  const id=++TPAINT.id;TPAINT.items=null;TPAINT.buckets=null;TPAINT.got=0;TPAINT.done=new Set();TPAINT.on=true;TPAINT.NTX=Math.ceil(W/TP_TS);TPAINT.todo=TPAINT.NTX*Math.ceil(H/TP_TS);
   const sites=(S.crackSites||[]).filter(Boolean).map(st=>({x:st.x,y:st.y,ang:st.knotAng||[]}));
   const shards=(S.glassShards||[]).map(sh=>({x:sh.x,y:sh.y,r:sh.r}));
   terrainWorker.postMessage({type:'focus',x:S.base.x,y:S.base.y});TPAINT.focusT=S.t+1;
@@ -8846,7 +9069,7 @@ if(terrainWorker)terrainWorker.onmessage=e=>{const d=e.data;if(d.id!==TPAINT.id)
     return}
   if(d.type==='tile'){const tc=terrainCv.getContext('2d');tc.putImageData(new ImageData(new Uint8ClampedArray(d.buf),d.w,d.h),d.x,d.y);
     if(TPAINT.buckets)drawTerrainItems(tc,d.x,d.y,d.w,d.h);
-    TPAINT.got++;
+    TPAINT.got++;if(TPAINT.done)TPAINT.done.add(Math.floor(d.y/TP_TS)*TPAINT.NTX+Math.floor(d.x/TP_TS));
     if(TPAINT.loading&&TPAINT.need){TPAINT.need.delete(Math.floor(d.y/TP_TS)*TPAINT.NTX+Math.floor(d.x/TP_TS));const f=1-TPAINT.need.size/Math.max(1,TPAINT.needN);document.getElementById('loadFill').style.width=(f*100).toFixed(0)+'%';
       if(!TPAINT.need.size){buildTerrainBlur();showLoading(false);return}}
     if(TPAINT.got===TPAINT.todo||TPAINT.got%48===0)buildTerrainBlur();return}
