@@ -637,6 +637,7 @@ async function run(d){
   </div>
   <!-- v2: every button is a Bastion fabricator — charges that refill on their own timer, no Dat
        cost. Structures (data-mode) are aimed and launched; units (data-unit) deploy at once. -->
+  <div class="build" id="callBar" style="display:none"></div>
   <div class="build" id="buildBar">
     <button id="bTurret" data-mode="turret"><span class="icon">⌖</span><span>Turret</span><span class="cost" id="cf_turret">●●</span><span class="key">T</span></button>
     <button id="bPodTurret" data-mode="podturret" hidden><span class="icon">⁘</span><span>Missile Pod</span><span class="cost" id="cf_podturret">●</span><span class="key">M</span></button>
@@ -654,7 +655,7 @@ async function run(d){
     <button id="bRig" hidden><span class="icon">⛭</span><span id="bRigLabel">Power the Rig</span><span class="cost" id="cRig"></span><span class="key">Y</span></button>
     <button id="bStrand" hidden><span class="icon">⚑</span><span>Take on Squad</span><span class="cost" id="cStrand"></span><span class="key">Y</span></button>
     <button id="bPing"><span class="icon">◬</span><span id="bPingLabel">Probe</span><span class="cost" id="cProbe">●●●</span><span class="key">G</span></button>
-    <span id="callBar" hidden style="display:none"></span>
+    <button id="bCall" style="display:none" title="One-shot strikes and drops, called in anywhere your network reaches"><span class="icon">⇣</span><span>Call-down</span><span class="cost" id="cCall"></span></button>
     <button id="bAutoBuy" title="When on, using an empty stock buys the charge with Dat automatically"><span class="icon">⟳</span><span id="bAutoBuyLabel">Auto-buy: off</span></button>
   </div>
 </div>
@@ -1611,9 +1612,16 @@ const UPGRADES={
     {id:'martyrs',name:'Martyrs',desc:'A unit that would corrupt detonates instead, damaging enemies and friendlies alike nearby.',apply:()=>{S.mods.martyrs=true}},
     {id:'resupply1',name:'Resupply',desc:'Every fabricator, Stabilizer and Probe stock is topped up to full, right now.',apply:()=>{Object.keys(FABS).forEach(k=>{S.fab[k].n=FABS[k].charges});S.stabCharges=STAB_CHARGES;S.probeCharges=PROBE_CHARGES}},
     wallCard('heavy','Heavy Armour Walls'),
+    {id:'callDelay',name:'Priority Uplink',desc:'Call-downs land twice as fast.',has:()=>S.mods.callDelayMult<1,apply:()=>{S.mods.callDelayMult=0.5}},
+    {id:'callRadius',name:'Wide Payload',desc:'Call-downs cover 40% more ground.',has:()=>S.mods.callRadiusMult>1,apply:()=>{S.mods.callRadiusMult=1.4}},
+    {id:'callManned',name:'Forward Uplink',desc:'Call-downs can also be called in round any unit manning a wall, not only the Bastion and live Relays.',has:()=>S.mods.callFromManned,apply:()=>{S.mods.callFromManned=true}},
+    {id:'callCrate',name:'Requisition Crate',desc:'Two free call-downs, chosen at random.',apply:()=>{msg(`Requisitioned: ${giftCall(2)}.`)}},
     {id:'barracks1',name:'Barracks Expansion',get desc(){return `Field ${BARRACKS_SLOTS} more Troopers at a time (up to ${SQUAD_CAP_MAX}), and ${BARRACKS_SLOTS} free Troopers join you to fill them.`},apply:()=>{raiseSquadCap(BARRACKS_SLOTS)}},
   ],
   Epic:[
+    {id:'callPrice',name:'Bulk Contract',desc:'Call-downs cost 35% less Dat.',has:()=>S.mods.callPriceMult<1,apply:()=>{S.mods.callPriceMult=0.65}},
+    {id:'callEcho',name:'Echo Strike',desc:'Each call-down has a 30% chance to land a second time close by.',has:()=>S.mods.callEcho>0,apply:()=>{S.mods.callEcho=0.3}},
+    {id:'callReq',name:'Field Requisition',desc:'Every time you start drilling, two free call-downs arrive.',has:()=>S.mods.callReq,apply:()=>{S.mods.callReq=true}},
     {id:'hardscopes',name:'Hard Scopes',desc:"Trooper vision and firing range +20% (stacks with Surveyor's Eye).",apply:()=>{S.mods.squadRangeMult*=1.2}},
     {id:'dmg3',name:'Battle Drills III',desc:'Trooper damage +30%.',apply:()=>{S.mods.troopDmgMult*=1.3}},
     {id:'tactical',name:'Tactical Reinforcements',desc:'+5 free Troopers, +3 free Grenadiers, right now.',apply:()=>{spawnFreeTroops(5,'troop');spawnFreeTroops(3,'grenadier')}},
@@ -2558,7 +2566,7 @@ function reset(landing){
   const land=landing||defaultLanding();
   S={t:0,surveyVein:null,wrecks:[],beacons:[],squadCap:SQUAD_CAP_START,quakes:[],quakeMsg:false,barrier:null,breachSite:null,breachVein:null,rigSite:null,rig:null,glass:null,glassShards:[],glassB:null,glassCov:null,dat:tutorialMap?TUTORIAL_START_DAT:pressureOn('lean')?20:60,living:0,condensed:0,over:null,rerollCount:0,
     base:{x:land.x,y:land.y,hp:450+bastionHpBonus(),maxHp:450+bastionHpBonus(),r:BASE_R,dest:null,locked:false,gunCd:0,bigGunCd:0,pingCd:0},
-    troops:[],harvesters:[],builders:[],relays:[],depots:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],shards:[],nades:[],shardShots:[],lances:[],smears:[],calls:{},callsIn:[],
+    troops:[],harvesters:[],builders:[],relays:[],depots:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],shards:[],nades:[],shardShots:[],lances:[],smears:[],calls:{},callsIn:[],callFx:[],decoys:[],
     veins:[],activeVein:null,throttleMul:1,ambientT:30,
     minedWindowAmt:0,minedWindowT:0,offZonePatrolCd:OFFZONE_MINE_WINDOW,
     particles:[],floaters:[],shake:{t:0,dur:0,mag:0},surgeWaves:[],surgeT:10,
@@ -3910,6 +3918,7 @@ function nestDestroyed(n){
     extra=' Every fabricator gains a charge.';
   }
   if(n.size==='large')extra+=salvageFab();
+  if(n.size!=='small')extra+=` You recovered a free ${giftCall(1)}.`;
   banner(`${N.name} destroyed — drive over its Dat to collect it.${extra}`,'success');
   updateBuildBar();
 }
@@ -4058,7 +4067,7 @@ function drawMotes(x0,y0,x1,y1){
 // radius on your map for good.
 const WRECK_UNIT_RATE=0.6, WRECK_T=8, WRECK_R=44, WRECK_REACH=80, WRECK_N={rim:2,dense:2,core:2}, WRECK_STOP_N=4, WRECK_AMBUSH={rim:3,dense:5,core:8}, WRECK_AMBUSH_D=480;
 const WRECK_DAT={rim:45,dense:75,core:120};
-const WRECK_LOOT={rim:{dat:0.35,refill:0.25,drones:0.1,squad:0.2,fab:0.1},dense:{dat:0.25,refill:0.25,drones:0.1,squad:0.2,fab:0.2},core:{dat:0.2,refill:0.2,drones:0.1,squad:0.2,fab:0.3}};
+const WRECK_LOOT={rim:{dat:0.25,refill:0.2,drones:0.1,squad:0.2,fab:0.1,call:0.15},dense:{dat:0.15,refill:0.2,drones:0.1,squad:0.2,fab:0.15,call:0.2},core:{dat:0.1,refill:0.15,drones:0.1,squad:0.2,fab:0.2,call:0.25}};
 const BEACON_T=3, BEACON_REACH=60, BEACON_R=1500, BEACON_N={rim:0,dense:0,core:0}; // v4: wrecks only for now
 const POI_GAP=700*MS;
 // a spot in the band the Bastion can actually walk to, clear of the landing, vein sites, nests and
@@ -4087,7 +4096,7 @@ function placePOIs(){
 }
 function rollWreckLoot(band){
   const L=WRECK_LOOT[band];let r=Math.random();
-  for(const k of ['dat','refill','drones','squad','fab']){if(r<L[k])return k;r-=L[k]}
+  for(const k of ['dat','refill','drones','squad','fab','call']){if(r<L[k])return k;r-=L[k]}
   return 'dat';
 }
 function salvageWreck(w){
@@ -4096,6 +4105,7 @@ function salvageWreck(w){
   if(kind==='dat'){const a=WRECK_DAT[w.band];S.dat+=a;floatText(w.x,w.y-20,'+'+a+' Dat',C.dat);text=`a Dat Crystal cache (+${a})`}
   else if(kind==='refill'){Object.keys(FABS).forEach(k=>{S.fab[k].n=FABS[k].charges;S.fab[k].rt=0});S.stabCharges=STAB_CHARGES;text='spare parts: every fabricator is refilled'}
   else if(kind==='drones'){addDrones(2);text='2 intact repair drones'}
+  else if(kind==='call')text=`a call-down beacon: a free ${giftCall(1)}`
   else if(kind==='squad'&&S.squadCap<SQUAD_CAP_MAX){const n=raiseSquadCap(BARRACKS_SLOTS);text=`a barracks module — ${n} Troopers join you and you can field ${S.squadCap} now`}
   else if(kind==='squad'){const a=WRECK_DAT[w.band];S.dat+=a;floatText(w.x,w.y-20,'+'+a+' Dat',C.dat);text=`a Dat Crystal cache (+${a})`}
   else text=salvageFab().trim().replace(/^Salvaged /,'').replace(/[!.]$/,'');
@@ -5394,7 +5404,7 @@ addEventListener('keydown',e=>{
   if(menuOpen||e.target.tagName==='INPUT')return; keys[e.key.toLowerCase()]=true; keys[e.key]=true;
   if(/^Digit[0-9]$/.test(e.code||'')&&!e.altKey){e.preventDefault();const n=+e.code.slice(5);if(e.ctrlKey||e.metaKey)assignGroup(n);else if(!e.repeat)recallGroup(n);return}
   if(e.key.toLowerCase()==='q')setBuild(buildMode==='wall'?null:'wall'); else if(e.key.toLowerCase()==='t')setBuild(buildMode==='turret'?null:'turret'); else if(e.key.toLowerCase()==='r')setBuild(buildMode==='relay'?null:'relay'); else if(e.key.toLowerCase()==='e')setBuild(buildMode==='stabilizer'?null:'stabilizer'); else if(e.key.toLowerCase()==='m'&&fabUnlocked('podturret'))setBuild(buildMode==='podturret'?null:'podturret');
-  else if(e.key==='Escape'){if(!document.getElementById('drillSelectOverlay').hidden){closeDrillSelect()}else if(callMode){setCallMode(null)}else if(probeMode){setProbeMode(false)}else if(pingMode){setPingMode(false)}else if(buildMode||prodMenuOpen){setBuild(null);closeProdMenu()}else togglePause()} else if(e.key.toLowerCase()==='b'){S.sel.troops.clear();S.sel.harv.clear();S.sel.bu.clear();S.sel.base=true}
+  else if(e.key==='Escape'){if(!document.getElementById('drillSelectOverlay').hidden){closeDrillSelect()}else if(callMode||callMenuOpen){callMode=null;toggleCallMenu(false)}else if(probeMode){setProbeMode(false)}else if(pingMode){setPingMode(false)}else if(buildMode||prodMenuOpen){setBuild(null);closeProdMenu()}else togglePause()} else if(e.key.toLowerCase()==='b'){S.sel.troops.clear();S.sel.harv.clear();S.sel.bu.clear();S.sel.base=true}
   // v4: Q wall, T turret, E Stabilizer, G probe, Y power a rig, C all units, F drill (lock on / strike)
   else if(e.key==='F8'){e.preventDefault();setLowGfx(!lowGfx)}
   else if(e.key==='F9'){e.preventDefault();perf.on=!perf.on;if(perf.el)perf.el.hidden=!perf.on}
@@ -5441,6 +5451,7 @@ document.querySelectorAll('#buildBar button').forEach(b=>{
 });
 document.getElementById('bLock').onclick=()=>tryLockdown();
 document.getElementById('bPing').onclick=()=>tryProbe();
+document.getElementById('bCall').onclick=()=>toggleCallMenu();
 document.getElementById('bRig').onclick=()=>tryCaptureRig();
 document.getElementById('bStrand').onclick=()=>tryRescueStrand();
 // In-world buttons for the distress-signal finds (the derelict rig, a stranded squad): pinned under
@@ -5795,6 +5806,7 @@ function tryLockdown(){
   }
   S.throttleMul=1; S.base.locked=true; S.base.dest=null;
   if(S.mods.siegeRing)buildSiegeRing();
+  if(S.mods.callReq)msg(`Field Requisition: ${giftCall(2)} ready.`);
   S.activeVein=v; v.drillProg=0; v.prepT=0; v.stalled=false; v.paused=false; v.waveDir=rnd(0,Math.PI*2); v.firstWaveSent=true;
   v.waveT=FIRST_WAVE_DELAY; v.saboteurT=SABOTEUR_INTERVAL[v.band]; v.startT=S.t;
   v.lockIdx=ripeIdx(v); v.lockUnstable=unstableFrac(v);
@@ -5890,20 +5902,26 @@ const PROBE_BODY=new Path2D('M130.66,100s-13.13,19.75-30.66,19.75-30.66-19.75-30
 const PROBE_DOME=new Path2D('M114.79,84.77c-3.48,2.42-8.92,4.03-14.79,4.03s-11.31-1.61-14.79-4.03c4.34-2.62,9.35-4.52,14.79-4.52s10.45,1.9,14.79,4.52Z');
 
 // ---------- call-downs ----------
-// v4: one-shot strikes and drops called onto a spot within CALL_REACH of the Bastion. Each kind in
+// v4: one-shot strikes and drops called onto any spot your network reaches: the Bastion's ring or a
+// live, tethered Relay's (the same BUILD_R a Turret is placed in) — a cut Relay can't call anything
+// in until it's spliced. Forward Uplink adds a ring round every unit manning a wall. Each kind in
 // CALLDOWNS has a Dat price and a stock you can be gifted (S.calls[id] — wrecks, nests and cards
 // hand them out with grantCall). Using one spends a gifted charge first, otherwise the price. It
 // lands after its delay with a marker closing in, then the kind's land(x,y,c) does its thing.
 // Modifier cards set S.mods fields that every call-down reads: callPriceMult, callDelayMult,
-// callRadiusMult, callReachMult, and callEcho (the chance it lands a second time nearby).
+// callRadiusMult, callFromManned (Forward Uplink), and callEcho (the chance it lands a second time nearby).
 // A kind: {name, icon, desc, dat, delay, r, land(x,y,c), drawFall?(c,f), unlocked?()}.
-const CALLDOWNS={}, CALL_REACH=1500;
-let callMode=null;
+const CALLDOWNS={};
+let callMode=null,callMenuOpen=false;
+function toggleCallMenu(on){callMenuOpen=on==null?!callMenuOpen:on;if(!callMenuOpen&&callMode)callMode=null;updateBuildBar();sfx.click()}
 const callIds=()=>Object.keys(CALLDOWNS).filter(id=>!CALLDOWNS[id].unlocked||CALLDOWNS[id].unlocked()||(S.calls[id]||0)>0);
 function callPrice(id){return Math.round(CALLDOWNS[id].dat*(S.mods.callPriceMult||1))}
 function callR(id){return CALLDOWNS[id].r*(S.mods.callRadiusMult||1)}
 function callDelay(id){return CALLDOWNS[id].delay*(S.mods.callDelayMult||1)}
-function callReach(){return CALL_REACH*(S.mods.callReachMult||1)}
+// the points calls can be made round: the Bastion, every live tethered Relay, and (Forward Uplink) every unit manning a wall
+function callAnchors(){const A=[S.base];S.relays.forEach(r=>{if(r.built&&r.hp>0&&r.tetherOk)A.push(r)});
+  if(S.mods.callFromManned)S.troops.forEach(u=>{if(u.hp>0&&u.manning&&!u.dest)A.push(u)});return A}
+function inCallRange(w){return callAnchors().some(a=>dist(a,w)<=BUILD_R)}
 function grantCall(id,n){if(!CALLDOWNS[id])return;S.calls[id]=(S.calls[id]||0)+(n||1);updateBuildBar()}
 function setCallMode(id){callMode=id;updateBuildBar()}
 function tryCall(id){
@@ -5911,25 +5929,93 @@ function tryCall(id){
   if(!((S.calls[id]||0)>0)&&S.dat<callPrice(id)){note(`${CALLDOWNS[id].name} costs ◆${callPrice(id)}`);return}
   setBuild(null);probeMode=false;pingMode=false;setCallMode(id);note('Click where to call it in · Esc cancels');sfx.click()}
 function fireCall(w){const id=callMode,K=CALLDOWNS[id];if(!K){setCallMode(null);return}
-  if(dist(w,S.base)>callReach()){note('Too far from the Bastion');return}
+  if(!inCallRange(w)){note('Outside your network: call it near the Bastion or a live Relay');return}
   if((S.calls[id]||0)>0)S.calls[id]--;else{const p=callPrice(id);if(S.dat<p){note(`${K.name} costs ◆${p}`);setCallMode(null);return}S.dat-=p}
   const c={id,x:w.x,y:w.y,t:0,T:callDelay(id),r:callR(id)};S.callsIn.push(c);
   if(rand()<(S.mods.callEcho||0)){const a=rnd(0,Math.PI*2),d=rnd(0.6,1.1)*c.r;S.callsIn.push({...c,x:c.x+Math.cos(a)*d,y:c.y+Math.sin(a)*d,T:c.T+0.6,echo:true})}
-  setCallMode(null);sfx.click()}
+  setCallMode(null);callMenuOpen=false;updateBuildBar();sfx.click()}
 function updateCalls(dt){if(!S.callsIn.length)return;S.callsIn=S.callsIn.filter(c=>{c.t+=dt;if(c.t<c.T)return true;const K=CALLDOWNS[c.id];if(K)K.land(c.x,c.y,c);return false})}
 function drawCalls(){
   S.callsIn.forEach(c=>{const f=Math.min(1,c.t/c.T),K=CALLDOWNS[c.id];ctx.save();ctx.strokeStyle=C.accent;ctx.lineWidth=2/cam.z;ctx.setLineDash([10/cam.z,7/cam.z]);ctx.globalAlpha=0.45+0.5*f;
     ctx.beginPath();ctx.arc(c.x,c.y,c.r*(1.6-0.6*f),0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=0.25+0.5*f;ctx.beginPath();ctx.arc(c.x,c.y,c.r,0,Math.PI*2);ctx.stroke();ctx.restore();
     if(K&&K.drawFall)K.drawFall(c,f)});
-  if(callMode&&CALLDOWNS[callMode]){const B=S.base,ok=dist({x:mouse.wx,y:mouse.wy},B)<=callReach(),col=ok?C.accent:C.enemy;ctx.save();ctx.strokeStyle=col;ctx.lineWidth=1.5/cam.z;
-    ctx.globalAlpha=0.35;ctx.setLineDash([8/cam.z,8/cam.z]);ctx.beginPath();ctx.arc(B.x,B.y,callReach(),0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
+  if(callMode&&CALLDOWNS[callMode]){const ok=inCallRange({x:mouse.wx,y:mouse.wy}),col=ok?C.accent:C.enemy;ctx.save();ctx.lineWidth=1.5/cam.z;
+    ctx.strokeStyle=C.accent;ctx.globalAlpha=0.35;ctx.setLineDash([8/cam.z,8/cam.z]);callAnchors().forEach(a=>{ctx.beginPath();ctx.arc(a.x,a.y,BUILD_R,0,Math.PI*2);ctx.stroke()});ctx.setLineDash([]);ctx.strokeStyle=col;
     ctx.globalAlpha=0.8;ctx.beginPath();ctx.arc(mouse.wx,mouse.wy,callR(callMode),0,Math.PI*2);ctx.stroke();ctx.restore()}}
 // the call-down buttons, one per kind on offer; the row stays hidden until there is one
-function buildCallBar(){const bar=document.getElementById('callBar');if(!bar||!S)return;const ids=callIds();bar.hidden=!ids.length;bar.style.display=ids.length?'contents':'none';
+function buildCallBar(){const bar=document.getElementById('callBar'),bc=document.getElementById('bCall');if(!bar||!S)return;const ids=callIds();
+  if(bc){bc.style.display=ids.length?'':'none';bc.classList.toggle('on',callMenuOpen);const tot=ids.reduce((t,id)=>t+(S.calls[id]||0),0);document.getElementById('cCall').textContent=tot?`${tot} free`:''}
+  bar.style.display=ids.length&&callMenuOpen?'flex':'none';
   if(bar._ids!==ids.join()){bar._ids=ids.join();bar.innerHTML='';ids.forEach(id=>{const K=CALLDOWNS[id],b=document.createElement('button');b.dataset.call=id;
     b.innerHTML=`<span class="icon">${K.icon}</span><span>${K.name}</span><span class="cost" id="cc_${id}"></span>`;b.title=K.desc;b.onclick=()=>tryCall(id);bar.appendChild(b)})}
   ids.forEach(id=>{const b=bar.querySelector(`[data-call="${id}"]`),n=S.calls[id]||0;if(!b)return;b.classList.toggle('on',callMode===id);b.classList.toggle('dry',!n&&S.dat<callPrice(id));
     const el=document.getElementById('cc_'+id);if(el)el.textContent=callMode===id?'Aim…':(n?'●'.repeat(Math.min(n,5))+(n>5?'+'+(n-5):'')+' · ':'')+'◆'+callPrice(id)})}
+
+// ---- the call-downs themselves ----
+// Orbital Lance: a beam from orbit, heavy damage in a tight circle (half on nests and Quakers).
+// Stasis Field: freezes every enemy in a wide circle for STASIS_T. No damage.
+// EMP Burst: the swarm in a big circle simply drops; everything else takes a little and is dazed.
+// Drop Pod: DROPPOD_N Troopers land at the spot (on top of your limit), knocking back what's there.
+// Bulwark Drop: a ring of walls of your current type slams down already standing.
+// Sentry Drop: a Turret that lands built and powers down after SENTRY_T.
+// Decoy Beacon: every enemy within DECOY_PULL drops what it's doing and goes for the beacon until it's
+//   destroyed or DECOY_T runs out.
+const ORB_DMG=450, STASIS_T=4, EMP_DMG=25, EMP_STUN=1.5, DROPPOD_N=4, DROPPOD_DMG=60, SENTRY_T=45, DECOY_T=10, DECOY_HP=320, DECOY_PULL=650;
+function callEnemiesIn(x,y,r,f){S.enemies.forEach(e=>{if(e.hp>0&&e.kind!=='nest'&&Math.hypot(e.x-x,e.y-y)<r+(e.r||8))f(e)})}
+function callFx(x,y,r,col,life,kind){S.callFx.push({x,y,r,col,t:0,life,kind})}
+function updateCallFx(dt){if(S.callFx.length)S.callFx=S.callFx.filter(q=>(q.t+=dt)<q.life);
+  if(S.decoys.length)S.decoys=S.decoys.filter(d=>{d.t-=dt;if(d.hp<=0||d.t<=0){burst(d.x,d.y,C.accent,10,90,0.4);return false}return true})}
+function drawCallFx(){
+  S.decoys.forEach(d=>{const p=0.5+0.5*Math.sin(S.t*8);ctx.save();ctx.strokeStyle=C.accent;ctx.globalAlpha=0.25+0.3*p;ctx.lineWidth=2/cam.z;ctx.beginPath();ctx.arc(d.x,d.y,20+p*16,0,Math.PI*2);ctx.stroke();
+    ctx.globalAlpha=1;ctx.fillStyle=d.flashT>0?'#fff':'#2a2f36';ctx.strokeStyle=C.accent;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(d.x,d.y-14);ctx.lineTo(d.x+9,d.y);ctx.lineTo(d.x,d.y+9);ctx.lineTo(d.x-9,d.y);ctx.closePath();ctx.fill();ctx.stroke();
+    ctx.fillStyle=C.accent;ctx.globalAlpha=0.5+0.5*p;ctx.beginPath();ctx.arc(d.x,d.y-2,3,0,Math.PI*2);ctx.fill();ctx.restore();if(d.hp<d.maxHp)hpbar(d.x,d.y-24,26,d.hp/d.maxHp)});
+  S.callFx.forEach(q=>{const k=q.t/q.life,a=1-k;ctx.save();
+    if(q.kind==='stasis'){const fade=Math.min(1,q.t/0.25)*Math.min(1,(q.life-q.t)/0.5);ctx.globalAlpha=0.16*fade;ctx.fillStyle='#8fe3ff';ctx.beginPath();ctx.arc(q.x,q.y,q.r,0,Math.PI*2);ctx.fill();
+      ctx.globalAlpha=0.6*fade;ctx.strokeStyle='#dff7ff';ctx.lineWidth=2/cam.z;ctx.beginPath();ctx.arc(q.x,q.y,q.r,0,Math.PI*2);ctx.stroke();
+      ctx.globalAlpha=0.35*fade;for(let i=0;i<6;i++){const an=i/6*Math.PI*2+S.t*0.4;ctx.beginPath();ctx.moveTo(q.x,q.y);ctx.lineTo(q.x+Math.cos(an)*q.r,q.y+Math.sin(an)*q.r);ctx.stroke()}}
+    else if(q.kind==='beam'){ctx.globalCompositeOperation='lighter';ctx.globalAlpha=a;const w=q.r*0.45*(1-k*0.6),g=ctx.createLinearGradient(q.x-w,0,q.x+w,0);g.addColorStop(0,'rgba(255,200,120,0)');g.addColorStop(0.5,'rgba(255,240,200,1)');g.addColorStop(1,'rgba(255,200,120,0)');
+      ctx.fillStyle=g;ctx.fillRect(q.x-w,q.y-900,w*2,900);ctx.fillStyle='rgba(255,220,150,0.6)';ctx.beginPath();ctx.arc(q.x,q.y,q.r*(0.6+k*0.6),0,Math.PI*2);ctx.fill()}
+    else{ctx.globalAlpha=a;ctx.strokeStyle=q.col;ctx.lineWidth=(q.kind==='emp'?4:3)/cam.z;ctx.beginPath();ctx.arc(q.x,q.y,q.r*(0.3+0.7*Math.sqrt(k)),0,Math.PI*2);ctx.stroke()}
+    ctx.restore()})}
+// what falls: drawn from the top of the screen down onto the marker as the delay runs out
+function fallBody(c,f,col,size){const k=Math.pow(f,2.2),h=700*(1-k);if(f<0.05)return;ctx.save();
+  ctx.globalAlpha=0.3*k;ctx.fillStyle='#000';ctx.beginPath();ctx.ellipse(c.x+4,c.y+4,size*(0.5+0.5*k),size*0.6*(0.5+0.5*k),0,0,Math.PI*2);ctx.fill();
+  ctx.globalAlpha=1;ctx.strokeStyle='rgba(255,200,120,0.5)';ctx.lineWidth=2/cam.z;ctx.beginPath();ctx.moveTo(c.x,c.y-h-120);ctx.lineTo(c.x,c.y-h);ctx.stroke();
+  ctx.fillStyle=col;ctx.strokeStyle='#0b0e12';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(c.x,c.y-h-size);ctx.lineTo(c.x+size*0.7,c.y-h);ctx.lineTo(c.x,c.y-h+size*0.5);ctx.lineTo(c.x-size*0.7,c.y-h);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore()}
+Object.assign(CALLDOWNS,{
+  orbital:{name:'Orbital Lance',icon:'⇣',dat:220,delay:2,r:80,desc:`A beam from orbit: ${ORB_DMG} damage to everything in a tight circle (half on nests and Quakers). For a Colossus or a clump.`,
+    drawFall(c,f){if(f<0.55)return;const k=(f-0.55)/0.45;ctx.save();ctx.globalCompositeOperation='lighter';ctx.globalAlpha=0.15+0.5*k;ctx.strokeStyle='#ffe0a0';ctx.lineWidth=(1+4*k)/cam.z;ctx.beginPath();ctx.moveTo(c.x,c.y-900);ctx.lineTo(c.x,c.y);ctx.stroke();ctx.restore()},
+    land(x,y,c){callEnemiesIn(x,y,c.r,e=>damageEnemy(e,isBigTarget(e)?ORB_DMG*0.5:ORB_DMG));
+      S.enemies.filter(e=>e.kind==='nest'&&e.hp>0&&Math.hypot(e.x-x,e.y-y)<c.r+e.r).forEach(e=>damageEnemy(e,ORB_DMG*0.5));
+      callFx(x,y,c.r,'#ffe0a0',0.6,'beam');burst(x,y,'#ffd28a',30,240,0.6);shakeScreen(7,0.35);sfx.explode();tone(120,0.5,'sawtooth',0.07,0,40)}},
+  stasis:{name:'Stasis Field',icon:'❄',dat:160,delay:0.8,r:150,desc:`Freezes every enemy in a wide circle for ${STASIS_T}s. No damage: it buys time.`,
+    land(x,y,c){callEnemiesIn(x,y,c.r,e=>{e.stunT=Math.max(e.stunT||0,STASIS_T);e.kbx=0;e.kby=0});callFx(x,y,c.r,'#8fe3ff',STASIS_T,'stasis');tone(1400,0.4,'sine',0.05,0,300)}},
+  emp:{name:'EMP Burst',icon:'⌁',dat:140,delay:1,r:230,desc:`The swarm in a big circle drops dead; everything else takes ${EMP_DMG} and is dazed for ${EMP_STUN}s.`,
+    land(x,y,c){let n=0;callEnemiesIn(x,y,c.r,e=>{if(e.horde){e.hp=0;n++}else{damageEnemy(e,EMP_DMG);e.stunT=Math.max(e.stunT||0,EMP_STUN)}});
+      callFx(x,y,c.r,'#8fe3ff',0.5,'emp');callFx(x,y,c.r*0.6,'#dff7ff',0.35,'emp');tone(90,0.35,'square',0.06,0,600)}},
+  droppod:{name:'Drop Pod',icon:'⬙',dat:200,delay:2.5,r:44,desc:`${DROPPOD_N} Troopers land right on the spot (on top of your limit), knocking back what is there.`,
+    drawFall(c,f){fallBody(c,f,'#dfe6ee',16)},
+    land(x,y,c){callEnemiesIn(x,y,c.r+20,e=>{damageEnemy(e,DROPPOD_DMG);const a=Math.atan2(e.y-y,e.x-x);e.kbx=Math.cos(a)*260;e.kby=Math.sin(a)*260;e.stunT=Math.max(e.stunT||0,0.5)});
+      for(let i=0;i<DROPPOD_N;i++){const u=mkTroop(Date.now()+i+Math.floor(Math.random()*1e4),'troop'),a=i/DROPPOD_N*Math.PI*2,p=nearestPlain(x+Math.cos(a)*14,y+Math.sin(a)*14);u.x=p.x;u.y=p.y;u.state='idle';S.troops.push(u)}
+      burst(x,y,'#dfe6ee',22,180,0.5);callFx(x,y,c.r+20,'#dfe6ee',0.45,'ring');shakeScreen(4,0.2);sfx.explode();updateBuildBar()}},
+  bulwark:{name:'Bulwark Drop',icon:'⬡',dat:180,delay:1.5,r:70,desc:'A ring of walls of your current wall type slams down round the spot, already standing.',
+    drawFall(c,f){fallBody(c,f,'#8d9aa8',14)},
+    land(x,y,c){const N=6,R=c.r,pts=[];for(let i=0;i<N;i++){const a=Math.PI/N+i/N*Math.PI*2;pts.push({x:x+Math.cos(a)*R,y:y+Math.sin(a)*R})}
+      for(let i=0;i<N;i++){const p=pts[i],q=pts[(i+1)%N];if([p,q].some(o=>o.x<20||o.y<20||o.x>W-20||o.y>H-20))continue;if(wallAt((p.x+q.x)/2,(p.y+q.y)/2))continue;
+        const L=addWallLine(p,q,true);if(!L)continue;S.fabShots=S.fabShots.filter(sh=>sh.line!==L);L.posts=[true,true];L.raiseT0=S.t;L.callDrop=true}
+      callEnemiesIn(x,y,R+10,e=>{const a=Math.atan2(e.y-y,e.x-x);e.kbx=Math.cos(a)*200;e.kby=Math.sin(a)*200;e.stunT=Math.max(e.stunT||0,0.4)});
+      burst(x,y,'#8d9aa8',20,160,0.5);callFx(x,y,R,'#c3ccd6',0.45,'ring');shakeScreen(4,0.2);sfx.build();wallTowers()}},
+  sentry:{name:'Sentry Drop',icon:'⌖',dat:150,delay:1.8,r:30,desc:`A Turret lands already built and fights for ${SENTRY_T}s before it powers down.`,
+    drawFall(c,f){fallBody(c,f,C.accent,13)},
+    land(x,y,c){const p=nearestPlain(x,y);S.turrets.push({x:p.x,y:p.y,hp:TURRET_HP,maxHp:TURRET_HP,cd:0,ang:0,kind:'turret',built:true,buildT:0,buildTotal:TURRET_BUILD_T,builder:null,repairer:null,tower:false,pods:0,expireT:S.t+SENTRY_T,sentry:true});
+      burst(p.x,p.y,C.accent,14,140,0.4);callFx(p.x,p.y,40,C.accent,0.4,'ring');shakeScreen(3,0.15);sfx.build()}},
+  decoy:{name:'Decoy Beacon',icon:'◈',dat:120,delay:1,r:40,desc:`Every enemy within ${DECOY_PULL} goes for the beacon instead, until it is destroyed or ${DECOY_T}s pass.`,
+    drawFall(c,f){fallBody(c,f,'#2a2f36',11)},
+    land(x,y,c){const p=nearestPlain(x,y);S.decoys.push({x:p.x,y:p.y,r:12,hp:DECOY_HP,maxHp:DECOY_HP,t:DECOY_T,kind:'decoy'});callFx(p.x,p.y,DECOY_PULL,C.accent,0.8,'ring');tone(600,0.3,'triangle',0.05,0,900)}},
+});
+// gifts: a free charge of a random call-down (wrecks, nests, big veins and some cards hand these out)
+function giftCall(n,why){const ids=Object.keys(CALLDOWNS),got={};for(let i=0;i<(n||1);i++){const id=ids[Math.floor(Math.random()*ids.length)];grantCall(id,1);got[id]=(got[id]||0)+1}
+  return Object.keys(got).map(id=>`${got[id]>1?got[id]+'× ':''}${CALLDOWNS[id].name}`).join(' and ')}
 let probeMode=false;
 function probeRange(){return PROBE_RANGE}
 function probeR(){return PROBE_R*probeWidthMult()}
@@ -7630,7 +7716,7 @@ function update(dt){
   if(S.reanim.length)updateReanimation(dt);
   updateStabilizerShots(dt);
   updateProbes(dt);
-  if(!S.callsIn)S.callsIn=[];updateCalls(dt);
+  if(!S.callsIn)S.callsIn=[];if(!S.callFx)S.callFx=[];if(!S.decoys)S.decoys=[];updateCalls(dt);updateCallFx(dt);
   updateFabs(dt);
   updateQuakes(dt);
   updateNests(dt);
@@ -8031,6 +8117,7 @@ function update(dt){
       {let ls=null,lsc=0;S.stabs.forEach(st=>{const sn=st.strain||0;if(sn<0.2||!st.built||st.hp<=0)return;const d=dist(e,st);if(d<STRAIN_AGGRO_R*sn&&sn/(d+60)>lsc){lsc=sn/(d+60);ls=st}});
         if(ls&&!(tgt&&tgt!==B&&tgt.kind!=='stabilizer'&&dist(e,tgt)<70))tgt=ls}
     }
+    if(S.decoys.length&&e.kind!=='saboteur'){let dc=null,dd=DECOY_PULL;S.decoys.forEach(q=>{const d=dist(q,e);if(d<dd){dd=d;dc=q}});if(dc)tgt=dc}
     e.target=tgt;
     if(e.horde&&tgt){e._tT=S.t+rnd(0.25,0.45);hordeStep(e,tgt,dt);return}
     if(e.kind==='splinter'&&tgt){splinterStep(e,tgt,dt);return}
@@ -8108,7 +8195,8 @@ function update(dt){
     shakeScreen(7,0.4);
     banner('A Brute has burst apart — a swarm is pouring out of the wreckage!','danger');
   });
-  S.turrets.forEach(t=>{if(t.hp<=0){burst(t.x,t.y,C.accent,10,110,0.5);sfx.relayDown()}});
+  S.turrets.forEach(t=>{if(t.sentry&&S.t>=t.expireT&&t.hp>0){t.hp=0;t.quiet=true;burst(t.x,t.y,'#8d9aa8',12,90,0.5)}}); // a Sentry Drop powers down
+  S.turrets.forEach(t=>{if(t.hp<=0&&!t.quiet){burst(t.x,t.y,C.accent,10,110,0.5);sfx.relayDown()}});
   S.turrets=S.turrets.filter(t=>t.hp>0);
   // a destroyed Relay stays put instead of vanishing — it just goes fully dark (no tether, no
   // anchoring for anyone) until a repair-mode builder brings its HP back above zero.
@@ -8284,6 +8372,7 @@ function rollRewardCards(tier,band){
 // Pauses the whole sim (update() bails out while S.rewardChoice is set) and shows the pick.
 function showRewardChoice(tier,band){
   const cards=rollRewardCards(tier,band);
+  {const n=tier==='Epic'?1:tier==='Legendary'||tier==='Hive'?2:0;if(n)msg(`The ${tier} vein also paid out ${giftCall(n)} — free call-downs.`)}
   S.rewardChoice={tier,cards,band};
   document.getElementById('rewardTitle')._tc=`Choose a Reward — ${tier} Tier`;
   const host=document.getElementById('rewardCards');
@@ -9323,6 +9412,7 @@ function draw(){
   drawFabShots();
   drawStabShots();
   drawProbes();
+  drawCallFx();
   drawCalls();
   // probe aiming: the straight line it will fly, out to its full range, and the strip it will reveal
   if(probeMode){const dx=mouse.wx-B.x,dy=mouse.wy-B.y,L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L,R=probeRange(),ex=B.x+ux*R,ey=B.y+uy*R,PW=probeR(),nx=-uy*PW,ny=ux*PW;
