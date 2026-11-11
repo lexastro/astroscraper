@@ -1071,15 +1071,15 @@ function setWallType(id){S.mods.wallType=id;const hp=wallSlatHp(id);
   S.wallDirty=true;updateBuildBar()}
 // The wall cards: a line of flavour, itemised pros and cons, and a note that it replaces your walls.
 const WALL_CARD={
-  heavy:{blurb:'Your walls become thick armoured slabs.',pros:['2.5× the HP per slat','No gaps between slats'],cons:['Walls cost 2× (stacks with tower cards)','Slats rise more slowly']},
-  elec:{blurb:'Your walls become live electric fences.',pros:[`Shocks anything that touches it: ${ELEC_DMG} damage and a ${ELEC_STUN}s stun`,'Swarms get shocked too'],cons:['Half the HP of a standard wall','Only shocks inside your power network (Bastion or a Relay)']},
-  razor:{blurb:'Your walls become low kerbs of spikes and razor wire.',pros:[`Every hit on it cuts the attacker for ${RAZOR_DMG} damage`,'Same cost as a standard wall'],cons:['30% less HP']},
-  glass:{blurb:'Your walls grow as ridges of Dense glass.',pros:['Damaged slats heal over time',`Broken slats grow back after ${GLASS_REGROW_T}s`],cons:['20% less HP','Walls cost 1.5×']},
-  shield:{blurb:'Your walls become projected shield panes.',pros:['1.4× HP, recharging once it goes 3s unhit',`Never destroyed: a drained pane drops for ${SHIELD_DOWN_T}s, then comes back`],cons:['Needs power: outside your network the pane is off and blocks nothing','Walls cost 1.5×']},
+  heavy:{blurb:'Thick armoured slabs.',pros:['2.5× HP','No gaps'],cons:['2× cost','Slow to rise']},
+  elec:{blurb:'Live electric fences.',pros:['Shocks and stuns attackers'],cons:['Half HP','Needs power']},
+  razor:{blurb:'Spikes and razor wire.',pros:['Cuts attackers','Normal cost'],cons:['30% less HP']},
+  glass:{blurb:'Ridges of Dense glass.',pros:['Heals over time','Regrows when broken'],cons:['20% less HP','1.5× cost']},
+  shield:{blurb:'Projected shield panes.',pros:['1.4× HP, recharges','Never destroyed'],cons:['Needs power','1.5× cost']},
 };
 function wallCardDesc(id){const W=WALL_CARD[id],cur=S&&S.mods&&S.mods.wallType;
   return `${W.blurb}<ul class="pc">${W.pros.map(x=>`<li class="pro">${x}</li>`).join('')}${W.cons.map(x=>`<li class="con">${x}</li>`).join('')}</ul>`+
-    `<span class="rcSwap">⟲ ${cur&&cur!==id?`Replaces your ${WALL_TYPES[cur].name} card`:'Replaces any other wall card you have'}. Every wall you have switches over.</span>`}
+    `<span class="rcSwap">⟲ ${cur&&cur!==id?`Replaces ${WALL_TYPES[cur].name} walls`:'Replaces other wall cards'}</span>`}
 const wallCard=(id,name)=>({id:'wall_'+id,name,get desc(){return wallCardDesc(id)},has:()=>S.mods.wallType===id,apply:()=>setWallType(id)});
 const COST={wall:5,turret:75,relay:15,depot:150,stabilizer:20,harvester:75,troop:30,builder:20,grenadier:45,artillery:140,mech:90,rocket:70,brawler:25,marksman:60};
 // v2 fabricators: nothing is bought with Dat any more. Each kind of thing the Bastion can make has
@@ -6118,6 +6118,26 @@ const WALL_DRAW={
    if(st.hit>0){ctx.strokeStyle=`rgba(220,245,255,${st.hit})`;ctx.lineWidth=0.6;ctx.beginPath();ctx.ellipse(0,0,(1-st.hit)*7+0.5,2.7,0,0,Math.PI*2);ctx.stroke()}
    ctx.restore()}},
 };
+// End posts, one per wall type, in the post's own frame (+x runs into the wall). Lit and shadowed like
+// the turrets; glows (fence tips, shield lens) go on top, only while the wall has power.
+const WALL_POST={
+ std:{draw(){rP([[-5,-5.5],[5,-5.5],[5,5.5],[-5,5.5]],'#6a7887',0.7);rP([[-3.6,-4],[3.6,-4],[3.6,4],[-3.6,4]],'#a9b6c4',0.5);
+   for(const sx of[-1,1])for(const sy of[-1,1])rO(sx*3.6,sy*4.4,0.55,'#dfe6ee',0.2);rO(0,0,1.2,C.accent,0.4)}},
+ heavy:{draw(){rP(twPoly(8,8.4,Math.PI/8),'#6f7c89',0.8);rP(twPoly(8,5.8,Math.PI/8),'#c3ccd6',0.6);
+   for(let k=0;k<8;k++){const a=k/8*Math.PI*2;rO(Math.cos(a)*7.2,Math.sin(a)*7.2,0.6,'#e6e6e6',0.2)}
+   rP([[-2.6,-3.4],[2.6,-3.4],[2.6,3.4],[-2.6,3.4]],'#3b4652',0.4);ctx.fillStyle=muteCol(C.accent);ctx.beginPath();ctx.moveTo(-1.8,-2.2);ctx.lineTo(0.4,0);ctx.lineTo(-1.8,2.2);ctx.lineTo(-0.4,2.2);ctx.lineTo(1.8,0);ctx.lineTo(-0.4,-2.2);ctx.closePath();ctx.fill()}},
+ elec:{draw(){rP([[-5,-5],[5,-5],[5,5],[-5,5]],'#56616d',0.7);rLimb([[-4.6,-4.6],[4.6,4.6]],1.1,'#3b4652');rLimb([[-4.6,4.6],[4.6,-4.6]],1.1,'#3b4652');
+   for(const sx of[-1,1])for(const sy of[-1,1])rO(sx*5,sy*5,1.5,C.accent,0.3);rO(0,0,3,'#4d4d4d',0.6);rO(0,0,1.3,'#cfd8e0',0.3)},
+  glow(q){if(!q.powered)return;const f=0.6+0.4*Math.sin(S.t*20+q.x),g=ctx.createRadialGradient(q.x,q.y,0,q.x,q.y,10);g.addColorStop(0,`rgba(200,245,255,${0.9*f})`);g.addColorStop(0.35,`rgba(143,227,255,${0.45*f})`);g.addColorStop(1,'rgba(143,227,255,0)');
+   ctx.save();ctx.globalCompositeOperation='lighter';ctx.fillStyle=g;ctx.fillRect(q.x-10,q.y-10,20,20);ctx.restore()}},
+ razor:{draw(){for(let k=0;k<7;k++){const a=0.75+k/6*(Math.PI*2-1.5),c=Math.cos(a),s=Math.sin(a);rP([[c*4.4-s*1.1,s*4.4+c*1.1],[c*4.4+s*1.1,s*4.4-c*1.1],[c*(k%2?8.6:10),s*(k%2?8.6:10)]],'#cfd6dd',0.4)}
+   rP(twPoly(8,5,Math.PI/8),'#8a8f96',0.7);rO(0,0,3.1,'#6d7278',0.5);rO(0,0,1,'#4d4d4d',0.3)}},
+ glass:{draw(){rP(twPoly(7,7.4,0.3),'#4a3a5e',0.7);[[1.9,13,5.6],[2.9,11,5],[3.8,14,5.8],[4.7,11,5],[5.5,12,5.2]].forEach(([a,L,w])=>{wsShard(Math.cos(a)*L*0.36,Math.sin(a)*L*0.36,L,w,a)});wsShard(-0.6,-1.2,10,6,-Math.PI/2-0.25);wsShard(0.8,1,7,4.6,0.9)}},
+ shield:{draw(){twHex(7.4);rP([[2.4,-2.4],[8.4,-1.4],[8.4,1.4],[2.4,2.4]],'#999',0.5);rO(0,0,3,C.ally,0.6)},
+  glow(q){if(!q.powered)return;const f=0.75+0.25*Math.sin(S.t*3+q.x),g=ctx.createRadialGradient(q.x,q.y,0,q.x,q.y,9);g.addColorStop(0,`rgba(160,225,255,${0.7*f})`);g.addColorStop(1,'rgba(94,200,255,0)');
+   ctx.save();ctx.globalCompositeOperation='lighter';ctx.fillStyle=g;ctx.fillRect(q.x-9,q.y-9,18,18);ctx.restore()}},
+};
+function drawWallPost(q){const P=WALL_POST[q.T]||WALL_POST.std;drawTowerLit(q,()=>{ctx.rotate(q.a);P.draw()});if(P.glow)P.glow(q)}
 function wsDb(sl,T){if(T==='shield')return 0;const d=sl.maxHp?1-sl.hp/sl.maxHp:0;return d<0.2?0:d<0.5?1:d<0.8?2:3}
 function wallSprite(T,db,vi,ai,sc,half){const k=T+db+'|'+vi+'|'+ai+'|'+sc+'|'+Math.round(half*4);let c=cacheGet(WSPR,k);if(c)return c;
   const S2=Math.ceil(WS_E*2*sc);c=document.createElement('canvas');c.width=c.height=S2;const x=c.getContext('2d');x.setTransform(sc,0,0,sc,WS_E*sc,WS_E*sc);
@@ -6125,7 +6145,7 @@ function wallSprite(T,db,vi,ai,sc,half){const k=T+db+'|'+vi+'|'+ai+'|'+sc+'|'+Ma
   const keep=ctx;ctx=x;try{WALL_DRAW[T].draw({h:half*WALL_TYPES[T].cover,seg:half*2,d:WS_DB[db],i:vi})}finally{ctx=keep;U_SUN.x=sx;U_SUN.y=sy}
   cachePut(WSPR,k,c,WSPR_CAP);return c}
 function drawWallLines(){
-  const sc=Math.min(4,Math.ceil(cam.z*gDpr()*2)/2),step=Math.PI*2/WS_ANG;
+  const sc=Math.min(4,Math.ceil(cam.z*gDpr()*2)/2),step=Math.PI*2/WS_ANG,posts=[];
   (S.wallLines||[]).forEach(L=>{const T=L.type||'std',W=WALL_TYPES[T],D=WALL_DRAW[T],ai=((Math.round(L.ang/step)%WS_ANG)+WS_ANG)%WS_ANG;
     L.slats.forEach((sl,idx)=>{if(sl.dead||sl.up<=0)return;
       const vi=(sl.vi??idx)%3,half=sl.half,cv=half*W.cover,rs=sl.up<1?0.4+0.6*sl.up:1,slam=T==='heavy'&&sl.up<1?1+0.15*(1-sl.up):1,th=WS_SH[T];
@@ -6135,9 +6155,10 @@ function drawWallLines(){
       if(sl.flashT>0){ctx.globalAlpha=0.5;ctx.fillStyle='#fff';ctx.fillRect(-cv,-th/2,cv*2,th);ctx.globalAlpha=1}
       if(D.fx)D.fx({t:S.t,i:idx,d:sl.maxHp?1-sl.hp/sl.maxHp:0,seg:half*2,up:sl.up,powered:L.powered,down:sl.downT>0,hit:Math.max(0,1-(S.t-(sl.hitT??-9))/0.35),grow:sl.growT0!=null?Math.min(1,(S.t-sl.growT0)/1.2):null});
       ctx.restore()});
-    [[L.x0,L.y0,0],[L.x1,L.y1,1]].forEach(([x,y,i])=>{if(!L.posts[i]||S.turrets.some(t=>t.built&&dist(t,{x,y})<4))return;
-      rO(x,y,5.2,'#56616d',0.8);ctx.strokeStyle=C.accent;ctx.lineWidth=1.2;ctx.beginPath();ctx.arc(x,y,5.6,0,Math.PI*2);ctx.stroke()});
+    [[L.x0,L.y0,0],[L.x1,L.y1,1]].forEach(([x,y,i])=>{if(!L.posts[i]||posts.some(q=>Math.hypot(q.x-x,q.y-y)<3)||S.turrets.some(t=>t.built&&dist(t,{x,y})<4))return;
+      posts.push({x,y,a:i?L.ang+Math.PI:L.ang,T,powered:L.powered})});
   });
+  posts.forEach(q=>drawWallPost(q));
   if(S.zaps&&S.zaps.length){ctx.save();ctx.globalCompositeOperation='lighter';ctx.lineCap='round';
     S.zaps.forEach(z=>{const a=1-z.t/0.18,pts=wsJag(z.x0,z.y0,z.x1,z.y1,z.seed+Math.floor(z.t*60),5,5);ctx.globalAlpha=a*0.5;ctx.strokeStyle='#8fe3ff';ctx.lineWidth=3;wsStroke(pts);ctx.globalAlpha=a;ctx.strokeStyle='#fff';ctx.lineWidth=1;wsStroke(pts)});
     ctx.restore()}
