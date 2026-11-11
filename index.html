@@ -5277,7 +5277,7 @@ function landFabShot(sh){
     S.turrets.push({x:w.x,y:w.y,hp,maxHp:hp,cd:0,ang:0,kind:sh.k,built:true,buildT:TURRET_BUILD_T,buildTotal:TURRET_BUILD_T,builder:null,repairer:null,tower:!!sh.free,pods:pod?PODT_CELLS:0});
   }else{
     S.relays.push({x:w.x,y:w.y,hp:relayMaxHp(),maxHp:relayMaxHp(),kind:'relay',built:true,buildT:RELAY_BUILD_T,buildTotal:RELAY_BUILD_T,builder:null,repairer:null,
-      state:null,tetherOk:false,trail:null,cableHp:0,cableLen:0,cableMaxed:false,reconnectT:0,wasFree:false,gunCd:0,ang:0});
+      state:null,tetherOk:false,trail:null,cableHp:0,cableLen:0,cableMaxed:false,reconnectT:0,wasFree:false,gunCd:0,ang:0,landT:S.t});
     if(S.mods.relayDef==='walled')relayRing(S.relays[S.relays.length-1]);
   }
   burst(w.x,w.y,C.builder,12,120,0.45);shakeScreen(2,0.12);sfx.build();
@@ -8585,10 +8585,20 @@ function relayMastSolids(r){const o=[],x=r.x,y=r.y,G='#999',DK='#4a4f57',INS='#d
     o.push(skFrustum([bx-c,by-s,bz],[bx+c*2.2,by+s*2.2,bz+3],1.2,7.5,14,'#dfe3e8',{cap:'#b9c0c8',bias:0.5}))}
   if(def==='repair'){o.push(skBox(x+6,y-1,hz-5,hz-3.5,8,6,0,'#8d9aa8',{top:'#a9b6c4'}));o.push(skBeam([x,y,hz-4.5],[x+5,y-1,hz-4.3],1,G))}
   return o}
+// On landing the mast builds itself from the ground up, one piece after another RELAY_POP_GAP apart
+// (the order they're listed in: legs, base, pole, each insulator, each crossarm spoke and hook, the
+// head), each springing a touch past full size and settling; then the lamp blinks on and a ring of
+// light runs out over the ground.
+const RELAY_POP_GAP=0.045;
 function drawRelayMast(r){SKO.x=0;SKO.y=0;SKO.s=1;SKO.lean=[0,0];SKO.shk=[0,0];
-  skRender(relayMastSolids(r),r.flashT>0);
-  const off=S.mods.relayOff,lz=off==='armored'?33:off==='tesla'?49:46.2,col=r.tetherOk?C.ally:C.enemy;
-  skGlow([r.x,r.y,lz],7,col,0.55);skGlow([r.x,r.y,lz],2,'#ffffff',0.6);
+  let solids=relayMastSolids(r);const since=r.landT!=null?S.t-r.landT:99,built=solids.length*RELAY_POP_GAP+SK_POP_T;
+  if(since<built)solids=solids.map((S0,i)=>{const u=(since-i*RELAY_POP_GAP)/SK_POP_T;return u<=0?null:skPop(S0,Math.min(1,u))}).filter(Boolean);
+  if(solids.length)skRender(solids,r.flashT>0);
+  if(since<built){if(since<0.25){const q=since/0.25;ctx.save();ctx.globalAlpha=(1-q)*0.6;ctx.strokeStyle='#cfd8e0';ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(r.x,r.y,8+q*18,(8+q*18)*0.9,0,0,Math.PI*2);ctx.stroke();ctx.restore()}SKO.s=SK_SCALE;return}
+  const off=S.mods.relayOff,lz=off==='armored'?33:off==='tesla'?49:46.2,col=r.tetherOk?C.ally:C.enemy,on=since-built;
+  const blink=on<0.5?(Math.floor(on/0.1)%2?1:0.15):1; // the lamp stutters on
+  skGlow([r.x,r.y,lz],7,col,0.55*blink);skGlow([r.x,r.y,lz],2,'#ffffff',0.6*blink);
+  if(on<0.6){const q=on/0.6;ctx.save();ctx.globalAlpha=(1-q)*0.7;ctx.strokeStyle=col;ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(r.x,r.y,12+q*40,(12+q*40)*0.9,0,0,Math.PI*2);ctx.stroke();ctx.restore()}
   if(off==='tesla'&&r.tetherOk){const tp=skPJ([r.x,r.y,47]);ctx.save();ctx.globalCompositeOperation='lighter';ctx.strokeStyle='#9fd8ff';ctx.lineWidth=0.7;ctx.globalAlpha=0.8;
     for(let k=0;k<3;k++){if(wsHash(Math.floor(S.t*14),k,r.x|0)>0.55)continue;const a=S.t*7+k*2.1,R=8.5;ctx.beginPath();ctx.moveTo(tp[0]+Math.cos(a)*R*0.6,tp[1]+Math.sin(a)*R*0.3);ctx.lineTo(tp[0]+Math.cos(a+0.3)*R*1.1+(Math.random()-0.5)*3,tp[1]+Math.sin(a+0.3)*R*0.55);ctx.stroke()}ctx.restore()}
   if(S.mods.relayDef==='radar'&&r.tetherOk){ctx.save();ctx.globalCompositeOperation='lighter';const a=S.t*0.9,R=RELAY_RADAR_VISION*0.55,g=ctx.createRadialGradient(r.x,r.y,0,r.x,r.y,R);g.addColorStop(0,'rgba(94,200,255,0.12)');g.addColorStop(1,'rgba(94,200,255,0)');
