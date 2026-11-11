@@ -6536,14 +6536,18 @@ function spawnAtStab(v,st,k,th){
 }
 // ---------- horde ----------
 // Where the next wave will come from: the nests feeding the vein, or its wave line.
+const WARN_GROUP_SPAN=0.7, WARN_MAX_MARKERS=5;
 function waveSources(v){
   const feeders=liveNests().filter(nn=>dist(nn,v)<NEST_FEED_R);
   if(feeders.length){
-    // nests on roughly the same bearing from the vein make one marker (at most three)
-    const pts=feeders.map(nn=>({x:nn.x,y:nn.y,a:Math.atan2(nn.y-v.y,nn.x-v.x)})).sort((p,q)=>p.a-q.a),groups=[];
-    pts.forEach(p=>{const g=groups[groups.length-1];if(g&&p.a-g.a1<0.8){g.m.push(p);g.a1=p.a}else groups.push({m:[p],a1:p.a})});
-    if(groups.length>1){const f=groups[0],l=groups[groups.length-1];if(f.m[0].a+Math.PI*2-l.a1<0.8){f.m.push(...l.m);groups.pop()}}
-    return groups.sort((p,q)=>q.m.length-p.m.length).slice(0,3).map(g=>{let x=0,y=0;g.m.forEach(p=>{x+=p.x;y+=p.y});return{x:x/g.m.length,y:y/g.m.length}});
+    // nests on roughly the same bearing from the vein make one marker. A group spans at most
+    // WARN_GROUP_SPAN of bearing from its first nest — it doesn't chain on from nest to nest, which
+    // let nests strung round half the vein share one marker pointing between them all.
+    const pts=feeders.map(nn=>({x:nn.x,y:nn.y,a:Math.atan2(nn.y-v.y,nn.x-v.x),w:NEST[nn.size].feed})).sort((p,q)=>p.a-q.a),groups=[];
+    pts.forEach(p=>{const g=groups[groups.length-1];if(g&&p.a-g.a0<=WARN_GROUP_SPAN){g.m.push(p);g.a1=p.a}else groups.push({m:[p],a0:p.a,a1:p.a})});
+    if(groups.length>1){const f=groups[0],l=groups[groups.length-1];if(f.a1+Math.PI*2-l.a0<=WARN_GROUP_SPAN){f.m.push(...l.m);groups.pop()}} // across ±180°
+    const wt=g=>g.m.reduce((t,p)=>t+p.w,0);
+    return groups.sort((p,q)=>wt(q)-wt(p)).slice(0,WARN_MAX_MARKERS).map(g=>{let x=0,y=0;g.m.forEach(p=>{x+=p.x;y+=p.y});return{x:x/g.m.length,y:y/g.m.length}});
   }
   return [{x:Math.max(20,Math.min(W-20,v.x+Math.cos(v.waveDir)*WAVE_SPAWN_DIST)),y:Math.max(20,Math.min(H-20,v.y+Math.sin(v.waveDir)*WAVE_SPAWN_DIST))}];
 }
@@ -6635,9 +6639,9 @@ function spawnVeinWave(v){
   const feed=feeders.reduce((t,nn)=>t+NEST[nn.size].feed,0);
   let n=Math.max(1,Math.round((pressureOn('tide')?1.3:1)*WAVE_BASE_N[v.band]*th.n*(feeders.length?Math.min(3,0.4+0.6*feed):NEST_STRAGGLERS)));
   spawnHorde(v,n,feeders,big);
-  const ss=strainedStab(v);let strainMsg='';
-  if(ss){const k=Math.max(1,Math.round(n*(WAVE_STRAIN_SHARE+0.3*ss.strain)));spawnAtStab(v,ss,k,th);n=Math.max(1,n-k);
-    strainMsg=` A pack is circling in on the Stabilizer you're leaning on.`}
+  // (v4: a share of each wave used to spawn out past the most-strained Stabilizer, from a side the
+  // warning never showed — removed, so a wave only ever comes from where it was warned)
+  const strainMsg='';
   const heavy=big?'A great wave, a whole brood,':th.tier==='Legendary'?'A huge wave':th.tier==='Epic'?'A heavy wave':'Wave';
   const why=th.tier==='Epic'||th.tier==='Legendary'?` — the ${th.tier} yield is drawing them in`:'';
   if(feeders.length){
@@ -6658,7 +6662,7 @@ function spawnVeinWave(v){
     spawnEnemy(p.x,p.y,'wave',{bigP:th.big});
     if(rnd(0,1)<th.hunt)S.enemies[S.enemies.length-1].stabHunter=true;
   }
-  banner(`${heavy} incoming from the ${a<Math.PI?'south':'north'}${Math.cos(a)>0?'east':'west'}${why}.${strainMsg}`,'danger');
+  banner(`${heavy} incoming from the ${compassName(a)||'near side'}${why}.${strainMsg}`,'danger');
   sfx.wave();
 }
 // A Trooper round: hits its target, then carries on along the same line to full range, hitting up to
