@@ -32,6 +32,11 @@
   color-scheme:dark;
 }
 html,body{height:100%;margin:0;overflow:hidden}
+/* a game, not a page: no text selection, no long-press callout (iPad/iPhone would otherwise select the
+   whole screen on a press-and-drag), no tap highlight, and no double-tap zoom on the controls */
+html,body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+input,textarea,[contenteditable]{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
+button,.build,.unitActions,.unitSelCtrl,.mini{touch-action:manipulation}
 body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:13px;position:relative;
   padding-left:max(0px,env(safe-area-inset-left,0px));padding-right:max(0px,env(safe-area-inset-right,0px))}
 canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:none}
@@ -5088,6 +5093,9 @@ function selectAllUnitsOfKind(kind){
   else if(kind==='harv')S.harvesters.forEach(h=>S.sel.harv.add(h.id));
   else if(kind==='bu')S.builders.forEach(bu=>S.sel.bu.add(bu.id));
 }
+// belt and braces for iOS Safari, which can still start a text selection from a long press: refuse it
+// anywhere but a text field
+document.addEventListener('selectstart',e=>{const t=e.target;if(!(t&&t.closest&&t.closest('input,textarea,[contenteditable]')))e.preventDefault()});
 document.getElementById('selBaseBtn2').onclick=()=>selectAllUnitsOfKind('base');
 // ---- on-screen controls (they fill the gaps keys leave on a phone, and work with a mouse too)
 const anySelected=()=>S.sel.troops.size>0||S.sel.harv.size>0||S.sel.bu.size>0||S.sel.base;
