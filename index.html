@@ -1338,14 +1338,11 @@ const DRONE_SCAVENGE_R=DRONE_RANGE*1.5;
 // DRONE_SKIP_T seconds so the drones move on to other jobs. Stabilizers are exempt and always first.
 // And none of them, Stabilizers included, flies in to patch something an enemy you can't see is
 // chewing on (one within DRONE_CONTEST_R of it, in the fog): that's an endless loop the player can't
-// even see. A banner says what's going on, and the drones go back once the attacker is seen or gone.
+// even see. The drones go back once the attacker is seen or gone.
 const DRONE_STUCK_T=24, DRONE_SKIP_T=30, DRONE_CONTEST_R=34;
 function unseenAttacker(o){if(o._uaT===S.t)return o._ua;let found=null;const r=(o.kind==='stabilizer'?STAB_TOWER_R:(o.r||12))+DRONE_CONTEST_R;
   for(const e of S.enemies){if(e.hp<=0||e.kind==='nest')continue;const dx=e.x-o.x,dy=e.y-o.y,rr=r+(e.r||8);if(dx*dx+dy*dy<rr*rr&&!visible(e)){found=e;break}}
   o._uaT=S.t;o._ua=found;return found}
-function droneContestNote(o){if(S.t-(S.droneContestMsgT??-99)<30)return;S.droneContestMsgT=S.t;
-  const nm=o===S.base?'the Bastion':o.kind==='stabilizer'?'a Stabilizer':o.kind==='relay'?'a Relay':o.kind==='wallslat'?'a wall':'a Turret';
-  banner(`Something you can't see is attacking ${nm} — the repair drones won't fly into the dark for it. Send units to find it.`,'danger')}
 // Persistent meta-progression: saved to localStorage, carried across runs and page reloads —
 // not cookies, since this never needs to leave the browser or ride along with a server request,
 // and localStorage holds far more than a cookie's ~4KB.
@@ -7258,7 +7255,7 @@ function findRepairTarget(bu){
 // then Relays (network reach — a cut Relay counts even at full HP), Turrets, and the Bastion.
 function droneJobs(){
   const B=S.base, jobs=[];
-  const add=(o,pri)=>{if(dist(o,B)>DRONE_RANGE||(pri>0&&(o.droneSkipUntil||0)>S.t))return;if(unseenAttacker(o)){droneContestNote(o);return}jobs.push({o,pri})};
+  const add=(o,pri)=>{if(dist(o,B)>DRONE_RANGE||(pri>0&&(o.droneSkipUntil||0)>S.t))return;if(unseenAttacker(o))return;jobs.push({o,pri})};
   S.stabs.forEach(st=>{if(st.built&&st.hp>0&&st.hp<st.maxHp)add(st,0)});
   S.relays.forEach(r=>{if(r.built&&needsRepair(r))add(r,1)});
   S.turrets.forEach(t=>{if(t.built&&t.hp<t.maxHp)add(t,2)});
