@@ -1614,7 +1614,6 @@ const UPGRADES={
     wallCard('heavy','Heavy Armour Walls'),
     {id:'callDelay',name:'Priority Uplink',desc:'Call-downs land twice as fast.',has:()=>S.mods.callDelayMult<1,apply:()=>{S.mods.callDelayMult=0.5}},
     {id:'callRadius',name:'Wide Payload',desc:'Call-downs cover 40% more ground.',has:()=>S.mods.callRadiusMult>1,apply:()=>{S.mods.callRadiusMult=1.4}},
-    {id:'callManned',name:'Forward Uplink',desc:'Call-downs can also be called in round any unit manning a wall, not only the Bastion and live Relays.',has:()=>S.mods.callFromManned,apply:()=>{S.mods.callFromManned=true}},
     {id:'callCrate',name:'Requisition Crate',desc:'Two free call-downs, chosen at random.',apply:()=>{msg(`Requisitioned: ${giftCall(2)}.`)}},
     {id:'barracks1',name:'Barracks Expansion',get desc(){return `Field ${BARRACKS_SLOTS} more Troopers at a time (up to ${SQUAD_CAP_MAX}), and ${BARRACKS_SLOTS} free Troopers join you to fill them.`},apply:()=>{raiseSquadCap(BARRACKS_SLOTS)}},
   ],
@@ -5904,12 +5903,12 @@ const PROBE_DOME=new Path2D('M114.79,84.77c-3.48,2.42-8.92,4.03-14.79,4.03s-11.3
 // ---------- call-downs ----------
 // v4: one-shot strikes and drops called onto any spot your network reaches: the Bastion's ring or a
 // live, tethered Relay's (the same BUILD_R a Turret is placed in) — a cut Relay can't call anything
-// in until it's spliced. Forward Uplink adds a ring round every unit manning a wall. Each kind in
+// in until it's spliced. Each kind in
 // CALLDOWNS has a Dat price and a stock you can be gifted (S.calls[id] — wrecks, nests and cards
 // hand them out with grantCall). Using one spends a gifted charge first, otherwise the price. It
 // lands after its delay with a marker closing in, then the kind's land(x,y,c) does its thing.
 // Modifier cards set S.mods fields that every call-down reads: callPriceMult, callDelayMult,
-// callRadiusMult, callFromManned (Forward Uplink), and callEcho (the chance it lands a second time nearby).
+// callRadiusMult, and callEcho (the chance it lands a second time nearby).
 // A kind: {name, icon, desc, dat, delay, r, land(x,y,c), drawFall?(c,f), unlocked?()}.
 const CALLDOWNS={};
 let callMode=null,callMenuOpen=false;
@@ -5918,9 +5917,8 @@ const callIds=()=>Object.keys(CALLDOWNS).filter(id=>!CALLDOWNS[id].unlocked||CAL
 function callPrice(id){return Math.round(CALLDOWNS[id].dat*(S.mods.callPriceMult||1))}
 function callR(id){return CALLDOWNS[id].r*(S.mods.callRadiusMult||1)}
 function callDelay(id){return CALLDOWNS[id].delay*(S.mods.callDelayMult||1)}
-// the points calls can be made round: the Bastion, every live tethered Relay, and (Forward Uplink) every unit manning a wall
-function callAnchors(){const A=[S.base];S.relays.forEach(r=>{if(r.built&&r.hp>0&&r.tetherOk)A.push(r)});
-  if(S.mods.callFromManned)S.troops.forEach(u=>{if(u.hp>0&&u.manning&&!u.dest)A.push(u)});return A}
+// the points calls can be made round: the Bastion and every live tethered Relay
+function callAnchors(){const A=[S.base];S.relays.forEach(r=>{if(r.built&&r.hp>0&&r.tetherOk)A.push(r)});return A}
 function inCallRange(w){return callAnchors().some(a=>dist(a,w)<=BUILD_R)}
 function grantCall(id,n){if(!CALLDOWNS[id])return;S.calls[id]=(S.calls[id]||0)+(n||1);updateBuildBar()}
 function setCallMode(id){callMode=id;updateBuildBar()}
