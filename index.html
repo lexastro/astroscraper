@@ -5938,7 +5938,7 @@ function landStabilizer(sh){
   if(!hit){burst(sh.tx,sh.ty,'#8d96a1',10,90,0.4);note('Missed — lead the hotspot');return}
   const {v,h}=hit;
   const st={x:h.x,y:h.y,hp:STAB_HP,maxHp:STAB_HP,kind:'stabilizer',r:12,built:true,buildT:STAB_BUILD_T,buildTotal:STAB_BUILD_T,builder:null,repairer:null,vein:v,hot:h,
-    cracks:mkCracks(6,4,30,0.45)};
+    cracks:mkCracks(6,4,30,0.45),landT:S.t};
   h.stab=st; S.stabs.push(st);
   if(!v.surveyed){v.surveyed=true;S.surveyVein=v;msg(`Vein surveyed — ${ripeTier(v)} tier. The survey panel shows when it ripens next or how long until it collapses.`)}
   else S.surveyVein=v;
@@ -8368,17 +8368,79 @@ function drawStabilizer(st){
   if(st.built&&targetedStabs().has(st)){
     for(let k=0;k<3;k++){const ph=((S.t*0.9+k/3)%1), R=14+78*(1-ph);
       ctx.globalAlpha=0.15+0.6*ph;ctx.strokeStyle='#ff6a3d';ctx.lineWidth=2+3*ph;ctx.beginPath();ctx.arc(0,0,R,0,Math.PI*2);ctx.stroke()}}
-  ctx.globalCompositeOperation='source-over';
-  if(dmg>0.6)ctx.translate((Math.random()-0.5)*1.5,(Math.random()-0.5)*1.5); // rattling apart
-  const k=STAB_SIZE/STAB_VB;ctx.scale(k,k);ctx.translate(-STAB_VB/2,-STAB_VB/2);
-  ctx.globalAlpha=st.built?1:0.45;
-  ctx.fillStyle=st.flashT>0?'#fff':en.col;ctx.fill(STAB_DIAMOND);
-  ctx.strokeStyle='#0b0e12';ctx.lineWidth=5;ctx.stroke(STAB_DIAMOND);
-  ctx.fillStyle=st.flashT>0?'#fff':st.built?'#dfe6ee':'#8d96a1';ctx.fill(STAB_BRACKETS);
-  ctx.strokeStyle='#0b0e12';ctx.lineWidth=5;ctx.lineJoin='miter';ctx.stroke(STAB_BRACKETS);
+  ctx.globalCompositeOperation='source-over';ctx.globalAlpha=1;
   ctx.restore();
+  drawCoreColumn(st,en.col,dmg,sn);
   if(!st.built){ctx.fillStyle=C.builder;ctx.fillRect(st.x-12,st.y+19,24*(st.buildT/st.buildTotal),3)}
   else if(st.hp<st.maxHp)hpbar(st.x,st.y-22,24,st.hp/st.maxHp);
+}
+// ---- the Stabilizer as a Core column: a sealed tower on four deployed legs, the vein's energy glowing
+// through narrow windows down its panelled column. Drawn in real 3D with the nests' height trick (a
+// point at height z is drawn z*SK_TILT up the screen; faces are lit against the terrain's sun; one
+// shadow falls down-right as long as it's tall). When it lands, its pieces pop up one at a time from
+// the ground up, each springing slightly past full size and settling.
+const SK_TILT=0.5,SK_VIEW=[0,0.447,0.894],SK_SUN=[-0.62,-0.62,0.48],SK_SH=0.7,SK_SCALE=0.82,SK_POP_GAP=0.085,SK_POP_T=0.22;
+const SKO={x:0,y:0,lean:[0,0],shk:[0,0]};
+const skW=p=>{const x=p[0]*SK_SCALE,y=p[1]*SK_SCALE,z=p[2]*SK_SCALE;return [x+SKO.lean[0]*z+SKO.shk[0],y+SKO.lean[1]*z+SKO.shk[1],z]};
+const skPJ=p=>{const q=skW(p);return [SKO.x+q[0],SKO.y+q[1]-q[2]*SK_TILT]};
+const skGJ=p=>{const q=skW(p);return [SKO.x+q[0]+q[2]*SK_SH,SKO.y+q[1]+q[2]*SK_SH]};
+const skDot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+function skFace(pts,col,c,o){const u=[pts[1][0]-pts[0][0],pts[1][1]-pts[0][1],pts[1][2]-pts[0][2]],v=[pts[2][0]-pts[0][0],pts[2][1]-pts[0][1],pts[2][2]-pts[0][2]];
+  let n=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]];const l=Math.hypot(n[0],n[1],n[2])||1;n=n.map(x=>x/l);
+  const fc=[0,0,0];pts.forEach(q=>{fc[0]+=q[0]/pts.length;fc[1]+=q[1]/pts.length;fc[2]+=q[2]/pts.length});if(skDot(n,[fc[0]-c[0],fc[1]-c[1],fc[2]-c[2]])<0)n=n.map(x=>-x);return {pts,col,n,o:o||{}}}
+function skPrism(cx,cy,z0,z1,r0,r1,n,rot,col,o={}){const A=[],B=[];for(let i=0;i<n;i++){const a=rot+i/n*Math.PI*2;A.push([cx+Math.cos(a)*r0,cy+Math.sin(a)*r0,z0]);B.push([cx+Math.cos(a)*r1,cy+Math.sin(a)*r1,z1])}
+  const c=[cx,cy,(z0+z1)/2],F=[];for(let i=0;i<n;i++){const j=(i+1)%n;F.push(skFace([A[i],A[j],B[j],B[i]],o.side||col,c,o))}if(r1>0.01)F.push(skFace(B,o.top||col,c,o));return {F,pts:A.concat(B)}}
+function skBeam(p0,p1,w,col){const d=[p1[0]-p0[0],p1[1]-p0[1],p1[2]-p0[2]],L=Math.hypot(d[0],d[1],d[2])||1,ax=d.map(x=>x/L),up=Math.abs(ax[2])<0.9?[0,0,1]:[1,0,0];
+  let u=[ax[1]*up[2]-ax[2]*up[1],ax[2]*up[0]-ax[0]*up[2],ax[0]*up[1]-ax[1]*up[0]];const ul=Math.hypot(u[0],u[1],u[2])||1;u=u.map(x=>x/ul*w/2);
+  const v=[ax[1]*u[2]-ax[2]*u[1],ax[2]*u[0]-ax[0]*u[2],ax[0]*u[1]-ax[1]*u[0]],P=(q,a,b)=>[q[0]+u[0]*a+v[0]*b,q[1]+u[1]*a+v[1]*b,q[2]+u[2]*a+v[2]*b];
+  const S4=[[1,1],[-1,1],[-1,-1],[1,-1]],A=S4.map(([a,b])=>P(p0,a,b)),B=S4.map(([a,b])=>P(p1,a,b)),c=[(p0[0]+p1[0])/2,(p0[1]+p1[1])/2,(p0[2]+p1[2])/2],F=[];
+  for(let i=0;i<4;i++){const j=(i+1)%4;F.push(skFace([A[i],A[j],B[j],B[i]],col,c))}F.push(skFace(B,col,c));return {F,pts:A.concat(B)}}
+function skBox(cx,cy,z0,z1,w,d,rot,col,o={}){const cs=[[-w/2,-d/2],[w/2,-d/2],[w/2,d/2],[-w/2,d/2]].map(([x,y])=>[cx+x*Math.cos(rot)-y*Math.sin(rot),cy+x*Math.sin(rot)+y*Math.cos(rot)]);
+  const A=cs.map(q=>[q[0],q[1],z0]),B=cs.map(q=>[q[0],q[1],z1]),c=[cx,cy,(z0+z1)/2],F=[];for(let i=0;i<4;i++){const j=(i+1)%4;F.push(skFace([A[i],A[j],B[j],B[i]],o.side||col,c,o))}F.push(skFace(B,o.top||col,c,o));return {F,pts:A.concat(B)}}
+function skPanel(r,n,rot,i,z0,z1,frac,col,o){const a0=rot+i/n*Math.PI*2,a1=rot+(i+1)/n*Math.PI*2,P0=[Math.cos(a0)*r,Math.sin(a0)*r],P1=[Math.cos(a1)*r,Math.sin(a1)*r],M=[(P0[0]+P1[0])/2,(P0[1]+P1[1])/2];
+  const ol=Math.hypot(M[0],M[1])||1,Q=P=>[M[0]+(P[0]-M[0])*frac+M[0]/ol*0.12,M[1]+(P[1]-M[1])*frac+M[1]/ol*0.12],q0=Q(P0),q1=Q(P1);
+  const f=skFace([[q0[0],q0[1],z0],[q1[0],q1[1],z0],[q1[0],q1[1],z1],[q0[0],q0[1],z1]],col,[0,0,(z0+z1)/2],o);return {F:[f],pts:f.pts,bias:0.3}}
+function skShade(col,n,flash){const d=Math.max(0,skDot(n,SK_SUN)),rv=2*n[2]*skDot(n,SK_SUN)-SK_SUN[2],sp=Math.pow(Math.max(0,rv),12),k=0.52+0.8*d,[r,g,b]=parseCol(col),f=flash?90:0;
+  return `rgb(${Math.min(255,r*k+150*sp+f)|0},${Math.min(255,g*k+150*sp+f)|0},${Math.min(255,b*k+150*sp+f)|0})`}
+function skHull(P){P=P.slice().sort((a,b)=>a[0]-b[0]||a[1]-b[1]);const cr=(o,a,b)=>(a[0]-o[0])*(b[1]-o[1])-(a[1]-o[1])*(b[0]-o[0]),lo=[],up=[];
+  for(const q of P){while(lo.length>=2&&cr(lo[lo.length-2],lo[lo.length-1],q)<=0)lo.pop();lo.push(q)}for(let i=P.length-1;i>=0;i--){const q=P[i];while(up.length>=2&&cr(up[up.length-2],up[up.length-1],q)<=0)up.pop();up.push(q)}return lo.slice(0,-1).concat(up.slice(0,-1))}
+// a piece popping up: it springs from nothing to a touch past full size at its own foot, then settles
+function skPop(S0,u){if(u>=1)return S0;const e=u<0.6?(1-Math.pow(1-u/0.6,3))*1.15:1.15-0.15*((u-0.6)/0.4),drop=(1-Math.min(1,u*1.6))*3;
+  let cx=0,cy=0,z0=1e9;S0.pts.forEach(q=>{cx+=q[0];cy+=q[1];z0=Math.min(z0,q[2])});cx/=S0.pts.length;cy/=S0.pts.length;
+  const T=q=>[cx+(q[0]-cx)*e,cy+(q[1]-cy)*e,z0+(q[2]-z0)*e+drop];return {F:S0.F.map(f=>({...f,pts:f.pts.map(T)})),pts:S0.pts.map(T),bias:S0.bias}}
+function skRender(solids,flash){
+  const sh=[];solids.forEach(S0=>S0.pts.forEach(q=>{sh.push(skGJ(q));if(q[2]<0.6)sh.push(skPJ(q))}));
+  if(sh.length>2){const h=skHull(sh);ctx.fillStyle='rgba(0,0,0,0.38)';ctx.beginPath();h.forEach((q,i)=>i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]));ctx.closePath();ctx.fill()}
+  const key=S0=>{let y=0,z=0;S0.pts.forEach(q=>{y+=q[1];z+=q[2]});return (y+z*0.5)/S0.pts.length+(S0.bias||0)};
+  ctx.lineJoin='round';ctx.lineWidth=0.3;ctx.strokeStyle='rgba(16,19,23,0.75)';
+  solids.slice().sort((a,b)=>key(a)-key(b)).forEach(S0=>S0.F.forEach(f=>{if(skDot(f.n,SK_VIEW)<=0.02)return;
+    ctx.beginPath();f.pts.forEach((q,i)=>{const P=skPJ(q);i?ctx.lineTo(P[0],P[1]):ctx.moveTo(P[0],P[1])});ctx.closePath();ctx.fillStyle=skShade(f.col,f.n,flash);ctx.fill();
+    if(f.o.emit){ctx.save();ctx.globalCompositeOperation='lighter';ctx.globalAlpha=Math.min(1,f.o.emit);ctx.fillStyle=f.col;ctx.fill();ctx.restore()}ctx.stroke()}))}
+function skGlow(p3,r,col,a){if(a<=0.01)return;const [x,y]=skPJ(p3),R=r*SK_SCALE,[cr,cg,cb]=parseCol(col),g=ctx.createRadialGradient(x,y,0,x,y,R);g.addColorStop(0,`rgba(${cr},${cg},${cb},${Math.min(1,a)})`);g.addColorStop(1,`rgba(${cr},${cg},${cb},0)`);
+  ctx.save();ctx.globalCompositeOperation='lighter';ctx.fillStyle=g;ctx.fillRect(x-R,y-R,R*2,R*2);ctx.restore()}
+// The tower, as pieces in build order (k): each leg, the base rings, the body, the column, its windows,
+// its bands, the shoulder, the dish, the canisters, the lamp.
+function coreColumnPieces(col,t,strain,dmg,flick){const P=[],add=(k,S0)=>{S0.k=k;P.push(S0)},bk=dmg>0.6,G='#999',DK='#4a4f57',HOTC='#ffb36b';
+  for(let i=0;i<4;i++){if(bk&&i===1)continue;const a=i*Math.PI/2+0.2,c=Math.cos(a),s=Math.sin(a);add(i,skBeam([c*5,s*5,12],[c*13,s*13,1.2],1.8,G));add(i+0.3,skBeam([c*6,s*6,7],[c*11,s*11,1.4],1.1,'#6f7c89'));add(i+0.15,skBox(c*13.5,s*13.5,0,1.4,4.4,3.4,a,'#6f7c89',{top:'#8d9aa8'}))}
+  add(4,skPrism(0,0,4,8,6,7.6,10,0,DK,{top:'#5d6670'}));add(5,skPrism(0,0,8,12,7.6,7.6,10,0,'#3b4652'));add(6,skPrism(0,0,12,20,6.6,7.2,8,Math.PI/8,'#8d9aa8',{top:'#a9b6c4'}));
+  add(7,skPrism(0,0,20,47,6,5.6,8,Math.PI/8,'#5d6670',{top:'#6f7c89'}));
+  const wc=strain>0.3?mixCol(col,HOTC,strain):col;for(let i=0;i<8;i++){if(bk&&i===2)continue;add(8+i*0.12,skPanel(5.85,8,Math.PI/8,i,23,44,0.32,wc,{emit:(0.55+0.3*Math.sin(t*(3+strain*8)+i))*flick}))}
+  [24,32,40].forEach((z,j)=>add(9+j*0.3,skPrism(0,0,z,z+0.9,6.2,6.2,8,Math.PI/8,'#8d9aa8')));
+  add(10,skPrism(0,0,47,50,5.6,3.6,8,Math.PI/8,'#8d9aa8',{top:'#a9b6c4'}));add(11,skPrism(0,0,50,52,1.4,1.4,6,0,DK));add(12,skPrism(0,0,52,53,6.2,5.8,12,0,'#8d9aa8',{top:'#a9b6c4'}));add(12.2,skPrism(0,0,53,53.6,2.2,1.6,8,0,DK));
+  add(13,skPrism(7.4,2.6,14,23,1.7,1.7,10,0,'#e6e6e6',{top:'#f2f2f2'}));add(13.5,skPrism(-7.2,3.4,15,21,1.5,1.5,10,0,'#e6e6e6',{top:'#f2f2f2'}));
+  return P}
+const SK_PIECES=14;
+function drawCoreColumn(st,col,dmg,sn){
+  const since=st.landT!=null?S.t-st.landT:99,flick=dmg>0.6&&Math.random()<0.25?0.25:1;
+  SKO.x=st.x;SKO.y=st.y;SKO.lean=dmg>0.6?[0.05*dmg,0.03*dmg]:[0,0];SKO.shk=sn>0.3?[(Math.random()-0.5)*sn*0.8,(Math.random()-0.5)*sn*0.8]:[0,0];
+  let solids=coreColumnPieces(col,S.t,sn,dmg,flick);
+  if(since<SK_PIECES*SK_POP_GAP+SK_POP_T+0.1)solids=solids.map(S0=>{const u=(since-S0.k*SK_POP_GAP)/SK_POP_T;return u<=0?null:skPop(S0,Math.min(1,u))}).filter(Boolean);
+  if(!solids.length)return;
+  skRender(solids,st.flashT>0);
+  const lampOn=dmg>0.6?(Math.random()<0.35?0.15:0.9):sn>0.3?(Math.sin(S.t*14)>0?1:0.25):0.85+0.15*Math.sin(S.t*3),lampCol=sn>0.3?'#ffb36b':col,done=since>12*SK_POP_GAP+SK_POP_T;
+  skGlow([0,0,34],13,col,0.3*flick*(1+sn)*(since>8*SK_POP_GAP?1:0));
+  if(since>15*SK_POP_GAP){skGlow([3.2,-3,53.6],7,lampCol,0.55*lampOn);skGlow([3.2,-3,53.6],2.2,'#ffffff',0.6*lampOn)}
+  if(done&&since<99&&since<12*SK_POP_GAP+SK_POP_T+0.4){const q=(since-(12*SK_POP_GAP+SK_POP_T))/0.4;ctx.save();ctx.globalAlpha=(1-q)*0.6;ctx.strokeStyle=col;ctx.lineWidth=1.5;ctx.beginPath();ctx.ellipse(st.x,st.y,10+q*18,(10+q*18)*0.9,0,0,Math.PI*2);ctx.stroke();ctx.restore()}
 }
 // Small shield above a unit on a guard order.
 function drawGuardGlyph(x,y){
