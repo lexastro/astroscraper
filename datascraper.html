@@ -1004,6 +1004,22 @@ const TURRET_RANGE=180, TURRET_DMG=14, TURRET_CD=0.325, TURRET_HP=150;
 // reload one at a time; once all eight are full it ripples the whole salvo onto one cluster.
 const PODT_CELLS=8, PODT_RANGE=270, PODT_HP=240, PODT_GAP=0.08, PODT_RELOAD=0.45, PODT_DMG=14, PODT_SPLASH=50, PODT_SPREAD=48;
 const RELAY_HP=100;
+// v4 relay cards come in two slots — offensive and defensive — one card of each per run; every relay
+// you own carries both, and a new card in a slot replaces the one there (like the wall cards).
+// Offensive: Sonic Deterrent I–III (the old Energy Surge), Electric Surge I–II (chain lightning),
+// Bastion Relay (armour and a full Turret gun). Defensive: Walled Relay (a ring of walls of the run's
+// wall type, no tower turrets), Radar Mast (far sight), Repair Cradle (a drone of its own).
+const RELAY_ARMOR_MULT=3, TESLA_R=170, TESLA_JUMP_R=95, TESLA_DMG=24, TESLA_FALLOFF=0.75, TESLA_STUN=0.45;
+const RELAY_RING_R=36, RELAY_RADAR_VISION=420, CRADLE_RANGE=170, CRADLE_SPEED=150, CRADLE_HPS=10;
+const relayMaxHp=()=>Math.round(RELAY_HP*(S.mods.relayOff==='armored'?RELAY_ARMOR_MULT:1));
+const RELAY_CARD_NAMES={sonic:'Sonic Deterrent',tesla:'Electric Surge',armored:'Bastion Relay',walled:'Walled Relay',radar:'Radar Mast',repair:'Repair Cradle'};
+function relaySlotNote(slot,id){const cur=S&&S.mods?S.mods[slot==='off'?'relayOff':'relayDef']:null;
+  return `<span class="rcSwap">${slot==='off'?'⚔ Offensive':'⛨ Defensive'} relay slot${cur&&cur!==id?` · replaces ${RELAY_CARD_NAMES[cur]}`:''}</span>`}
+function setRelaySlot(slot,id){
+  if(slot==='off'){const old=S.mods.relayOff;if(old===id)return;
+    if(old==='sonic')S.mods.energySurgeLevel=0;if(old==='tesla')S.mods.teslaLevel=0;
+    S.mods.relayOff=id;const hp=relayMaxHp();S.relays.forEach(r=>{const f=r.maxHp?r.hp/r.maxHp:1;r.maxHp=hp;r.hp=Math.max(1,Math.round(hp*f))})}
+  else{if(S.mods.relayDef===id)return;S.mods.relayDef=id;if(id==='walled')S.relays.forEach(r=>{if(r.built)relayRing(r)})}}
 // Energy Surge (reward card): every powered, tethered Relay pulses together on one shared timer
 // while a vein is actively being drilled. Each pulse is a ring that expands out from the Relay at
 // ENERGY_SURGE_WAVE_SPEED; an enemy the ring front reaches is knocked back away from that Relay
@@ -1587,8 +1603,9 @@ const UPGRADES={
     {id:'cable1',name:'Spooled Cable',desc:'Max tether cable length +150.',apply:()=>{S.mods.cableLenAdd+=150}},
     {id:'recruit1',name:'Fresh Recruits',desc:'+3 free Troopers, right now.',apply:()=>{spawnFreeTroops(3,'troop')}},
     {id:'biggun',name:'Big Guns',desc:"Mounts an artillery piece on the Bastion — slower fire rate than a Grenadier, but longer range and a bigger blast. Only ever fires on enemies you've actually revealed.",apply:()=>{S.mods.bigGuns=true}},
-    {id:'energySurge1',name:'Energy Surge I',desc:'Every 10s while mining, all tethered Relays fire an energy pulse together — enemies it reaches are knocked back and stunned for 1s.',apply:()=>{S.mods.energySurgeLevel=Math.max(S.mods.energySurgeLevel,1)}},
-    {id:'armedRelays',name:'Armed Relays',desc:'Tethered Relays fire on enemies like a Turret — half the damage, half the fire rate.',apply:()=>{S.mods.armedRelays=true}},
+    {id:'energySurge1',name:'Sonic Deterrent I',get desc(){return 'Horn speakers on every Relay: every 10s while drilling they all thump together — enemies reached are shoved back and dazed for 1s.'+relaySlotNote('off','sonic')},has:()=>S.mods.relayOff==='sonic'&&S.mods.energySurgeLevel>=1,apply:()=>{setRelaySlot('off','sonic');S.mods.energySurgeLevel=Math.max(S.mods.energySurgeLevel,1)}},
+    {id:'relayArmored',name:'Bastion Relay',get desc(){return 'Every Relay gets an armoured plinth and a turret head: 3× HP, and while tethered it fires like a full Turret.'+relaySlotNote('off','armored')},has:()=>S.mods.relayOff==='armored',apply:()=>{setRelaySlot('off','armored')}},
+    {id:'relayRadar',name:'Radar Mast',get desc(){return 'A turning radar dish on every Relay: a tethered Relay sees far into the fog around it.'+relaySlotNote('def','radar')},has:()=>S.mods.relayDef==='radar',apply:()=>{setRelaySlot('def','radar')}},
     {id:'martyrs',name:'Martyrs',desc:'A unit that would corrupt detonates instead, damaging enemies and friendlies alike nearby.',apply:()=>{S.mods.martyrs=true}},
     {id:'resupply1',name:'Resupply',desc:'Every fabricator, Stabilizer and Probe stock is topped up to full, right now.',apply:()=>{Object.keys(FABS).forEach(k=>{S.fab[k].n=FABS[k].charges});S.stabCharges=STAB_CHARGES;S.probeCharges=PROBE_CHARGES}},
     wallCard('heavy','Heavy Armour Walls'),
@@ -1599,7 +1616,10 @@ const UPGRADES={
     {id:'dmg3',name:'Battle Drills III',desc:'Trooper damage +30%.',apply:()=>{S.mods.troopDmgMult*=1.3}},
     {id:'tactical',name:'Tactical Reinforcements',desc:'+5 free Troopers, +3 free Grenadiers, right now.',apply:()=>{spawnFreeTroops(5,'troop');spawnFreeTroops(3,'grenadier')}},
     {id:'targeting',name:'Targeting Computer',desc:'The Bastion gun keeps firing while drilling instead of going quiet.',apply:()=>{S.mods.bastionShootWhileDrilling=true}},
-    {id:'energySurge2',name:'Energy Surge II',desc:'Energy Surge now pulses every 5s instead of 10s.',apply:()=>{S.mods.energySurgeLevel=Math.max(S.mods.energySurgeLevel,2)}},
+    {id:'energySurge2',name:'Sonic Deterrent II',get desc(){return 'Relay horns thump every 5s instead of 10s.'+relaySlotNote('off','sonic')},has:()=>S.mods.relayOff==='sonic'&&S.mods.energySurgeLevel>=2,apply:()=>{setRelaySlot('off','sonic');S.mods.energySurgeLevel=Math.max(S.mods.energySurgeLevel,2)}},
+    {id:'tesla1',name:'Electric Surge I',get desc(){return `A tesla coil on every Relay: while drilling, every few seconds each one strikes the nearest enemy and the bolt jumps on to 2 more (${TESLA_DMG} damage, less each jump, a short stun).`+relaySlotNote('off','tesla')},has:()=>S.mods.relayOff==='tesla'&&S.mods.teslaLevel>=1,apply:()=>{setRelaySlot('off','tesla');S.mods.teslaLevel=Math.max(S.mods.teslaLevel,1)}},
+    {id:'relayWalled',name:'Walled Relay',get desc(){return 'Every Relay raises a ring of walls round itself, of your current wall type (no free tower turrets on them).'+relaySlotNote('def','walled')},has:()=>S.mods.relayDef==='walled',apply:()=>{setRelaySlot('def','walled')}},
+    {id:'relayRepair',name:'Repair Cradle',get desc(){return 'Every Relay docks its own repair drone, which patches anything hurt nearby — walls, units, turrets, the Relay itself.'+relaySlotNote('def','repair')},has:()=>S.mods.relayDef==='repair',apply:()=>{setRelaySlot('def','repair')}},
     wallCard('elec','Electric Fence Walls'),
     wallCard('razor','Razor Line Walls'),
     {id:'siegeRing',name:'Siege Ring',desc:'Every time the Bastion starts drilling, a free ring of walls rises around it along its dashed build ring. Where a wall already stands, none is added.',has:()=>S.mods.siegeRing,apply:()=>{S.mods.siegeRing=true}},
@@ -1613,7 +1633,8 @@ const UPGRADES={
      apply:()=>{S.mods.podTowers=true;S.fabShots.forEach(sh=>{if(sh.free&&sh.k==='turret')sh.k='podturret'});S.turrets.forEach(t=>{if(t.tower&&t.kind==='turret'){const f=t.hp/t.maxHp;t.kind='podturret';t.maxHp=PODT_HP;t.hp=PODT_HP*f;t.pods=PODT_CELLS;burst(t.x,t.y,ROLE_COL.grenadier,10,110,0.4)}});wallTowers();updateBuildBar()}},
     wallCard('glass','Glass Ridge Walls'),
     wallCard('shield','Shield Pane Walls'),
-    {id:'energySurge3',name:'Energy Surge III',desc:'Energy Surge still pulses every 5s, and now damages enemies it reaches too.',apply:()=>{S.mods.energySurgeLevel=Math.max(S.mods.energySurgeLevel,3)}},
+    {id:'energySurge3',name:'Sonic Deterrent III',get desc(){return 'Relay horns still thump every 5s, and now the blast damages what it reaches too.'+relaySlotNote('off','sonic')},has:()=>S.mods.relayOff==='sonic'&&S.mods.energySurgeLevel>=3,apply:()=>{setRelaySlot('off','sonic');S.mods.energySurgeLevel=Math.max(S.mods.energySurgeLevel,3)}},
+    {id:'tesla2',name:'Electric Surge II',get desc(){return 'The relay coils fire faster, the bolt jumps one more time, and they strike whenever enemies come close — not only while drilling.'+relaySlotNote('off','tesla')},has:()=>S.mods.relayOff==='tesla'&&S.mods.teslaLevel>=2,apply:()=>{setRelaySlot('off','tesla');S.mods.teslaLevel=Math.max(S.mods.teslaLevel,2)}},
   ],
 };
 
@@ -2298,6 +2319,7 @@ function sightAt(p){
   S.troops.forEach(t=>src(t.x,t.y,TROOP_VISION*vm*S.mods.squadRangeMult));
   S.harvesters.forEach(h=>src(h.x,h.y,HARV_VISION*vm));
   S.builders.forEach(bu=>src(bu.x,bu.y,BUILDER_VISION*vm));
+  radarRelays().forEach(r=>src(r.x,r.y,RELAY_RADAR_VISION*vm));
   return best;
 }
 function drawStrayPockets(vx0,vy0,vx1,vy1){
@@ -2543,7 +2565,7 @@ function reset(landing){
     mods:{carryMult:1,troopDmgMult:1,moveSpeedMult:1,visionMult:1,relayTolMult:1,drillBurnMult:1,
       cableLenAdd:0,cableHpMult:1,condensedMult:1,livingMult:1,fastBonus:0,drillRateMult:1,freeRelayCharges:0,
       grenFireRateMult:1,grenSplashMult:1,squadRangeMult:1,bigGuns:false,bastionShootWhileDrilling:false,wallTowers:false,podTowers:false,siegeRing:false,wallType:null,
-      energySurgeLevel:0,armedRelays:false,martyrs:false,fabRateMult:1},
+      energySurgeLevel:0,armedRelays:false,relayOff:null,relayDef:null,teslaLevel:0,martyrs:false,fabRateMult:1},
     rewardChoice:null,pingRing:null,pings:[],reanim:[],stabs:[],stabShots:[],stabCharges:3,stabRechargeT:0,probes:[],probeCharges:3,probeRechargeT:0,paused:false,
     sel:{base:false,troops:new Set(),harv:new Set(),bu:new Set()},
     // v2: harvesters, builders, depots and walls are gone — their arrays stay (always empty) so
@@ -4723,7 +4745,7 @@ function tetherPass(units,speed,dt){
     if(u.sanity<SANITY_MAX)u.sanity=Math.min(SANITY_MAX,u.sanity+SANITY_REGEN*dt);
     if(nd<=tol){u.tetherOk=true;u.trail=null;u.cableLen=0;u.cableMaxed=false;return}
     if(!u.trail){u.trail=[{x:bestA.x,y:bestA.y}];u.cableHp=CABLE_HP_MAX*S.mods.cableHpMult}
-    spoolTrail(u,bestA);
+    spoolTrail(u,bestA);u.anchorRef=bestA;
     u.tetherOk=true;
   });
 }
@@ -4771,7 +4793,7 @@ function relayTetherPass(){
     const tol=wirelessTol(bandAt(r.x,r.y));
     if(nd<=tol){r.tetherOk=true;r.trail=null;r.cableLen=0;r.cableMaxed=false;return}
     if(!r.trail){r.trail=[{x:bestA.x,y:bestA.y}];r.cableHp=CABLE_HP_MAX*S.mods.cableHpMult}
-    spoolTrail(r,bestA);
+    spoolTrail(r,bestA);r.anchorRef=bestA;
     r.tetherOk=true; // already confirmed reachable by the flood-fill above
   });
 }
@@ -5254,8 +5276,9 @@ function landFabShot(sh){
     const pod=sh.k==='podturret',hp=pod?PODT_HP:TURRET_HP;
     S.turrets.push({x:w.x,y:w.y,hp,maxHp:hp,cd:0,ang:0,kind:sh.k,built:true,buildT:TURRET_BUILD_T,buildTotal:TURRET_BUILD_T,builder:null,repairer:null,tower:!!sh.free,pods:pod?PODT_CELLS:0});
   }else{
-    S.relays.push({x:w.x,y:w.y,hp:RELAY_HP,maxHp:RELAY_HP,kind:'relay',built:true,buildT:RELAY_BUILD_T,buildTotal:RELAY_BUILD_T,builder:null,repairer:null,
+    S.relays.push({x:w.x,y:w.y,hp:relayMaxHp(),maxHp:relayMaxHp(),kind:'relay',built:true,buildT:RELAY_BUILD_T,buildTotal:RELAY_BUILD_T,builder:null,repairer:null,
       state:null,tetherOk:false,trail:null,cableHp:0,cableLen:0,cableMaxed:false,reconnectT:0,wasFree:false,gunCd:0,ang:0});
+    if(S.mods.relayDef==='walled')relayRing(S.relays[S.relays.length-1]);
   }
   burst(w.x,w.y,C.builder,12,120,0.45);shakeScreen(2,0.12);sfx.build();
 }
@@ -6023,11 +6046,51 @@ function wallTowers(){
   if(!(S.mods.wallTowers||S.mods.podTowers)||!S.wallLines)return;
   const k=S.mods.podTowers?'podturret':'turret';
   const near=(p)=>S.turrets.some(t=>dist(t,p)<4)||S.fabShots.some(sh=>(sh.k==='turret'||sh.k==='podturret')&&Math.hypot(sh.tx-p.x,sh.ty-p.y)<4);
-  S.wallLines.forEach(L=>{L.tower=L.tower||[false,false];
+  S.wallLines.forEach(L=>{if(L.relayRing)return;L.tower=L.tower||[false,false];
     [[L.x0,L.y0],[L.x1,L.y1]].forEach(([x,y],i)=>{if(L.tower[i]||!L.posts[i])return;L.tower[i]=true;const p={x,y};
       if(near(p))return;
       const dd=Math.hypot(x-S.base.x,y-S.base.y);S.fabShots.push({k,free:true,x0:S.base.x,y0:S.base.y,tx:x,ty:y,t:0,dur:Math.max(0.4,dd/FAB_FLIGHT_SPEED)})})});
 }
+// Electric Surge: each live Relay's coil strikes the nearest enemy in TESLA_R and the bolt jumps to the
+// nearest enemy not yet hit within TESLA_JUMP_R, 2 times (3 at level II), each jump TESLA_FALLOFF weaker.
+// Level I fires only while drilling, every 4s; level II every 2.6s, whenever enemies are near.
+function updateTesla(dt){
+  if(S.bolts)S.bolts=S.bolts.filter(b=>(b.t-=dt)>0);
+  const L=S.mods.relayOff==='tesla'?S.mods.teslaLevel:0;if(!L)return;
+  const B=S.base,drilling=B.locked&&S.activeVein&&!S.activeVein.paused;if(L<2&&!drilling)return;
+  S.teslaT=(S.teslaT??0)-dt;if(S.teslaT>0)return;S.teslaT=L>=2?2.6:4;
+  let fired=false;
+  S.relays.forEach(r=>{if(!r.built||!r.tetherOk)return;
+    let cur=null,bd=TESLA_R;S.enemies.forEach(e=>{if(e.kind==='nest'||e.hp<=0)return;const d=dist(e,r);if(d<bd){bd=d;cur=e}});if(!cur)return;
+    const hit=new Set(),pts=[[r.x,r.y,47]];let dmg=TESLA_DMG;
+    for(let j=0;j<=(L>=2?3:2)&&cur;j++){hit.add(cur);damageEnemy(cur,dmg);cur.stunT=Math.max(cur.stunT||0,TESLA_STUN);pts.push([cur.x,cur.y,3]);dmg*=TESLA_FALLOFF;
+      let nb=null,nd=TESLA_JUMP_R;S.enemies.forEach(e=>{if(hit.has(e)||e.kind==='nest'||e.hp<=0)return;const d=dist(e,cur);if(d<nd){nd=d;nb=e}});cur=nb}
+    (S.bolts||(S.bolts=[])).push({pts,t:0.22,seed:Math.floor(Math.random()*999)});fired=true});
+  if(fired&&sfxReady('tesla',0.15)){noiseCrack(0.12,0.08,2600);tone(900,0.08,'sawtooth',0.035,0,2400)}
+}
+function drawBolts(){if(!S.bolts||!S.bolts.length)return;ctx.save();ctx.globalCompositeOperation='lighter';ctx.lineJoin='round';ctx.lineCap='round';SKO.x=0;SKO.y=0;SKO.s=1;SKO.lean=[0,0];SKO.shk=[0,0];
+  S.bolts.forEach(b=>{const a=b.t/0.22;for(let k=0;k+1<b.pts.length;k++){const p=skPJ(b.pts[k]),q=skPJ(b.pts[k+1]),P=[p];for(let i=1;i<7;i++){const f=i/7;P.push([p[0]+(q[0]-p[0])*f+(wsHash(b.seed+Math.floor(S.t*30),k*9+i,1)-0.5)*14,p[1]+(q[1]-p[1])*f+(wsHash(b.seed+Math.floor(S.t*30),k*9+i,2)-0.5)*14])}P.push(q);
+    const w=Math.max(0.8,2.2-k*0.4);ctx.globalAlpha=0.45*a;ctx.strokeStyle='#9fd8ff';ctx.lineWidth=w*3;ctx.beginPath();P.forEach((t,i)=>i?ctx.lineTo(t[0],t[1]):ctx.moveTo(t[0],t[1]));ctx.stroke();ctx.globalAlpha=a;ctx.strokeStyle='#fff';ctx.lineWidth=w;ctx.stroke()}});
+  ctx.restore();SKO.s=SK_SCALE}
+// Walled Relay: a ring of 8 one-slat walls round the relay, of the run's wall type, standing at once.
+// They're marked relayRing: the tower cards skip them (no free turrets) and they draw no end posts.
+function relayRing(r){if(r.ringed)return;r.ringed=true;const n=8,R=RELAY_RING_R,P=[];for(let i=0;i<n;i++){const a=i/n*Math.PI*2+Math.PI/8;P.push({x:r.x+Math.cos(a)*R,y:r.y+Math.sin(a)*R})}
+  for(let i=0;i<n;i++){const a=P[i],b=P[(i+1)%n],L=Math.hypot(b.x-a.x,b.y-a.y),ux=(b.x-a.x)/L,uy=(b.y-a.y)/L,mx=(a.x+b.x)/2,my=(a.y+b.y)/2;if(terrainAt(mx,my)===2)continue;
+    const line={x0:a.x,y0:a.y,x1:b.x,y1:b.y,ux,uy,ang:Math.atan2(uy,ux),posts:[true,true],anchored:[true,true],raiseT0:S.t,slats:[],type:wallType(),relayRing:true,auto:true};
+    line.slats.push({x:mx,y:my,half:L/2,hp:wallSlatHp(),maxHp:wallSlatHp(),up:0,vi:i,order:0,line,kind:'wallslat'});(S.wallLines||(S.wallLines=[])).push(line)}
+  S.wallDirty=true;if(sfxReady('slat',0.05))tone(170,0.08,'square',0.03)}
+// Repair Cradle: each tethered Relay's own drone patches the most-hurt thing within CRADLE_RANGE, then docks.
+function cradleJobs(r){const out=[];const add=o=>{if(o.hp<o.maxHp&&dist(o,r)<=CRADLE_RANGE)out.push(o)};
+  (S.wallLines||[]).forEach(L=>L.slats.forEach(sl=>{if(!sl.dead&&!(sl.downT>0))add(sl)}));S.troops.forEach(add);S.harvesters.forEach(add);S.builders.forEach(add);
+  S.turrets.forEach(t=>{if(t.built)add(t)});S.relays.forEach(q=>{if(q.built)add(q)});S.stabs.forEach(add);return out}
+function updateCradles(dt){
+  S.relays.forEach(r=>{if(S.mods.relayDef!=='repair'||!r.built){r.cradle=null;return}
+    const dock={x:r.x+6,y:r.y-1,z:40};const c=r.cradle||(r.cradle={x:dock.x,y:dock.y,z:dock.z,target:null,scan:0,beamT:0});
+    if(c.target&&(c.target.hp>=c.target.maxHp||c.target.dead||c.target.hp<=0))c.target=null;
+    if((c.scan-=dt)<=0){c.scan=0.5;if(!c.target&&r.tetherOk){const j=cradleJobs(r);let best=null,bf=1;j.forEach(o=>{const f=o.hp/o.maxHp;if(f<bf){bf=f;best=o}});c.target=best}}
+    const g=c.target?{x:c.target.x,y:c.target.y,z:10}:dock,dx=g.x-c.x,dy=g.y-c.y,L=Math.hypot(dx,dy);
+    if(L>1){const st=Math.min(L,CRADLE_SPEED*dt);c.x+=dx/L*st;c.y+=dy/L*st}c.z+=(g.z-c.z)*Math.min(1,dt*3);
+    c.working=!!c.target&&L<14&&S.dat>0;if(c.working){const o=c.target;o.hp=Math.min(o.maxHp,o.hp+CRADLE_HPS*dt);S.dat=Math.max(0,S.dat-DRONE_DAT_PER_SEC*dt);c.beamT+=dt}})}
 function updateWallLines(dt){
   if(!S.wallLines)return;
   wallTowers();
@@ -6162,7 +6225,7 @@ function drawWallLines(){
       if(sl.flashT>0){ctx.globalAlpha=0.5;ctx.fillStyle='#fff';ctx.fillRect(-cv,-th/2,cv*2,th);ctx.globalAlpha=1}
       if(D.fx)D.fx({t:S.t,i:idx,d:sl.maxHp?1-sl.hp/sl.maxHp:0,seg:half*2,up:sl.up,powered:L.powered,down:sl.downT>0,hit:Math.max(0,1-(S.t-(sl.hitT??-9))/0.35),grow:sl.growT0!=null?Math.min(1,(S.t-sl.growT0)/1.2):null});
       ctx.restore()});
-    [[L.x0,L.y0,0],[L.x1,L.y1,1]].forEach(([x,y,i])=>{if(!L.posts[i]||posts.some(q=>Math.hypot(q.x-x,q.y-y)<3)||S.turrets.some(t=>t.built&&dist(t,{x,y})<4))return;
+    [[L.x0,L.y0,0],[L.x1,L.y1,1]].forEach(([x,y,i])=>{if(L.relayRing||!L.posts[i]||posts.some(q=>Math.hypot(q.x-x,q.y-y)<3)||S.turrets.some(t=>t.built&&dist(t,{x,y})<4))return;
       posts.push({x,y,a:i?L.ang+Math.PI:L.ang,T,powered:L.powered})});
   });
   posts.forEach(q=>drawWallPost(q));
@@ -6228,7 +6291,8 @@ function troopSees(p){
 // (an object asked about more than once in the same tick — every guard checks every nearby enemy —
 // gets the answer worked out the first time)
 function visible(p){if(p._vt===S.t&&p._vS===S)return p._vv;const v=visibleNow(p);p._vt=S.t;p._vS=S;p._vv=v;return v}
-function visibleNow(p){const vm=S.mods.visionMult;if(dist(p,S.base)<BASE_VISION*vm)return true;if(S.pings.length&&inActivePing(p))return true;if(troopSees(p))return true;if(S.harvesters.some(h=>dist(h,p)<HARV_VISION*vm))return true;return S.builders.some(b=>dist(b,p)<BUILDER_VISION*vm)}
+function radarRelays(){return S.mods.relayDef==='radar'?S.relays.filter(r=>r.built&&r.tetherOk):[]}
+function visibleNow(p){const vm=S.mods.visionMult;if(dist(p,S.base)<BASE_VISION*vm)return true;if(S.mods.relayDef==='radar'&&radarRelays().some(r=>dist(r,p)<RELAY_RADAR_VISION*vm))return true;if(S.pings.length&&inActivePing(p))return true;if(troopSees(p))return true;if(S.harvesters.some(h=>dist(h,p)<HARV_VISION*vm))return true;return S.builders.some(b=>dist(b,p)<BUILDER_VISION*vm)}
 function moveToward(o,d,sp,dt){const dx=d.x-o.x,dy=d.y-o.y,L=Math.hypot(dx,dy);if(L<1)return 0;const s=Math.min(L,sp*dt);o.x+=dx/L*s;o.y+=dy/L*s;return L-s}
 function tracer(a,b,col,w){S.tracers.push({x1:a.x,y1:a.y,x2:b.x,y2:b.y,t:0.12,col,w})}
 function hitFlash(o){o.flashT=0.12}
@@ -7447,7 +7511,7 @@ function update(dt){
   // A vein is SEEN once any of your units' sight reaches into its zone; its mining point is FOUND
   // once sight reaches the point itself. The contract vein is never found by sight — only by
   // triangulating it (see takeBearing).
-  {const sees=(p,extra)=>dist(p,B)<BASE_VISION*vm+extra||S.troops.some(t=>dist(p,t)<TROOP_VISION*vm*S.mods.squadRangeMult+extra)||S.harvesters.some(h=>dist(p,h)<HARV_VISION*vm+extra)||S.builders.some(bu=>dist(p,bu)<BUILDER_VISION*vm+extra);
+  {const sees=(p,extra)=>dist(p,B)<BASE_VISION*vm+extra||S.troops.some(t=>dist(p,t)<TROOP_VISION*vm*S.mods.squadRangeMult+extra)||S.harvesters.some(h=>dist(p,h)<HARV_VISION*vm+extra)||S.builders.some(bu=>dist(p,bu)<BUILDER_VISION*vm+extra)||radarRelays().some(r=>dist(p,r)<RELAY_RADAR_VISION*vm+extra);
   S.veins.forEach(v=>{if(v.contract||!veinAlive(v))return;
     if(!v.seen&&sees(v,v.r*0.6))v.seen=true;
     if(!v.mine.found&&sees(v.mine,0)){v.mine.found=true;v.seen=true}});}}
@@ -7514,14 +7578,15 @@ function update(dt){
   });
   // Armed Relays (reward card): a tethered Relay fires like a Turret, half the damage and half
   // the fire rate.
-  if(S.mods.armedRelays){
+  if(S.mods.armedRelays||S.mods.relayOff==='armored'){const full=S.mods.relayOff==='armored';
     S.relays.forEach(r=>{
       if(!r.built||!r.tetherOk)return;
       r.gunCd-=dt;
-      let best=null,bd=RELAY_GUN_RANGE;S.enemies.forEach(e=>{const d=dist(e,r);if(d<bd){bd=d;best=e}});
-      if(best){r.ang=Math.atan2(best.y-r.y,best.x-r.x);if(r.gunCd<=0){damageEnemy(best,RELAY_GUN_DMG);tracer(r,best,C.accent);r.gunCd=RELAY_GUN_CD}}
+      let best=null,bd=full?TURRET_RANGE:RELAY_GUN_RANGE;S.enemies.forEach(e=>{if(e.kind==='nest')return;const d=dist(e,r);if(d<bd){bd=d;best=e}});
+      if(best){r.ang=Math.atan2(best.y-r.y,best.x-r.x);if(r.gunCd<=0){damageEnemy(best,full?TURRET_DMG:RELAY_GUN_DMG);tracer({x:r.x+Math.cos(r.ang)*14,y:r.y+Math.sin(r.ang)*14-15},best,C.accent);r.gunCd=full?TURRET_CD:RELAY_GUN_CD;r.shotT=S.t;r.side=!r.side}}
     });
   }
+  updateTesla(dt);updateCradles(dt);
 
   // enemies
   const allies=S.troops.concat(S.harvesters).concat(S.builders);
@@ -7732,7 +7797,7 @@ function update(dt){
     fogX.fillStyle=g;fogX.beginPath();fogX.arc(x/FOG_S,y/FOG_S,r*FOG_EDGE_OUT/FOG_S,0,Math.PI*2);fogX.fill()}; // remembered as explored
   {const vm=S.mods.visionMult;
   unveil(B.x,B.y,BASE_VISION*vm);S.pings.forEach(pg=>unveil(pg.x,pg.y,pg.probe?pg.r*Math.min(1,pg.t/2):pg.r));{const r=TROOP_VISION*vm*S.mods.squadRangeMult,q=r*0.09,done=new Map(); // units bunched within q of one already drawn cut practically the same hole: skip them
-   S.troops.forEach(t=>{const k=Math.floor(t.x/q)*65536+Math.floor(t.y/q);if(done.has(k))return;done.set(k,1);unveil(t.x,t.y,r)})}S.harvesters.forEach(h=>unveil(h.x,h.y,HARV_VISION*vm));S.builders.forEach(bu=>unveil(bu.x,bu.y,BUILDER_VISION*vm));}
+   S.troops.forEach(t=>{const k=Math.floor(t.x/q)*65536+Math.floor(t.y/q);if(done.has(k))return;done.set(k,1);unveil(t.x,t.y,r)})}S.harvesters.forEach(h=>unveil(h.x,h.y,HARV_VISION*vm));S.builders.forEach(bu=>unveil(bu.x,bu.y,BUILDER_VISION*vm));radarRelays().forEach(r=>unveil(r.x,r.y,RELAY_RADAR_VISION*vm));}
   softenFogLayers();
 }
 // Blurred copies of the fog veil and vision mask — what actually gets drawn/used each frame.
@@ -8473,7 +8538,104 @@ function drawCoreColumn(st,col,dmg,sn){
   if(since<99&&since>built&&since<built+0.45){const q=(since-built)/0.45;ctx.save();ctx.globalAlpha=(1-q)*0.6;ctx.strokeStyle=col;ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(st.x,st.y,16+q*26,(16+q*26)*0.9,0,0,Math.PI*2);ctx.stroke();ctx.restore()}
   SKO.s=SK_SCALE;
 }
-// Small shield above a unit on a guard order.
+// ---- Relays: the Insulator mast. Three short legs, a slim pole, amber ceramic insulators, a crossarm
+// ring of six hooks, a status lamp. Its reward cards add to it: horns (Sonic Deterrent), a coil and
+// toroid (Electric Surge), an armoured plinth with a turret head (Bastion Relay), a radar dish, a
+// repair cradle. Cables hang from the hook facing whatever they run to.
+function skFrustum(p0,p1,r0,r1,n,col,o={}){const d=[p1[0]-p0[0],p1[1]-p0[1],p1[2]-p0[2]],L=Math.hypot(d[0],d[1],d[2])||1,ax=d.map(x=>x/L),up=Math.abs(ax[2])<0.9?[0,0,1]:[1,0,0];
+  let u=[ax[1]*up[2]-ax[2]*up[1],ax[2]*up[0]-ax[0]*up[2],ax[0]*up[1]-ax[1]*up[0]];const ul=Math.hypot(u[0],u[1],u[2])||1;u=u.map(x=>x/ul);const v=[ax[1]*u[2]-ax[2]*u[1],ax[2]*u[0]-ax[0]*u[2],ax[0]*u[1]-ax[1]*u[0]];
+  const ring=(q,r)=>Array.from({length:n},(_,i)=>{const a=i/n*Math.PI*2,c=Math.cos(a)*r,s=Math.sin(a)*r;return [q[0]+u[0]*c+v[0]*s,q[1]+u[1]*c+v[1]*s,q[2]+u[2]*c+v[2]*s]});
+  const A=ring(p0,r0),B=ring(p1,r1),cc=[(p0[0]+p1[0])/2,(p0[1]+p1[1])/2,(p0[2]+p1[2])/2],F=[];for(let i=0;i<n;i++){const j=(i+1)%n;F.push(skFace([A[i],A[j],B[j],B[i]],col,cc,o))}F.push(skFace(B,o.cap||col,cc,o));F.push(skFace(A,col,cc,o));return {F,pts:A.concat(B),bias:o.bias||0}}
+function relayHook(){return S.mods.relayOff==='armored'?{r:8,z:22}:S.mods.relayOff==='tesla'?{r:9,z:32}:{r:9,z:42.5}}
+function relayHookFor(r,to){const H=relayHook(),a=Math.atan2(to.y-r.y,to.x-r.x),st=Math.PI/3,ha=Math.round(a/st)*st;return [r.x+Math.cos(ha)*H.r,r.y+Math.sin(ha)*H.r,H.z]}
+function relayMastSolids(r){const o=[],x=r.x,y=r.y,G='#999',DK='#4a4f57',INS='#d9a441',off=S.mods.relayOff,def=S.mods.relayDef,on=r.tetherOk,t=S.t;
+  const arm=off==='armored',tes=off==='tesla',top=arm?26:tes?36:44,hz=relayHook().z,hr=relayHook().r;
+  if(arm){o.push(skPrism(x,y,0,6,13,11,6,Math.PI/6,'#7d8793',{top:'#9aa3ad'}));o.push(skPrism(x,y,6,9,7,6,6,Math.PI/6,'#5d6670'))}
+  else for(let i=0;i<3;i++){const a=i*Math.PI*2/3+0.3,c=Math.cos(a),s=Math.sin(a);o.push(skBeam([x+c*3,y+s*3,12],[x+c*10,y+s*10,0.8],1.6,G));o.push(skPrism(x+c*10.5,y+s*10.5,0,1.2,2.2,2,6,0,'#6f7c89'))}
+  if(!arm)o.push(skPrism(x,y,0,3,4.6,4,8,0,DK,{top:'#5d6670'}));
+  o.push(skPrism(x,y,arm?9:3,top,arm?2.6:1.7,arm?2.2:1.3,8,0,'#8d9aa8',{top:'#a9b6c4'}));
+  const nIns=arm?2:tes?3:4,iz=arm?12:tes?14:20;for(let k=0;k<nIns;k++)o.push(skPrism(x,y,iz+k*3.2,iz+2+k*3.2,3.8-k*0.25,3.3-k*0.25,10,0,INS,{top:'#e8c06a'}));
+  for(let i=0;i<6;i++){const a=i/6*Math.PI*2,c=Math.cos(a),s=Math.sin(a);o.push(skBeam([x,y,hz],[x+c*hr,y+s*hr,hz],0.9,G));o.push(skPrism(x+c*hr,y+s*hr,hz-2.5,hz+0.5,0.9,0.7,6,0,INS))}
+  if(off==='sonic')for(let i=0;i<3;i++){const a=i/3*Math.PI*2+0.5,c=Math.cos(a),s=Math.sin(a),pk=S.surgeWaves&&S.surgeWaves.length?0.6:0;o.push(skFrustum([x+c*2,y+s*2,39],[x+c*9.5,y+s*9.5,37.5],1.4,3.8+pk,8,'#c9ced4',{cap:'#2b2f35',bias:0.3}))}
+  if(tes){for(let k=0;k<6;k++)o.push(skPrism(x,y,36+k*1.4,37+k*1.4,2.6,2.6,10,0,'#c46a3a',{top:'#d98a5a'}));o.push(skPrism(x,y,44.4,45.4,1.4,1.4,6,0,DK));o.push(skPrism(x,y,45.4,48.2,7.6,7.6,16,t*0.3,'#b9c0c8',{top:'#dfe3e8'}))}
+  if(arm){const a=r.ang||0,ca=Math.cos(a),sa=Math.sin(a),since=S.t-(r.shotT??-9),kick=since<0.15?(1-since/0.15)*1.6:0,L=(f,sd,z)=>[x+ca*f-sa*sd,y+sa*f+ca*sd,z];
+    o.push(skPrism(x,y,26,29,7,6.4,6,Math.PI/6,'#999',{top:'#e6e6e6'}));o.push(skBeam(L(-(r.side?kick:0),-2.2,31),L(15-(r.side?kick:0),-2.2,31),1.8,'#999'));o.push(skBeam(L(-(r.side?0:kick),2.2,31),L(15-(r.side?0:kick),2.2,31),1.8,'#999'));
+    o.push(skFrustum(L(-5,0,29),L(5,0,29),5.2,4.6,8,on?C.ally:'#6d8796',{bias:0.4}))}
+  else if(!tes)o.push(skPrism(x,y,44,45.6,2.2,1.6,8,0,DK));
+  if(def==='radar'){const a=t*0.9,c=Math.cos(a),s=Math.sin(a),bx=arm||tes?x+7:x,by=arm||tes?y-3:y,bz=arm?31:tes?40:47.5;if(arm||tes)o.push(skBeam([x,y,bz-6],[bx,by,bz-6],0.9,G));
+    o.push(skFrustum([bx-c,by-s,bz],[bx+c*2.2,by+s*2.2,bz+3],1.2,7.5,14,'#dfe3e8',{cap:'#b9c0c8',bias:0.5}))}
+  if(def==='repair'){o.push(skBox(x+6,y-1,hz-5,hz-3.5,8,6,0,'#8d9aa8',{top:'#a9b6c4'}));o.push(skBeam([x,y,hz-4.5],[x+5,y-1,hz-4.3],1,G))}
+  return o}
+function drawRelayMast(r){SKO.x=0;SKO.y=0;SKO.s=1;SKO.lean=[0,0];SKO.shk=[0,0];
+  skRender(relayMastSolids(r),r.flashT>0);
+  const off=S.mods.relayOff,lz=off==='armored'?33:off==='tesla'?49:46.2,col=r.tetherOk?C.ally:C.enemy;
+  skGlow([r.x,r.y,lz],7,col,0.55);skGlow([r.x,r.y,lz],2,'#ffffff',0.6);
+  if(off==='tesla'&&r.tetherOk){const tp=skPJ([r.x,r.y,47]);ctx.save();ctx.globalCompositeOperation='lighter';ctx.strokeStyle='#9fd8ff';ctx.lineWidth=0.7;ctx.globalAlpha=0.8;
+    for(let k=0;k<3;k++){if(wsHash(Math.floor(S.t*14),k,r.x|0)>0.55)continue;const a=S.t*7+k*2.1,R=8.5;ctx.beginPath();ctx.moveTo(tp[0]+Math.cos(a)*R*0.6,tp[1]+Math.sin(a)*R*0.3);ctx.lineTo(tp[0]+Math.cos(a+0.3)*R*1.1+(Math.random()-0.5)*3,tp[1]+Math.sin(a+0.3)*R*0.55);ctx.stroke()}ctx.restore()}
+  if(S.mods.relayDef==='radar'&&r.tetherOk){ctx.save();ctx.globalCompositeOperation='lighter';const a=S.t*0.9,R=RELAY_RADAR_VISION*0.55,g=ctx.createRadialGradient(r.x,r.y,0,r.x,r.y,R);g.addColorStop(0,'rgba(94,200,255,0.12)');g.addColorStop(1,'rgba(94,200,255,0)');
+    ctx.fillStyle=g;ctx.beginPath();ctx.moveTo(r.x,r.y);ctx.arc(r.x,r.y,R,a-0.45,a);ctx.closePath();ctx.fill();ctx.restore()}
+  const c=r.cradle;if(c){const sx=c.x,sy=c.y-c.z*SK_TILT;ctx.fillStyle='rgba(0,0,0,0.3)';ctx.beginPath();ctx.arc(c.x+c.z*0.35,c.y+c.z*0.35,2.2,0,Math.PI*2);ctx.fill();
+    if(c.working&&c.target){const tx=c.target.x,ty=c.target.y-(c.target.kind==='stabilizer'?40:c.target.kind==='relay'?20:0);ctx.strokeStyle=C.builder;ctx.globalAlpha=0.35+0.4*Math.abs(Math.sin(c.beamT*18));ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(sx,sy);ctx.lineTo(tx+rnd(-3,3),ty+rnd(-3,3));ctx.stroke();ctx.globalAlpha=1}
+    ctx.save();ctx.translate(sx,sy);ctx.rotate(c.target?Math.atan2(c.target.y-c.y,c.target.x-c.x):0);ctx.fillStyle=C.builder;ctx.strokeStyle='#000';ctx.lineWidth=0.8;ctx.beginPath();ctx.moveTo(4.5,0);ctx.lineTo(-3,-3);ctx.lineTo(-1.5,0);ctx.lineTo(-3,3);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore()}
+  SKO.s=SK_SCALE}
+// ---- tether cables: hoses. A unit's cable hangs from its anchor's hook to the ground, then lies on the
+// ground as a pooling rope (see stepRope); a Relay's cable is a span between hooks, sagging, drawn as a
+// bundle of hoses — one per unit further down the chain.
+const HOSES=['#2f3338','#5d6440','#8c8a6a','#3d4247','#6e7350','#7d7a60','#2a2d31','#55603f'];
+function resample3(pts,n){const seg=[];let L=0;for(let i=1;i<pts.length;i++){const d=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1],pts[i][2]-pts[i-1][2]);seg.push(d);L+=d}
+  const out=[];for(let k=0;k<=n;k++){let sd=L*k/n,i=0;while(i<seg.length-1&&sd>seg[i]){sd-=seg[i];i++}const f=seg[i]?sd/seg[i]:0,a=pts[i],b=pts[i+1]||pts[i];out.push([a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f,a[2]+(b[2]-a[2])*f])}return out}
+function drawHoses(pts3,n,seed,hot){if(pts3.length<2)return;SKO.x=0;SKO.y=0;SKO.s=1;SKO.lean=[0,0];SKO.shk=[0,0];
+  const N=Math.max(12,Math.min(90,Math.round(pts3.length*2.5))),Q=resample3(pts3,N),P=Q.map(skPJ),G=Q.map(skGJ),strands=Math.min(10,Math.max(1,n)),sw=strands>1?2.1:1.6,Rb=strands>1?0.62*Math.sqrt(strands):0,tw=Math.PI*1.3/N;
+  const nrm=i=>{const a=P[Math.max(0,i-1)],b=P[Math.min(P.length-1,i+1)],dx=b[0]-a[0],dy=b[1]-a[1],l=Math.hypot(dx,dy)||1;return [-dy/l,dx/l]};
+  ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle='rgba(0,0,0,0.3)';ctx.lineWidth=sw+Rb*2;ctx.beginPath();G.forEach((q,i)=>i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]));ctx.stroke();
+  const H=[];for(let k=0;k<strands;k++){const ph=k/strands*Math.PI*2+seed+(k%3)*0.35,pts=[],dep=[];for(let i=0;i<P.length;i++){const a=ph+i*tw,[nx,ny]=nrm(i),o=Rb*(0.75+0.25*((k*7)%4)/3)*Math.sin(a);pts.push([P[i][0]+nx*o,P[i][1]+ny*o]);dep.push(Math.cos(a))}H.push({pts,dep,col:hot?C.enemy:HOSES[(k+Math.floor(seed*3))%HOSES.length]})}
+  const runs=(h,front)=>{const R=[];let cur=null;for(let i=0;i<h.pts.length;i++){const ok=strands===1||(front?h.dep[i]>=0:h.dep[i]<0);if(ok){if(!cur){cur=[];if(i>0)cur.push(h.pts[i-1])}cur.push(h.pts[i])}else if(cur){cur.push(h.pts[i]);R.push(cur);cur=null}}if(cur)R.push(cur);return R};
+  const tube=(r,col,dim)=>{const path=()=>{ctx.beginPath();r.forEach((q,i)=>i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]))};path();ctx.strokeStyle='#121416';ctx.lineWidth=sw+0.55;ctx.stroke();path();ctx.strokeStyle=dim?mixCol(col,'#000000',0.3):col;ctx.lineWidth=sw;ctx.stroke();
+    ctx.beginPath();r.forEach((q,i)=>i?ctx.lineTo(q[0]-sw*0.18,q[1]-sw*0.22):ctx.moveTo(q[0]-sw*0.18,q[1]-sw*0.22));ctx.strokeStyle='rgba(255,250,235,0.3)';ctx.lineWidth=sw*0.3;ctx.stroke()};
+  if(strands>1)H.forEach(h=>runs(h,false).forEach(r=>tube(r,h.col,true)));H.forEach(h=>runs(h,true).forEach(r=>tube(r,h.col,false)));
+  if(strands>1){[0.15,0.45,0.75].forEach((f,k)=>{const i=Math.round(f*N),[nx,ny]=nrm(i),q=P[i],a=P[Math.max(0,i-1)],b=P[Math.min(P.length-1,i+1)],dx=b[0]-a[0],dy=b[1]-a[1],l=Math.hypot(dx,dy)||1,ux=dx/l*0.9,uy=dy/l*0.9,hw=Rb+sw*0.62;
+    ctx.beginPath();ctx.moveTo(q[0]+nx*hw-ux,q[1]+ny*hw-uy);ctx.lineTo(q[0]+nx*hw+ux,q[1]+ny*hw+uy);ctx.lineTo(q[0]-nx*hw+ux,q[1]-ny*hw+uy);ctx.lineTo(q[0]-nx*hw-ux,q[1]-ny*hw-uy);ctx.closePath();ctx.fillStyle=k===1?'#c99a3a':'#25282c';ctx.fill()})}
+  SKO.s=SK_SCALE}
+// where a cable leaves its anchor: a Relay's hook facing the far end, or the Bastion's back
+function anchorHook(a,to){if(!a)return null;if(a===S.base){const an=Math.atan2(to.y-a.y,to.x-a.x);return [a.x+Math.cos(an)*14,a.y+Math.sin(an)*14,20]}return relayHookFor(a,to)}
+// ---- the pooling rope (visual only; the trail still decides length, snapping and what enemies cut).
+// Links ROPE_SEG apart, pinned at the touchdown under the hook and at the unit; 8 relaxation passes;
+// links only pull, so slack bunches on the floor; the winch feeds out when pulled and winds in toward
+// the cable's real length, slowly while the unit moves and properly once it stands still; rock pushes
+// it back; it sleeps while nothing moves.
+const ROPE_SEG=13,ROPE_ITERS=8;
+function stepRope(u,a0,dt){let R=u.rope;const tx=u.x,ty=u.y;
+  if(!R||R.ax==null){R=u.rope={P:[{x:a0[0],y:a0[1],px:a0[0],py:a0[1]},{x:tx,y:ty,px:tx,py:ty}],wind:0,sleep:0,lx:tx,ly:ty,idle:0}}
+  const P=R.P,n=P.length;R.idle=Math.abs(tx-R.lx)+Math.abs(ty-R.ly)<0.1?R.idle+dt:0;R.lx=tx;R.ly=ty;
+  const moved=Math.abs(P[0].x-a0[0])+Math.abs(P[0].y-a0[1])+Math.abs(P[n-1].x-tx)+Math.abs(P[n-1].y-ty)>0.05;
+  R.ax=a0[0];if(R.sleep>0.5&&!moved&&!(R.idle>1.2&&R.wantWind))return;
+  for(let i=1;i<n-1;i++){const q=P[i],vx=(q.x-q.px)*0.85,vy=(q.y-q.py)*0.85;q.px=q.x;q.py=q.y;q.x+=vx;q.y+=vy}
+  P[0].x=P[0].px=a0[0];P[0].y=P[0].py=a0[1];P[n-1].x=P[n-1].px=tx;P[n-1].y=P[n-1].py=ty;
+  for(let it=0;it<ROPE_ITERS;it++){for(let i=0;i<n-1;i++){const a=P[i],b=P[i+1],dx=b.x-a.x,dy=b.y-a.y,d2=dx*dx+dy*dy;if(d2<=ROPE_SEG*ROPE_SEG)continue;const d=Math.sqrt(d2),k=(d-ROPE_SEG)/d,wa=i===0?0:0.5,wb=i+1===n-1?0:0.5,sm=wa+wb||1;a.x+=dx*k*wa/sm;a.y+=dy*k*wa/sm;b.x-=dx*k*wb/sm;b.y-=dy*k*wb/sm}
+    if(it&1)for(let i=1;i<n-1;i++){const q=P[i];if(terrainAt(q.x,q.y)===2){q.x=q.px;q.y=q.py}}}
+  let stretch=0,motion=0;for(let i=0;i<n-1;i++){const dx=P[i+1].x-P[i].x,dy=P[i+1].y-P[i].y,d2=dx*dx+dy*dy;if(d2>ROPE_SEG*ROPE_SEG)stretch+=Math.sqrt(d2)-ROPE_SEG}
+  for(let i=1;i<n-1;i++)motion+=Math.abs(P[i].x-P[i].px)+Math.abs(P[i].y-P[i].py);
+  R.wantWind=stretch<1&&n>3;let rate=0;if(stretch>3)rate=-Math.min(300,stretch*40);else if(R.wantWind)rate=R.idle>1.2?70:6;
+  R.wind+=rate*dt;
+  while(R.wind<=-ROPE_SEG&&P.length<80){R.wind+=ROPE_SEG;const a=P[0],b=P[1],dx=b.x-a.x,dy=b.y-a.y,d=Math.sqrt(dx*dx+dy*dy)||1,x=a.x+dx/d*Math.min(ROPE_SEG,d*0.5),y=a.y+dy/d*Math.min(ROPE_SEG,d*0.5);P.splice(1,0,{x,y,px:x,py:y})}
+  while(R.wind>=ROPE_SEG&&P.length>2){R.wind-=ROPE_SEG;P.splice(1,1)}
+  if(!rate)R.wind=0;R.sleep=motion<0.3&&!rate?R.sleep+dt:0}
+function drawTethers(){
+  const dt=Math.max(0,Math.min(0.05,S.t-(S._ropeT??S.t)));S._ropeT=S.t;
+  // the load each Relay carries: units hanging off it by cable, plus every Relay below it and its own load
+  const relays=S.relays.filter(r=>r.built&&r.trail&&r.anchorRef),units=S.troops.concat(S.harvesters,S.builders);
+  const total=(r,seen=new Set())=>{if(seen.has(r))return 0;seen.add(r);let n=0;units.forEach(u=>{if(u.trail&&u.anchorRef===r)n++});S.relays.forEach(q=>{if(q!==r&&q.built&&q.trail&&q.anchorRef===r)n+=1+total(q,seen)});return n};
+  // relay spans: from the anchor's hook to this relay's hook, along the cable's own path, sagging
+  relays.forEach(r=>{const A=anchorHook(r.anchorRef,r),Bh=relayHookFor(r,r.anchorRef);if(!A)return;const tr=r.trail.slice(1);const pts=[A].concat(tr.map(q=>[q.x,q.y,0]),[Bh]);
+    let L=0;for(let i=1;i<pts.length;i++)L+=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]);let acc=0;const sag=Math.min(Math.min(A[2],Bh[2])-2,L*0.09+4);
+    const Z=pts.map((q,i)=>{if(i)acc+=Math.hypot(q[0]-pts[i-1][0],q[1]-pts[i-1][1]);const f=L?acc/L:0;return [q[0],q[1],Math.max(0.3,A[2]+(Bh[2]-A[2])*f-sag*4*f*(1-f))]});
+    drawHoses(Z,1+total(r),(r.x%7)*0.3,r.cableMaxed)});
+  // unit cables: hang from the hook, then the pooling rope to the unit
+  S.troops.concat(S.harvesters,S.builders).forEach(u=>{if(!u.trail||!u.anchorRef){u.rope=null;return}
+    const h=anchorHook(u.anchorRef,u);if(!h){u.rope=null;return}const dx=u.x-h[0],dy=u.y-h[1],L=Math.hypot(dx,dy)||1,td=Math.min(L*0.6,h[2]*0.55+6),ux=dx/L,uy=dy/L,touch=[h[0]+ux*td,h[1]+uy*td];
+    stepRope(u,touch,dt);const hangPts=[];for(let k=0;k<=8;k++){const f=k/8;hangPts.push([h[0]+ux*td*f,h[1]+uy*td*f,h[2]*Math.pow(1-f,2.2)])}
+    const pts=hangPts.concat(u.rope.P.slice(1).map(q=>[q.x,q.y,0.2]));drawHoses(pts,1,(u.id||0)%8,u.cableMaxed)});
+}
 function drawGuardGlyph(x,y){
   ctx.strokeStyle=C.ally;ctx.lineWidth=1.8;
   ctx.beginPath();ctx.moveTo(x-5,y-20);ctx.lineTo(x+5,y-20);ctx.lineTo(x+5,y-16);ctx.quadraticCurveTo(x+5,y-12,x,y-10);ctx.quadraticCurveTo(x-5,y-12,x-5,y-16);ctx.closePath();ctx.stroke();
@@ -8608,15 +8770,13 @@ function draw(){
       const pulse=0.5+0.5*Math.sin(S.t*2.2);
       ctx.strokeStyle=C.cable;ctx.globalAlpha=0.25*pulse;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(r.x,r.y,WIRELESS_TOL_DENSE*S.mods.relayTolMult,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;
     }
-    ctx.fillStyle=r.flashT>0?'#fff':(r.tetherOk?'#3b4652':'#2a2d31');ctx.strokeStyle=r.tetherOk?C.cable:C.enemy;ctx.lineWidth=2;
-    ctx.beginPath();ctx.moveTo(r.x,r.y-12);ctx.lineTo(r.x+9,r.y+8);ctx.lineTo(r.x-9,r.y+8);ctx.closePath();ctx.fill();ctx.stroke();
-    if(S.mods.armedRelays&&r.tetherOk){ctx.strokeStyle=C.accent;ctx.lineWidth=2.5;ctx.beginPath();ctx.moveTo(r.x,r.y);ctx.lineTo(r.x+Math.cos(r.ang)*13,r.y+Math.sin(r.ang)*13);ctx.stroke()}
-    if(!r.tetherOk)drawCutGlyph(r.x,r.y);
+    drawRelayMast(r);
+    if(!r.tetherOk)drawCutGlyph(r.x,r.y-30);
     if(r.state==='cut'&&r.reconnectT>0){
       ctx.fillStyle='rgba(0,0,0,0.6)';ctx.fillRect(r.x-11,r.y+15,22,3);
       ctx.fillStyle=C.builder;ctx.fillRect(r.x-11,r.y+15,22*(r.reconnectT/RELAY_RECONNECT_T),3);
     }
-    if(r.hp<r.maxHp)hpbar(r.x,r.y-20,20,r.hp/r.maxHp);
+    if(r.hp<r.maxHp)hpbar(r.x,r.y-34,22,r.hp/r.maxHp);
   });
   // depots — a storage crate, not a powered structure, so no tether glow or cut glyph, just an
   // open/closed lid depending on whether it's standing
@@ -8653,10 +8813,7 @@ function draw(){
     ctx.globalAlpha=0.6;ctx.beginPath();ctx.arc(pg.x,pg.y,pg.r,-Math.PI/2,-Math.PI/2+Math.PI*2*f);ctx.stroke();ctx.globalAlpha=1});
   if(B.dest){ctx.strokeStyle='rgba(94,200,255,0.5)';ctx.setLineDash([6,6]);ctx.beginPath();ctx.moveTo(B.x,B.y);ctx.lineTo(B.dest.x,B.dest.y);ctx.stroke();ctx.setLineDash([])}
   // cables (drawn under the units they belong to)
-  S.relays.forEach(r=>{if(r.built)drawCable(r,C.cable)});
-  S.troops.forEach(t=>drawCable(t,C.cable));
-  S.harvesters.forEach(h=>drawCable(h,C.cable));
-  S.builders.forEach(bu=>drawCable(bu,C.cable));
+  drawTethers();drawBolts();
   // hold: a link line between held units backing each other up, and corner brackets on each
   {const hd=S.troops.filter(t=>t.hold&&!t.dest&&t.state!=='attack');ctx.save();ctx.strokeStyle=C.accent;ctx.lineWidth=1.5;ctx.globalAlpha=0.45;ctx.setLineDash([3,4]);ctx.beginPath();
    for(let i=0;i<hd.length;i++)for(let j=i+1;j<hd.length;j++)if(dist(hd[i],hd[j])<HOLD_LINK_R){ctx.moveTo(hd[i].x,hd[i].y);ctx.lineTo(hd[j].x,hd[j].y)}
