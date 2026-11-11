@@ -8316,22 +8316,30 @@ const STAB_BRACKETS=new Path2D('M39.53 3.61 V38.95 H4.18 Z M65.4 100.17 V64.83 H
 // its target, but scales up toward the middle of the flight (rising toward the camera) and back
 // down as it lands, spinning, with its shadow on the ground beneath it. It launches folded — its
 // triangles closed into a square over the core — and unfolds around the top of the arc.
+// In flight: the Core column packed into a capsule — telescoped short, legs folded up its sides, windows
+// dim. It flies a real arc (its shadow falls down-right by its height, like everything tall), leaning
+// nose-first along its path and spinning slowly; it rights itself coming down and swings its legs out
+// just before it lands, ready for the tower to pop up.
+function skXform(S0,rot,pivot,off){const R=v=>rot(v),T=q=>{const r=R([q[0]-pivot[0],q[1]-pivot[1],q[2]-pivot[2]]);return [r[0]+pivot[0]+off[0],r[1]+pivot[1]+off[1],r[2]+pivot[2]+off[2]]};
+  return {F:S0.F.map(f=>({...f,pts:f.pts.map(T),n:R(f.n)})),pts:S0.pts.map(T),bias:S0.bias}}
 function drawStabShots(){
   S.stabShots.forEach(sh=>{
-    const f=Math.min(1,sh.t/sh.dur), arc=Math.sin(Math.PI*f);
-    const x=sh.x0+(sh.tx-sh.x0)*f, y=sh.y0+(sh.ty-sh.y0)*f;
-    ctx.save();
-    ctx.globalAlpha=0.35*(1-0.5*arc);ctx.fillStyle='#000';ctx.beginPath();ctx.ellipse(x,y,12*(1-0.35*arc),6*(1-0.35*arc),0,0,Math.PI*2);ctx.fill();
-    const k=STAB_SIZE*(1+1.3*arc)/STAB_VB;
-    ctx.globalAlpha=1;ctx.translate(x,y-26*arc);ctx.rotate(sh.t*sh.spin);ctx.scale(k,k);ctx.translate(-STAB_VB/2,-STAB_VB/2);
-    ctx.fillStyle='#8fe3ff';ctx.fill(STAB_DIAMOND);ctx.strokeStyle='#0b0e12';ctx.lineWidth=5;ctx.stroke(STAB_DIAMOND);
-    // folded shut for the first part of the flight (the triangles closed into a square over the
-    // core), then they pull apart around the top of the arc — the spike deploying as it comes down
-    const open=f<0.3?0:f>0.62?1:(()=>{const q=(f-0.3)/0.32;return q*q*(3-2*q)})(), shut=1-open;
-    ctx.fillStyle='#dfe6ee';ctx.lineJoin='miter';
-    // each triangle keeps its dark outline, so folded it reads as one square of separate panels
-    STAB_TRIS.forEach(t=>{ctx.save();ctx.translate(t.dx*shut,t.dy*shut);ctx.fill(t.p);ctx.stroke(t.p);ctx.restore()});
-    ctx.restore();
+    const f=Math.min(1,sh.t/sh.dur),arc=Math.sin(Math.PI*f),x=sh.x0+(sh.tx-sh.x0)*f,y=sh.y0+(sh.ty-sh.y0)*f;
+    const L=Math.hypot(sh.tx-sh.x0,sh.ty-sh.y0)||1,dx=(sh.tx-sh.x0)/L,dy=(sh.ty-sh.y0)/L,h=arc*Math.min(60,30+L*0.08)/SK_SCALE;
+    const e=f*f*(3-2*f),th=1.05*(1-e),c=Math.cos(th),sn=Math.sin(th),k=[-dy,dx,0];
+    const rot=v=>{const kv=k[0]*v[0]+k[1]*v[1],cr=[k[1]*v[2],-k[0]*v[2],k[0]*v[1]-k[1]*v[0]];return [v[0]*c+cr[0]*sn+k[0]*kv*(1-c),v[1]*c+cr[1]*sn+k[1]*kv*(1-c),v[2]*c+cr[2]*sn]};
+    const dep=f<0.78?0:Math.min(1,(f-0.78)/0.18),spin=sh.t*sh.spin*0.6,DK='#4a4f57',P=[];
+    for(let i=0;i<4;i++){const a=i*Math.PI/2+0.2+spin,ca=Math.cos(a),sa=Math.sin(a),foot=[ca*(7+6*dep),sa*(7+6*dep),15+(1.2-15)*dep];P.push(skBeam([ca*5,sa*5,12],foot,1.6,'#999'))}
+    P.push(skPrism(0,0,0,6,6.6,7.4,10,spin,DK,{top:'#5d6670'}));P.push(skPrism(0,0,6,22,6,5.6,8,Math.PI/8+spin,'#5d6670',{top:'#6f7c89'}));
+    for(let i=0;i<8;i++){const pn=skPanel(5.85,8,Math.PI/8+spin,i,9,19,0.32,'#8fe3ff',{emit:0.2+0.15*Math.sin(S.t*6+i)});P.push(pn)}
+    P.push(skPrism(0,0,13,13.8,6.2,6.2,8,Math.PI/8+spin,'#8d9aa8'));P.push(skPrism(0,0,22,25,5.6,3.6,8,Math.PI/8+spin,'#8d9aa8',{top:'#a9b6c4'}));P.push(skPrism(0,0,25,26,5,4.6,12,spin,'#8d9aa8',{top:'#a9b6c4'}));
+    SKO.x=x;SKO.y=y;SKO.lean=[0,0];SKO.shk=[0,0];
+    // a puff trail behind it, and the thruster glow at its foot
+    for(let q=1;q<=5;q++){const g=f-q*0.035;if(g<=0)break;const gx=sh.x0+(sh.tx-sh.x0)*g-x,gy=sh.y0+(sh.ty-sh.y0)*g-y,gh=Math.sin(Math.PI*g)*Math.min(60,30+L*0.08)/SK_SCALE,[px,py]=skPJ([gx/SK_SCALE,gy/SK_SCALE,gh]);
+      ctx.globalAlpha=0.22*(1-q/6);ctx.fillStyle='#cfd8e0';ctx.beginPath();ctx.arc(px,py,2+q*0.9,0,Math.PI*2);ctx.fill()}ctx.globalAlpha=1;
+    skRender(P.map(S0=>skXform(S0,rot,[0,0,13],[0,0,h])),false);
+    const foot=rot([0,0,-13]);skGlow([foot[0],foot[1],foot[2]+13+h],9,'#8fe3ff',0.55*(1-dep*0.5));
+    const top=rot([0,0,13.6]);if(Math.sin(S.t*14)>0)skGlow([top[0],top[1],top[2]+13+h],5,'#ffd27a',0.7);
   });
 }
 // v4: which Stabilizers the enemy is coming for right now — the one carrying the most steering
