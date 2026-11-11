@@ -1556,6 +1556,7 @@ const UPGRADES={
     {id:'tactical',name:'Tactical Reinforcements',desc:'+5 free Troopers, +3 free Grenadiers, right now.',apply:()=>{spawnFreeTroops(5,'troop');spawnFreeTroops(3,'grenadier')}},
     {id:'targeting',name:'Targeting Computer',desc:'The Bastion gun keeps firing while drilling instead of going quiet.',apply:()=>{S.mods.bastionShootWhileDrilling=true}},
     {id:'energySurge2',name:'Energy Surge II',desc:'Energy Surge now pulses every 5s instead of 10s.',apply:()=>{S.mods.energySurgeLevel=Math.max(S.mods.energySurgeLevel,2)}},
+    {id:'siegeRing',name:'Siege Ring',desc:'Every time the Bastion starts drilling, a free ring of walls rises around it along its dashed build ring. Where a wall already stands, none is added.',has:()=>S.mods.siegeRing,apply:()=>{S.mods.siegeRing=true}},
     {id:'wallTowers',name:'Bulwark Towers',desc:'Every wall end gets a free Turret — on the walls you have now and every wall you build from here on. A tower that falls is not replaced. Drawback: walls cost twice as much.',has:()=>S.mods.wallTowers||S.mods.podTowers,apply:()=>{S.mods.wallTowers=true;wallTowers();updateBuildBar()}},
   ],
   Legendary:[
@@ -2493,7 +2494,7 @@ function reset(landing){
     // reset back to baseline (1 / 0 / false) by a fresh reset(), never persisted between runs.
     mods:{carryMult:1,troopDmgMult:1,moveSpeedMult:1,visionMult:1,relayTolMult:1,drillBurnMult:1,
       cableLenAdd:0,cableHpMult:1,condensedMult:1,livingMult:1,fastBonus:0,drillRateMult:1,freeRelayCharges:0,
-      grenFireRateMult:1,grenSplashMult:1,squadRangeMult:1,bigGuns:false,bastionShootWhileDrilling:false,wallTowers:false,podTowers:false,
+      grenFireRateMult:1,grenSplashMult:1,squadRangeMult:1,bigGuns:false,bastionShootWhileDrilling:false,wallTowers:false,podTowers:false,siegeRing:false,
       energySurgeLevel:0,armedRelays:false,martyrs:false,fabRateMult:1},
     rewardChoice:null,pingRing:null,pings:[],reanim:[],stabs:[],stabShots:[],stabCharges:3,stabRechargeT:0,probes:[],probeCharges:3,probeRechargeT:0,paused:false,
     sel:{base:false,troops:new Set(),harv:new Set(),bu:new Set()},
@@ -5393,6 +5394,7 @@ function tryLockdown(){
     return;
   }
   S.throttleMul=1; S.base.locked=true; S.base.dest=null;
+  if(S.mods.siegeRing)buildSiegeRing();
   S.activeVein=v; v.drillProg=0; v.prepT=0; v.stalled=false; v.paused=false; v.waveDir=rnd(0,Math.PI*2); v.firstWaveSent=true;
   v.waveT=FIRST_WAVE_DELAY; v.saboteurT=SABOTEUR_INTERVAL[v.band]; v.startT=S.t;
   v.lockIdx=ripeIdx(v); v.lockUnstable=unstableFrac(v);
@@ -5926,6 +5928,33 @@ function finishWallDraw(){
   [[P.x0,P.y0],[P.x1,P.y1]].forEach(([tx,ty],i)=>{if(anch[i])return;const dd=Math.hypot(tx-S.base.x,ty-S.base.y);S.fabShots.push({k:'wallpost',line,end:i,x0:S.base.x,y0:S.base.y,tx,ty,t:0,dur:Math.max(0.4,dd/FAB_FLIGHT_SPEED)})});
   tone(200,0.12,'square',0.06,0,420);
 }
+// A free wall between a and b, built exactly as a drawn one is — posts lobbed from the Bastion, slats
+// rising between them once both land, none on rock. auto marks the Siege Ring's (no towers on those).
+function addWallLine(a,b,auto){
+  const L=Math.hypot(b.x-a.x,b.y-a.y);if(L<WALL_MIN_LEN)return null;
+  const n=Math.max(1,Math.round(L/WALL_SLAT)),ux=(b.x-a.x)/L,uy=(b.y-a.y)/L,seg=L/n;
+  const line={x0:a.x,y0:a.y,x1:b.x,y1:b.y,ux,uy,ang:Math.atan2(uy,ux),posts:[false,false],anchored:[false,false],raiseT0:null,slats:[],auto:!!auto};
+  for(let i=0;i<n;i++){const c=(i+0.5)*seg,x=a.x+ux*c,y=a.y+uy*c;if(terrainAt(x,y)===2)continue;
+    line.slats.push({x,y,half:seg/2,hp:WALL_SLAT_HP,maxHp:WALL_SLAT_HP,up:0,order:Math.min(i,n-1-i),line,kind:'wallslat'})}
+  if(!line.slats.length)return null;
+  (S.wallLines||(S.wallLines=[])).push(line);S.wallDirty=true;
+  [[a.x,a.y],[b.x,b.y]].forEach(([tx,ty],i)=>{const dd=Math.hypot(tx-S.base.x,ty-S.base.y);S.fabShots.push({k:'wallpost',line,end:i,x0:S.base.x,y0:S.base.y,tx,ty,t:0,dur:Math.max(0.4,dd/FAB_FLIGHT_SPEED)})});
+  return line}
+// Siege Ring (reward card): when the Bastion locks on to drill, SIEGE_RING_N wall sections go up along
+// its build ring, just inside it. A section is skipped where a wall already stands at its middle, where
+// both its ends would be on rock, or where it would run off the map.
+const SIEGE_RING_N=12,SIEGE_RING_IN=18;
+function buildSiegeRing(){
+  const B=S.base,R=BUILD_R-SIEGE_RING_IN,off=Math.PI/SIEGE_RING_N,pts=[]; // a fixed orientation, so a second ring from the same spot lines up with the first and is skipped
+  for(let i=0;i<SIEGE_RING_N;i++){const a=off+i/SIEGE_RING_N*Math.PI*2;pts.push({x:B.x+Math.cos(a)*R,y:B.y+Math.sin(a)*R})}
+  let made=0;
+  for(let i=0;i<SIEGE_RING_N;i++){const p=pts[i],q=pts[(i+1)%SIEGE_RING_N],mx=(p.x+q.x)/2,my=(p.y+q.y)/2;
+    if([p,q].some(o=>o.x<20||o.y<20||o.x>W-20||o.y>H-20))continue;
+    if(terrainAt(p.x,p.y)===2&&terrainAt(q.x,q.y)===2)continue;
+    if(wallAt(mx,my)||S.wallLines&&S.wallLines.some(L=>!L.slats.every(sl=>sl.dead)&&pointSegDist({x:mx,y:my},{x:L.x0,y:L.y0},{x:L.x1,y:L.y1})<10))continue;
+    if(addWallLine(p,q,true))made++}
+  if(made){tone(200,0.12,'square',0.06,0,420);tone(260,0.12,'square',0.05,0.08,520)}
+  return made}
 // Bulwark Towers: every landed wall end gets a free Turret lobbed from the Bastion, once per end
 // (L.tower marks it, so a tower that's destroyed isn't rebuilt). Ends shared by two walls, or
 // already anchored on a Turret, get only the one.
@@ -5934,7 +5963,7 @@ function wallTowers(){
   const k=S.mods.podTowers?'podturret':'turret';
   const near=(p)=>S.turrets.some(t=>dist(t,p)<4)||S.fabShots.some(sh=>(sh.k==='turret'||sh.k==='podturret')&&Math.hypot(sh.tx-p.x,sh.ty-p.y)<4);
   S.wallLines.forEach(L=>{L.tower=L.tower||[false,false];
-    [[L.x0,L.y0],[L.x1,L.y1]].forEach(([x,y],i)=>{if(L.tower[i]||!L.posts[i])return;L.tower[i]=true;const p={x,y};
+    [[L.x0,L.y0],[L.x1,L.y1]].forEach(([x,y],i)=>{if(L.auto||L.tower[i]||!L.posts[i])return;L.tower[i]=true;const p={x,y};
       if(near(p))return;
       const dd=Math.hypot(x-S.base.x,y-S.base.y);S.fabShots.push({k,free:true,x0:S.base.x,y0:S.base.y,tx:x,ty:y,t:0,dur:Math.max(0.4,dd/FAB_FLIGHT_SPEED)})})});
 }
