@@ -1709,6 +1709,7 @@ function drawFieldRelay(t){const st=t.moving?Math.sin(S.t*6):0;ctx.save();ctx.tr
   rP([[-7,-7],[7,-7],[8,6],[-8,6]],'#9fb6d0');rLimb([[0,2],[0,10]],1.6,'#8d9aa8');rO(0,10,3,'#c3ccd6');rP([[-5,8.6],[5,8.6],[5,10],[-5,10]],'#6f7b88');rO(0,-2,3,'#7bd389');
   ctx.restore()}
 
+function callCard(id){return {id:'call_'+id,get name(){return 'Call-down: '+CALLDOWNS[id].name},get desc(){return `${CALLDOWNS[id].desc}<span class="rcSwap">Adds it to your call-down menu for the run, with ${CALL_CARD_N} free charges.</span>`},has:()=>CALLDOWNS[id].unlocked(),apply:()=>unlockCall(id)}}
 const UPGRADES={
   Common:[
     {id:'dmg1',name:'Battle Drills I',desc:'Trooper damage +10%.',apply:()=>{S.mods.troopDmgMult*=1.1}},
@@ -1733,6 +1734,7 @@ const UPGRADES={
     {id:'resupply1',name:'Resupply',desc:'Every fabricator, Stabilizer and Probe stock is topped up to full, right now.',apply:()=>{Object.keys(FABS).forEach(k=>{S.fab[k].n=FABS[k].charges});S.stabCharges=STAB_CHARGES;S.probeCharges=PROBE_CHARGES}},
     wallCard('heavy','Heavy Armour Walls'),
     kitCard('shock'),kitCard('lmg'),kitCard('razor'),kitCard('cryo'),kitCard('spotter'),kitCard('flak'),
+    callCard('emp'),callCard('decoy'),callCard('minefield'),callCard('bulwark'),
     {id:'callDelay',name:'Priority Uplink',desc:'Call-downs land twice as fast.',has:()=>S.mods.callDelayMult<1,apply:()=>{S.mods.callDelayMult=0.5}},
     {id:'callRadius',name:'Wide Payload',desc:'Call-downs cover 40% more ground.',has:()=>S.mods.callRadiusMult>1,apply:()=>{S.mods.callRadiusMult=1.4}},
     {id:'callCrate',name:'Requisition Crate',desc:'Two free call-downs, chosen at random.',apply:()=>{msg(`Requisitioned: ${giftCall(2)}.`)}},
@@ -1741,6 +1743,7 @@ const UPGRADES={
   ],
   Epic:[
     kitCard('warden'),kitCard('fire'),kitCard('rail'),kitCard('cluster'),kitCard('fieldrelay'),
+    callCard('droppod'),callCard('carpet'),callCard('overclock'),callCard('gravity'),
     {id:'callPrice',name:'Bulk Contract',desc:'Call-downs cost 35% less Dat.',has:()=>S.mods.callPriceMult<1,apply:()=>{S.mods.callPriceMult=0.65}},
     {id:'callEcho',name:'Echo Strike',desc:'Each call-down has a 30% chance to land a second time close by.',has:()=>S.mods.callEcho>0,apply:()=>{S.mods.callEcho=0.3}},
     {id:'callReq',name:'Field Requisition',desc:'Every time you start drilling, two free call-downs arrive.',has:()=>S.mods.callReq,apply:()=>{S.mods.callReq=true}},
@@ -1833,7 +1836,11 @@ const HOTSPOTS_PER_VEIN=3, STAB_HP=140, STAB_BUILD_T=3, STAB_SNAP=32;
 // moment to land — the hotspots keep drifting, so you have to lead them. Land on a free hotspot
 // and it's pinned, and the vein holds together STAB_LIFE_BONUS seconds longer before collapsing
 // (up to one per hotspot). Miss and the charge is spent.
-const STAB_CHARGES=3, STAB_RECHARGE_T=15, STAB_RANGE=650, STAB_FLIGHT_SPEED=420, STAB_LIFE_BONUS=10;
+const STAB_CHARGES=3, STAB_RECHARGE_T=15, STAB_RANGE=650, STAB_FLIGHT_SPEED=420, STAB_LIFE_BONUS=10, STAB_RELAY_R=420;
+// v4: a Stabilizer can be fired from the Bastion (out to STAB_RANGE) or from any live, tethered Relay
+// (out to STAB_RELAY_R), so the relay network carries it out to a vein far from the Bastion
+function stabSources(){return [{o:S.base,r:STAB_RANGE},...S.relays.filter(r=>r.built&&r.hp>0&&r.tetherOk).map(r=>({o:r,r:STAB_RELAY_R}))]}
+function stabSourceFor(w){let best=null,bd=Infinity;stabSources().forEach(s=>{const d=dist(w,s.o);if(d<=s.r&&d<bd){bd=d;best=s.o}});return best}
 function mkHotspots(v){
   const hs=[];
   for(let i=0;i<HOTSPOTS_PER_VEIN;i++)hs.push({a0:i/HOTSPOTS_PER_VEIN*Math.PI*2+rnd(-0.5,0.5),spin:rnd(0.25,0.45)*(rnd(0,1)<0.5?-1:1),
@@ -2690,7 +2697,7 @@ function reset(landing){
   const land=landing||defaultLanding();
   S={t:0,surveyVein:null,wrecks:[],beacons:[],squadCap:SQUAD_CAP_START,quakes:[],quakeMsg:false,barrier:null,breachSite:null,breachVein:null,rigSite:null,rig:null,glass:null,glassShards:[],glassB:null,glassCov:null,dat:tutorialMap?TUTORIAL_START_DAT:pressureOn('lean')?20:60,living:0,condensed:0,over:null,rerollCount:0,
     base:{x:land.x,y:land.y,hp:450+bastionHpBonus(),maxHp:450+bastionHpBonus(),r:BASE_R,dest:null,locked:false,gunCd:0,bigGunCd:0,pingCd:0},
-    troops:[],harvesters:[],builders:[],relays:[],depots:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],shards:[],nades:[],shardShots:[],lances:[],smears:[],calls:{},capAdd:{},kits:{},fires:[],callsIn:[],callFx:[],decoys:[],mines:[],fields:[],
+    troops:[],harvesters:[],builders:[],relays:[],depots:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],shards:[],nades:[],shardShots:[],lances:[],smears:[],calls:{},callUnlock:{},capAdd:{},kits:{},fires:[],callsIn:[],callFx:[],decoys:[],mines:[],fields:[],
     veins:[],activeVein:null,throttleMul:1,ambientT:30,
     minedWindowAmt:0,minedWindowT:0,offZonePatrolCd:OFFZONE_MINE_WINDOW,
     particles:[],floaters:[],shake:{t:0,dur:0,mag:0},surgeWaves:[],surgeT:10,
@@ -2897,13 +2904,13 @@ function openBreach(v){
 // what carries from one stop to the next
 function captureCarry(){
   return {dat:S.dat,living:S.living,condensed:S.condensed,rerollCount:S.rerollCount,mods:{...S.mods},runUnlock:{...S.runUnlock},
-    fab:JSON.parse(JSON.stringify(S.fab)),stabCharges:S.stabCharges,probeCharges:S.probeCharges,calls:{...S.calls},capAdd:{...S.capAdd},kits:{...S.kits},
+    fab:JSON.parse(JSON.stringify(S.fab)),stabCharges:S.stabCharges,probeCharges:S.probeCharges,calls:{...S.calls},callUnlock:{...S.callUnlock},capAdd:{...S.capAdd},kits:{...S.kits},
     hp:S.base.hp,maxHp:S.base.maxHp,drones:S.drones.length,squadCap:S.squadCap,troops:S.troops.map(t=>({kind:t.kind||'troop',hp:t.hp,maxHp:t.maxHp,grp:t.grp}))};
 }
 function applyCarry(c){
   if(!c)return;
   Object.assign(S,{dat:c.dat,living:c.living,condensed:c.condensed,rerollCount:c.rerollCount,stabCharges:c.stabCharges,probeCharges:c.probeCharges});
-  S.mods={...S.mods,...c.mods};S.runUnlock={...c.runUnlock};S.fab=c.fab;S.calls={...(c.calls||{})};S.capAdd={...(c.capAdd||{})};S.kits={...(c.kits||{})};
+  S.mods={...S.mods,...c.mods};S.runUnlock={...c.runUnlock};S.fab=c.fab;S.calls={...(c.calls||{})};S.callUnlock={...(c.callUnlock||{})};S.capAdd={...(c.capAdd||{})};S.kits={...(c.kits||{})};
   S.base.hp=c.hp;S.base.maxHp=c.maxHp;S.squadCap=c.squadCap||SQUAD_CAP_START;
   S.drones=[];addDrones(c.drones);
   S.troops=[];c.troops.forEach((t,i)=>{const u=mkTroop(Date.now()+i,t.kind);u.hp=t.hp;u.maxHp=t.maxHp;if(t.grp!=null)u.grp=t.grp;S.troops.push(u);guardBastion(u)});
@@ -4245,7 +4252,7 @@ function salvageWreck(w){
   if(kind==='dat'){const a=WRECK_DAT[w.band];S.dat+=a;floatText(w.x,w.y-20,'+'+a+' Dat',C.dat);text=`a Dat Crystal cache (+${a})`}
   else if(kind==='refill'){Object.keys(FABS).forEach(k=>{S.fab[k].n=FABS[k].charges;S.fab[k].rt=0});S.stabCharges=STAB_CHARGES;text='spare parts: every fabricator is refilled'}
   else if(kind==='drones'){addDrones(2);text='2 intact repair drones'}
-  else if(kind==='call')text=`a call-down beacon: a free ${giftCall(1)}`
+  else if(kind==='call'){text='a call-down cache';if(!S.rewardChoice)setTimeout(()=>{if(S&&!S.rewardChoice&&!S.over)showCallChoice()},600);else text=`a call-down beacon: a free ${giftCall(1)}`}
   else if(kind==='squad'&&S.squadCap<SQUAD_CAP_MAX){const n=raiseSquadCap(BARRACKS_SLOTS);text=`a barracks module — ${n} Troopers join you and you can field ${S.squadCap} now`}
   else if(kind==='squad'){const a=WRECK_DAT[w.band];S.dat+=a;floatText(w.x,w.y-20,'+'+a+' Dat',C.dat);text=`a Dat Crystal cache (+${a})`}
   else text=salvageFab().trim().replace(/^Salvaged /,'').replace(/[!.]$/,'');
@@ -6339,6 +6346,7 @@ function buildCallBar(){const bar=document.getElementById('callBar'),bc=document
 // Gravity Well: for GRAV_T it drags every enemy in a wide circle into a clump at its middle.
 // Decoy Beacon: every enemy within DECOY_PULL drops what it's doing and goes for the beacon until it's
 //   destroyed or DECOY_T runs out.
+const ORB_NEST=0.8; // v4: was half
 const ORB_DMG=450, STASIS_T=4, EMP_DMG=25, EMP_STUN=1.5, DROPPOD_N=4, DROPPOD_DMG=60, DECOY_T=10, DECOY_HP=320, DECOY_PULL=650;
 const CARPET_N=7, CARPET_LEN=[90,380], CARPET_DMG=80, CARPET_GAP=0.13, MINE_N=10, MINE_DMG=90, MINE_BLAST=55, MINE_TRIP=14, MINE_ARM=0.6, MINE_MAX=60;
 const OVERCLOCK_T=12, GRAV_T=3, GRAV_PULL=240;
@@ -6364,10 +6372,10 @@ function fallBody(c,f,col,size){const k=Math.pow(f,2.2),h=700*(1-k);if(f<0.05)re
   ctx.globalAlpha=1;ctx.strokeStyle='rgba(255,200,120,0.5)';ctx.lineWidth=2/cam.z;ctx.beginPath();ctx.moveTo(c.x,c.y-h-120);ctx.lineTo(c.x,c.y-h);ctx.stroke();
   ctx.fillStyle=col;ctx.strokeStyle='#0b0e12';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(c.x,c.y-h-size);ctx.lineTo(c.x+size*0.7,c.y-h);ctx.lineTo(c.x,c.y-h+size*0.5);ctx.lineTo(c.x-size*0.7,c.y-h);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore()}
 Object.assign(CALLDOWNS,{
-  orbital:{name:'Orbital Lance',icon:'⇣',dat:220,delay:2,r:80,desc:`A beam from orbit: ${ORB_DMG} damage to everything in a tight circle (half on nests and Quakers). For a Colossus or a clump.`,
+  orbital:{name:'Orbital Lance',icon:'⇣',dat:220,delay:2,r:80,desc:`A beam from orbit: ${ORB_DMG} damage to everything in a tight circle (less on nests, half on Quakers and the Colossus). For a nest, a Colossus or a clump.`,
     drawFall(c,f){if(f<0.55)return;const k=(f-0.55)/0.45;ctx.save();ctx.globalCompositeOperation='lighter';ctx.globalAlpha=0.15+0.5*k;ctx.strokeStyle='#ffe0a0';ctx.lineWidth=(1+4*k)/cam.z;ctx.beginPath();ctx.moveTo(c.x,c.y-900);ctx.lineTo(c.x,c.y);ctx.stroke();ctx.restore()},
     land(x,y,c){callEnemiesIn(x,y,c.r,e=>damageEnemy(e,isBigTarget(e)?ORB_DMG*0.5:ORB_DMG));
-      S.enemies.filter(e=>e.kind==='nest'&&e.hp>0&&Math.hypot(e.x-x,e.y-y)<c.r+e.r).forEach(e=>damageEnemy(e,ORB_DMG*0.5));
+      S.enemies.filter(e=>e.kind==='nest'&&e.hp>0&&Math.hypot(e.x-x,e.y-y)<c.r+e.r).forEach(e=>damageEnemy(e,ORB_DMG*ORB_NEST));
       callFx(x,y,c.r,'#ffe0a0',0.6,'beam');burst(x,y,'#ffd28a',30,240,0.6);shakeScreen(7,0.35);sfx.explode();tone(120,0.5,'sawtooth',0.07,0,40)}},
   stasis:{name:'Stasis Field',icon:'❄',dat:160,delay:0.8,r:150,desc:`Freezes every enemy in a wide circle for ${STASIS_T}s. No damage: it buys time.`,
     land(x,y,c){callEnemiesIn(x,y,c.r,e=>{e.stunT=Math.max(e.stunT||0,STASIS_T);e.kbx=0;e.kby=0});callFx(x,y,c.r,'#8fe3ff',STASIS_T,'stasis');tone(1400,0.4,'sine',0.05,0,300)}},
@@ -6419,8 +6427,22 @@ function drawMinesFields(){
     ctx.restore()});
   S.mines.forEach(m=>{const armed=S.t>=m.arm,blink=armed&&Math.sin(S.t*5+m.seed)>0.6;ctx.fillStyle='#3a3f46';ctx.strokeStyle='#0b0e12';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(m.x,m.y-4);ctx.lineTo(m.x+4,m.y);ctx.lineTo(m.x,m.y+4);ctx.lineTo(m.x-4,m.y);ctx.closePath();ctx.fill();ctx.stroke();
     ctx.fillStyle=blink?'#ff8a5a':armed?'#a0452a':'#5c6b74';ctx.fillRect(m.x-1.2,m.y-1.2,2.4,2.4)})}
-// gifts: a free charge of a random call-down (wrecks, nests, big veins and some cards hand these out)
-function giftCall(n,why){const ids=Object.keys(CALLDOWNS),got={};for(let i=0;i<(n||1);i++){const id=ids[Math.floor(Math.random()*ids.length)];grantCall(id,1);got[id]=(got[id]||0)+1}
+// v4: a run starts with only CALL_START; every other call-down is unlocked for the run by its card
+// (or picked from a wreck's call-down cache), which also comes with CALL_CARD_N free charges
+const CALL_START=['orbital','stasis'], CALL_CARD_N=2;
+Object.keys(CALLDOWNS).forEach(id=>{CALLDOWNS[id].unlocked=()=>CALL_START.includes(id)||!!(S.callUnlock&&S.callUnlock[id])});
+function unlockCall(id,n){S.callUnlock[id]=true;grantCall(id,n??CALL_CARD_N)}
+// a wreck's call-down cache: pick one of three call-downs (unlocking it, or more charges of one you have)
+function showCallChoice(){const ids=shuffled(Object.keys(CALLDOWNS)).slice(0,3);
+  const cards=ids.map(id=>{const K=CALLDOWNS[id],have=K.unlocked();return {kind:'upgrade',tier:'Call-down',name:K.name,desc:`${K.desc}<span class="rcSwap">${have?`+${CALL_CARD_N+1} free charges`:`Unlocks it for the run, with ${CALL_CARD_N} free charges`}</span>`,apply:()=>{if(have)grantCall(id,CALL_CARD_N+1);else unlockCall(id)}}});
+  S.rewardChoice={tier:'Call-down',cards,band:null,calls:true};
+  document.getElementById('rewardTitle')._tc='Wreck salvaged — choose a call-down';
+  const host=document.getElementById('rewardCards');host.innerHTML='';
+  cards.forEach((c,i)=>{const btn=document.createElement('button');btn.className='rewardCard';btn.style.setProperty('--tc',C.accent);
+    btn.innerHTML=`<span class="rcTier">Call-down</span><span class="rcName">${CALLDOWNS[ids[i]].icon} ${c.name}</span><span class="rcDesc">${c.desc}</span>`;btn.onclick=()=>pickReward(i);host.appendChild(btn)});
+  document.getElementById('rerollBtn')._hd=true;document.getElementById('rewardOverlay')._hd=false;sfx.veinDone()}
+// gifts: a free charge of a random call-down you have (nests, big veins and some cards hand these out)
+function giftCall(n,why){const ids=Object.keys(CALLDOWNS).filter(id=>CALLDOWNS[id].unlocked()),got={};for(let i=0;i<(n||1);i++){const id=ids[Math.floor(Math.random()*ids.length)];grantCall(id,1);got[id]=(got[id]||0)+1}
   return Object.keys(got).map(id=>`${got[id]>1?got[id]+'× ':''}${CALLDOWNS[id].name}`).join(' and ')}
 let probeMode=false;
 function probeRange(){return PROBE_RANGE}
@@ -6826,10 +6848,11 @@ function inHarvestRange(p){
   return S.relays.some(r=>r.built&&r.tetherOk&&dist(p,r)<=BUILD_R);
 }
 function fireStabilizer(w){
-  const d=dist(w,S.base);
-  if(d>STAB_RANGE){note('Too far — move the Bastion closer');return}
+  const src=stabSourceFor(w);
+  if(!src){note('Too far — get the Bastion or a live Relay closer');return}
+  const d=dist(w,src);
   if(S.stabCharges<=0&&!takeStock(STAB_DAT,'Stabilizer'))return;
-  S.stabShots.push({x0:S.base.x,y0:S.base.y,tx:w.x,ty:w.y,t:0,dur:Math.max(0.45,d/STAB_FLIGHT_SPEED),spin:rnd(2,4)*(rnd(0,1)<0.5?-1:1)});
+  S.stabShots.push({x0:src.x,y0:src.y,tx:w.x,ty:w.y,t:0,dur:Math.max(0.45,d/STAB_FLIGHT_SPEED),spin:rnd(2,4)*(rnd(0,1)<0.5?-1:1)});
   if(S.stabCharges>0)S.stabCharges--;
   tone(240,0.12,'square',0.06,0,520);
   updateBuildBar();
@@ -8242,14 +8265,17 @@ function update(dt){
             sfx.rail()}
           t.cd=MARK_CD/squadFireRateMult();if(t.hold&&!t.dest)t.cd/=1+Math.min(HOLD_LINK_MAX,HOLD_LINK_BONUS*(t.holdLinks||0))}}
       else if(t.cd<=0){let best=null,bd=range;S.enemies.forEach(e=>{if(e.hp<=0||!visible(e))return;const d=dist(e,t);if(d<bd){bd=d;best=e}});
+        if(t.state==='attack'&&t.target&&t.target.hp>0&&S.enemies.includes(t.target)&&dist(t,t.target)<=range+(t.target.r||0))best=t.target; // your order first
         if(best){t.chargeT=MARK_CHARGE;t.chargeTgt=best;t.ang=Math.atan2(best.y-t.y,best.x-t.x);sfx.railCharge()}}
     }
     const movedNow=(t.x-px0)**2+(t.y-py0)**2>0.02;
+    const ord=t.state==='attack'&&t.target&&t.target.hp>0&&S.enemies.includes(t.target)&&dist(t,t.target)-(brawl?t.target.r||0:0)<=range?t.target:null; // what you told it to shoot
     if(t.cd<=0&&!mark&&!frl&&!(kit==='lmg'&&movedNow)){let best=null,bd=range;S.enemies.forEach(e=>{if(arty&&!visible(e))return;const d=dist(e,t)-(brawl?e.r||0:0);if(d<bd){bd=d;best=e}});
       // a Rocketeer goes for the nearest nest or Quaker in reach before anything else
       if(rock&&kit!=='flak'){let bb=null,bbd=range;S.enemies.forEach(e=>{if(!isBigTarget(e)||e.hp<=0)return;const d=dist(e,t);if(d<bbd){bbd=d;bb=e}});if(bb){best=bb;bd=bbd}}
       if(rock&&kit==='flak'){const far=S.mods.relayDef==='radar'?range*2:range,rr=radarRelays();let sw=null,sd=far;
         S.enemies.forEach(e=>{if(!e.horde||e.hp<=0)return;const d=dist(e,t);if(d>=sd)return;if(d>range&&!rr.some(r=>dist(r,e)<RELAY_RADAR_VISION))return;sd=d;sw=e});if(sw){best=sw;bd=Math.min(sd,range-1)}}
+      if(ord){best=ord;bd=dist(t,ord)}
       if(best){
         if(gren){if(!t.volley&&(t.pods??GREN_PODS)>=GREN_PODS){t.volley=true;t.volT=0;t.volTgt=best;t.volAt=null}t.cd=0.2}
         else if(brawl){t.ang=Math.atan2(best.y-t.y,best.x-t.x);
@@ -8829,7 +8855,7 @@ function showRewardChoice(tier,band){
   const cost=rerollCost();
   const rb=document.getElementById('rerollBtn');
   rb._tc=`Reroll (${cost} ⬢)`;
-  rb._ds=S.condensed<cost;
+  rb._ds=S.condensed<cost;rb._hd=false;
   document.getElementById('rewardOverlay')._hd=false;
   sfx.veinDone();
 }
@@ -9876,10 +9902,10 @@ function draw(){
     ctx.beginPath();ctx.arc(mouse.wx,mouse.wy,6/cam.z,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1}
   // Stabilizer aiming: the Bastion's firing range, a line out to the cursor, and the landing spot
   // with the flight time — hotspots keep drifting while it's in the air, so lead them
-  if(buildMode==='stabilizer'){const d=dist({x:mouse.wx,y:mouse.wy},B),ok=d<=STAB_RANGE&&S.stabCharges>0,col=ok?'#8fe3ff':C.enemy;
+  if(buildMode==='stabilizer'){const m={x:mouse.wx,y:mouse.wy},src=stabSourceFor(m)||B,d=dist(m,src),ok=!!stabSourceFor(m),col=ok?'#8fe3ff':C.enemy;
     ctx.save();ctx.strokeStyle='#8fe3ff';ctx.globalAlpha=0.35;ctx.lineWidth=1.5/cam.z;ctx.setLineDash([10/cam.z,8/cam.z]);
-    ctx.beginPath();ctx.arc(B.x,B.y,STAB_RANGE,0,Math.PI*2);ctx.stroke();
-    ctx.globalAlpha=0.5;ctx.strokeStyle=col;ctx.beginPath();ctx.moveTo(B.x,B.y);ctx.lineTo(mouse.wx,mouse.wy);ctx.stroke();ctx.setLineDash([]);
+    stabSources().forEach(s=>{ctx.beginPath();ctx.arc(s.o.x,s.o.y,s.r,0,Math.PI*2);ctx.stroke()});
+    ctx.globalAlpha=0.5;ctx.strokeStyle=col;ctx.beginPath();ctx.moveTo(src.x,src.y);ctx.lineTo(mouse.wx,mouse.wy);ctx.stroke();ctx.setLineDash([]);
     ctx.globalAlpha=0.9;ctx.lineWidth=2/cam.z;ctx.beginPath();ctx.arc(mouse.wx,mouse.wy,STAB_SNAP,0,Math.PI*2);ctx.stroke();
     ctx.fillStyle=col;ctx.font='600 12px '+css('--mono');ctx.textAlign='center';ctx.fillText(`${Math.max(0.45,d/STAB_FLIGHT_SPEED).toFixed(1)}s`,mouse.wx,mouse.wy-STAB_SNAP-8);
     ctx.restore()}
