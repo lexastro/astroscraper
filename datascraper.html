@@ -5775,7 +5775,26 @@ function manCap(L){const len=Math.hypot(L.x1-L.x0,L.y1-L.y0)-2*MAN_END_PAD;retur
 function manners(L){return S.troops.filter(t=>t.manning===L)}
 // The selected units join the wall's single rank on the Bastion's side, facing out over it. Those
 // already on it keep their place in the line; if it's full, the rest stay where they are.
+// Manning a Walled Relay's ring: the units take cover inside it, spread evenly round the relay at
+// RING_MAN_R and facing straight out, up to RING_MAN_CAP of them. Each counts as manning the ring wall
+// nearest its spot, so it gets the usual cover from that wall while it stands.
+const RING_MAN_CAP=6, RING_MAN_R=RELAY_RING_R-MAN_OFFSET;
+function manRing(r,units){
+  const lines=(S.wallLines||[]).filter(L=>L.relayRing&&L.relay===r&&L.slats.some(sl=>!sl.dead));if(!lines.length)return;
+  const keep=S.troops.filter(t=>lines.includes(t.manning)&&!units.includes(t)),room=Math.max(0,RING_MAN_CAP-keep.length);
+  const join=units.slice().sort((a,b)=>dist(a,r)-dist(b,r)).slice(0,room),left=units.length-join.length;
+  if(!join.length){note(`Ring full (${keep.length}/${RING_MAN_CAP})`);return}
+  const all=keep.concat(join),n=all.length,ang=t=>Math.atan2(t.y-r.y,t.x-r.x),ord=all.slice().sort((a,b)=>ang(a)-ang(b)),a0=ang(ord[0]);
+  ord.forEach((t,k)=>{const a=a0+k/n*Math.PI*2,x=r.x+Math.cos(a)*RING_MAN_R,y=r.y+Math.sin(a)*RING_MAN_R;
+    let best=lines[0],bd=1e9;lines.forEach(L=>{const d=Math.hypot((L.x0+L.x1)/2-x,(L.y0+L.y1)/2-y);if(d<bd){bd=d;best=L}});
+    t.following=false;t.guard=null;t.pace=null;t.target=null;t.wallHome=null;t.state='move';
+    t.dest={x,y};t.formAng=a;t.manning=best;t.wall=t.kind==='brawler';t.wallAng=a});
+  join.forEach(t=>S.sel.troops.delete(t.id));
+  note(left>0?`${join.length} in the ring · ${left} still selected`:`${n} in cover round the relay`);
+  sfx.click();
+}
 function manWall(L,units){
+  if(L.relayRing&&L.relay)return manRing(L.relay,units);
   const mx=(L.x0+L.x1)/2,my=(L.y0+L.y1)/2;let nx=-L.uy,ny=L.ux;
   if((S.base.x-mx)*nx+(S.base.y-my)*ny<0){nx=-nx;ny=-ny} // n: toward the Bastion's side
   const face=Math.atan2(-ny,-nx),cap=manCap(L);
@@ -6076,7 +6095,7 @@ function drawBolts(){if(!S.bolts||!S.bolts.length)return;ctx.save();ctx.globalCo
 // They're marked relayRing: the tower cards skip them (no free turrets) and they draw no end posts.
 function relayRing(r){if(r.ringed)return;r.ringed=true;const n=8,R=RELAY_RING_R,P=[];for(let i=0;i<n;i++){const a=i/n*Math.PI*2+Math.PI/8;P.push({x:r.x+Math.cos(a)*R,y:r.y+Math.sin(a)*R})}
   for(let i=0;i<n;i++){const a=P[i],b=P[(i+1)%n],L=Math.hypot(b.x-a.x,b.y-a.y),ux=(b.x-a.x)/L,uy=(b.y-a.y)/L,mx=(a.x+b.x)/2,my=(a.y+b.y)/2;if(terrainAt(mx,my)===2)continue;
-    const line={x0:a.x,y0:a.y,x1:b.x,y1:b.y,ux,uy,ang:Math.atan2(uy,ux),posts:[true,true],anchored:[true,true],raiseT0:S.t,slats:[],type:wallType(),relayRing:true,auto:true};
+    const line={x0:a.x,y0:a.y,x1:b.x,y1:b.y,ux,uy,ang:Math.atan2(uy,ux),posts:[true,true],anchored:[true,true],raiseT0:S.t,slats:[],type:wallType(),relayRing:true,relay:r,auto:true};
     line.slats.push({x:mx,y:my,half:L/2,hp:wallSlatHp(),maxHp:wallSlatHp(),up:0,vi:i,order:0,line,kind:'wallslat'});(S.wallLines||(S.wallLines=[])).push(line)}
   S.wallDirty=true;if(sfxReady('slat',0.05))tone(170,0.08,'square',0.03)}
 // Repair Cradle: each tethered Relay's own drone patches the most-hurt thing within CRADLE_RANGE, then docks.
