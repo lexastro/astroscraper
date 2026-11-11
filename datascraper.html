@@ -1132,7 +1132,19 @@ function brawlerCount(){return S.troops.filter(t=>t.kind==='brawler').length}
 // have, and the number is what the next one costs
 const isSquadLike=k=>k==='troop'||!!(FABS[k]&&FABS[k].squadLike);
 const unitPrice=k=>k==='troop'?SQUAD_DAT:k==='brawler'?BRAWL_DAT:FAB_DAT[k];
-const unitLimit=k=>k==='troop'?S.squadCap:FABS[k].cap;
+const unitLimit=k=>k==='troop'?S.squadCap:FABS[k].cap+((S.capAdd&&S.capAdd[k])||0);
+// v4: a barracks card for each other unit type — raises its limit by n (to at most max) and sends
+// that many out free to fill the new slots. Only offered once the unit is unlocked.
+const UNIT_BARRACKS={
+  brawler:{id:'barracksPaladin',name:'Chapter House',tier:'Rare',n:4,max:32},
+  grenadier:{id:'barracksGren',name:'Armory',tier:'Rare',n:2,max:11},
+  marksman:{id:'barracksMarks',name:'Marksman Range',tier:'Epic',n:2,max:12},
+  rocket:{id:'barracksRocket',name:'Rocket Bay',tier:'Epic',n:2,max:10},
+  mech:{id:'barracksMech',name:'Mech Hangar',tier:'Legendary',n:1,max:6}};
+function raiseUnitCap(k,n){const B=UNIT_BARRACKS[k];n=Math.min(n,B.max-unitLimit(k));if(n<=0)return 0;S.capAdd[k]=(S.capAdd[k]||0)+n;spawnFreeTroops(n,k);updateBuildBar();return n}
+function barracksCard(k){const B=UNIT_BARRACKS[k],nm=FABS[k].name,pl=B.n===1?nm:nm==='Marksman'?'Marksmen':nm+'s';
+  return {id:B.id,name:B.name,get desc(){return `Field ${B.n} more ${pl} at a time (up to ${B.max}), and ${B.n===1?'a free '+nm+' joins':B.n+' free '+pl+' join'} you to fill ${B.n===1?'it':'them'}.`},
+    has:()=>!fabUnlocked(k)||unitLimit(k)>=B.max,apply:()=>{raiseUnitCap(k,B.n)}}}
 const unitHave=k=>k==='troop'?squadCount():unitAlive(k);
 function squadCount(){return S.troops.filter(t=>(t.kind||'troop')==='troop').length}
 // raises the Trooper limit by up to n and sends that many Troopers out for free; returns how many it added
@@ -1615,12 +1627,14 @@ const UPGRADES={
     {id:'callDelay',name:'Priority Uplink',desc:'Call-downs land twice as fast.',has:()=>S.mods.callDelayMult<1,apply:()=>{S.mods.callDelayMult=0.5}},
     {id:'callRadius',name:'Wide Payload',desc:'Call-downs cover 40% more ground.',has:()=>S.mods.callRadiusMult>1,apply:()=>{S.mods.callRadiusMult=1.4}},
     {id:'callCrate',name:'Requisition Crate',desc:'Two free call-downs, chosen at random.',apply:()=>{msg(`Requisitioned: ${giftCall(2)}.`)}},
-    {id:'barracks1',name:'Barracks Expansion',get desc(){return `Field ${BARRACKS_SLOTS} more Troopers at a time (up to ${SQUAD_CAP_MAX}), and ${BARRACKS_SLOTS} free Troopers join you to fill them.`},apply:()=>{raiseSquadCap(BARRACKS_SLOTS)}},
+    {id:'barracks1',name:'Barracks Expansion',get desc(){return `Field ${BARRACKS_SLOTS} more Troopers at a time (up to ${SQUAD_CAP_MAX}), and ${BARRACKS_SLOTS} free Troopers join you to fill them.`},has:()=>S.squadCap>=SQUAD_CAP_MAX,apply:()=>{raiseSquadCap(BARRACKS_SLOTS)}},
+    barracksCard('brawler'),barracksCard('grenadier'),
   ],
   Epic:[
     {id:'callPrice',name:'Bulk Contract',desc:'Call-downs cost 35% less Dat.',has:()=>S.mods.callPriceMult<1,apply:()=>{S.mods.callPriceMult=0.65}},
     {id:'callEcho',name:'Echo Strike',desc:'Each call-down has a 30% chance to land a second time close by.',has:()=>S.mods.callEcho>0,apply:()=>{S.mods.callEcho=0.3}},
     {id:'callReq',name:'Field Requisition',desc:'Every time you start drilling, two free call-downs arrive.',has:()=>S.mods.callReq,apply:()=>{S.mods.callReq=true}},
+    barracksCard('marksman'),barracksCard('rocket'),
     {id:'hardscopes',name:'Hard Scopes',desc:"Trooper vision and firing range +20% (stacks with Surveyor's Eye).",apply:()=>{S.mods.squadRangeMult*=1.2}},
     {id:'dmg3',name:'Battle Drills III',desc:'Trooper damage +30%.',apply:()=>{S.mods.troopDmgMult*=1.3}},
     {id:'tactical',name:'Tactical Reinforcements',desc:'+5 free Troopers, +3 free Grenadiers, right now.',apply:()=>{spawnFreeTroops(5,'troop');spawnFreeTroops(3,'grenadier')}},
@@ -1635,6 +1649,7 @@ const UPGRADES={
     {id:'wallTowers',name:'Bulwark Towers',desc:'Every wall end gets a free Turret — on the walls you have now and every wall you build from here on. A tower that falls is not replaced. Drawback: walls cost twice as much.',has:()=>S.mods.wallTowers||S.mods.podTowers,apply:()=>{S.mods.wallTowers=true;wallTowers();updateBuildBar()}},
   ],
   Legendary:[
+    barracksCard('mech'),
     {id:'overdrive',name:'Overdrive Capacitor',desc:'Drill rate +40%.',apply:()=>{S.mods.drillRateMult*=1.4}},
     {id:'cablehp2',name:'Hardened Network',desc:'All tether cable HP +150%.',apply:()=>{S.mods.cableHpMult*=2.5}},
     {id:'living1',name:'Rich Vein Memory',desc:'Living Crystal yield ×2 for the rest of the run.',apply:()=>{S.mods.livingMult*=2}},
@@ -2565,7 +2580,7 @@ function reset(landing){
   const land=landing||defaultLanding();
   S={t:0,surveyVein:null,wrecks:[],beacons:[],squadCap:SQUAD_CAP_START,quakes:[],quakeMsg:false,barrier:null,breachSite:null,breachVein:null,rigSite:null,rig:null,glass:null,glassShards:[],glassB:null,glassCov:null,dat:tutorialMap?TUTORIAL_START_DAT:pressureOn('lean')?20:60,living:0,condensed:0,over:null,rerollCount:0,
     base:{x:land.x,y:land.y,hp:450+bastionHpBonus(),maxHp:450+bastionHpBonus(),r:BASE_R,dest:null,locked:false,gunCd:0,bigGunCd:0,pingCd:0},
-    troops:[],harvesters:[],builders:[],relays:[],depots:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],shards:[],nades:[],shardShots:[],lances:[],smears:[],calls:{},callsIn:[],callFx:[],decoys:[],
+    troops:[],harvesters:[],builders:[],relays:[],depots:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],shards:[],nades:[],shardShots:[],lances:[],smears:[],calls:{},capAdd:{},callsIn:[],callFx:[],decoys:[],
     veins:[],activeVein:null,throttleMul:1,ambientT:30,
     minedWindowAmt:0,minedWindowT:0,offZonePatrolCd:OFFZONE_MINE_WINDOW,
     particles:[],floaters:[],shake:{t:0,dur:0,mag:0},surgeWaves:[],surgeT:10,
@@ -2772,13 +2787,13 @@ function openBreach(v){
 // what carries from one stop to the next
 function captureCarry(){
   return {dat:S.dat,living:S.living,condensed:S.condensed,rerollCount:S.rerollCount,mods:{...S.mods},runUnlock:{...S.runUnlock},
-    fab:JSON.parse(JSON.stringify(S.fab)),stabCharges:S.stabCharges,probeCharges:S.probeCharges,calls:{...S.calls},
+    fab:JSON.parse(JSON.stringify(S.fab)),stabCharges:S.stabCharges,probeCharges:S.probeCharges,calls:{...S.calls},capAdd:{...S.capAdd},
     hp:S.base.hp,maxHp:S.base.maxHp,drones:S.drones.length,squadCap:S.squadCap,troops:S.troops.map(t=>({kind:t.kind||'troop',hp:t.hp,maxHp:t.maxHp,grp:t.grp}))};
 }
 function applyCarry(c){
   if(!c)return;
   Object.assign(S,{dat:c.dat,living:c.living,condensed:c.condensed,rerollCount:c.rerollCount,stabCharges:c.stabCharges,probeCharges:c.probeCharges});
-  S.mods={...S.mods,...c.mods};S.runUnlock={...c.runUnlock};S.fab=c.fab;S.calls={...(c.calls||{})};
+  S.mods={...S.mods,...c.mods};S.runUnlock={...c.runUnlock};S.fab=c.fab;S.calls={...(c.calls||{})};S.capAdd={...(c.capAdd||{})};
   S.base.hp=c.hp;S.base.maxHp=c.maxHp;S.squadCap=c.squadCap||SQUAD_CAP_START;
   S.drones=[];addDrones(c.drones);
   S.troops=[];c.troops.forEach((t,i)=>{const u=mkTroop(Date.now()+i,t.kind);u.hp=t.hp;u.maxHp=t.maxHp;if(t.grp!=null)u.grp=t.grp;S.troops.push(u);guardBastion(u)});
@@ -5564,9 +5579,9 @@ function closeProdMenu(){prodMenuOpen=false}
 // ---------- fabricators (v2) ----------
 function unitAlive(k){return S.troops.filter(t=>(t.kind||'troop')===k&&t.hp>0).length}
 function fabUnlocked(k){const f=FABS[k];if(f.disabled)return false;return !f.unlock||!!meta[f.unlock]}
-function fabPips(k){const f=FABS[k],st=S.fab[k],n=Math.max(0,Math.min(f.charges,st.n));return '●'.repeat(n)+'○'.repeat(f.charges-n)+(st.n<=0?` ◆${FAB_DAT[k]}`:'')+(f.cap?` · ${unitAlive(k)}/${f.cap}`:'')}
-function unitPips(k){const n=unitHave(k),c=unitLimit(k);return '●'.repeat(Math.min(n,c))+'○'.repeat(Math.max(0,c-n))+(n<c?` ◆${unitPrice(k)}`:'')}
-function squadPips(){const n=squadCount(),c=S.squadCap;return '●'.repeat(Math.min(n,c))+'○'.repeat(Math.max(0,c-n))+(n<c?` ◆${SQUAD_DAT}`:'')}
+function fabPips(k){const f=FABS[k],st=S.fab[k],n=Math.max(0,Math.min(f.charges,st.n));return '●'.repeat(n)+'○'.repeat(f.charges-n)+(st.n<=0?` ◆${FAB_DAT[k]}`:'')+(f.cap?` · ${unitAlive(k)} / ${unitLimit(k)}`:'')}
+function unitPips(k){const n=unitHave(k),c=unitLimit(k);return `${n} / ${c}`+(n<c?`  ◆${unitPrice(k)}`:'')}
+function squadPips(){const n=squadCount(),c=S.squadCap;return `${n} / ${c}`+(n<c?`  ◆${SQUAD_DAT}`:'')}
 // Spend one charge of fabricator k; false (with a message) if it's empty.
 function useFab(k){
   const f=FABS[k],st=S.fab[k];
@@ -5586,7 +5601,7 @@ function fabUnit(k){
     if(!payDat(unitPrice(k),FABS[k].name))return;
   }else{
     const cap=FABS[k].cap;
-    if(cap&&unitAlive(k)>=cap){note(`${FABS[k].name} limit ${cap}`);return}
+    if(cap&&unitAlive(k)>=unitLimit(k)){note(`${FABS[k].name} limit ${unitLimit(k)}`);return}
     if(!useFab(k))return;
   }
   const a=rnd(0,Math.PI*2), u=mkTroop(Date.now()+Math.floor(Math.random()*1000),k);
@@ -5947,7 +5962,7 @@ function buildCallBar(){const bar=document.getElementById('callBar'),bc=document
   if(bar._ids!==ids.join()){bar._ids=ids.join();bar.innerHTML='';ids.forEach(id=>{const K=CALLDOWNS[id],b=document.createElement('button');b.dataset.call=id;
     b.innerHTML=`<span class="icon">${K.icon}</span><span>${K.name}</span><span class="cost" id="cc_${id}"></span>`;b.title=K.desc;b.onclick=()=>tryCall(id);bar.appendChild(b)})}
   ids.forEach(id=>{const b=bar.querySelector(`[data-call="${id}"]`),n=S.calls[id]||0;if(!b)return;b.classList.toggle('on',callMode===id);b.classList.toggle('dry',!n&&S.dat<callPrice(id));
-    const el=document.getElementById('cc_'+id);if(el)el.textContent=callMode===id?'Aim…':(n?'●'.repeat(Math.min(n,5))+(n>5?'+'+(n-5):'')+' · ':'')+'◆'+callPrice(id)})}
+    const el=document.getElementById('cc_'+id);if(el)el.textContent=callMode===id?'Aim…':(n?`${n} free · `:'')+'◆'+callPrice(id)})}
 
 // ---- the call-downs themselves ----
 // Orbital Lance: a beam from orbit, heavy damage in a tight circle (half on nests and Quakers).
