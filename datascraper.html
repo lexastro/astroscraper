@@ -2556,7 +2556,7 @@ function reset(landing){
   const land=landing||defaultLanding();
   S={t:0,surveyVein:null,wrecks:[],beacons:[],squadCap:SQUAD_CAP_START,quakes:[],quakeMsg:false,barrier:null,breachSite:null,breachVein:null,rigSite:null,rig:null,glass:null,glassShards:[],glassB:null,glassCov:null,dat:tutorialMap?TUTORIAL_START_DAT:pressureOn('lean')?20:60,living:0,condensed:0,over:null,rerollCount:0,
     base:{x:land.x,y:land.y,hp:450+bastionHpBonus(),maxHp:450+bastionHpBonus(),r:BASE_R,dest:null,locked:false,gunCd:0,bigGunCd:0,pingCd:0},
-    troops:[],harvesters:[],builders:[],relays:[],depots:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],shards:[],nades:[],shardShots:[],
+    troops:[],harvesters:[],builders:[],relays:[],depots:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],shards:[],nades:[],shardShots:[],lances:[],
     veins:[],activeVein:null,throttleMul:1,ambientT:30,
     minedWindowAmt:0,minedWindowT:0,offZonePatrolCd:OFFZONE_MINE_WINDOW,
     particles:[],floaters:[],shake:{t:0,dur:0,mag:0},surgeWaves:[],surgeT:10,
@@ -3370,36 +3370,166 @@ function drawShardShots(){
     ctx.beginPath();ctx.moveTo(4,0);ctx.lineTo(-2.5,-2);ctx.lineTo(-1.5,2.2);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();
     ctx.globalAlpha=0.35;ctx.strokeStyle=C.enemy;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(sh.x,sh.y);ctx.lineTo(sh.x-sh.vx*0.035,sh.y-sh.vy*0.035);ctx.stroke();ctx.globalAlpha=1});
 }
-// Splinter body: a dark core with its shards in orbit (the newest one growing in)
-function drawSplinter(e){
-  const fl=e.flashT>0,red=e.core?'#ff2a2a':C.enemy,t=S.t,n=e.shards||0;
-  ctx.fillStyle='rgba(0,0,0,0.3)';ctx.beginPath();ctx.ellipse(e.x+2,e.y+3,6,5,0,0,Math.PI*2);ctx.fill();
-  ctx.fillStyle=fl?'#fff':'#120a0b';ctx.strokeStyle=red;ctx.lineWidth=1;ctx.beginPath();ctx.arc(e.x,e.y,3.6,0,Math.PI*2);ctx.fill();ctx.stroke();
-  ctx.fillStyle=red;ctx.globalAlpha=0.6+0.4*Math.sin(t*9+e.seed);ctx.beginPath();ctx.arc(e.x,e.y,1.4,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;
-  const grow=e.grewT!=null?Math.min(1,(t-e.grewT)/0.35):1, aiming=e.volley;
-  for(let i=0;i<n;i++){const a=i/SPL_SHARDS*Math.PI*2+t*1.6+e.seed,r=(aiming?7:9)+Math.sin(t*2+i*1.3)*1.1,sc=(i===n-1&&n<SPL_SHARDS)?grow:1;
-    const X=e.x+Math.cos(a)*r,Y=e.y+Math.sin(a)*r,rot=aiming?e.ang:a;
-    ctx.save();ctx.translate(X,Y);ctx.rotate(rot);ctx.scale(sc,sc);ctx.fillStyle=fl?'#fff':(i%2?'#3a2c2e':'#55626f');ctx.strokeStyle=red;ctx.lineWidth=0.6;
-    ctx.beginPath();ctx.moveTo(3.4,0);ctx.lineTo(-2.1,-1.7);ctx.lineTo(-1.3,1.9);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore()}
+// ---------- glass enemies ----------
+// v4: every Dense enemy is built from the nests' glass spires. A spire is two faces meeting at a
+// ridge, each shaded against the sun and washed from deep red glass at its foot to a lit (or
+// specular) tip, with a light edge on the sunny side and a dark one on the other. Spires are drawn
+// with the height trick: a point x,y,z sits at x, y-z*0.5, and shadows fall down-right at 0.7*z.
+// gl* draw into glc at scale glS with origin glX,glY — the world canvas itself (scale 1, origin 0)
+// for live bodies, or a small buffer when a looping body is baked into a sprite by heading and pose.
+const GL_TILT=0.5,GL_SH=0.7,GL_L=[-0.62,-0.62,0.48],GL_DEEP=[105,12,20],GL_DARK=[70,16,20],GL_CORE=[44,8,12],GL_ROAM=[120,46,26];
+let glc=null,glS=1,glX=0,glY=0;
+const glPJ=p=>[glX+p[0]*glS,glY+(p[1]-p[2]*GL_TILT)*glS],glGJ=p=>[glX+(p[0]+p[2]*GL_SH)*glS,glY+(p[1]+p[2]*GL_SH)*glS];
+function glHash(a,b,c){let h=(a*73856093)^(b*19349663)^(c*83492791);h=Math.imul(h^(h>>>15),2246822507);h=Math.imul(h^(h>>>13),3266489909);h^=h>>>16;return (h>>>0)/4294967296}
+function glFaces(base,tip,w,tw,dir){let sa=Math.atan2(tip[1]-base[1],tip[0]-base[0]);if(Math.hypot(tip[0]-base[0],tip[1]-base[1])<0.4)sa=dir||0;
+  const px=-Math.sin(sa)*w/2,py=Math.cos(sa)*w/2;
+  return {bl:[base[0]+px,base[1]+py,base[2]],br:[base[0]-px,base[1]-py,base[2]],mid:[base[0]+Math.cos(sa+1.57)*w*(tw-0.5)*0.3,base[1]+Math.sin(sa+1.57)*w*(tw-0.5)*0.3,base[2]+Math.abs(tip[2]-base[2])*0.08],tip,sa,tw}}
+function glShade(A,B,Cc){const ux=B[0]-A[0],uy=B[1]-A[1],uz=B[2]-A[2],vx=Cc[0]-A[0],vy=Cc[1]-A[1],vz=Cc[2]-A[2];let nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx;const l=Math.hypot(nx,ny,nz)||1;nx/=l;ny/=l;nz/=l;if(nz<0){nx=-nx;ny=-ny;nz=-nz}
+  const d=nx*GL_L[0]+ny*GL_L[1]+nz*GL_L[2],rz=2*nz*d-GL_L[2];return {lit:0.28+1.05*Math.max(0,d),spec:Math.pow(Math.max(0,rz),14)}}
+function glSpire(S,o){const {bl,br,mid,tip,sa}=S,NG=o.col||GL_DEEP,c=glc;
+  if(o.ghost){c.fillStyle=o.ghost;c.beginPath();[bl,tip,br].forEach((p,i)=>{const q=glPJ(p);i?c.lineTo(q[0],q[1]):c.moveTo(q[0],q[1])});c.closePath();c.fill();return}
+  const T=glPJ(tip);
+  [[bl,mid,tip],[mid,br,tip]].forEach(F=>{const {lit,spec}=glShade(F[0],F[1],F[2]),k=lit*(0.85+0.3*(S.tw==null?0.5:S.tw)),a=glPJ(F[0]),g=c.createLinearGradient(a[0],a[1],T[0],T[1]);
+    g.addColorStop(0,`rgba(${Math.min(255,NG[0]*k*1.2+70)|0},${Math.min(255,NG[1]*k+12)|0},${Math.min(255,NG[2]*k+12)|0},0.95)`);
+    g.addColorStop(1,`rgba(${Math.min(255,NG[0]*k+255*spec)|0},${Math.min(255,NG[1]*k+230*spec)|0},${Math.min(255,NG[2]*k+235*spec)|0},0.9)`);
+    c.fillStyle=g;c.beginPath();F.forEach((p,i)=>{const q=glPJ(p);i?c.lineTo(q[0],q[1]):c.moveTo(q[0],q[1])});c.closePath();c.fill()});
+  const lit1=(-Math.sin(sa))*GL_L[0]+Math.cos(sa)*GL_L[1]>0,BL=glPJ(bl),BR=glPJ(br),M=glPJ(mid),hi='rgba(255,225,220,0.75)',lo='rgba(30,0,4,0.8)';c.lineWidth=Math.max(0.5,glS*0.18);
+  c.strokeStyle=lit1?hi:lo;c.beginPath();c.moveTo(BL[0],BL[1]);c.lineTo(T[0],T[1]);c.stroke();
+  c.strokeStyle=lit1?lo:hi;c.beginPath();c.moveTo(BR[0],BR[1]);c.lineTo(T[0],T[1]);c.stroke();
+  c.strokeStyle='rgba(255,235,230,0.4)';c.lineWidth=Math.max(0.4,glS*0.12);c.beginPath();c.moveTo(M[0],M[1]);c.lineTo(T[0],T[1]);c.stroke()}
+function glShadow(S){const a=glGJ(S.bl),b=glGJ(S.br),t=glGJ(S.tip),c=glc;c.fillStyle='rgba(12,0,2,0.42)';c.beginPath();c.moveTo(a[0],a[1]);c.lineTo(t[0],t[1]);c.lineTo(b[0],b[1]);c.closePath();c.fill()}
+// a set of spires: every shadow first, then back to front
+function glSpires(list,o){o=o||{};if(!o.ghost&&!o.noShadow)list.forEach(glShadow);list.slice().sort((a,b)=>(a.bl[1]+a.br[1])-(b.bl[1]+b.br[1])).forEach(S=>glSpire(S,o))}
+function glGlow(p,r,a,col){const q=glPJ(p),R=r*glS,c=glc,g=c.createRadialGradient(q[0],q[1],0,q[0],q[1],R);g.addColorStop(0,`rgba(${col||'255,60,40'},${a})`);g.addColorStop(1,`rgba(${col||'255,60,40'},0)`);
+  c.save();c.globalCompositeOperation='lighter';c.fillStyle=g;c.fillRect(q[0]-R,q[1]-R,R*2,R*2);c.restore()}
+// a cluster of n spires round (x,y), ring radius r, heights about h, leaning outward by lean;
+// sway (a phase) rocks them, hk/lk bend individual spires
+function glCluster(x,y,ang,o){const out=[];for(let i=0;i<o.n;i++){const a=ang+o.off+i/o.n*Math.PI*2+(glHash(o.seed,i,1)-0.5)*0.6,rr=o.r*(0.4+0.6*glHash(o.seed,i,2)),bx=x+Math.cos(a)*rr,by=y+Math.sin(a)*rr,z=o.z||0;
+  const h=o.h*(0.65+0.5*glHash(o.seed,i,3)),lean=o.lean*(0.6+0.6*glHash(o.seed,i,4))+(o.sway!=null?Math.sin(o.sway+i*1.7)*0.12:0);
+  out.push(glFaces([bx,by,z],[bx+Math.cos(a)*h*lean,by+Math.sin(a)*h*lean,z+h],o.w*(0.7+0.5*glHash(o.seed,i,5)),glHash(o.seed,i,6),a))}return out}
+// A flat shard lying at height z, centred on (x,y), pointing along dir: len long, w wide, grown by s.
+function glShard(x,y,z,dir,len,w,s){s=s==null?1:s;const c=Math.cos(dir),n=Math.sin(dir);return glFaces([x-c*len*0.42*s,y-n*len*0.42*s,z],[x+c*len*0.58*s,y+n*len*0.58*s,z+0.6*s],w*s,0.4,dir)}
+// ---- baked sprites ----
+// A looping body is baked once per (kind, tint, heading bucket, pose frame) into a 2x buffer, along
+// with a white silhouette of the glass alone (for the ghost copies and the hit flash, tinted lazily).
+const GL_SPR=new Map(),GL_Q=2;
+function glSprite(key,R,draw){let c=cacheGet(GL_SPR,key);if(c)return c;
+  const sz=Math.ceil(R*2*GL_Q),mk=()=>{const b=document.createElement('canvas');b.width=b.height=sz;return b};c=mk();c.sil=mk();c.R=R;c.oy=R*1.2;
+  const sv=[glc,glS,glX,glY];glS=GL_Q;glX=sz/2;glY=c.oy*GL_Q;
+  glc=c.getContext('2d');draw(false);glc=c.sil.getContext('2d');draw(true);[glc,glS,glX,glY]=sv;
+  cachePut(GL_SPR,key,c,900);return c}
+function glTint(c,col){c.tints=c.tints||{};let t=c.tints[col];if(t)return t;t=document.createElement('canvas');t.width=c.width;t.height=c.height;const x=t.getContext('2d');x.drawImage(c.sil,0,0);x.globalCompositeOperation='source-in';x.fillStyle=col;x.fillRect(0,0,t.width,t.height);return c.tints[col]=t}
+function glBlit(img,c,x,y){ctx.drawImage(img,x-c.R,y-c.oy,c.width/GL_Q,c.height/GL_Q)}
+const glBucket=(a,n)=>((Math.round(a/(Math.PI*2)*n)%n)+n)%n;
+const glTintOf=e=>e.core?'c':e.kind==='roam'?'r':'d',glCol=e=>e.core?GL_CORE:e.kind==='roam'?GL_ROAM:GL_DEEP;
+// Echo: a walking cluster of shards round a red core (5 shards; 7 taller ones on a Big Echo)
+function echoSprite(e,frame){const big=e.r>10,tn=glTintOf(e),ab=glBucket(e.ang,12),ang=ab/12*Math.PI*2,col=glCol(e);
+  return glSprite(`echo|${big?1:0}|${tn}|${ab}|${frame}`,big?30:20,sil=>{const sp=glCluster(0,0,ang,{n:big?7:5,r:big?6:3.6,h:big?24:14,lean:0.34,w:big?7:5,seed:big?11:7,off:Math.PI/4,sway:frame/6*Math.PI*2});
+    if(sil){glSpires(sp,{ghost:'#fff'});return}glSpires(sp,{col});glGlow([0,0,5],big?13:9,0.55)})}
+// Swarm: a single tiny three-faced splinter
+function swarmSprite(e){const ab=glBucket(e.ang,16),a=ab/16*Math.PI*2,tn=e.core?'c':'d';
+  return glSprite(`swarm|${tn}|${ab}`,9,sil=>{const S=glFaces([-Math.cos(a)*2.4,-Math.sin(a)*2.4,0.2],[Math.cos(a)*3.6,Math.sin(a)*3.6,3],3.1,0.5,a);if(sil)glSpire(S,{ghost:'#fff'});else glSpires([S],{col:e.core?GL_CORE:GL_DEEP})})}
+// Saboteur: a long, low glass needle with two barbs
+function sabSprite(e){const ab=glBucket(e.ang,16),a=ab/16*Math.PI*2,c=Math.cos(a),s=Math.sin(a),P=(u,v,z)=>[u*c-v*s,u*s+v*c,z];
+  return glSprite(`sab|${ab}`,11,sil=>{const sp=[glFaces(P(-5,0,0.5),P(4,0,1.6),1.8,0.6,a),glFaces(P(-1,0,0.5),P(1,-2.6,1.8),1.1,0.5,a-1.2),glFaces(P(-1,0,0.5),P(1,2.6,1.8),1.1,0.5,a+1.2)];
+    if(sil)glSpires(sp,{ghost:'#fff'});else glSpires(sp,{col:[96,70,30]})})}
+function glUse(){glc=ctx;glS=1;glX=0;glY=0}
+// a floating core with shards round it: every shadow, the shards behind, the core, the shards in front
+function glassCore(x,y,z,r,red,fl,glowA,shards,col){
+  glUse();shards.forEach(glShadow);const sh=glGJ([x,y,z]);ctx.fillStyle='rgba(0,0,0,0.3)';ctx.beginPath();ctx.arc(sh[0],sh[1],r*0.9,0,Math.PI*2);ctx.fill();
+  const back=[],front=[];shards.forEach(S=>(S.bl[1]+S.br[1]<y*2?back:front).push(S));
+  glSpires(back,{col,noShadow:1});glGlow([x,y,z],r*2.6,glowA);
+  const q=glPJ([x,y,z]);ctx.fillStyle=fl?'#fff':'#120607';ctx.beginPath();ctx.arc(q[0],q[1],r,0,Math.PI*2);ctx.fill();ctx.strokeStyle=red;ctx.lineWidth=1;ctx.stroke();
+  ctx.fillStyle=red;ctx.globalAlpha=0.6+0.4*Math.sin(S.t*9+x);ctx.beginPath();ctx.arc(q[0],q[1],r*0.4,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;
+  glSpires(front,{col,noShadow:1});if(fl)glSpires(shards,{ghost:'rgba(255,255,255,0.7)'});
 }
-// Echo body (the basic enemy): a figure out of sync with itself, red and cyan copies jittering
-// around it. When it strikes it blinks forward at the target, leaves afterimages, and cuts a red arc.
+// Splinter: a dark core ringed by six flat glass shards that circle it; on a volley they swing round
+// to point at the target and fire one after another, then regrow
+function drawSplinter(e){
+  const red=e.core?'#ff2a2a':C.enemy,t=S.t,n=e.shards||0,z=6,grow=e.grewT!=null?Math.min(1,(t-e.grewT)/0.35):1,sp=[];
+  for(let i=0;i<n;i++){const a=i/SPL_SHARDS*Math.PI*2+t*1.6+e.seed,r=(e.volley?7:9)+Math.sin(t*2+i*1.3)*1.1;
+    sp.push(glShard(e.x+Math.cos(a)*r,e.y+Math.sin(a)*r,z+Math.sin(t*2+i)*0.8,e.volley?e.ang:a+Math.PI/2,6.4,2.4,(i===n-1&&n<SPL_SHARDS)?grow:1))}
+  glassCore(e.x,e.y,z,3.4,red,e.flashT>0,0.55,sp,e.core?GL_CORE:GL_DEEP);
+}
+// Echo (the basic enemy): a walking cluster of glass shards out of sync with itself, red and cyan
+// copies jittering round it. When it strikes it blinks forward, leaves afterimages, and cuts a red arc.
 function drawEcho(e){
-  const fl=e.flashT>0,k=e.r/8,t=S.t,red=e.core?'#ff2a2a':e.kind==='roam'?'#d9775f':C.enemy,body=e.core?'#050505':'#1c1012';
-  const tg=e.target,since=e.atkT!=null?t-e.atkT:9;
-  let off=0,wind=0;
+  const fl=e.flashT>0,t=S.t,red=e.core?'#ff2a2a':e.kind==='roam'?'#d9775f':C.enemy,a=e.ang,ca=Math.cos(a),sa=Math.sin(a),k=e.r/8;
+  const tg=e.target,since=e.atkT!=null?t-e.atkT:9;let off=0,wind=0;
   if(since<0.12)off=Math.sin(since/0.12*Math.PI)*7*k; // the blink forward and back
   else if(tg&&tg.hp>0&&e.cd<0.25&&dist(e,tg)<=e.r+(tg.r||12)+10)wind=(0.25-Math.max(0,e.cd))/0.25;
-  ctx.save();ctx.translate(e.x,e.y);ctx.rotate(e.ang+Math.PI/2);ctx.scale(k,k);
-  const fig=(dx,dy,col,a)=>{ctx.globalAlpha=a;ctx.fillStyle=col;ctx.beginPath();ctx.ellipse(dx,dy+1,5,3.2,0,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(dx,dy-1.5,2.6,0,Math.PI*2);ctx.fill()};
-  if(since<0.3){const g=1-since/0.3;fig(-1,3,red,0.45*g);fig(1,7,C.ally,0.25*g);fig(-1,11,red,0.2*g)}
-  ctx.fillStyle='rgba(0,0,0,0.3)';ctx.globalAlpha=1;ctx.beginPath();ctx.ellipse(2,4-off,5,4,0,0,Math.PI*2);ctx.fill();
-  const j=Math.sin(t*7+(e.seed||e.home.x))*0.8+(wind?(Math.random()-0.5)*2.4*wind:0)+(Math.random()<0.04?1.5:0);
-  fig(-1.6+j,-off,red,0.8);fig(1.6-j,-off,C.ally,0.4);fig(0,-off,fl?'#fff':body,1);
-  ctx.globalAlpha=1;ctx.strokeStyle=red;ctx.lineWidth=1.2;ctx.beginPath();ctx.ellipse(0,1-off,5,3.2,0,0,Math.PI*2);ctx.stroke();
-  if(since<0.25){const sl=since<0.1?since/0.1:1-(since-0.1)/0.15;ctx.globalAlpha=Math.max(0,sl);ctx.strokeStyle=red;ctx.lineWidth=1.6;ctx.beginPath();ctx.arc(0,-off-2,10,-Math.PI/2-1.1*sl,-Math.PI/2+1.1*sl);ctx.stroke();
-    ctx.strokeStyle='#fff';ctx.lineWidth=0.6;ctx.beginPath();ctx.arc(0,-off-2,10,-Math.PI/2-0.8*sl,-Math.PI/2+0.8*sl);ctx.stroke()}
-  ctx.restore();ctx.globalAlpha=1;
+  const seed=e.seed||e.home.x,frame=Math.floor((((t*9/(Math.PI*2)+seed*0.37)%1)+1)%1*6),c=echoSprite(e,frame),gr=glTint(c,red),gc=glTint(c,C.ally);
+  const x=e.x+ca*off,y=e.y+sa*off,j=Math.sin(t*7+seed)*0.8+(wind?(Math.random()-0.5)*2.4*wind:0)+(Math.random()<0.04?1.5:0);
+  if(since<0.3){const g=1-since/0.3;ctx.globalAlpha=0.45*g;glBlit(gr,c,e.x-ca*3*k,e.y-sa*3*k);ctx.globalAlpha=0.25*g;glBlit(gc,c,e.x-ca*7*k,e.y-sa*7*k);ctx.globalAlpha=0.2*g;glBlit(gr,c,e.x-ca*11*k,e.y-sa*11*k)}
+  ctx.globalAlpha=0.4;glBlit(gr,c,x+sa*(1.6-j)*k,y-ca*(1.6-j)*k);ctx.globalAlpha=0.28;glBlit(gc,c,x-sa*(1.6-j)*k,y+ca*(1.6-j)*k);
+  ctx.globalAlpha=1;glBlit(c,c,x,y);if(fl){ctx.globalAlpha=0.85;glBlit(glTint(c,'#fff'),c,x,y);ctx.globalAlpha=1}
+  if(since<0.25){const sl=since<0.1?since/0.1:1-(since-0.1)/0.15;ctx.save();ctx.translate(x,y-4*k);ctx.rotate(a+Math.PI/2);ctx.scale(k,k);
+    ctx.globalAlpha=Math.max(0,sl);ctx.strokeStyle=red;ctx.lineWidth=1.6;ctx.beginPath();ctx.arc(0,-2,10,-Math.PI/2-1.1*sl,-Math.PI/2+1.1*sl);ctx.stroke();
+    ctx.strokeStyle='#fff';ctx.lineWidth=0.6;ctx.beginPath();ctx.arc(0,-2,10,-Math.PI/2-0.8*sl,-Math.PI/2+0.8*sl);ctx.stroke();ctx.restore();ctx.globalAlpha=1}
+}
+function drawSwarm(e){const c=swarmSprite(e);glBlit(e.flashT>0?glTint(c,'#fff'):c,c,e.x,e.y)}
+function drawSaboteur(e){const c=sabSprite(e);glBlit(c,c,e.x,e.y);if(e.flashT>0){ctx.globalAlpha=0.85;glBlit(glTint(c,'#fff'),c,e.x,e.y);ctx.globalAlpha=1}}
+// ---------- Lance Splinters ----------
+// v4: the Dense Field's artillery, the Splinter's big sibling. One comes with each drilling wave in
+// the Dense Field and the Core (up to LANCE_MAX at once), from where the wave comes. It ignores your
+// units and walks to within LANCE_RANGE of one of the drilling vein's Stabilizers (the Bastion if
+// there are none), then charges: its six shards rise and spin round its core faster and faster,
+// and at the top of the spin they all let go at once, flung out of the spin and lobbed high over
+// walls onto the Stabilizer. Then the shards regrow one by one, and until they have it can't fire.
+const LANCE_HP=80,LANCE_R=10,LANCE_SPEED=44,LANCE_RANGE=380,LANCE_CHARGE=2.6,LANCE_REGROW=1.1,LANCE_SHARDS=6,LANCE_DMG=8,LANCE_FLIGHT=1.25,LANCE_ARC=90,LANCE_SPLASH=14;
+const LANCE_PER_WAVE={rim:0,dense:1,core:1},LANCE_MAX={rim:0,dense:2,core:3};
+const lanceZ=k=>7+16*k*k,lanceRing=k=>11-3*k;
+function spawnLancer(x,y,v){const core=bandAt(x,y)==='core',hp=Math.round(LANCE_HP*(core?CORE_ENEMY_HP_MULT:1)*(RUN?stopHpMult():1));
+  S.enemies.push({x,y,r:LANCE_R,hp,maxHp:hp,speed:LANCE_SPEED*(RUN&&pressureOn('frenzy')?1.15:1),dmg:LANCE_DMG,cd:0,kind:'lancer',core,target:null,aggro:0,home:{x,y},ang:rnd(0,Math.PI*2),faceT:9,stunT:0,
+    vein:v,shards:LANCE_SHARDS,regrowT:0,charge:0,spin:rnd(0,7),seed:rnd(0,100)})}
+function spawnLancers(v,src){
+  const n=Math.min(LANCE_PER_WAVE[v.band]||0,(LANCE_MAX[v.band]||0)-S.enemies.filter(e=>e.kind==='lancer'&&e.hp>0).length);
+  for(let i=0;i<n;i++){const p=nearestPlain(Math.max(20,Math.min(W-20,src.x+rnd(-40,40))),Math.max(20,Math.min(H-20,src.y+rnd(-40,40))));spawnLancer(p.x,p.y,v)}
+  if(n>0&&!S.lanceMsg){S.lanceMsg=true;msg('A Lance Splinter came with the wave. It spins its shards up and lobs them all at once over your walls onto a Stabilizer. Kill it before it fires.')}
+}
+function lanceTarget(e){const v=e.vein,pool=v&&veinAlive(v)?veinStabs(v):[],list=pool.length?pool:S.stabs.filter(st=>st.built&&st.hp>0);let best=null,bd=Infinity;
+  list.forEach(st=>{const d=dist(e,st);if(d<bd){bd=d;best=st}});return best||S.base}
+function lancerStep(e,dt){
+  let tg=e.lt;if(!tg||tg.hp<=0||(tg!==S.base&&!tg.built))tg=e.lt=lanceTarget(e);
+  const k=e.charge/LANCE_CHARGE;e.spin+=dt*(1.4+15*k*k);
+  if(e.shards<LANCE_SHARDS&&e.charge<=0){e.regrowT+=dt;if(e.regrowT>=LANCE_REGROW){e.regrowT=0;e.shards++;e.grewT=S.t}}
+  const d=dist(e,tg);e.ang=Math.atan2(tg.y-e.y,tg.x-e.x);
+  if(e.charge>0||(d<=LANCE_RANGE&&e.shards>=LANCE_SHARDS)){
+    e.charge+=dt;if(sfxReady('lancechg',0.22))tone(220+700*k*k,0.08,'triangle',0.02,0,260+760*k*k);
+    if(e.charge>=LANCE_CHARGE){lanceRelease(e,tg);e.charge=0;e.shards=0;e.regrowT=0}
+    return}
+  if(d>LANCE_RANGE*0.9)moveToward(e,enemyApproachPoint(e,tg),e.speed*enemyRoughFactor(e.x,e.y),dt);
+}
+function lanceRelease(e,tg){const z=lanceZ(1),R=lanceRing(1);
+  for(let i=0;i<LANCE_SHARDS;i++){const a=i/LANCE_SHARDS*Math.PI*2+e.spin,sx=e.x+Math.cos(a)*R,sy=e.y+Math.sin(a)*R;
+    S.lances.push({x0:sx,y0:sy,z0:z,cx:sx-Math.sin(a)*60,cy:sy+Math.cos(a)*60,x1:tg.x+rnd(-1,1)*LANCE_SPLASH*0.7,y1:tg.y+rnd(-1,1)*LANCE_SPLASH*0.7,t:0,T:LANCE_FLIGHT*rnd(0.92,1.08),dmg:e.dmg,tg,spin:rnd(8,13)*(Math.random()<0.5?-1:1),mark:i===0})}
+  tone(1500,0.12,'triangle',0.05,0,500);
+}
+// in flight: flung out along the spin, then curving round onto the target in a high lob
+function lancePos(l,f){const u=1-f;return [u*u*l.x0+2*u*f*l.cx+f*f*l.x1,u*u*l.y0+2*u*f*l.cy+f*f*l.y1,l.z0*u+Math.sin(f*Math.PI)*LANCE_ARC]}
+function updateLances(dt){if(!S.lances.length)return;
+  S.lances=S.lances.filter(l=>{l.t+=dt;if(l.t<l.T)return true;const x=l.x1,y=l.y1,B=S.base;
+    S.stabs.forEach(st=>{if(st.built&&st.hp>0&&Math.hypot(st.x-x,st.y-y)<STAB_TOWER_R+LANCE_SPLASH){st.hp-=l.dmg;st.lastHitBy='enemy';hitFlash(st)}});
+    if(B.hp>0&&Math.hypot(B.x-x,B.y-y)<BASE_R+4){B.hp-=l.dmg;B.lastHitBy='enemy';hitFlash(B)}
+    S.troops.forEach(u=>{if(u.hp>0&&Math.hypot(u.x-x,u.y-y)<(u.r||8)+6){u.hp-=allyHit(u,l.dmg*0.5);u.lastHitBy='enemy';hitFlash(u)}});
+    burst(x,y,'#ff8a70',5,80,0.35);if(sfxReady('lancehit',0.05))tone(700+Math.random()*300,0.06,'square',0.03,0,200);return false});
+}
+function drawLances(){if(!S.lances||!S.lances.length)return;glUse();
+  S.lances.forEach(l=>{if(!l.mark||!l.tg)return;const f=l.t/l.T,r=34-20*f;ctx.save();ctx.strokeStyle='#ff5c8a';ctx.globalAlpha=0.35+0.5*f;ctx.lineWidth=1.5;ctx.setLineDash([6,4]);ctx.beginPath();ctx.ellipse(l.tg.x,l.tg.y,r,r*0.9,0,0,Math.PI*2);ctx.stroke();ctx.restore()});
+  S.lances.forEach(l=>{const f=l.t/l.T,p=lancePos(l,f),q=lancePos(l,Math.max(0,f-0.06)),P=glPJ(p),Q=glPJ(q),dir=Math.atan2(p[1]-q[1],p[0]-q[0]);
+    ctx.save();ctx.globalCompositeOperation='lighter';ctx.strokeStyle='rgba(255,70,50,0.45)';ctx.lineWidth=1.6;ctx.beginPath();ctx.moveTo(Q[0],Q[1]);ctx.lineTo(P[0],P[1]);ctx.stroke();ctx.restore();
+    const S2=glShard(p[0],p[1],p[2],dir+l.t*l.spin*0.3,9,2.6,1);S2.tip[2]+=Math.sin(l.t*l.spin)*4;glSpires([S2],{col:GL_DEEP})});
+}
+// a Lance Splinter: stubby glass feet, a core held up over them on a red thread of light, and six long
+// shards circling it, rising and spinning faster as it charges
+function drawLancer(e){glUse();
+  const k=Math.min(1,e.charge/LANCE_CHARGE),t=S.t,red=e.core?'#ff2a2a':C.enemy,col=e.core?GL_CORE:GL_DEEP,z=lanceZ(k),R=lanceRing(k),n=e.shards,grow=e.grewT!=null?Math.min(1,(t-e.grewT)/0.35):1;
+  glSpires(glCluster(e.x,e.y+1,e.ang,{n:4,r:4,h:7,lean:0.55,w:5,seed:53,off:0.4}),{col});
+  const f0=glPJ([e.x,e.y,4]),c0=glPJ([e.x,e.y,z]);ctx.save();ctx.globalCompositeOperation='lighter';ctx.strokeStyle=`rgba(255,70,50,${0.35+0.5*k})`;ctx.lineWidth=1.4;ctx.beginPath();ctx.moveTo(f0[0],f0[1]);ctx.lineTo(c0[0],c0[1]);ctx.stroke();
+  if(k>0.3){ctx.strokeStyle=`rgba(255,90,60,${(k-0.3)*0.8})`;ctx.lineWidth=2+3*k;ctx.beginPath();ctx.arc(c0[0],c0[1],R,0,Math.PI*2);ctx.stroke()}ctx.restore();
+  const sp=[];for(let i=0;i<n;i++){const a=i/LANCE_SHARDS*Math.PI*2+e.spin;sp.push(glShard(e.x+Math.cos(a)*R,e.y+Math.sin(a)*R,z+Math.sin(t*3+i)*0.7*(1-k),a+Math.PI/2,8.5,2.6,(i===n-1&&n<LANCE_SHARDS&&k===0)?grow:1))}
+  glassCore(e.x,e.y,z,3.8,red,e.flashT>0,0.45+0.5*k,sp,col);
+  if(e.hp<e.maxHp)hpbar(e.x,c0[1]-14,e.r*2+6,e.hp/e.maxHp);
 }
 // ---------- Quakers ----------
 // v4: a big stone block whose whole job is to wreck a drilling operation. One lumbers in now and
@@ -3453,16 +3583,14 @@ function updateQuaker(e,dt){
   e.jumpT-=dt;
   if(e.jumpT<=0)quakerLeap(e,{x:e.x+rnd(-20,20),y:e.y+rnd(-20,20)});
 }
-function drawQuaker(e){
-  const k=e.air>0?1-e.air/e.airT:0, h=e.air>0?Math.sin(Math.PI*k)*70:0, s=1+h/140, R=e.r;
-  ctx.fillStyle=`rgba(0,0,0,${0.4-0.2*h/70})`;ctx.beginPath();ctx.ellipse(e.x,e.y+6,R*(1.2-0.3*h/70),R*(0.7-0.2*h/70),0,0,Math.PI*2);ctx.fill();
-  ctx.save();ctx.translate(e.x,e.y-h);ctx.scale(s,s);ctx.rotate(e.ang*0.15);
-  ctx.fillStyle=e.flashT>0?'#fff':(e.core?'#1d1d22':'#3d4148');ctx.strokeStyle='#15171b';ctx.lineWidth=3;
-  ctx.fillRect(-R,-R,R*2,R*2);ctx.strokeRect(-R,-R,R*2,R*2);
-  ctx.strokeStyle=e.core?'#ff2a2a':'#e0873a';ctx.globalAlpha=0.55+0.35*Math.sin(S.t*4);ctx.lineWidth=2;
-  ctx.beginPath();ctx.moveTo(-R*0.6,-R*0.2);ctx.lineTo(-R*0.1,R*0.1);ctx.lineTo(R*0.2,-R*0.4);ctx.moveTo(R*0.1,R*0.1);ctx.lineTo(R*0.55,R*0.5);ctx.stroke();ctx.globalAlpha=1;
-  ctx.restore();
-  if(e.hp<e.maxHp)hpbar(e.x,e.y-R*s-h-10,R*2+6,e.hp/e.maxHp);
+function drawQuaker(e){glUse();
+  const ka=e.air>0?1-e.air/e.airT:0,h=e.air>0?Math.sin(Math.PI*ka)*70:0,z=h*2,R=e.r,s=R/7.5;
+  // a squat boulder of dark glass, five broad shards jammed together, turning over as it leaps
+  if(h>0){ctx.fillStyle=`rgba(0,0,0,${0.35-0.2*h/70})`;ctx.beginPath();ctx.ellipse(e.x,e.y+4,R*(1.1-0.4*h/70),R*(0.7-0.3*h/70),0,0,Math.PI*2);ctx.fill()}
+  const sp=glCluster(e.x,e.y,e.ang*0.15+ka*1.5,{n:5,r:2*s,h:6*s,lean:0.55,w:5*s,seed:21,off:0,z});
+  glSpires(sp,{col:e.core?GL_CORE:GL_DARK,noShadow:h>0});glGlow([e.x,e.y,z+2*s],4.5*s,0.5,'255,90,50');
+  if(e.flashT>0)glSpires(sp,{ghost:'rgba(255,255,255,0.7)'});
+  if(e.hp<e.maxHp)hpbar(e.x,e.y-R-h-10,R*2+6,e.hp/e.maxHp);
 }
 function updateQuakes(dt){S.quakes=S.quakes.filter(q=>{q.t+=dt;q.r=q.t*(q.soft?260:420);return q.t<(q.soft?0.9:0.6)})}
 function drawQuakes(){S.quakes.forEach(q=>{const a=Math.max(0,1-q.t/(q.soft?0.9:0.6));ctx.globalAlpha=a*(q.soft?0.5:0.8);ctx.strokeStyle=q.soft?'#e0873a':'#c9a46b';ctx.lineWidth=q.soft?3:5;ctx.beginPath();ctx.arc(q.x,q.y,q.r,0,Math.PI*2);ctx.stroke()});ctx.globalAlpha=1}
@@ -6722,6 +6850,9 @@ function spawnVeinWave(v){
   const feed=feeders.reduce((t,nn)=>t+NEST[nn.size].feed,0);
   let n=Math.max(1,Math.round((pressureOn('tide')?1.3:1)*WAVE_BASE_N[v.band]*th.n*(feeders.length?Math.min(3,0.4+0.6*feed):NEST_STRAGGLERS)));
   spawnHorde(v,n,feeders,big);
+  {const top=feeders.length?feeders.reduce((p,q)=>NEST[q.size].feed>NEST[p.size].feed?q:p):null,a=v.waveDir;
+    if(top){const d=dist(top,v)||1;spawnLancers(v,{x:top.x+(v.x-top.x)/d*(top.r+30),y:top.y+(v.y-top.y)/d*(top.r+30)})}
+    else spawnLancers(v,{x:v.x+Math.cos(a)*WAVE_SPAWN_DIST,y:v.y+Math.sin(a)*WAVE_SPAWN_DIST})}
   // (v4: a share of each wave used to spawn out past the most-strained Stabilizer, from a side the
   // warning never showed — removed, so a wave only ever comes from where it was warned)
   const strainMsg='';
@@ -7630,6 +7761,7 @@ function update(dt){
       return;
     }
     // horde: re-pick a target only a few times a second
+    if(e.kind==='lancer'){lancerStep(e,dt);return}
     if(e.horde&&e.target&&e.target.hp>0&&S.t<e._tT){hordeStep(e,e.target,dt);return}
     let tgt=null,bd=e.aggro;
     if(e.kind==='saboteur'){
@@ -7781,6 +7913,7 @@ function update(dt){
     S.enemies.forEach(e=>{if(e.kind!=='nest'&&!(e.air>0))glassPush(e,(e.r||8)*0.8)})}
   S.tracers=S.tracers.filter(t=>(t.t-=dt)>0);
   if(!S.shardShots)S.shardShots=[];updateShardShots(dt);
+  if(!S.lances)S.lances=[];updateLances(dt);
   S.nades=S.nades.filter(n=>{n.t+=dt;if(n.track&&n.track.hp>0&&S.enemies.includes(n.track)){n.tx=n.track.x;n.ty=n.track.y}const pt=Math.min(1,n.t/n.dur);n.x=n.x0+(n.tx-n.x0)*pt;n.y=n.y0+(n.ty-n.y0)*pt;if(pt>=1){explodeNade(n);return false}return true});
   if(B.hp<=0){S.over='lose';sfx.lose();shakeScreen(10,0.6);burst(B.x,B.y,C.enemy,30,160,0.9);showOverlay('Bastion destroyed','The crew and the crystal are lost to the zone. Try fortifying before you push deeper.',0.5)}
 
@@ -8637,7 +8770,7 @@ function stepRope(u,a0,dt){let R=u.rope;const tx=u.x,ty=u.y;
   if(!R||R.ax==null){R=u.rope={P:[{x:a0[0],y:a0[1],px:a0[0],py:a0[1]},{x:tx,y:ty,px:tx,py:ty}],wind:0,sleep:0,lx:tx,ly:ty,idle:0}}
   const P=R.P,n=P.length;R.idle=Math.abs(tx-R.lx)+Math.abs(ty-R.ly)<0.1?R.idle+dt:0;R.lx=tx;R.ly=ty;
   const moved=Math.abs(P[0].x-a0[0])+Math.abs(P[0].y-a0[1])+Math.abs(P[n-1].x-tx)+Math.abs(P[n-1].y-ty)>0.05;
-  R.ax=a0[0];if(R.sleep>0.5&&!moved&&!(R.idle>1.2&&R.wantWind))return;
+  R.ax=a0[0];if(R.reel>0)R.reel-=dt;if(R.sleep>0.5&&!moved&&!(R.idle>1.2&&R.wantWind)&&!(R.reel>0))return;
   for(let i=1;i<n-1;i++){const q=P[i],vx=(q.x-q.px)*0.85,vy=(q.y-q.py)*0.85;q.px=q.x;q.py=q.y;q.x+=vx;q.y+=vy}
   P[0].x=P[0].px=a0[0];P[0].y=P[0].py=a0[1];P[n-1].x=P[n-1].px=tx;P[n-1].y=P[n-1].py=ty;
   for(let it=0;it<ROPE_ITERS;it++){for(let i=0;i<n-1;i++){const a=P[i],b=P[i+1],dx=b.x-a.x,dy=b.y-a.y,d2=dx*dx+dy*dy;if(d2<=ROPE_SEG*ROPE_SEG)continue;const d=Math.sqrt(d2),k=(d-ROPE_SEG)/d,wa=i===0?0:0.5,wb=i+1===n-1?0:0.5,sm=wa+wb||1;a.x+=dx*k*wa/sm;a.y+=dy*k*wa/sm;b.x-=dx*k*wb/sm;b.y-=dy*k*wb/sm}
@@ -8645,6 +8778,8 @@ function stepRope(u,a0,dt){let R=u.rope;const tx=u.x,ty=u.y;
   let stretch=0,motion=0;for(let i=0;i<n-1;i++){const dx=P[i+1].x-P[i].x,dy=P[i+1].y-P[i].y,d2=dx*dx+dy*dy;if(d2>ROPE_SEG*ROPE_SEG)stretch+=Math.sqrt(d2)-ROPE_SEG}
   for(let i=1;i<n-1;i++)motion+=Math.abs(P[i].x-P[i].px)+Math.abs(P[i].y-P[i].py);
   R.wantWind=stretch<1&&n>3;let rate=0;if(stretch>3)rate=-Math.min(300,stretch*40);else if(R.wantWind)rate=R.idle>1.2?70:6;
+  // just hooked onto a new relay: wind the old slack in hard, down to a little more than the new span
+  if(R.reel>0){const span=Math.hypot(tx-a0[0],ty-a0[1]);if((n-1)*ROPE_SEG>span*1.1+ROPE_SEG*2){rate=stretch<6?520:stretch>20?rate:0}else R.reel=0}
   R.wind+=rate*dt;
   while(R.wind<=-ROPE_SEG&&P.length<80){R.wind+=ROPE_SEG;const a=P[0],b=P[1],dx=b.x-a.x,dy=b.y-a.y,d=Math.sqrt(dx*dx+dy*dy)||1,x=a.x+dx/d*Math.min(ROPE_SEG,d*0.5),y=a.y+dy/d*Math.min(ROPE_SEG,d*0.5);P.splice(1,0,{x,y,px:x,py:y})}
   while(R.wind>=ROPE_SEG&&P.length>2){R.wind-=ROPE_SEG;P.splice(1,1)}
@@ -8662,7 +8797,8 @@ function drawTethers(){
   // unit cables: hang from the hook, then the pooling rope to the unit
   S.troops.concat(S.harvesters,S.builders).forEach(u=>{if(!u.trail||!u.anchorRef){u.rope=null;return}
     const h=anchorHook(u.anchorRef,u);if(!h){u.rope=null;return}const dx=u.x-h[0],dy=u.y-h[1],L=Math.hypot(dx,dy)||1,td=Math.min(L*0.6,h[2]*0.55+6),ux=dx/L,uy=dy/L,touch=[h[0]+ux*td,h[1]+uy*td];
-    stepRope(u,touch,dt);const hangPts=[];for(let k=0;k<=8;k++){const f=k/8;hangPts.push([h[0]+ux*td*f,h[1]+uy*td*f,h[2]*Math.pow(1-f,2.2)])}
+    if(u.rope&&u.rope.anc!==u.anchorRef){u.rope.reel=2.5;u.rope.sleep=0}if(u.rope)u.rope.anc=u.anchorRef;
+    stepRope(u,touch,dt);if(u.rope.anc!==u.anchorRef)u.rope.anc=u.anchorRef;const hangPts=[];for(let k=0;k<=8;k++){const f=k/8;hangPts.push([h[0]+ux*td*f,h[1]+uy*td*f,h[2]*Math.pow(1-f,2.2)])}
     const pts=hangPts.concat(u.rope.P.slice(1).map(q=>[q.x,q.y,0.2]));drawHoses(pts,1,(u.id||0)%8,u.cableMaxed)});
 }
 function drawGuardGlyph(x,y){
@@ -8904,22 +9040,23 @@ function draw(){
     ctx.globalAlpha=1});
   drawPOIs();drawRig();drawStrand();positionPoiBtns();
   // enemies (only visible)
-  const hN=new Path2D(),hC=new Path2D(),hF=new Path2D();let hc=0;
-  S.enemies.forEach(e=>{if(e.kind==='nest'){if(debugNoFog||e.seen)drawNest(e);return}
+    S.enemies.forEach(e=>{if(e.kind==='nest'){if(debugNoFog||e.seen)drawNest(e);return}
     if(e.kind==='quaker'){if(debugNoFog||visible(e))drawQuaker(e);return}
-    if(e.horde){if(e.x<x0-10||e.x>x1+10||e.y<y0-10||e.y>y1+10||(!debugNoFog&&!visible(e)))return; // horde: batched into three paths
-      const p=e.flashT>0?hF:e.core?hC:hN,a=e.ang,r=e.r;p.moveTo(e.x+Math.cos(a)*r*1.4,e.y+Math.sin(a)*r*1.4);p.lineTo(e.x+Math.cos(a+2.5)*r,e.y+Math.sin(a+2.5)*r);p.lineTo(e.x+Math.cos(a-2.5)*r,e.y+Math.sin(a-2.5)*r);p.closePath();hc++;return}
+    if(e.horde){if(e.x<x0-10||e.x>x1+10||e.y<y0-10||e.y>y1+10||(!debugNoFog&&!visible(e)))return; // horde: one baked glass splinter each
+      drawSwarm(e);return}
     if(!debugNoFog&&!visible(e))return;
     if(e.kind==='splinter'){drawSplinter(e);if(e.hp<e.maxHp)hpbar(e.x,e.y-e.r-10,e.r*2+4,e.hp/e.maxHp);return}
-    if(e.kind==='wave'||e.kind==='roam'){drawEcho(e);if(e.hp<e.maxHp)hpbar(e.x,e.y-e.r-8,e.r*2+4,e.hp/e.maxHp);return}
+    if(e.kind==='wave'||e.kind==='roam'){drawEcho(e);if(e.hp<e.maxHp)hpbar(e.x,e.y-e.r-14,e.r*2+4,e.hp/e.maxHp);return}
+    if(e.kind==='lancer'){drawLancer(e);return}
+    if(e.kind==='saboteur'){drawSaboteur(e);if(e.hp<e.maxHp)hpbar(e.x,e.y-e.r-8,e.r*2+4,e.hp/e.maxHp);return}
     const a=e.ang,brute=e.kind==='brute';ctx.fillStyle=e.flashT>0?'#fff':(e.core?'#0a0a0a':(e.kind==='roam'?'#d9775f':e.kind==='saboteur'?C.cable:e.kind==='corrupted'?C.zone:C.enemy));ctx.beginPath();
     ctx.moveTo(e.x+Math.cos(a)*e.r*1.3,e.y+Math.sin(a)*e.r*1.3);ctx.lineTo(e.x+Math.cos(a+2.5)*e.r,e.y+Math.sin(a+2.5)*e.r);ctx.lineTo(e.x+Math.cos(a-2.5)*e.r,e.y+Math.sin(a-2.5)*e.r);ctx.closePath();ctx.fill();
     if(e.core){ctx.strokeStyle=e.flashT>0?'#fff':'#ff2a2a';ctx.lineWidth=brute?3:1.5;ctx.stroke()}
     if(brute){ctx.globalAlpha=0.45;ctx.strokeStyle='#ff2a2a';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(e.x,e.y,e.r+7,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1}
     if(e.hp<e.maxHp)hpbar(e.x,e.y-e.r-8,e.r*2+4,e.hp/e.maxHp)});
-  if(hc){ctx.fillStyle=C.enemy;ctx.fill(hN);ctx.fillStyle='#0a0a0a';ctx.fill(hC);ctx.strokeStyle='#ff2a2a';ctx.lineWidth=1;ctx.stroke(hC);ctx.fillStyle='#fff';ctx.fill(hF)}
   // tracers
   if(S.shardShots)drawShardShots();
+  drawLances();
   S.tracers.forEach(t=>{ctx.strokeStyle=t.col;ctx.globalAlpha=t.t/0.12;ctx.lineWidth=t.w||1.5;ctx.beginPath();ctx.moveTo(t.x1,t.y1);ctx.lineTo(t.x2,t.y2);ctx.stroke()});ctx.globalAlpha=1;
   // Energy Surge rings: a bright front with a soft glow behind it, fading as it reaches full size
   S.surgeWaves.forEach(w=>{
