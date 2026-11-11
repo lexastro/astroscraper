@@ -244,6 +244,11 @@ body.lowGfx #fogGrain{display:none}
 .rewardCard .rcTier::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--tc);box-shadow:0 0 6px var(--tc)}
 .rewardCard .rcName{font-weight:600;font-size:15px;line-height:1.25;color:#eef1f4}
 .rewardCard .rcDesc{font-size:12px;color:#9aa3ad;line-height:1.45;flex:1}
+.rewardCard .rcDesc ul.pc{list-style:none;margin:6px 0 4px;padding:0;display:flex;flex-direction:column;gap:3px}
+.rewardCard .rcDesc ul.pc li{position:relative;padding-left:13px}
+.rewardCard .rcDesc ul.pc li.pro{color:#c9d9bd}.rewardCard .rcDesc ul.pc li.pro::before{content:'+';position:absolute;left:0;color:var(--dat);font-weight:700}
+.rewardCard .rcDesc ul.pc li.con{color:#d9c0bc}.rewardCard .rcDesc ul.pc li.con::before{content:'−';position:absolute;left:0;color:var(--enemy);font-weight:700}
+.rewardCard .rcSwap{display:block;margin-top:6px;font-size:11px;color:var(--accent);line-height:1.35}
 .overlay button.rewardCard.legendary{animation:legendGlow 2.4s ease-in-out infinite}
 @keyframes legendGlow{0%,100%{box-shadow:0 0 0 1px rgba(0,0,0,.6),0 0 14px -4px var(--tc),0 6px 16px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.05)}
   50%{box-shadow:0 0 0 1px rgba(0,0,0,.6),0 0 24px -2px var(--tc),0 6px 16px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.05)}}
@@ -1040,7 +1045,42 @@ const MAN_OFFSET=14, MAN_DMG_RED=0.25, MAN_PICK_R=16, MAN_GAP=27.5, MAN_END_PAD=
 const WALL_SLAT=18, WALL_THICK=8, WALL_SLAT_HP=160, WALL_MIN_LEN=30, WALL_MAX_LEN=420, WALL_SNAP=22, WALL_DAT_BASE=4, WALL_DAT_PER_SLAT=2, WALL_RAISE_STEP=0.07, WALL_RAISE_T=0.25;
 // the wall-end tower cards make walls dearer: ×2 with Bulwark Towers, ×3 with Missile Battery Walls
 // (the Legendary replaces the Epic's ×2, they don't stack)
-function wallCostMult(){return S.mods.podTowers?3:S.mods.wallTowers?2:1}
+// v4 wall types: one reward card per type (Heavy armour is Rare; Electric fence and Razor line are Epic;
+// Glass ridge and Shield pane are Legendary). Every wall you have is the one type; taking a wall card
+// switches all of them over and replaces the wall card you had. hp and cost are multipliers on a
+// standard slat; cover is how much of its length a slat fills; raise slows the slats rising.
+const WALL_TYPES={
+  std:   {name:'Standard',hp:1,cost:1,cover:0.86},
+  heavy: {name:'Heavy armour',hp:2.5,cost:2,cover:0.96,raise:1.6},
+  elec:  {name:'Electric fence',hp:0.5,cost:1,cover:1},
+  razor: {name:'Razor line',hp:0.7,cost:1,cover:0.9},
+  glass: {name:'Glass ridge',hp:0.8,cost:1.5,cover:1},
+  shield:{name:'Shield pane',hp:1.4,cost:1.5,cover:1},
+};
+// Electric: a touch costs the enemy ELEC_DMG and stuns it ELEC_STUN (only while the wall has power).
+// Razor: every hit on it cuts the attacker for RAZOR_DMG. Glass: heals GLASS_REGEN hp/s once unhit for
+// 4s, and a broken slat grows back after GLASS_REGROW_T. Shield: never breaks — drained to 0 it drops
+// for SHIELD_DOWN_T, and it recharges SHIELD_RECHARGE hp/s once unhit for SHIELD_QUIET; with no power
+// it's off and doesn't block at all.
+const ELEC_DMG=14, ELEC_STUN=0.7, RAZOR_DMG=10, GLASS_REGEN=3, GLASS_REGROW_T=25, SHIELD_RECHARGE=30, SHIELD_QUIET=3, SHIELD_DOWN_T=8;
+const wallType=()=>S.mods.wallType||'std';
+const wallSlatHp=t=>Math.round(WALL_SLAT_HP*WALL_TYPES[t||wallType()].hp);
+function wallCostMult(){return (S.mods.podTowers?3:S.mods.wallTowers?2:1)*WALL_TYPES[wallType()].cost}
+function setWallType(id){S.mods.wallType=id;const hp=wallSlatHp(id);
+  (S.wallLines||[]).forEach(L=>{L.type=id;L.slats.forEach(sl=>{const f=sl.maxHp?sl.hp/sl.maxHp:1;sl.maxHp=hp;if(!sl.dead)sl.hp=Math.max(1,hp*f);sl.downT=0})});
+  S.wallDirty=true;updateBuildBar()}
+// The wall cards: a line of flavour, itemised pros and cons, and a note that it replaces your walls.
+const WALL_CARD={
+  heavy:{blurb:'Your walls become thick armoured slabs.',pros:['2.5× the HP per slat','No gaps between slats'],cons:['Walls cost 2× (stacks with tower cards)','Slats rise more slowly']},
+  elec:{blurb:'Your walls become live electric fences.',pros:[`Shocks anything that touches it: ${ELEC_DMG} damage and a ${ELEC_STUN}s stun`,'Swarms get shocked too'],cons:['Half the HP of a standard wall','Only shocks inside your power network (Bastion or a Relay)']},
+  razor:{blurb:'Your walls become low kerbs of spikes and razor wire.',pros:[`Every hit on it cuts the attacker for ${RAZOR_DMG} damage`,'Same cost as a standard wall'],cons:['30% less HP']},
+  glass:{blurb:'Your walls grow as ridges of Dense glass.',pros:['Damaged slats heal over time',`Broken slats grow back after ${GLASS_REGROW_T}s`],cons:['20% less HP','Walls cost 1.5×']},
+  shield:{blurb:'Your walls become projected shield panes.',pros:['1.4× HP, recharging once it goes 3s unhit',`Never destroyed: a drained pane drops for ${SHIELD_DOWN_T}s, then comes back`],cons:['Needs power: outside your network the pane is off and blocks nothing','Walls cost 1.5×']},
+};
+function wallCardDesc(id){const W=WALL_CARD[id],cur=S&&S.mods&&S.mods.wallType;
+  return `${W.blurb}<ul class="pc">${W.pros.map(x=>`<li class="pro">${x}</li>`).join('')}${W.cons.map(x=>`<li class="con">${x}</li>`).join('')}</ul>`+
+    `<span class="rcSwap">⟲ ${cur&&cur!==id?`Replaces your ${WALL_TYPES[cur].name} card`:'Replaces any other wall card you have'}. Every wall you have switches over.</span>`}
+const wallCard=(id,name)=>({id:'wall_'+id,name,get desc(){return wallCardDesc(id)},has:()=>S.mods.wallType===id,apply:()=>setWallType(id)});
 const COST={wall:5,turret:75,relay:15,depot:150,stabilizer:20,harvester:75,troop:30,builder:20,grenadier:45,artillery:140,mech:90,rocket:70,brawler:25,marksman:60};
 // v2 fabricators: nothing is bought with Dat any more. Each kind of thing the Bastion can make has
 // its own fabricator holding `charges`; a spent charge comes back after `t` seconds (one at a time,
@@ -1548,6 +1588,7 @@ const UPGRADES={
     {id:'armedRelays',name:'Armed Relays',desc:'Tethered Relays fire on enemies like a Turret — half the damage, half the fire rate.',apply:()=>{S.mods.armedRelays=true}},
     {id:'martyrs',name:'Martyrs',desc:'A unit that would corrupt detonates instead, damaging enemies and friendlies alike nearby.',apply:()=>{S.mods.martyrs=true}},
     {id:'resupply1',name:'Resupply',desc:'Every fabricator, Stabilizer and Probe stock is topped up to full, right now.',apply:()=>{Object.keys(FABS).forEach(k=>{S.fab[k].n=FABS[k].charges});S.stabCharges=STAB_CHARGES;S.probeCharges=PROBE_CHARGES}},
+    wallCard('heavy','Heavy Armour Walls'),
     {id:'barracks1',name:'Barracks Expansion',desc:'Field one more Trooper at a time (up to 24).',apply:()=>{raiseSquadCap()}},
   ],
   Epic:[
@@ -1556,6 +1597,8 @@ const UPGRADES={
     {id:'tactical',name:'Tactical Reinforcements',desc:'+5 free Troopers, +3 free Grenadiers, right now.',apply:()=>{spawnFreeTroops(5,'troop');spawnFreeTroops(3,'grenadier')}},
     {id:'targeting',name:'Targeting Computer',desc:'The Bastion gun keeps firing while drilling instead of going quiet.',apply:()=>{S.mods.bastionShootWhileDrilling=true}},
     {id:'energySurge2',name:'Energy Surge II',desc:'Energy Surge now pulses every 5s instead of 10s.',apply:()=>{S.mods.energySurgeLevel=Math.max(S.mods.energySurgeLevel,2)}},
+    wallCard('elec','Electric Fence Walls'),
+    wallCard('razor','Razor Line Walls'),
     {id:'siegeRing',name:'Siege Ring',desc:'Every time the Bastion starts drilling, a free ring of walls rises around it along its dashed build ring. Where a wall already stands, none is added.',has:()=>S.mods.siegeRing,apply:()=>{S.mods.siegeRing=true}},
     {id:'wallTowers',name:'Bulwark Towers',desc:'Every wall end gets a free Turret — on the walls you have now and every wall you build from here on. A tower that falls is not replaced. Drawback: walls cost twice as much.',has:()=>S.mods.wallTowers||S.mods.podTowers,apply:()=>{S.mods.wallTowers=true;wallTowers();updateBuildBar()}},
   ],
@@ -1565,6 +1608,8 @@ const UPGRADES={
     {id:'living1',name:'Rich Vein Memory',desc:'Living Crystal yield ×2 for the rest of the run.',apply:()=>{S.mods.livingMult*=2}},
     {id:'podTowers',name:'Missile Battery Walls',desc:'Every wall end gets a free Missile Pod — on the walls you have now and every wall you build from here on. Turrets raised by Bulwark Towers become Missile Pods. A pod that falls is not replaced. Drawback: walls cost three times as much (replaces Bulwark Towers\' double cost).',has:()=>S.mods.podTowers||!meta.unlockPodTurret,
      apply:()=>{S.mods.podTowers=true;S.fabShots.forEach(sh=>{if(sh.free&&sh.k==='turret')sh.k='podturret'});S.turrets.forEach(t=>{if(t.tower&&t.kind==='turret'){const f=t.hp/t.maxHp;t.kind='podturret';t.maxHp=PODT_HP;t.hp=PODT_HP*f;t.pods=PODT_CELLS;burst(t.x,t.y,ROLE_COL.grenadier,10,110,0.4)}});wallTowers();updateBuildBar()}},
+    wallCard('glass','Glass Ridge Walls'),
+    wallCard('shield','Shield Pane Walls'),
     {id:'energySurge3',name:'Energy Surge III',desc:'Energy Surge still pulses every 5s, and now damages enemies it reaches too.',apply:()=>{S.mods.energySurgeLevel=Math.max(S.mods.energySurgeLevel,3)}},
   ],
 };
@@ -2494,7 +2539,7 @@ function reset(landing){
     // reset back to baseline (1 / 0 / false) by a fresh reset(), never persisted between runs.
     mods:{carryMult:1,troopDmgMult:1,moveSpeedMult:1,visionMult:1,relayTolMult:1,drillBurnMult:1,
       cableLenAdd:0,cableHpMult:1,condensedMult:1,livingMult:1,fastBonus:0,drillRateMult:1,freeRelayCharges:0,
-      grenFireRateMult:1,grenSplashMult:1,squadRangeMult:1,bigGuns:false,bastionShootWhileDrilling:false,wallTowers:false,podTowers:false,siegeRing:false,
+      grenFireRateMult:1,grenSplashMult:1,squadRangeMult:1,bigGuns:false,bastionShootWhileDrilling:false,wallTowers:false,podTowers:false,siegeRing:false,wallType:null,
       energySurgeLevel:0,armedRelays:false,martyrs:false,fabRateMult:1},
     rewardChoice:null,pingRing:null,pings:[],reanim:[],stabs:[],stabShots:[],stabCharges:3,stabRechargeT:0,probes:[],probeCharges:3,probeRechargeT:0,paused:false,
     sel:{base:false,troops:new Set(),harv:new Set(),bu:new Set()},
@@ -5911,7 +5956,7 @@ function wallSnap(w,noTurrets){let best=null,bd=WALL_SNAP/Math.min(1,cam.z);wall
 function wallPlan(d){
   let x1=d.x1,y1=d.y1,L=Math.hypot(x1-d.x0,y1-d.y0);
   if(L>WALL_MAX_LEN){const k=WALL_MAX_LEN/L;x1=d.x0+(x1-d.x0)*k;y1=d.y0+(y1-d.y0)*k;L=WALL_MAX_LEN}
-  const n=Math.max(1,Math.round(L/WALL_SLAT)),cost=(WALL_DAT_BASE+n*WALL_DAT_PER_SLAT)*wallCostMult();
+  const n=Math.max(1,Math.round(L/WALL_SLAT)),cost=Math.round((WALL_DAT_BASE+n*WALL_DAT_PER_SLAT)*wallCostMult());
   const a={x:d.x0,y:d.y0},b={x:x1,y:y1};let why='';
   if(L<WALL_MIN_LEN)why='Too short';
   else if(!inBuildRange(a)||!inBuildRange(b))why='Both ends inside the ring';
@@ -5929,10 +5974,10 @@ function finishWallDraw(){
   if(!payDat(P.cost,'A wall'))return;
   // an end snapped onto another wall's end or a Turret is already anchored: no post needs launching there
   const anch=[!!d.s0,!!d.s1&&P.x1===d.x1&&P.y1===d.y1];
-  const L=P.L,ux=(P.x1-P.x0)/L,uy=(P.y1-P.y0)/L,seg=L/P.n,line={x0:P.x0,y0:P.y0,x1:P.x1,y1:P.y1,ux,uy,ang:Math.atan2(uy,ux),posts:anch.slice(),anchored:anch,raiseT0:anch[0]&&anch[1]?S.t:null,slats:[]};
+  const L=P.L,ux=(P.x1-P.x0)/L,uy=(P.y1-P.y0)/L,seg=L/P.n,line={x0:P.x0,y0:P.y0,x1:P.x1,y1:P.y1,ux,uy,ang:Math.atan2(uy,ux),posts:anch.slice(),anchored:anch,raiseT0:anch[0]&&anch[1]?S.t:null,slats:[],type:wallType()};
   for(let i=0;i<P.n;i++){const c=(i+0.5)*seg,x=P.x0+ux*c,y=P.y0+uy*c;
     if(terrainAt(x,y)===2)continue; // rock already blocks there
-    line.slats.push({x,y,half:seg/2,hp:WALL_SLAT_HP,maxHp:WALL_SLAT_HP,up:0,order:Math.min(i,P.n-1-i),line,kind:'wallslat'})}
+    line.slats.push({x,y,half:seg/2,hp:wallSlatHp(),maxHp:wallSlatHp(),up:0,vi:i,order:Math.min(i,P.n-1-i),line,kind:'wallslat'})}
   (S.wallLines||(S.wallLines=[])).push(line);S.wallDirty=true;
   [[P.x0,P.y0],[P.x1,P.y1]].forEach(([tx,ty],i)=>{if(anch[i])return;const dd=Math.hypot(tx-S.base.x,ty-S.base.y);S.fabShots.push({k:'wallpost',line,end:i,x0:S.base.x,y0:S.base.y,tx,ty,t:0,dur:Math.max(0.4,dd/FAB_FLIGHT_SPEED)})});
   tone(200,0.12,'square',0.06,0,420);
@@ -5942,9 +5987,9 @@ function finishWallDraw(){
 function addWallLine(a,b,auto){
   const L=Math.hypot(b.x-a.x,b.y-a.y);if(L<WALL_MIN_LEN)return null;
   const n=Math.max(1,Math.round(L/WALL_SLAT)),ux=(b.x-a.x)/L,uy=(b.y-a.y)/L,seg=L/n;
-  const line={x0:a.x,y0:a.y,x1:b.x,y1:b.y,ux,uy,ang:Math.atan2(uy,ux),posts:[false,false],anchored:[false,false],raiseT0:null,slats:[],auto:!!auto};
+  const line={x0:a.x,y0:a.y,x1:b.x,y1:b.y,ux,uy,ang:Math.atan2(uy,ux),posts:[false,false],anchored:[false,false],raiseT0:null,slats:[],auto:!!auto,type:wallType()};
   for(let i=0;i<n;i++){const c=(i+0.5)*seg,x=a.x+ux*c,y=a.y+uy*c;if(terrainAt(x,y)===2)continue;
-    line.slats.push({x,y,half:seg/2,hp:WALL_SLAT_HP,maxHp:WALL_SLAT_HP,up:0,order:Math.min(i,n-1-i),line,kind:'wallslat'})}
+    line.slats.push({x,y,half:seg/2,hp:wallSlatHp(),maxHp:wallSlatHp(),up:0,vi:i,order:Math.min(i,n-1-i),line,kind:'wallslat'})}
   if(!line.slats.length)return null;
   (S.wallLines||(S.wallLines=[])).push(line);S.wallDirty=true;
   [[a.x,a.y],[b.x,b.y]].forEach(([tx,ty],i)=>{const dd=Math.hypot(tx-S.base.x,ty-S.base.y);S.fabShots.push({k:'wallpost',line,end:i,x0:S.base.x,y0:S.base.y,tx,ty,t:0,dur:Math.max(0.4,dd/FAB_FLIGHT_SPEED)})});
@@ -5979,27 +6024,123 @@ function wallTowers(){
 function updateWallLines(dt){
   if(!S.wallLines)return;
   wallTowers();
+  if(S.zaps)S.zaps=S.zaps.filter(z=>(z.t+=dt)<0.18);
   S.wallLines.forEach(L=>{
-    L.slats.forEach(sl=>{if(sl.flashT>0)sl.flashT=Math.max(0,sl.flashT-dt)});
-    if(L.raiseT0==null)return;const el=S.t-L.raiseT0;
-    L.slats.forEach(sl=>{const was=sl.up;sl.up=Math.max(0,Math.min(1,(el-sl.order*WALL_RAISE_STEP)/WALL_RAISE_T));if(was<0.6&&sl.up>=0.6){S.wallDirty=true;if(sfxReady('slat',0.05))tone(150+Math.random()*60,0.05,'square',0.03)}});
+    const T=L.type||'std';
+    if((L.powT=(L.powT||0)-dt)<=0){L.powT=0.5;L.powered=turretPowered({x:(L.x0+L.x1)/2,y:(L.y0+L.y1)/2})||turretPowered({x:L.x0,y:L.y0})||turretPowered({x:L.x1,y:L.y1})}
+    L.slats.forEach(sl=>{
+      if(sl.flashT>0)sl.flashT=Math.max(0,sl.flashT-dt);
+      if(T==='glass'){
+        if(sl.dead){sl.regrowT=(sl.regrowT||0)+dt;if(sl.regrowT>=GLASS_REGROW_T){sl.dead=false;sl.regrowT=0;sl.hp=sl.maxHp*0.4;sl.growT0=S.t;S.wallDirty=true}}
+        else if(S.t-(sl.hitT??-9)>4&&sl.hp<sl.maxHp)sl.hp=Math.min(sl.maxHp,sl.hp+GLASS_REGEN*dt)}
+      if(T==='shield'&&!sl.dead){
+        if(sl.downT>0){sl.downT-=dt;if(sl.downT<=0){sl.downT=0;sl.hp=sl.maxHp*0.25}}
+        else if(L.powered&&S.t-(sl.hitT??-9)>SHIELD_QUIET&&sl.hp<sl.maxHp)sl.hp=Math.min(sl.maxHp,sl.hp+SHIELD_RECHARGE*dt)}
+    });
+    if(L.raiseT0==null)return;const el=S.t-L.raiseT0,step=WALL_RAISE_STEP*(WALL_TYPES[T].raise||1);
+    L.slats.forEach(sl=>{const was=sl.up;let up=Math.max(0,Math.min(1,(el-sl.order*step)/WALL_RAISE_T));
+      if(sl.growT0!=null){up=Math.min(up,(S.t-sl.growT0)/1.2);if(up>=1)sl.growT0=null}
+      sl.up=up;if(was<0.6&&sl.up>=0.6){S.wallDirty=true;if(sfxReady('slat',0.05)){if(T==='heavy')tone(90+Math.random()*30,0.09,'square',0.035);else tone(150+Math.random()*60,0.05,'square',0.03)}}});
   });
-  // a line with every slat broken is gone, posts and all
-  S.wallLines=S.wallLines.filter(L=>L.raiseT0==null||L.slats.some(sl=>!sl.dead));
+  // a line with every slat broken is gone, posts and all (a glass ridge keeps growing back)
+  S.wallLines=S.wallLines.filter(L=>L.raiseT0==null||L.type==='glass'||L.slats.some(sl=>!sl.dead));
 }
+// An enemy hitting a wall: an electric fence (with power) shocks and stuns it; a razor line cuts it.
+function wallTouch(w,e){const L=w.line;if(!L||e.hp<=0)return;
+  if(L.type==='elec'&&L.powered){e.hp-=ELEC_DMG;hitFlash(e);e.stunT=Math.max(e.stunT||0,ELEC_STUN);
+    (S.zaps||(S.zaps=[])).push({x0:w.x,y0:w.y,x1:e.x,y1:e.y,t:0,seed:Math.floor(Math.random()*999)});
+    if(sfxReady('zap',0.07)){noiseCrack(0.05,0.05,3200);tone(1500+Math.random()*500,0.05,'square',0.022,0,700)}}
+  else if(L.type==='razor'){e.hp-=RAZOR_DMG;hitFlash(e);spark(e.x,e.y,C.enemy,2)}}
+// ---- wall art: each slat lit like the units (muted colour, a wash from the top-left sun, bevel rims),
+// drawn once per type / damage stage / variant / facing into a small cached sprite. The lighting is
+// baked for the line's facing (one of WS_ANG steps), so a sprite is drawn at the line's exact angle.
+// Live parts — fence strands, shield panes, zaps — are drawn on top each frame.
+const WS_GL=['#ecd8ff','#a86af0','#5f2fa8','#2a1450'],WS_E=16,WS_ANG=16,WS_DB=[0,0.35,0.65,0.9],WS_SH={std:8,heavy:11.5,elec:2,razor:6,glass:5,shield:6.4};
+const WSPR=new Map(),WSPR_CAP=700;
+function wsHash(i,k,s){let h=Math.imul((i|0)*374761393+(k|0)*668265263+(s|0)*2147483647|0,1274126177);h^=h>>>13;h=Math.imul(h,1103515245);h^=h>>>16;return (h>>>0)/4294967296}
+function wsPath(P){ctx.beginPath();P.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.closePath()}
+function wsCut(P){ctx.fillStyle='rgba(14,16,20,0.92)';wsPath(P);ctx.fill()}
+function wsCracks(st,T,n){ctx.save();ctx.strokeStyle='rgba(12,14,17,0.85)';ctx.lineWidth=0.45;ctx.lineCap='round';
+  for(let k=0;k<n;k++){let x=(wsHash(st.i,k,1)-0.5)*st.h*1.6;const side=wsHash(st.i,k,2)<0.5?-1:1;let y=side*T;ctx.beginPath();ctx.moveTo(x,y);
+    for(let j=0;j<3;j++){x+=(wsHash(st.i,k*5+j,3)-0.5)*3.4;y-=side*(T*0.32+wsHash(st.i,k*5+j,4)*T*0.25);ctx.lineTo(x,y)}ctx.stroke()}ctx.restore()}
+function wsChunks(st,T,n){for(let k=0;k<n;k++){const x=(wsHash(st.i,k,5)-0.5)*st.h*1.5,side=wsHash(st.i,k,6)<0.5?-1:1,w=1.6+wsHash(st.i,k,7)*2.2,dp=T*(0.45+wsHash(st.i,k,8)*0.5);
+  wsCut([[x-w,side*T],[x+w*0.9,side*T],[x+w*0.4,side*(T-dp)],[x-w*0.3,side*(T-dp*0.7)]])}}
+function wsScorch(st,T,a){ctx.save();ctx.globalAlpha=a;const g=ctx.createRadialGradient(0,0,0,0,0,st.h);g.addColorStop(0,'rgba(20,14,10,0.55)');g.addColorStop(1,'rgba(20,14,10,0)');ctx.fillStyle=g;ctx.fillRect(-st.h,-T,st.h*2,T*2);ctx.restore()}
+function wsFacet(P,s0){const [lx,ly]=uSun();wsPath(P);ctx.fillStyle=WS_GL[2];ctx.fill();ctx.save();wsPath(P);ctx.clip();
+  ctx.beginPath();ctx.moveTo(-ly*99,lx*99);ctx.lineTo(ly*99,-lx*99);ctx.lineTo(ly*99+lx*99,-lx*99+ly*99);ctx.lineTo(-ly*99+lx*99,lx*99+ly*99);ctx.closePath();ctx.fillStyle=WS_GL[1];ctx.fill();
+  ctx.fillStyle=WS_GL[0];ctx.globalAlpha=0.85;ctx.beginPath();ctx.moveTo(lx*s0*0.75,ly*s0*0.75);ctx.lineTo(lx*s0*0.3-ly*s0*0.3,ly*s0*0.3+lx*s0*0.3);ctx.lineTo(lx*s0*0.2,ly*s0*0.2);ctx.closePath();ctx.fill();ctx.restore();
+  wsPath(P);ctx.lineWidth=Math.max(0.2,s0*0.09);ctx.strokeStyle=WS_GL[3];ctx.stroke()}
+function wsShard(x,y,len,w,ang){ctx.save();ctx.translate(x,y);ctx.rotate(ang);wsFacet([[len*0.5,0],[len*0.05,-w*0.5],[-len*0.5,-w*0.25],[-len*0.45,w*0.3],[len*0.1,w*0.5]],Math.max(len,w)*0.5);ctx.restore()}
+function wsJag(x0,y0,x1,y1,seed,amp,n){const pts=[[x0,y0]];for(let k=1;k<n;k++){const f=k/n;pts.push([x0+(x1-x0)*f+(wsHash(seed,k,1)-0.5)*amp,y0+(y1-y0)*f+(wsHash(seed,k,2)-0.5)*amp])}pts.push([x1,y1]);return pts}
+function wsStroke(pts){ctx.beginPath();pts.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.stroke()}
+// draw(st) is the slat in its own frame (x along the wall), st = {h half-length drawn, seg, d damage 0..1, i variant}
+const WALL_DRAW={
+ std:{draw(st){const h=st.h;
+   rP([[-h,-4],[h,-4],[h,4],[-h,4]],'#a9b6c4',0.8);
+   rP([[-h-0.3,-4.4],[-h+1.7,-4.4],[-h+1.7,4.4],[-h-0.3,4.4]],'#6a7887',0.4);rP([[h-1.7,-4.4],[h+0.3,-4.4],[h+0.3,4.4],[h-1.7,4.4]],'#6a7887',0.4);
+   rP([[-h+2.8,-1.2],[h-2.8,-1.2],[h-2.8,1.2],[-h+2.8,1.2]],'#5d6a77',0.4);
+   ctx.fillStyle='rgba(0,0,0,0.35)';ctx.fillRect(-0.2,-4,0.4,2.8);ctx.fillRect(-0.2,1.2,0.4,2.8);
+   for(const sx of[-1,1])for(const sy of[-1,1])rO(sx*(h-3.3),sy*2.7,0.55,'#dfe6ee',0.2);
+   if(st.d>0.2)wsCracks(st,4,st.d>0.6?4:2);if(st.d>0.5){wsScorch(st,4,st.d);wsChunks(st,4,st.d>0.8?3:1)}}},
+ heavy:{draw(st){const h=st.h;
+   rP([[-h,-3.4],[h,-3.4],[h,5.5],[-h,5.5]],'#6f7c89',0.8);rP([[-h,3],[h,3],[h-0.6,5.9],[-h+0.6,5.9]],'#8d9aa8',0.5);
+   rP([[-h+1,-2.4],[h-1,-2.4],[h-1,2.2],[-h+1,2.2]],'#3b4652',0.5);
+   ctx.fillStyle=muteCol(C.accent);for(let k=-1;k<=1;k++){const x=k*h*0.55;ctx.beginPath();ctx.moveTo(x-1.4,-1.4);ctx.lineTo(x,-0.1);ctx.lineTo(x+1.4,-1.4);ctx.lineTo(x+1.4,0.2);ctx.lineTo(x,1.5);ctx.lineTo(x-1.4,0.2);ctx.closePath();ctx.fill()}
+   if(st.d<0.85){ctx.save();if(st.d>0.5){ctx.translate(0,-1.1*(st.d-0.5)*2.5);ctx.rotate((wsHash(st.i,2,1)-0.5)*0.25)}
+    rP([[-h+0.5,-6.2],[h-0.5,-6.2],[h,-3.2],[-h,-3.2]],'#c3ccd6',0.6);for(let k=-1;k<=1;k++)rO(k*(h-2.2),-4.7,0.7,'#e6e6e6',0.25);ctx.restore()}
+   if(st.d>0.35)wsCracks(st,5.5,st.d>0.7?3:1);if(st.d>0.7){wsScorch(st,5.5,st.d);wsChunks(st,5.5,2)}}},
+ elec:{draw(st){const S2=st.seg/2;rP([[-S2,-0.8],[S2,-0.8],[S2,0.8],[-S2,0.8]],'#4d4d4d',0.4);
+   for(const sx of[-1,1]){rP([[sx*S2-1.8,-1.8],[sx*S2+1.8,-1.8],[sx*S2+1.8,1.8],[sx*S2-1.8,1.8]],'#56616d',0.5);rO(sx*S2,-2.4,0.9,C.accent,0.3);rO(sx*S2,2.4,0.9,C.accent,0.3)}
+   if(st.d>0.6)wsCracks(st,1.8,1)},
+  fx(st){if(!st.powered)return;const S2=st.seg/2,live=3-Math.floor(st.d*3.2);ctx.save();ctx.globalCompositeOperation='lighter';ctx.lineCap='round';
+   for(let k=0;k<live;k++){const y=(k-1)*2.3,pts=wsJag(-S2+1.8,y,S2-1.8,y,st.i*31+k+Math.floor(st.t*12)*97,0.9,6);
+    ctx.globalAlpha=0.25*st.up;ctx.strokeStyle='#8fe3ff';ctx.lineWidth=1.6;wsStroke(pts);ctx.globalAlpha=0.9*st.up;ctx.strokeStyle='#dff7ff';ctx.lineWidth=0.35;wsStroke(pts)}
+   ctx.restore()}},
+ razor:{draw(st){const h=st.h;
+   for(let k=0;k<4;k++){if(st.d>0.4&&wsHash(st.i,k,9)<st.d-0.2)continue;const x=-h+1.5+k*(h*2-3)/3,L=3.6+wsHash(st.i,k,10)*2,bend=st.d>0.5?(wsHash(st.i,k,11)-0.5)*1.4:0;
+    rP([[x-1,-2.6],[x+1,-2.6],[x+bend,-2.6-L]],'#cfd6dd',0.4)}
+   rP([[-h,-3],[h,-3],[h,3],[-h,3]],'#8a8f96',0.7);rP([[-h+0.8,-1.6],[h-0.8,-1.6],[h-0.8,1.6],[-h+0.8,1.6]],'#6d7278',0.4);
+   const coil=(dx,dy)=>{ctx.beginPath();for(let q=0;q<=80;q++){const th=q/80*Math.PI*9,x=-h+0.8+q/80*(h*2-1.6)+Math.cos(th)*1.3,y=Math.sin(th)*2.4;q?ctx.lineTo(x+dx,y+dy):ctx.moveTo(x+dx,y+dy)}ctx.stroke()};
+   ctx.lineJoin='round';ctx.strokeStyle='rgba(10,12,14,0.6)';ctx.lineWidth=0.55;coil(0.35,0.35);ctx.strokeStyle=muteCol('#e6ecf2');ctx.lineWidth=0.3;coil(0,0);
+   if(st.d>0.3)wsCracks(st,3,2);if(st.d>0.6)wsChunks(st,3,2)}},
+ glass:{draw(st){const S2=st.seg/2;rP([[-S2,-2.6],[S2,-2.6],[S2,2.6],[-S2,2.6]],'#3a2c4a',0.5);
+   for(let k=0;k<6;k++){if(wsHash(st.i,k,12)<st.d*0.8)continue;
+    const x=-S2+1.5+k*(S2*2-3)/5+(wsHash(st.i,k,13)-0.5)*1.5,y=(wsHash(st.i,k,14)-0.5)*2,a=-Math.PI/2+(wsHash(st.i,k,15)-0.5)*2.6+(k%2?Math.PI:0),L=5+wsHash(st.i,k,16)*4;
+    wsShard(x+Math.cos(a)*L*0.3,y+Math.sin(a)*L*0.3,L,L*0.5,a)}},
+  fx(st){if(st.grow==null)return;ctx.save();ctx.globalCompositeOperation='lighter';const g=ctx.createRadialGradient(0,0,0,0,0,8);g.addColorStop(0,`rgba(200,140,255,${0.5*(1-st.grow)})`);g.addColorStop(1,'rgba(200,140,255,0)');ctx.fillStyle=g;ctx.fillRect(-8,-8,16,16);ctx.restore()}},
+ shield:{draw(st){const S2=st.seg/2;for(const sx of[-1,1]){rP([[sx*S2-1.8,-3.2],[sx*S2+1.8,-3.2],[sx*S2+1.8,3.2],[sx*S2-1.8,3.2]],'#999',0.4);rO(sx*S2,-1.4,0.9,C.ally,0.3);rO(sx*S2,1.4,0.9,C.ally,0.3)}},
+  fx(st){if(!st.powered||st.down)return;const S2=st.seg/2,fl=st.d>0.5?(Math.sin(st.t*30+st.i*3)>-0.2?1:0.3):1,a=st.up*fl;
+   ctx.save();ctx.globalCompositeOperation='lighter';ctx.globalAlpha=a;ctx.beginPath();ctx.rect(-S2+1.8,-2.8,S2*2-3.6,5.6);ctx.clip();
+   const pg=ctx.createLinearGradient(0,-2.8,0,2.8);pg.addColorStop(0,'rgba(94,200,255,0.1)');pg.addColorStop(0.5,'rgba(94,200,255,0.42)');pg.addColorStop(1,'rgba(94,200,255,0.1)');ctx.fillStyle=pg;ctx.fillRect(-S2,-2.8,S2*2,5.6);
+   ctx.strokeStyle='rgba(160,225,255,0.45)';ctx.lineWidth=0.25;
+   for(let k=-4;k<=4;k++){const x=k*2.6+((st.i%2)?1.3:0);ctx.beginPath();ctx.moveTo(x-1.3,-2.8);ctx.lineTo(x,-1.1);ctx.lineTo(x,1.1);ctx.lineTo(x-1.3,2.8);ctx.moveTo(x,-1.1);ctx.lineTo(x+1.3,-1.9);ctx.moveTo(x,1.1);ctx.lineTo(x+1.3,1.9);ctx.stroke()}
+   ctx.fillStyle='rgba(200,240,255,0.75)';ctx.fillRect(-S2,-2.85,S2*2,0.35);ctx.fillRect(-S2,2.5,S2*2,0.35);
+   if(st.hit>0){ctx.strokeStyle=`rgba(220,245,255,${st.hit})`;ctx.lineWidth=0.6;ctx.beginPath();ctx.ellipse(0,0,(1-st.hit)*7+0.5,2.7,0,0,Math.PI*2);ctx.stroke()}
+   ctx.restore()}},
+};
+function wsDb(sl,T){if(T==='shield')return 0;const d=sl.maxHp?1-sl.hp/sl.maxHp:0;return d<0.2?0:d<0.5?1:d<0.8?2:3}
+function wallSprite(T,db,vi,ai,sc,half){const k=T+db+'|'+vi+'|'+ai+'|'+sc+'|'+Math.round(half*4);let c=cacheGet(WSPR,k);if(c)return c;
+  const S2=Math.ceil(WS_E*2*sc);c=document.createElement('canvas');c.width=c.height=S2;const x=c.getContext('2d');x.setTransform(sc,0,0,sc,WS_E*sc,WS_E*sc);
+  const a=-ai*Math.PI*2/WS_ANG,sx=U_SUN.x,sy=U_SUN.y;U_SUN.x=sx*Math.cos(a)-sy*Math.sin(a);U_SUN.y=sx*Math.sin(a)+sy*Math.cos(a);
+  const keep=ctx;ctx=x;try{WALL_DRAW[T].draw({h:half*WALL_TYPES[T].cover,seg:half*2,d:WS_DB[db],i:vi})}finally{ctx=keep;U_SUN.x=sx;U_SUN.y=sy}
+  cachePut(WSPR,k,c,WSPR_CAP);return c}
 function drawWallLines(){
-  (S.wallLines||[]).forEach(L=>{
-    L.slats.forEach(sl=>{if(sl.dead||sl.up<=0)return;
-      const h=sl.half*0.82,t=WALL_THICK*(0.35+0.65*sl.up);
-      ctx.save();ctx.translate(sl.x,sl.y);ctx.rotate(L.ang);ctx.scale(1,sl.up<1?0.4+0.6*sl.up:1);
-      ctx.fillStyle='rgba(0,0,0,0.35)';ctx.fillRect(-h+2,-t/2+3,h*2,t);
-      ctx.fillStyle=sl.flashT>0?'#fff':'#8d9aa8';ctx.strokeStyle='#2a323b';ctx.lineWidth=1;ctx.fillRect(-h,-t/2,h*2,t);ctx.strokeRect(-h,-t/2,h*2,t);
-      ctx.fillStyle=sl.flashT>0?'#fff':'#5d6a77';ctx.fillRect(-h+2,-1,h*2-4,2);
-      if(sl.hp<sl.maxHp){ctx.fillStyle='rgba(255,92,77,0.7)';ctx.fillRect(-h,t/2-2,h*2*(1-sl.hp/sl.maxHp),2)}
+  const sc=Math.min(4,Math.ceil(cam.z*gDpr()*2)/2),step=Math.PI*2/WS_ANG;
+  (S.wallLines||[]).forEach(L=>{const T=L.type||'std',W=WALL_TYPES[T],D=WALL_DRAW[T],ai=((Math.round(L.ang/step)%WS_ANG)+WS_ANG)%WS_ANG;
+    L.slats.forEach((sl,idx)=>{if(sl.dead||sl.up<=0)return;
+      const vi=(sl.vi??idx)%3,half=sl.half,cv=half*W.cover,rs=sl.up<1?0.4+0.6*sl.up:1,slam=T==='heavy'&&sl.up<1?1+0.15*(1-sl.up):1,th=WS_SH[T];
+      ctx.save();ctx.translate(sl.x+2.4,sl.y+3);ctx.rotate(L.ang);ctx.fillStyle='rgba(0,0,0,0.35)';ctx.fillRect(-cv,-th*rs/2,cv*2,th*rs);ctx.restore();
+      ctx.save();ctx.translate(sl.x,sl.y);ctx.rotate(L.ang);ctx.scale(slam,rs*slam);
+      ctx.drawImage(wallSprite(T,wsDb(sl,T),vi,ai,sc,half),-WS_E,-WS_E,WS_E*2,WS_E*2);
+      if(sl.flashT>0){ctx.globalAlpha=0.5;ctx.fillStyle='#fff';ctx.fillRect(-cv,-th/2,cv*2,th);ctx.globalAlpha=1}
+      if(D.fx)D.fx({t:S.t,i:idx,d:sl.maxHp?1-sl.hp/sl.maxHp:0,seg:half*2,up:sl.up,powered:L.powered,down:sl.downT>0,hit:Math.max(0,1-(S.t-(sl.hitT??-9))/0.35),grow:sl.growT0!=null?Math.min(1,(S.t-sl.growT0)/1.2):null});
       ctx.restore()});
-    [[L.x0,L.y0,0],[L.x1,L.y1,1]].forEach(([x,y,i])=>{if(!L.posts[i]||(L.anchored&&L.anchored[i]&&S.turrets.some(t=>t.built&&dist(t,{x,y})<2)))return;
-      ctx.fillStyle='#3b4652';ctx.strokeStyle=C.accent;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(x,y,5.5,0,Math.PI*2);ctx.fill();ctx.stroke()});
+    [[L.x0,L.y0,0],[L.x1,L.y1,1]].forEach(([x,y,i])=>{if(!L.posts[i]||S.turrets.some(t=>t.built&&dist(t,{x,y})<4))return;
+      rO(x,y,5.2,'#56616d',0.8);ctx.strokeStyle=C.accent;ctx.lineWidth=1.2;ctx.beginPath();ctx.arc(x,y,5.6,0,Math.PI*2);ctx.stroke()});
   });
+  if(S.zaps&&S.zaps.length){ctx.save();ctx.globalCompositeOperation='lighter';ctx.lineCap='round';
+    S.zaps.forEach(z=>{const a=1-z.t/0.18,pts=wsJag(z.x0,z.y0,z.x1,z.y1,z.seed+Math.floor(z.t*60),5,5);ctx.globalAlpha=a*0.5;ctx.strokeStyle='#8fe3ff';ctx.lineWidth=3;wsStroke(pts);ctx.globalAlpha=a;ctx.strokeStyle='#fff';ctx.lineWidth=1;wsStroke(pts)});
+    ctx.restore()}
 }
 function drawWallPreview(){
   if(buildMode!=='wall')return;
@@ -6191,8 +6332,8 @@ function wallAt(x,y){
   if(!S.wallLines||!S.wallLines.length)return undefined;
   if(S.wallDirty||!S.wallGrid)rebuildWallGrid();
   const b=S.wallGrid.get(key(Math.floor(x/WALL_GRID),Math.floor(y/WALL_GRID)));if(!b)return undefined;
-  for(const sl of b){if(sl.dead||sl.up<0.6)continue;const L=sl.line,rx=x-sl.x,ry=y-sl.y,al=rx*L.ux+ry*L.uy,pp=rx*-L.uy+ry*L.ux;
-    if(Math.abs(al)<=sl.half+2&&Math.abs(pp)<=WALL_THICK/2+3)return sl}
+  for(const sl of b){if(sl.dead||sl.up<0.6||sl.downT>0)continue;const L=sl.line;if(L.type==='shield'&&!L.powered)continue;const rx=x-sl.x,ry=y-sl.y,al=rx*L.ux+ry*L.uy,pp=rx*-L.uy+ry*L.ux;
+    if(Math.abs(al)<=sl.half+2&&Math.abs(pp)<=WALL_THICK/2+(L.type==='heavy'?5:3))return sl}
   return undefined;
 }
 // slats bucketed on a coarse grid (each into every cell its footprint touches) so wallAt stays cheap
@@ -6202,7 +6343,9 @@ function rebuildWallGrid(){
   (S.wallLines||[]).forEach(L=>L.slats.forEach(sl=>{if(sl.dead)return;const r=sl.half+WALL_THICK;
     for(let gx=Math.floor((sl.x-r)/WALL_GRID);gx<=Math.floor((sl.x+r)/WALL_GRID);gx++)for(let gy=Math.floor((sl.y-r)/WALL_GRID);gy<=Math.floor((sl.y+r)/WALL_GRID);gy++){const k=key(gx,gy);if(!g.has(k))g.set(k,[]);g.get(k).push(sl)}}));
 }
-function damageWall(w,dmg){w.hp-=dmg;hitFlash(w);if(w.hp<=0&&!w.dead){w.dead=true;S.wallDirty=true;burst(w.x,w.y,'#8d9aa8',6,90,0.35)}}
+function damageWall(w,dmg){w.hitT=S.t;const L=w.line;
+  if(L&&L.type==='shield'){if(w.downT>0)return;w.hp-=dmg;hitFlash(w);if(w.hp<=0){w.hp=0;w.downT=SHIELD_DOWN_T;burst(w.x,w.y,C.ally,6,80,0.3);if(sfxReady('paneDown',0.2))tone(320,0.25,'sawtooth',0.035,0,90)}return}
+  w.hp-=dmg;hitFlash(w);if(w.hp<=0&&!w.dead){w.dead=true;S.wallDirty=true;burst(w.x,w.y,L&&L.type==='glass'?'#a86af0':'#8d9aa8',6,90,0.35)}}
 // Two walls touching only at a shared corner (with the other two cells at that corner empty) should
 // seal that corner like a solid wall — otherwise enemies squeeze through the diagonal gap between them.
 function cornerSealed(x,y){
@@ -6446,7 +6589,7 @@ function hordeStep(e,tgt,dt){
   if(f){ux=f.x;uy=f.y}else{ux=(tgt.x-e.x)/(d||1);uy=(tgt.y-e.y)/(d||1)}
   const wv=Math.sin(S.t*2.3+e.seed)*0.4*Math.min(1,d/200),c=Math.cos(wv),s=Math.sin(wv);[ux,uy]=[ux*c-uy*s,ux*s+uy*c];
   const w=wallAt(e.x+ux*(e.r+6),e.y+uy*(e.r+6));
-  if(w){if(e.cd<=0){damageWall(w,e.dmg*1.5);spark(w.x,w.y,C.enemy,1);e.cd=0.8}return}
+  if(w){if(e.cd<=0){damageWall(w,e.dmg*1.5);spark(w.x,w.y,C.enemy,1);e.cd=0.8;wallTouch(w,e)}return}
   const sp=e.speed*enemyRoughFactor(e.x,e.y)*dt,nx=e.x+ux*sp,ny=e.y+uy*sp;
   if(!hordeBlocked(nx,ny)){e.x=nx;e.y=ny}else if(!hordeBlocked(nx,e.y))e.x=nx;else if(!hordeBlocked(e.x,ny))e.y=ny;
   e.ang=Math.atan2(uy,ux);
@@ -6657,20 +6800,49 @@ function podTurretStep(tu,dt){
 // The launcher: a heavy base plate, and on it an orange box of eight cells (the Grenadier's pod,
 // scaled up) that swivels to aim. Loaded cells glow, the freshest one blinks in.
 function drawPodTurret(t){
-  const fl=t.flashT>0,OC=fl?'#fff':ROLE_COL.grenadier,n=t.pods??PODT_CELLS,pop=S.t-(t.podShotT??-9);
-  ctx.save();ctx.translate(t.x,t.y);
-  ctx.fillStyle='rgba(0,0,0,0.35)';ctx.beginPath();ctx.arc(2,3,13,0,Math.PI*2);ctx.fill();
-  ctx.fillStyle=fl?'#fff':(t.powered?'#3b4652':'#2a2d31');ctx.strokeStyle=t.powered?'#56616d':C.enemy;ctx.lineWidth=1.5;
-  ctx.beginPath();for(let i=0;i<8;i++){const a=i*Math.PI/4+Math.PI/8;ctx.lineTo(Math.cos(a)*12.5,Math.sin(a)*12.5)}ctx.closePath();ctx.fill();ctx.stroke();
-  ctx.rotate(t.ang+Math.PI/2);
-  rP([[-7.4,-4.4],[7.4,-4.4],[7.4,4.4],[-7.4,4.4]],OC,0.8);
-  ctx.fillStyle='#000';ctx.globalAlpha=0.25;ctx.fillRect(-7.4,3,14.8,1.4);ctx.globalAlpha=1;
-  for(let i=0;i<PODT_CELLS;i++){const cx=-5.1+(i%4)*3.4,cy=-1.8+(i>>2)*3.6,loaded=i>=PODT_CELLS-n,fresh=loaded&&i===PODT_CELLS-n&&S.t-(t.podGrewT??-9)<0.3;rO(cx,cy,1.25,loaded?(fresh?ROCKET_COLOR:'#5a2f1a'):'#111',0.4)}
-  if(pop<0.3){const cell=PODT_CELLS-n-1;if(cell>=0){const cx=-5.1+(cell%4)*3.4,cy=-1.8+(cell>>2)*3.6;ctx.fillStyle='#cfd8e0';ctx.globalAlpha=0.6*(1-pop/0.3);ctx.beginPath();ctx.arc(cx,cy,1.8+pop*10,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1}}
-  ctx.restore();
+  drawAnchoredTurret(t);
+  const n=t.pods??PODT_CELLS,pop=S.t-(t.podShotT??-9);
+  if(pop<0.3){const cell=PODT_CELLS-n-1;if(cell>=0){const p=podCellT(t,cell);ctx.fillStyle='#cfd8e0';ctx.globalAlpha=0.6*(1-pop/0.3);ctx.beginPath();ctx.arc(p.x,p.y,1.8+pop*10,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1}}
   if(!t.powered)drawCutGlyph(t.x,t.y);
   hpbar(t.x,t.y-19,24,t.hp/t.maxHp);
 }
+// ---- turret art: "Anchored" — a hex plate in the Bastion's greys with a blue armoured head, bolted down
+// on three of the Bastion's foot plates (four under a Pod Turret), their amber anchor rings glowing.
+// On a wall end the plates turn into the gaps between the walls it caps (fitAnchors), so the tower
+// looks bolted to the wall. Drawn into a buffer so it casts one shadow down-right, like the units.
+const twPoly=(n,r,off)=>{const P=[];for(let i=0;i<n;i++){const a=off+i/n*Math.PI*2;P.push([Math.cos(a)*r,Math.sin(a)*r])}return P};
+const twRot=(P,a,dx,dy)=>P.map(([x,y])=>[x*Math.cos(a)-y*Math.sin(a)+dx,x*Math.sin(a)+y*Math.cos(a)+dy]);
+function twHex(r,dim){rP(twPoly(6,r,Math.PI/6),dim?'#7d7d7d':'#999',0.8);rP(twPoly(6,r*0.69,Math.PI/6),dim?'#a8a8a8':'#e6e6e6',0.6);
+  ctx.fillStyle=muteCol('#4d4d4d');for(let i=0;i<6;i++){const a=i/6*Math.PI*2;ctx.fillRect(Math.cos(a)*r*0.83-0.7,Math.sin(a)*r*0.83-0.7,1.4,1.4)}}
+function twAnchors(angs,R){angs.forEach(a=>{const x=Math.cos(a)*R,y=Math.sin(a)*R;rLimb([[Math.cos(a)*5,Math.sin(a)*5],[x,y]],2.6,'#999');rP(twRot([[-4.4,-2.6],[4.4,-2.6],[3.6,2.6],[-3.6,2.6]],a+Math.PI/2,x,y),'#e6e6e6',0.5);
+  ctx.save();ctx.globalAlpha=0.7;ctx.strokeStyle=C.accent;ctx.lineWidth=0.7;ctx.beginPath();ctx.arc(x,y,3.4,0,Math.PI*2);ctx.stroke();ctx.restore()})}
+function fitAnchors(n,dirs){const da=(a,b)=>Math.abs(Math.atan2(Math.sin(a-b),Math.cos(a-b)));let best=-1,bo=0;
+  for(let o=0;o<Math.PI*2/n;o+=0.03){let m=9;for(let i=0;i<n;i++){const a=o+i/n*Math.PI*2;dirs.forEach(d=>{m=Math.min(m,da(a,d))})}if(m>best){best=m;bo=o}}
+  return Array.from({length:n},(_,i)=>bo+i/n*Math.PI*2)}
+function towerAnchors(t,n){const dirs=[];(S.wallLines||[]).forEach(L=>{if(L.slats.every(sl=>sl.dead))return;if(Math.hypot(L.x0-t.x,L.y0-t.y)<4)dirs.push(L.ang);else if(Math.hypot(L.x1-t.x,L.y1-t.y)<4)dirs.push(L.ang+Math.PI)});
+  const sig=n+':'+dirs.map(a=>a.toFixed(2)).join(',');
+  if(t._anchSig!==sig){t._anchSig=sig;t._anch=dirs.length?fitAnchors(n,dirs):Array.from({length:n},(_,i)=>(n===4?Math.PI/4:-Math.PI/2+Math.PI/3)+i/n*Math.PI*2)}
+  return t._anch}
+const TW_C=document.createElement('canvas'),TW_SH=document.createElement('canvas'),TW_E=30;
+function drawTowerLit(t,fn){const sc=Math.min(4,cam.z*gDpr()),S2=Math.ceil(TW_E*2*sc);[TW_C,TW_SH].forEach(c=>{if(c.width<S2){c.width=c.height=S2}});
+  const x=TW_C.getContext('2d');x.setTransform(1,0,0,1,0,0);x.clearRect(0,0,S2,S2);x.setTransform(sc,0,0,sc,TW_E*sc,TW_E*sc);
+  const keep=ctx;ctx=x;try{fn()}finally{ctx=keep}
+  const sh=TW_SH.getContext('2d');sh.setTransform(1,0,0,1,0,0);sh.clearRect(0,0,S2,S2);sh.globalCompositeOperation='source-over';sh.drawImage(TW_C,0,0);
+  sh.globalCompositeOperation='source-in';sh.fillStyle='rgba(0,0,0,0.42)';sh.fillRect(0,0,S2,S2);sh.globalCompositeOperation='source-over';
+  ctx.drawImage(TW_SH,0,0,S2,S2,t.x-TW_E+2.4,t.y-TW_E+2.4,TW_E*2,TW_E*2);ctx.drawImage(TW_C,0,0,S2,S2,t.x-TW_E,t.y-TW_E,TW_E*2,TW_E*2)}
+function drawAnchoredTurret(t){const pod=t.kind==='podturret',on=t.powered!==false,fl=t.flashT>0;
+  const anch=towerAnchors(t,pod?4:3),since=S.t-(t.shotT??-9),kick=since<0.15?1-since/0.15:0,AL=fl?'#fff':on?C.ally:'#6d8796';
+  drawTowerLit(t,()=>{twAnchors(anch,16);
+    if(pod){twHex(11.4,!on);ctx.rotate(t.ang+Math.PI/2);rP([[-10,-4],[-7.4,-5.2],[-7.4,5.2],[-10,4]],AL,0.6);rP([[7.4,-5.2],[10,-4],[10,4],[7.4,5.2]],AL,0.6);
+      const n=t.pods??PODT_CELLS;rP([[-7.4,-4.4],[7.4,-4.4],[7.4,4.4],[-7.4,4.4]],fl?'#fff':ROLE_COL.grenadier,0.8);ctx.fillStyle='#000';ctx.globalAlpha=0.25;ctx.fillRect(-7.4,3,14.8,1.4);ctx.globalAlpha=1;
+      for(let i=0;i<PODT_CELLS;i++){const cx=-5.1+(i%4)*3.4,cy=-1.8+(i>>2)*3.6,loaded=i>=PODT_CELLS-n,fresh=loaded&&i===PODT_CELLS-n&&S.t-(t.podGrewT??-9)<0.3;rO(cx,cy,1.25,loaded?(fresh?ROCKET_COLOR:'#5a2f1a'):'#111',0.4)}
+      rO(0,6.4,1.8,AL,0.5)}
+    else{twHex(10,!on);ctx.rotate(t.ang+Math.PI/2);const sd=!!t.side,k1=kick*2.4*(sd?1:0.15),k2=kick*2.4*(sd?0.15:1);
+      rP([[-3.3,-15+k1],[-1.3,-15+k1],[-1.3,-3+k1],[-3.3,-3+k1]],'#999',0.5);rP([[1.3,-15+k2],[3.3,-15+k2],[3.3,-3+k2],[1.3,-3+k2]],'#999',0.5);
+      rP([[-3.6,-15.8+k1],[-1,-15.8+k1],[-1,-13.6+k1],[-3.6,-13.6+k1]],'#4d4d4d',0.4);rP([[1,-15.8+k2],[3.6,-15.8+k2],[3.6,-13.6+k2],[1,-13.6+k2]],'#4d4d4d',0.4);
+      rP([[-5.6,-2.4],[-3,-5.6],[3,-5.6],[5.6,-2.4],[5.6,3],[2.4,5.8],[-2.4,5.8],[-5.6,3]],AL,0.7);rP([[-3,-1.6],[3,-1.6],[2.3,1.6],[-2.3,1.6]],'#2f6f93',0.4);rO(0,4,1.15,on?C.accent:C.enemy,0.4)}});
+  if(!pod&&since<0.07){const a=t.ang,lx=t.side?-2.3:2.3,mx=t.x+Math.cos(a)*17-Math.sin(a)*lx,my=t.y+Math.sin(a)*17+Math.cos(a)*lx,k=1-since/0.07;
+    ctx.save();ctx.translate(mx,my);ctx.rotate(a);ctx.globalCompositeOperation='lighter';ctx.globalAlpha=k;ctx.fillStyle=C.accent;ctx.beginPath();ctx.moveTo(6,0);ctx.lineTo(0,-2);ctx.lineTo(-1,0);ctx.lineTo(0,2);ctx.closePath();ctx.fill();ctx.restore()}}
 // ---------- Grenadier (pod) and Rocketeer (spotter) art ----------
 function podCellPos(t,i){const lx=-1.8+(i%2)*3.6,ly=2.8+(i>>1)*2.6,rot=t.ang+Math.PI/2,c=Math.cos(rot),s=Math.sin(rot);return {x:t.x+lx*c-ly*s,y:t.y+lx*s+ly*c}}
 function drawGrenadier(t){
@@ -7265,7 +7437,7 @@ function update(dt){
     if(!tu.powered)return;
     if(tu.kind==='podturret')return podTurretStep(tu,dt);
     let best=null,bd=TURRET_RANGE;S.enemies.forEach(e=>{const d=dist(e,tu);if(d<bd){bd=d;best=e}});
-    if(best){tu.ang=Math.atan2(best.y-tu.y,best.x-tu.x);if(tu.cd<=0){damageEnemy(best,TURRET_DMG);tracer(tu,best,C.accent);tu.cd=TURRET_CD}}
+    if(best){tu.ang=Math.atan2(best.y-tu.y,best.x-tu.x);if(tu.cd<=0){damageEnemy(best,TURRET_DMG);tracer(tu,best,C.accent);tu.cd=TURRET_CD;tu.shotT=S.t;tu.side=!tu.side}}
   });
 
   // Energy Surge (reward card): one shared timer, so every powered, tethered Relay pulses at the
@@ -7404,7 +7576,7 @@ function update(dt){
     const dx=aim.x-e.x,dy=aim.y-e.y,L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L,look=e.r+6,perp=e.r*0.6;
     const probes=[{x:e.x+ux*look,y:e.y+uy*look},{x:e.x+ux*look-uy*perp,y:e.y+uy*look+ux*perp},{x:e.x+ux*look+uy*perp,y:e.y+uy*look-ux*perp}];
     let w=null; for(const pt of probes){w=wallAt(pt.x,pt.y); if(w)break}
-    if(w){if(e.cd<=0){damageWall(w,e.dmg*1.5);spark(w.x,w.y,C.enemy,2);e.cd=0.8}return}
+    if(w){if(e.cd<=0){damageWall(w,e.dmg*1.5);spark(w.x,w.y,C.enemy,2);e.cd=0.8;wallTouch(w,e)}return}
     const factor=enemyRoughFactor(e.x,e.y);
     moveToward(e,aim,e.speed*factor,dt);
   });
@@ -8303,7 +8475,7 @@ function draw(){
       return;
     }
     if(t.kind==='podturret')return drawPodTurret(t);
-    ctx.fillStyle=t.flashT>0?'#fff':(t.powered?'#3b4652':'#2a2d31');ctx.beginPath();ctx.arc(t.x,t.y,11,0,Math.PI*2);ctx.fill();ctx.strokeStyle=t.powered?C.accent:C.enemy;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(t.x,t.y);ctx.lineTo(t.x+Math.cos(t.ang)*15,t.y+Math.sin(t.ang)*15);ctx.stroke();
+    drawAnchoredTurret(t);
     if(!t.powered)drawCutGlyph(t.x,t.y);
     hpbar(t.x,t.y-18,22,t.hp/t.maxHp)});
   // relays
