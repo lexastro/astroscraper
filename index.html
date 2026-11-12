@@ -3552,6 +3552,7 @@ function renderTutorialStep(){
   next._hd=!!st.done; next._tc=st.finish?'Finish tutorial':'Next';
   alt._hd=!st.finish; alt._tc='Keep playing';
   document.getElementById('tutSkipStep')._hd=!st.done;
+  voxTut(st)/*VOX*/;
 }
 function advanceTutorial(){
   if(!tutorial)return;
@@ -4820,11 +4821,11 @@ function pushToast(text,type){
 // reset() (called once at page load, and again on every "Play" launch) fires an initial hint via
 // msg() — suppressed while any menu screen is up front, so no toast is sitting there before the
 // player has even started a run.
-function msg(s){if(menuOpen)return;pushToast(s,inferToastType(s));msgT=S.t}
+function msg(s){if(menuOpen)return;pushToast(s,inferToastType(s));msgT=S.t;voxHear(s)/*VOX*/}
 // Threats and salvage results go to a banner at the top centre of the screen instead of the toast
 // stack: the newest on top, at most BANNER_MAX, each gone after BANNER_LIFE.
 const BANNER_MAX=2, BANNER_LIFE=6500;let bannerLog=[],bannerSeq=0;
-function banner(s,type){if(menuOpen)return;msgT=S.t;
+function banner(s,type){if(menuOpen)return;msgT=S.t;voxHear(s)/*VOX*/;
   if(bannerLog[0]&&bannerLog[0].text===s){clearTimeout(bannerLog[0].timer);const id=bannerLog[0].id;bannerLog[0].timer=setTimeout(()=>dropBanner(id),BANNER_LIFE);return}
   const id=++bannerSeq;bannerLog.unshift({id,text:s,type:type||'danger',timer:setTimeout(()=>dropBanner(id),BANNER_LIFE)});
   while(bannerLog.length>BANNER_MAX)clearTimeout(bannerLog.pop().timer);renderBanners()}
@@ -4835,7 +4836,7 @@ function renderBanners(){const el=document.getElementById('banners');el.innerHTM
 let curX=innerWidth/2,curY=innerHeight/2,noteTimer=null;
 addEventListener('pointermove',e=>{curX=e.clientX;curY=e.clientY},{passive:true});
 addEventListener('pointerdown',e=>{curX=e.clientX;curY=e.clientY},{passive:true,capture:true});
-function note(s){if(menuOpen)return;const el=document.getElementById('curNote');el.textContent=s;el.style.left=curX+'px';el.style.top=curY+'px';el.style.opacity=1;el._hd=false;
+function note(s){if(menuOpen)return;voxHear(s)/*VOX*/;const el=document.getElementById('curNote');el.textContent=s;el.style.left=curX+'px';el.style.top=curY+'px';el.style.opacity=1;el._hd=false;
   clearTimeout(noteTimer);noteTimer=setTimeout(()=>{el.style.opacity=0;noteTimer=setTimeout(()=>{el._hd=true},260)},1600)}
 
 // ---------- terrain & pathfinding ----------
@@ -10204,6 +10205,174 @@ function frame(ts){requestAnimationFrame(frame); // asked for first, so one bad 
   const gap=ts-lastT,dt=Math.min(0.05,gap/1000||0);lastT=ts;document.body.classList.toggle('inMenu',menuOpen);
   if(TPAINT.loading&&performance.now()-TPAINT.loadT0>25000)showLoading(false);
   const a=performance.now();if(!TPAINT.loading){update(dt);tutTick()}const b=performance.now();if(cv.width>0&&cv.height>0)draw();perfTick(ts,gap||0,b-a,performance.now()-b)}
+// ---------- voice announcer: VESPER (prototype, off by default) ----------
+// The Bastion's onboard operations intelligence, speaking through the browser's own speech engine
+// (speechSynthesis: no files, no network of ours). Web Audio adds the radio around the voice — a
+// squelch chirp in and out, a faint band-passed hiss under each line — and ducks music and ambience
+// while she talks. (The voice itself can't be filtered: browsers don't route speechSynthesis into
+// Web Audio.) She hears the game through the existing msg()/banner()/note() text and the tutorial
+// (the four calls marked VOX), and polls hull and run state twice a second. To remove it: delete
+// this block and those four calls.
+const VOX_KEY='astroscraper.vox';
+let VOX={on:false,vol:0.8,voice:'',chat:2};try{Object.assign(VOX,JSON.parse(localStorage.getItem(VOX_KEY)||'{}'))}catch(e){}
+function voxSave(){try{localStorage.setItem(VOX_KEY,JSON.stringify(VOX))}catch(e){}}
+const voxSynth=window.speechSynthesis||null;
+// p: priority (1 critical … 4 chatter); cd: seconds before the same event may speak again.
+// Chattiness 1 speaks p1–2, 2 speaks p1–3, 3 speaks everything. {dir} is filled from the text.
+const VOX_EV={
+  stop:{p:2,cd:0,l:["Touchdown. New ground, same job: find the breach vein and drain it.","We're down. There's a wall between us and the way on. The breach vein is our key.","Landed. I'll keep the lights on. You find us a breach."]},
+  stopFinal:{p:1,cd:0,l:["This is the heart of the Core. The contract vein is close. I can feel it humming.","Final stop. Take bearings on the stray energy, and we'll find the contract vein together."]},
+  breach:{p:2,cd:0,l:["That's the breach. The way is open. Walk us off the edge when you're ready.","Barrier's down. Whenever you like, Commander."]},
+  unstable:{p:2,cd:25,l:["One of the veins is going unstable. The clock's ticking on it.","A vein just turned unstable. Pin it, or lose it.","Unstable vein. It won't wait for us."]},
+  collapse:{p:3,cd:25,l:["And, that vein's gone.","Vein collapsed. Plenty more where that came from. Probably."]},
+  ready:{p:2,cd:8,l:["Drill's warm. Strike when ready.","Needle's moving. Pick your moment.","Ready to strike."]},
+  struck:{p:3,cd:8,l:["Good strike. Keep those Stabilizers standing.","We're in. Drilling.","Contact. The drill's biting."]},
+  jackpot:{p:2,cd:8,l:["Oh, that's a beautiful strike. Jackpot.","Jackpot! Now let's not lose it."]},
+  red:{p:1,cd:8,l:["Needle's in the red. Steer it out, now.","Red zone! Pull the needle back.","We're redlining. Ease it back."]},
+  rupture:{p:1,cd:10,l:["Rupture! That one hurt.","The vein ruptured. The hull took the brunt of it."]},
+  drained:{p:3,cd:5,l:["Vein drained. Nicely done.","That's a full drain. Crystal's in the hold.","Drained. Pick something nice."]},
+  wave:{p:2,cd:25,l:["Contacts inbound from the {dir}.","Movement to the {dir}. Here they come.","Wave from the {dir}. Positions, everyone."],nd:["Hostiles inbound.","Here they come."]},
+  greatWave:{p:1,cd:30,l:["Ground's shaking. Something big is coming from the {dir}.","Great wave building to the {dir}. Brace yourselves."]},
+  patrol:{p:2,cd:30,l:["A patrol's spotted us. Company's coming.","We've been noticed. Patrol inbound."]},
+  colossus:{p:1,cd:30,l:["Colossus approaching from the {dir}. Go for its cores.","That's a Colossus, {dir}. Burst the cores and it falls."]},
+  quaker:{p:1,cd:30,l:["Quaker to the {dir}. It'll shake the drill. Take it down.","Something heavy, {dir}. A Quaker. Send units out to it."]},
+  nest:{p:3,cd:15,l:["Nest destroyed. Go and collect the Dat.","Scratch one nest."]},
+  cable:{p:2,cd:15,l:["We've lost a cable. Someone's gone dark.","Line's cut. Get them back in range before they lose their nerve."]},
+  lostRelay:{p:2,cd:15,l:["We lost a Relay.","Relay down. Our network just got shorter."]},
+  lostStab:{p:1,cd:12,l:["Stabilizer down. The needle's slipping.","We lost a Stabilizer. Watch the needle."]},
+  turned:{p:1,cd:20,l:["One of ours has turned. I'm sorry.","A unit's lost it. It's hostile now."]},
+  distress:{p:3,cd:30,l:["Picking up a distress call. I've marked it on the minimap.","Someone out there is calling for help."]},
+  hullHalf:{p:1,cd:0,l:["Hull at half. I'd rather we didn't make a habit of this.","Fifty percent hull. Let's be careful."]},
+  hullLow:{p:1,cd:0,l:["Hull critical! Get us out of there.","We're breaking up. I need repairs, now."]},
+  noDat:{p:4,cd:40,l:["We're short on Dat for that.","Can't afford it yet. Collect more Dat."]},
+  cap:{p:4,cd:40,l:["We're at the unit limit.","That's all the crew the Bastion can carry right now."]},
+  win:{p:1,cd:0,l:["Contract vein drained. Mission complete. It's been a pleasure, Commander."]},
+  lose:{p:1,cd:0,l:["Hull failure. I'm sorry, Commander."]},
+};
+// game text → event (first match wins; checked against every msg(), banner() and note())
+const VOX_HEAR=[
+  [/^Stop \d+ of \d+ — the heart of the Core/,'stopFinal'],[/^Stop \d+ of \d+/,'stop'],
+  [/the way \w+ is open/,'breach'],[/gone unstable/,'unstable'],[/^A vein has collapsed/,'collapse'],
+  [/STRIKE!/,'ready'],[/^JACKPOT/,'jackpot'],[/^Struck at/,'struck'],[/drill needle is in the red/,'red'],
+  [/The Bastion took \d+ damage/,'rupture'],[/drained at \w+ tier/,'drained'],
+  [/ground is shaking/,'greatWave'],[/pouring out of|incoming from/,'wave'],[/patrol has spotted/,'patrol'],
+  [/A Colossus is coming/,'colossus'],[/A Quaker is lumbering/,'quaker'],[/destroyed — drive over its Dat/,'nest'],
+  [/cable .*(snapped|severed)/,'cable'],[/A Relay was destroyed/,'lostRelay'],[/A Stabilizer was destroyed/,'lostStab'],
+  [/turned hostile|corrupted and hostile|detonated/,'turned'],[/^Distress signal/,'distress'],
+  [/Need ◆|costs ◆|need ◆/,'noDat'],[/(Trooper|\w+) limit \d+/,'cap'],
+];
+// spoken guidance for each tutorial step, by its title
+const VOX_TUT={
+  'Welcome to Astroscraper':"Hello, Commander. I'm Vesper. I run the Bastion. Let's drill your first vein together.",
+  'Look around':"Pan with W, A, S, D, and scroll to zoom. H brings you home.",
+  'Select your Troopers':"Those blue riflemen are your Troopers. Drag a box around them.",
+  'Scout the vein':"See the pulses running through the cracks? Follow them upstream to the vein.",
+  'Dat Crystal':"Found it. Dat Crystal is what we spend. Scoop it up as you go.",
+  'Survey it with a Stabilizer':"Press E, and fire a Stabilizer into a glowing hotspot. Lead it. They drift.",
+  'Move the Bastion':"Select me, then right-click the mining point. I'm not fast, but I get there.",
+  'Start drilling':"In position. Press F to lock on, then F again to stop the needle on a good band.",
+  'Tactical pause':"A wave's on its way. Space pauses the action, and you can still give orders.",
+  'Build a Turret':"Press T, and drop a Turret inside my ring.",
+  'Lay a wall':"Q for walls. Click and drag across their approach.",
+  'Chain it':"Click the end of the wall to keep it going.",
+  'Formations':"Right-drag with units selected to set a front line.",
+  'Man the wall':"Unpause, then right-click a wall with Troopers selected. They'll take cover behind it.",
+  'Hold position':"X puts units on Hold. Side by side, they fire faster.",
+  'Pin all three':"Pin the other two hotspots. Three Stabilizers make a steering triangle.",
+  'Steer the needle':"Drag the gold weight on the pad to steer the needle.",
+  'The price of steering':"Careful. Leaning loads those Stabilizers, and the enemy notices.",
+  'Hold the line':"Now hold the line until the vein runs dry.",
+  'Pick a reward':"Vein drained. Pick an upgrade, or sell it for Dat.",
+  'A vein about to collapse':"That vein is going unstable. Get in range and pin a hotspot. Quickly.",
+  'Mine it in time':"Bought us time. Get me onto the mining point and lock on.",
+  'Drain it':"Locked on. It can't collapse under us now.",
+  'Into the Dense Field':"Welcome to the Dense Field. Rift everywhere. I can't walk on it, but the Troopers can wade.",
+  'Every unit runs a cable':"Send the Troopers to the marker, and watch their cables pay out.",
+  'The end of the line':"Cables only reach so far. Push on toward the wreck, and you'll see.",
+  'Relays carry the line':"Press R, and launch a Relay toward the wreck. It carries the line further.",
+  'Chain them out':"Chain another Relay out, then send them on to the wreck.",
+  'Guard your lines':"They're going for the cables. Cut units lose their nerve. Protect the lines.",
+  "That's the loop":"Scout, drill, defend, upgrade, push deeper. You're ready, Commander.",
+};
+const VOXQ={q:[],cur:null,last:{},lastLine:{},gapT:0,hull:0,sRef:null,over:null,tutStep:-1,hiss:null};
+function voxVoices(){return voxSynth?voxSynth.getVoices().filter(v=>/^en/i.test(v.lang)):[]}
+// best guess at a calm, clear voice when none is chosen: neural/natural voices first, then the
+// usual good desktop ones (Edge's online voices, Google UK, macOS Samantha/Serena, Windows Zira/Hazel)
+function voxPickVoice(){const vs=voxVoices();if(!vs.length)return null;
+  const chosen=vs.find(v=>v.name===VOX.voice);if(chosen)return chosen;
+  const pref=[/Ava.*(Natural|Online)/i,/Aria.*(Natural|Online)/i,/Sonia.*(Natural|Online)/i,/Jenny.*(Natural|Online)/i,/Libby|Natasha|Emma.*(Natural|Online)/i,/(Natural|Online)/i,/Google UK English Female/i,/Samantha|Serena|Karen|Moira/i,/Hazel|Zira|Susan/i,/Google US English/i,/female/i];
+  for(const re of pref){const v=vs.find(x=>re.test(x.name));if(v)return v}return vs[0]}
+function voxHear(s){if(!VOX.on||!voxSynth||menuOpen)return;s=String(s);
+  for(const [re,key] of VOX_HEAR)if(re.test(s)){const d=s.match(/\bfrom the (north|south|east|west)\w*|to the (north|south|east|west)\w*/);
+    voxSay(key,d?d[0].replace(/^(from|to) the /,''):null);return}}
+function voxSay(key,dir){const E=VOX_EV[key];if(!E||!VOX.on)return;
+  const maxP=VOX.chat===1?2:VOX.chat===2?3:4;if(E.p>maxP)return;
+  const now=performance.now()/1000;if(E.cd&&now-(VOXQ.last[key]??-999)<E.cd)return;
+  if(VOXQ.q.some(x=>x.key===key)||(VOXQ.cur&&VOXQ.cur.key===key))return;
+  VOXQ.last[key]=now;
+  let pool=dir||!E.nd?E.l:E.nd;let i=Math.floor(Math.random()*pool.length);if(pool.length>1&&i===VOXQ.lastLine[key])i=(i+1)%pool.length;VOXQ.lastLine[key]=i;
+  voxQueue({key,p:E.p,text:pool[i].replace('{dir}',dir||'near side'),t:now})}
+function voxQueue(it){
+  // critical lines cut off anything less urgent that's playing; the queue holds two at most, by priority
+  if(VOXQ.cur&&it.p===1&&VOXQ.cur.p>=3){VOXQ.q=VOXQ.q.filter(x=>x.p<=2);voxSynth.cancel()}
+  VOXQ.q.push(it);VOXQ.q.sort((a,b)=>a.p-b.p||a.t-b.t);if(VOXQ.q.length>2)VOXQ.q.length=2;voxPump()}
+function voxPump(){if(!VOX.on||VOXQ.cur||!VOXQ.q.length)return;const now=performance.now()/1000;
+  VOXQ.q=VOXQ.q.filter(x=>now-x.t<(x.p<=2?8:4)); // stale news isn't worth saying
+  if(!VOXQ.q.length)return;if(now<VOXQ.gapT){setTimeout(voxPump,(VOXQ.gapT-now)*1000+20);return}
+  const it=VOXQ.q.shift();VOXQ.cur=it;
+  const u=new SpeechSynthesisUtterance(it.text),v=voxPickVoice();if(v){u.voice=v;u.lang=v.lang}
+  u.rate=1.02;u.pitch=1.08;u.volume=VOX.vol;
+  let ended=false;const end=()=>{if(ended)return;ended=true;if(VOXQ.cur===it)VOXQ.cur=null;voxRadio(false);VOXQ.gapT=performance.now()/1000+0.6;setTimeout(voxPump,650)};
+  u.onend=end;u.onerror=end;it.u=u; // (kept on the item: Chrome can drop an utterance it's still speaking if nothing holds it)
+  setTimeout(end,Math.max(4000,it.text.length*110)); // some engines never fire onend
+  voxRadio(true);setTimeout(()=>{if(VOXQ.cur===it)voxSynth.speak(u)},110)}
+// the radio around the voice: chirp + hiss on its own path to the master, and the duck
+function voxRadio(open){const b=open?audioBus():BUS;if(!b)return;const ac=b.ac,t=ac.currentTime,g=VOX.vol;
+  const chirp=(f1,f2)=>{const o=ac.createOscillator(),e=ac.createGain(),bp=ac.createBiquadFilter();bp.type='bandpass';bp.frequency.value=1800;bp.Q.value=2;
+    o.type='square';o.frequency.setValueAtTime(f1,t);o.frequency.exponentialRampToValueAtTime(f2,t+0.06);e.gain.setValueAtTime(0.0001,t);e.gain.linearRampToValueAtTime(0.05*g,t+0.005);e.gain.exponentialRampToValueAtTime(0.0001,t+0.08);
+    o.connect(bp);bp.connect(e);e.connect(b.master);o.start(t);o.stop(t+0.1)};
+  if(open){chirp(2400,1500);
+    if(!VOXQ.hiss){if(!noiseBuf){noiseBuf=ac.createBuffer(1,ac.sampleRate,ac.sampleRate);const d=noiseBuf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1}
+      const src=ac.createBufferSource();src.buffer=noiseBuf;src.loop=true;const bp=ac.createBiquadFilter();bp.type='bandpass';bp.frequency.value=2600;bp.Q.value=0.9;const hg=ac.createGain();hg.gain.setValueAtTime(0.0001,t);hg.gain.linearRampToValueAtTime(0.012*g,t+0.08);
+      src.connect(bp);bp.connect(hg);hg.connect(b.master);src.start(t,Math.random()*0.5);VOXQ.hiss={src,hg}}
+    b.music.gain.setTargetAtTime(AUD.music*0.5*b.duck*0.4,t,0.08);b.amb.gain.setTargetAtTime(AUD.amb*0.55*0.5,t,0.08)}
+  else{if(VOX.on)chirp(1500,900);
+    if(VOXQ.hiss){const h=VOXQ.hiss;VOXQ.hiss=null;h.hg.gain.setTargetAtTime(0.0001,t,0.04);h.src.stop(t+0.3)}
+    b.music.gain.setTargetAtTime(AUD.music*0.5*b.duck,t+0.2,0.35);b.amb.gain.setTargetAtTime(AUD.amb*0.55,t+0.2,0.35)}}
+function voxStopAll(){VOXQ.q=[];const c=VOXQ.cur;VOXQ.cur=null;if(voxSynth)voxSynth.cancel();if(c||VOXQ.hiss)voxRadio(false)}
+// tutorial steps speak as they open (replacing any step line still waiting)
+function voxTut(st){if(!VOX.on||!tutorial||tutorial.step===VOXQ.tutStep)return;VOXQ.tutStep=tutorial.step;const line=VOX_TUT[st.title];if(!line)return;
+  VOXQ.q=VOXQ.q.filter(x=>x.key!=='tut');if(VOXQ.cur&&VOXQ.cur.key==='tut'){VOXQ.cur=null;voxSynth.cancel();voxRadio(false)}
+  voxQueue({key:'tut',p:2,text:line,t:performance.now()/1000})}
+// state she watches rather than hears: hull thresholds and the end of a run
+setInterval(()=>{if(!VOX.on||typeof S==='undefined'||!S||!S.base)return;
+  if(S!==VOXQ.sRef){VOXQ.sRef=S;VOXQ.over=S.over;VOXQ.hull=0;if(!tutorial)VOXQ.tutStep=-1}
+  if(S.over!==VOXQ.over){VOXQ.over=S.over;if(S.over==='win'||S.over==='lose'){VOXQ.q=[];if(VOXQ.cur){VOXQ.cur=null;voxSynth.cancel()}voxSay(S.over)}return}
+  if(menuOpen||S.over)return;const f=S.base.hp/S.base.maxHp;
+  if(f>0.7)VOXQ.hull=0;else if(f<=0.25&&VOXQ.hull<2){VOXQ.hull=2;voxSay('hullLow')}else if(f<=0.5&&VOXQ.hull<1){VOXQ.hull=1;voxSay('hullHalf')}},500);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)voxStopAll()});
+// Settings rows, built here so the page's HTML stays untouched
+(function voxSettings(){const rows=document.querySelector('#settingsOverlay .volRows');if(!rows)return;
+  const box=document.createElement('div');box.className='volRows';box.id='voxSettings';
+  box.innerHTML='<label class="volRow"><span>Announcer</span><button id="voxOn" class="secondary" style="flex:1;padding:4px 8px"></button></label>'+
+    '<label class="volRow"><span>Voice vol</span><input type="range" id="voxVol" min="0" max="100"></label>'+
+    '<label class="volRow"><span>Voice</span><select id="voxVoice" style="flex:1;min-width:0;background:#10161d;color:inherit;border:1px solid #2a3540;font:inherit;padding:3px"></select></label>'+
+    '<label class="volRow"><span>Chattiness</span><select id="voxChat" style="flex:1;background:#10161d;color:inherit;border:1px solid #2a3540;font:inherit;padding:3px"><option value="1">Essential (alerts only)</option><option value="2">Standard</option><option value="3">Chatty (all chatter)</option></select></label>'+
+    '<label class="volRow"><span></span><button id="voxTest" class="secondary" style="flex:1;padding:4px 8px">Test voice</button></label>';
+  rows.after(box);
+  const on=box.querySelector('#voxOn'),vol=box.querySelector('#voxVol'),sel=box.querySelector('#voxVoice'),chat=box.querySelector('#voxChat'),test=box.querySelector('#voxTest');
+  const paint=()=>{on._tc=!voxSynth?'Not supported in this browser':VOX.on?'On — Vesper':'Off';[vol,sel,chat,test].forEach(e=>e.disabled=!VOX.on)};
+  const fill=()=>{const vs=voxVoices(),auto=voxPickVoice();sel.innerHTML='';const o0=document.createElement('option');o0.value='';o0.textContent=vs.length?`Auto (${auto?auto.name:'—'})`:'No English voices found';sel.appendChild(o0);
+    vs.forEach(v=>{const o=document.createElement('option');o.value=v.name;o.textContent=v.name+(v.localService?'':' · online');sel.appendChild(o)});sel.value=vs.some(v=>v.name===VOX.voice)?VOX.voice:''};
+  vol.value=Math.round(VOX.vol*100);chat.value=String(VOX.chat);fill();paint();
+  if(voxSynth&&'onvoiceschanged' in voxSynth)voxSynth.addEventListener('voiceschanged',fill);
+  on.onclick=()=>{if(!voxSynth)return;VOX.on=!VOX.on;voxSave();paint();if(VOX.on){startAudioEngine();voxQueue({key:'test',p:1,text:"Vesper online. I'll keep you posted.",t:performance.now()/1000})}else voxStopAll()};
+  vol.oninput=()=>{VOX.vol=vol.value/100;voxSave()};
+  sel.onchange=()=>{VOX.voice=sel.value;voxSave()};
+  chat.onchange=()=>{VOX.chat=+chat.value;voxSave()};
+  test.onclick=()=>{voxStopAll();VOXQ.gapT=0;voxQueue({key:'test',p:1,text:['Contacts inbound from the northeast.','Drill\'s warm. Strike when ready.','Hull at half. I\'d rather we didn\'t make a habit of this.'][Math.floor(Math.random()*3)],t:performance.now()/1000})};
+})();
+// ---------- end voice announcer ----------
 reset();refreshMenuMeta();requestAnimationFrame(frame);
 // Title-screen build marker: the live latest commit on master, not a hand-maintained string — a
 // baked-in value can never equal its own commit's hash (the hash is computed FROM the file's
