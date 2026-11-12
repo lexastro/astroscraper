@@ -7132,21 +7132,21 @@ const RIG_LEG_FOLD=1.8, RIG_LEG_UNFOLD=1.3, RIG_LEG_HOLD=3;
 // a fast fall, the landing burn lighting at LAND_BURN of the way down, legs swinging out in the last
 // stretch (below LAND_LEGS_ALT), touchdown at LAND_T. The game holds still until it's down; then
 // the crew file out of the bay one every LAND_EMERGE_GAP and go to their posts.
-const LAND_ALT=1500, LAND_T=4.6, LAND_BURN=0.5, LAND_LEGS_ALT=260, LAND_EMERGE_GAP=0.16;
+const LAND_ALT=1500, LAND_T=5.4, LAND_BURN=0.45, LAND_LEGS_ALT=420, LAND_LEGS_RATE=0.75, LAND_EMERGE_GAP=0.16;
 function beginLanding(){const B=S.base,crew=[...S.troops,...S.harvesters,...S.builders];
   crew.forEach(u=>{u.hidden=true;u.x=B.x;u.y=B.y});
   B.legDep=0;B._dep=0;B._legDir=0;B._alt=LAND_ALT;B.dest=null;
   S.landing={t:0,touch:false,q:crew,et:0,lit:false,snd:null}}
-// falls at a steady clip, then the burn brakes it to a stop right at the ground (a 'hoverslam'): the
-// speeds match where the two meet, so it never jerks
-const LAND_A1=LAND_ALT*(1-LAND_BURN)/(1+LAND_BURN);
-const landAlt=u=>u<LAND_BURN?LAND_ALT-(LAND_ALT-LAND_A1)*u/LAND_BURN:LAND_A1*Math.pow(1-(u-LAND_BURN)/(1-LAND_BURN),2);
+// falls at a steady clip, then the burn brakes it (a cubic: the speeds match where the two meet, and
+// the braking itself eases off near the ground, so it creeps the last stretch and sets down softly)
+const LAND_A1=LAND_ALT*(1-LAND_BURN)/(1+2*LAND_BURN);
+const landAlt=u=>u<LAND_BURN?LAND_ALT-(LAND_ALT-LAND_A1)*u/LAND_BURN:LAND_A1*Math.pow(1-(u-LAND_BURN)/(1-LAND_BURN),3);
 function landingTick(dt){const L=S.landing,B=S.base;if(!L.snd)L.snd=landSound();
   L.t+=dt;const u=Math.min(1,L.t/LAND_T);B._alt=landAlt(u);
   if(!L.lit&&u>=LAND_BURN){L.lit=true;landBurnIgnite()}
-  if(B._alt<LAND_LEGS_ALT){const was=B.legDep;B.legDep=Math.min(1,B.legDep+dt*1.6);if(was===0)legSound(1)}
+  if(B._alt<LAND_LEGS_ALT){const was=B.legDep;B.legDep=Math.min(1,B.legDep+dt*LAND_LEGS_RATE);if(was===0)legSound(1)}
   landSoundTick(L.snd,u,L.lit);
-  if(u>=1){L.touch=true;B._alt=0;B.legDep=1;B.legHoldT=0;landSoundEnd(L.snd);L.snd=null;
+  if(u>=1){L.touch=true;B._alt=0;B._touchT=performance.now();B.legDep=1;B.legHoldT=0;landSoundEnd(L.snd);L.snd=null;
     shakeScreen(8,0.6);burst(B.x,B.y,'#b9a48a',46,230,1.1);burst(B.x,B.y,'#8fe3ff',14,120,0.5)}}
 // after touchdown (the game running again): the crew walk out, then the landing is over
 function emergeTick(dt){const L=S.landing,B=S.base;L.et-=dt;
@@ -7193,8 +7193,11 @@ const RC={G:'#999',DK:'#4a4f57',M1:'#5d6670',M2:'#8d9aa8',TOP:'#a9b6c4',SL:'#6f7
 const skEach=S0=>{S0.grp='each';return S0};
 function skLift(P,dz){if(!dz)return P;const T=q=>[q[0],q[1],q[2]+dz];return P.map(S0=>({...S0,F:S0.F.map(f=>({...f,pts:f.pts.map(T)})),pts:S0.pts.map(T)}))}
 function rigPieces(o){const c=RC,P=[],R=RIG_R,bay=RIG_BAY,R8=Math.PI/8,hipZ=bay+4,w=2.8,dep=o.dep,z0=bay+6,z1=RIG_H*0.7,span=z1-z0,rAt=zz=>R-R*0.1*(zz-z0)/span,feet=[];
-  // legs: tucked up under the bay in flight, splayed onto the ground when it stands
-  for(let i=0;i<4;i++){const a=Math.PI/4+i*Math.PI/2,cs=Math.cos(a),sn=Math.sin(a),hr=R*0.92,fr=hr+2+(R*2.3+3*o.plant-hr-2)*dep,fz=(hipZ-5)*(1-dep),L=f=>[cs*(hr+(fr-hr)*f),sn*(hr+(fr-hr)*f),hipZ+(fz+1.5-hipZ)*f];
+  // legs: v4 — folded flat up against the column in flight (like a booster's), swinging down and out
+  // round the hip to splay onto the ground when it stands
+  for(let i=0;i<4;i++){const a=Math.PI/4+i*Math.PI/2,cs=Math.cos(a),sn=Math.sin(a),hr=R*0.92,
+      dx1=R*2.3+3*o.plant-hr,dz1=1.5-hipZ,dx0=R*0.3,dz0=40,a1=Math.atan2(dz1,dx1),a0=Math.atan2(dz0,dx0),an=a0+(a1-a0)*dep,ln=Math.hypot(dx0,dz0)+(Math.hypot(dx1,dz1)-Math.hypot(dx0,dz0))*dep,
+      fr=hr+Math.cos(an)*ln,fz=hipZ+Math.sin(an)*ln-1.5,L=f=>[cs*(hr+(fr-hr)*f),sn*(hr+(fr-hr)*f),hipZ+(fz+1.5-hipZ)*f];
     P.push(skEach(skBeam([cs*hr,sn*hr,hipZ],[cs*fr,sn*fr,fz+1.5],w,c.G)));
     P.push(skEach(skBeam([cs*(hr-1),sn*(hr-1),hipZ-8],L(0.62),w*0.5,c.SL)));
     if(o.armor)P.push(skEach(skBeam(L(0.12),L(0.62),w*2,c.ARM)));
@@ -7250,9 +7253,10 @@ function drawRigTower(B){const dt=Math.max(0,Math.min(0.1,S.t-(B._rt??S.t)));B._
   B._mov=(B._mov||0)+(((mv>0.01&&mv<60)?1:0)-(B._mov||0))*Math.min(1,dt*5);
   const app=(k,v,r)=>{B[k]=(B[k]??v)+Math.sign(v-(B[k]??v))*Math.min(Math.abs(v-(B[k]??v)),dt*r)};
   const onRift=terrainAt(B.x,B.y)===RIFT;
-  B._dep=B.legDep??1; // the legs are driven by the game (update), not by the drawingapp('_plant',B.locked?1:0,1.2);app('_charge',B.locked?1:0,0.9);
+  B._dep=B.legDep??1; // the legs are driven by the game (update), not by the drawing
+  app('_plant',B.locked?1:0,1.2);app('_charge',B.locked?1:0,0.9);
   const v=S.activeVein,drilling=!!(B.locked&&v&&v.meter&&v.meter.phase==='drill'&&!v.paused&&dist(B,v.mine||v)<BASE_R+40);app('_laser',drilling?1:0,2.5);laserSound(B._laser);
-  const dep=B._dep*B._dep*(3-2*B._dep),hov=(1-dep)*(RIG_HOV+Math.sin(S.t*2.2)*1.4)+(B._alt||0);B._hov=hov;
+  const sq=B._touchT?Math.min(1,(performance.now()-B._touchT)/500):1,dep=B._dep*B._dep*(3-2*B._dep),hov=(1-dep)*(RIG_HOV+Math.sin(S.t*2.2)*1.4)+(B._alt||0)-(sq<1?Math.sin(Math.PI*sq)*(1-sq)*5:0);B._hov=hov;
   SKO.x=B.x;SKO.y=B.y;SKO.s=1;SKO.lean=[0,0];SKO.shk=[0,0];
   if(B._laser>0.02){const col=v?veinEnergy(v).col:'#be64ff',P=skPJ([0,0,0]);ctx.save();ctx.globalCompositeOperation='lighter';
     const g=ctx.createRadialGradient(P[0],P[1],0,P[0],P[1],30);g.addColorStop(0,col);g.addColorStop(1,'rgba(0,0,0,0)');ctx.globalAlpha=0.3*B._laser;ctx.fillStyle=g;ctx.beginPath();ctx.ellipse(P[0],P[1],30,27,0,0,Math.PI*2);ctx.fill();
@@ -7273,7 +7277,7 @@ function drawRigTop(B){const m=B._m;if(m){SKO.x=B.x;SKO.y=B.y;SKO.s=1;SKO.lean=[
     ctx.restore();skGlow([0,0,0.5],16,RC.LASER,0.45*on*fl)}
   skGlow(m.lens,7,RC.LASER,0.2+0.75*on);
   // v4: the landing burn: a flame from each nozzle, the ground lit and the dust thrown out under it
-  if(S.landing&&!S.landing.touch&&S.landing.lit){const alt=B._alt||0,u=Math.min(1,S.landing.t/LAND_T),pw=0.75+0.25*Math.sin(performance.now()/23),len=40+70*(1-u*0.6);
+  if(S.landing&&!S.landing.touch&&S.landing.lit){const alt=B._alt||0,u=Math.min(1,S.landing.t/LAND_T),th=1-Math.max(0,(u-LAND_BURN)/(1-LAND_BURN)),pw=(0.75+0.25*Math.sin(performance.now()/23))*(0.45+0.55*th),len=14+90*th*th;
     ctx.save();ctx.globalCompositeOperation='lighter';ctx.lineCap='round';
     m.nozz.forEach((q,i)=>{const a=skPJ(q),b=skPJ([q[0]*1.25,q[1]*1.25,Math.max(0,q[2]-len*(0.9+0.2*Math.sin(performance.now()/31+i)))]);
       [[11,`rgba(255,120,40,${0.22*pw})`],[6,`rgba(255,190,90,${0.5*pw})`],[2.4,`rgba(255,250,225,${0.9*pw})`]].forEach(([lw,c])=>{ctx.strokeStyle=c;ctx.lineWidth=lw;ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke()})});
