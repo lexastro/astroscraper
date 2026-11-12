@@ -5829,7 +5829,7 @@ cv.addEventListener('pointerdown',e=>{
     return;
   }
   if(e.button===1){mouse.panning=true;mouse.x=e.clientX;mouse.y=e.clientY;return}
-  if(e.button===2&&mouse.wallDraw){mouse.wallDraw=null;return} // right-click: cancel the wall being drawn
+  if(e.button===2&&buildMode==='wall'){mouse.wallDraw=null;setBuild(null);sfx.click();return} // right-click: drop the wall being drawn and leave wall mode
   if(e.button===2){
     // with combat units selected, a right-drag lays out a formation (see formationSlots); a plain
     // right-click (no drag) is still an ordinary order, issued on release
@@ -6381,6 +6381,15 @@ function toggleTacPause(){
   if(!S||S.over||S.rewardChoice||S.paused||menuOpen)return;
   S.tacPause=!S.tacPause;S.tacUsed=true;sfx.click();
 }
+// Wall mode on screen: an amber frame and a banner above the build bar saying how to lay walls and how to leave
+function drawWallMode(vw,vh){
+  if(buildMode!=='wall')return;
+  const coarse=matchMedia('(pointer:coarse)').matches,txt='WALL MODE',sub=coarse?'drag to lay a wall · tap Wall again to exit':'drag to lay a wall · right-click or Esc to exit';
+  ctx.save();ctx.strokeStyle='rgba(242,182,60,0.5)';ctx.lineWidth=3;ctx.strokeRect(1.5,1.5,vw-3,vh-3);
+  ctx.textAlign='center';ctx.textBaseline='middle';ctx.font='700 14px '+css('--mono');const w1=ctx.measureText(txt).width;ctx.font='500 12px '+css('--mono');const w=Math.max(w1,ctx.measureText(sub).width)+32,y=vh-128;
+  ctx.fillStyle='rgba(11,14,18,0.88)';ctx.fillRect(vw/2-w/2,y,w,44);ctx.strokeStyle='rgba(242,182,60,0.75)';ctx.lineWidth=1;ctx.strokeRect(vw/2-w/2+0.5,y+0.5,w-1,43);
+  ctx.fillStyle=C.accent;ctx.font='700 14px '+css('--mono');ctx.fillText(txt,vw/2,y+14);ctx.fillStyle='#c9d1d9';ctx.font='500 12px '+css('--mono');ctx.fillText(sub,vw/2,y+31);
+  ctx.restore()}
 function drawTacPause(vw,vh){
   if(!S.tacPause)return;
   ctx.save();
@@ -6472,7 +6481,7 @@ function callAnchors(){const A=[S.base];S.relays.forEach(r=>{if(r.built&&r.hp>0&
 // v4: a call-down can land near the network, or anywhere you can see right now (units, probes, pings)
 function inCallRange(w){return callAnchors().some(a=>dist(a,w)<=BUILD_R)||debugNoFog||visibleNow(w)}
 function grantCall(id,n){if(!CALLDOWNS[id])return;S.calls[id]=(S.calls[id]||0)+(n||1);updateBuildBar()}
-function setCallMode(id){callMode=id;S.callStart=null;updateBuildBar()}
+function setCallMode(id){callMode=id;S.callStart=null;if(id){S.sel.troops.clear();S.sel.harv.clear();S.sel.bu.clear();S.sel.base=false;closeProdMenu()}updateBuildBar()}
 function tryCall(id){
   if(callMode===id){setCallMode(null);return}
   if(!((S.calls[id]||0)>0)&&S.dat<callPrice(id)){note(`${CALLDOWNS[id].name} costs ◆${callPrice(id)}`);return}
@@ -7310,7 +7319,13 @@ function drawWallLines(){
 function drawWallPreview(){
   if(buildMode!=='wall')return;
   const d=mouse.wallDraw;
-  if(!d){const p=wallSnap({x:mouse.wx,y:mouse.wy});ctx.save();ctx.strokeStyle=p.snapped?C.accent:'#8d9aa8';ctx.lineWidth=1.5/cam.z;ctx.globalAlpha=0.8;ctx.beginPath();ctx.arc(p.x,p.y,p.snapped?9:5,0,Math.PI*2);ctx.stroke();ctx.restore();return}
+  if(!d){const p=wallSnap({x:mouse.wx,y:mouse.wy}),ok=inBuildRange(p),z=cam.z;ctx.save();
+    // a ghost wall slat under the cursor, a pulsing ring and a WALL tag, so the mode can't be missed
+    const pu=0.5+0.5*Math.sin(S.t*6);ctx.globalAlpha=0.5;ctx.fillStyle=ok?'#8d9aa8':C.enemy;ctx.fillRect(p.x-12,p.y-WALL_THICK/2,24,WALL_THICK);
+    ctx.strokeStyle=ok?C.accent:C.enemy;ctx.lineWidth=2/z;ctx.globalAlpha=0.6+0.4*pu;ctx.beginPath();ctx.arc(p.x,p.y,(p.snapped?11:8)+pu*3/z,0,Math.PI*2);ctx.stroke();
+    const f=12/z;ctx.font=`700 ${f}px ${css('--mono')}`;ctx.textAlign='left';ctx.textBaseline='middle';const txt='▤ WALL',tx=p.x+16/z,ty=p.y-16/z,tw=ctx.measureText(txt).width;
+    ctx.globalAlpha=0.9;ctx.fillStyle='rgba(11,14,18,0.85)';ctx.fillRect(tx-4/z,ty-f*0.75,tw+8/z,f*1.5);ctx.strokeStyle=C.accent;ctx.lineWidth=1/z;ctx.strokeRect(tx-4/z,ty-f*0.75,tw+8/z,f*1.5);
+    ctx.globalAlpha=1;ctx.fillStyle=ok?C.accent:C.enemy;ctx.fillText(txt,tx,ty);ctx.restore();return}
   const P=wallPlan(d),col=P.ok?'#8d9aa8':C.enemy;
   ctx.save();
   if(P.L>=1){const ux=(P.x1-P.x0)/P.L,uy=(P.y1-P.y0)/P.L,seg=P.L/P.n,ang=Math.atan2(uy,ux);ctx.globalAlpha=0.55;ctx.fillStyle=col;
@@ -10090,7 +10105,7 @@ function draw(){
   drawWallPreview();
   // selection box
   if(mouse.drag&&mouse.drag.moved){const d=mouse.drag;ctx.strokeStyle=C.ally;ctx.fillStyle='rgba(94,200,255,0.1)';ctx.lineWidth=1/cam.z;ctx.fillRect(d.x0,d.y0,d.x1-d.x0,d.y1-d.y0);ctx.strokeRect(d.x0,d.y0,d.x1-d.x0,d.y1-d.y0)}
-  ctx.setTransform(dpr,0,0,dpr,0,0);drawWaveWarn(vw,vh);drawTacPause(vw,vh);drawTutorialArrow(vw,vh);
+  ctx.setTransform(dpr,0,0,dpr,0,0);drawWaveWarn(vw,vh);drawTacPause(vw,vh);drawWallMode(vw,vh);drawTutorialArrow(vw,vh);
   drawMini();hud();
 }
 // The wave warning on screen: for each place the wave will come from, red bleeding in from the
