@@ -744,6 +744,7 @@ async function run(d){
     <div class="metaRow"><span class="crystalIcon living">❖</span><span class="v" id="metaLiving">0</span><span class="crystalIcon condensed">⬢</span><span class="v" id="metaCondensed">0</span></div>
     <button id="openUnlocksBtn" class="secondary">Unlocks</button>
     <button id="openPressureBtn" class="secondary">Pressure</button>
+    <button id="openLoadoutBtn" class="secondary">Loadout</button>
   </div>
   <button id="tutorialBtn" class="secondary">Tutorial</button>
   <button id="settingsBtn" class="secondary">Settings</button>
@@ -769,7 +770,23 @@ async function run(d){
     <p>Spend Condensed Crystal on permanent upgrades — some can be bought more than once, each time pricier than the last.</p>
     <div class="unlockCards" id="upgradeCards"></div>
   </div>
+  <div class="shopSection">
+    <div class="shopHeader"><b>Call-downs</b><span class="metaRow"><span class="crystalIcon condensed">⬢</span><span class="v" id="callShopCondensed">0</span></span></div>
+    <p>Spend Condensed Crystal to own a call-down for good. Pick the two you start each run with under Loadout on the main menu.</p>
+    <div class="unlockCards" id="callShopCards"></div>
+  </div>
   <button id="unlocksBackBtn" class="secondary">Back</button>
+</div>
+
+<div class="overlay" id="loadoutOverlay" hidden>
+  <h1>Loadout</h1>
+  <div class="shopSection">
+    <div class="shopHeader"><b>Starting call-downs</b></div>
+    <p>Pick the two call-downs every run starts with. Buy more in Unlocks; the rest can still turn up as cards and wreck finds during a run.</p>
+    <div class="unlockCards" id="loadoutCards"></div>
+    <p id="loadoutSummary"></p>
+  </div>
+  <button id="loadoutBackBtn" class="secondary">Back</button>
 </div>
 
 <div class="overlay" id="pressureOverlay" hidden>
@@ -1404,11 +1421,13 @@ function loadMeta(){
         // every stored tier, whatever the key — listing them by hand here silently dropped any
         // upgrade added later (Rapid Loaders / Magnetic Collectors) on every page reload
         upgrades:Object.fromEntries(Object.entries(mu).map(([k,v])=>[k,v|0])),
-        recordingConsent:m.recordingConsent===true?true:m.recordingConsent===false?false:undefined};
+        recordingConsent:m.recordingConsent===true?true:m.recordingConsent===false?false:undefined,
+        // v4: call-downs bought in the shop, and the two picked to start every run with (checked against CALLDOWNS in callLoadout)
+        calls:Array.isArray(m.calls)?m.calls.filter(x=>typeof x==='string'):[],callLoadout:Array.isArray(m.callLoadout)?m.callLoadout.filter(x=>typeof x==='string').slice(0,2):[]};
     }
   }catch(e){}
   return {condensedBank:0,livingBank:0,unlockArtillery:false,unlockGrenadier:false,unlockMech:false,unlockRocket:false,unlockPodTurret:false,pressure:[],
-    upgrades:{bastionHp:0,unitHp:0,pingRange:0},recordingConsent:undefined};
+    upgrades:{bastionHp:0,unitHp:0,pingRange:0},recordingConsent:undefined,calls:[],callLoadout:[]};
 }
 function saveMeta(){try{localStorage.setItem(META_KEY,JSON.stringify(meta))}catch(e){}}
 let meta=loadMeta();
@@ -1619,10 +1638,10 @@ function ripeStart(i){let t=0;for(let k=0;k<i;k++)t+=RIPEN_DWELL[Math.min(k,RIPE
 // never offer a Legendary card — there's no separate restriction to maintain here, the existing
 // tier-decay ladder does it for free.
 const TIER_TRADE_DAT={Common:60,Rare:140,Epic:260,Legendary:450,Hive:700};
-// Rerolling a reward choice costs Condensed Crystal — the same currency that gets banked into
-// meta-progression at run's end — and gets pricier each time, tracked on S.rerollCount so the
-// escalation persists for the whole run rather than resetting at every new vein's choice.
-const REROLL_BASE_COST=10, REROLL_COST_STEP=8;
+// Rerolling a reward choice costs Dat (v4: it used to cost Condensed Crystal) and gets pricier each
+// time, tracked on S.rerollCount so the escalation persists for the whole run rather than resetting
+// at every new vein's choice.
+const REROLL_BASE_COST=40, REROLL_COST_STEP=30;
 function rerollCost(){return REROLL_BASE_COST+S.rerollCount*REROLL_COST_STEP}
 // Spawns n fresh Troopers / Grenadiers with guaranteed-unique ids, for the recruit-style reward
 // cards below.
@@ -3131,9 +3150,9 @@ function startRun(){
   // pay for the chosen Pressure (anything no longer affordable is dropped)
   const ids=[];meta.pressure.forEach(id=>{if(PRESSURE.some(p=>p.id===id)&&pressureCost([...ids,id])<=meta.condensedBank)ids.push(id)});
   meta.condensedBank-=pressureCost(ids);saveMeta();
-  RUN={stop:0,carry:null,pressure:{ids,bonus:pressureBonus(ids)}};
+  RUN={stop:0,carry:null,pressure:{ids,bonus:pressureBonus(ids)},loadout:callLoadout()};
   menuOpen=false;
-  ['mainMenuOverlay','unlocksOverlay','pressureOverlay','settingsOverlay','stopOverlay'].forEach(id=>document.getElementById(id)._hd=true);
+  ['mainMenuOverlay','unlocksOverlay','pressureOverlay','loadoutOverlay','settingsOverlay','stopOverlay'].forEach(id=>document.getElementById(id)._hd=true);
   buildStop(null);
 }
 // Shared by every "spend Living Crystal to permanently unlock X" unit — Artillery, Grenadier,
@@ -3171,6 +3190,7 @@ function pickupRangeMult(){const t=meta.upgrades.pickupRange||0;return t>0?1+MET
 function refreshMenuMeta(){
   document.getElementById('metaLiving')._tc=meta.livingBank;
   document.getElementById('metaCondensed')._tc=meta.condensedBank;
+  {const ob=document.getElementById('openLoadoutBtn');if(ob)try{ob._tc='Loadout: '+callLoadout().map(id=>CALLDOWNS[id].icon).join(' ')}catch(e){}}
   const rb=document.getElementById('recordingToggleBtn');
   rb._tc=meta.recordingConsent?'Gameplay Recording: On (click to disable)':'Gameplay Recording: Off (click to enable)';
   const allUnlocked=UNLOCKS.every(u=>meta[u.flag]);
@@ -3225,7 +3245,7 @@ function renderUpgradeCards(){
       meta.condensedBank-=u.costs[tier];
       meta.upgrades[u.key]=tier+1;
       saveMeta();
-      renderUpgradeCards();
+      renderUpgradeCards();renderCallShop();
       refreshMenuMeta();
     };
     host.appendChild(card);
@@ -3263,11 +3283,47 @@ document.getElementById('pressureBackBtn').onclick=()=>{
   document.getElementById('mainMenuOverlay')._hd=false;
   refreshMenuMeta();
 };
+// v4: the call-down shop (Unlocks panel) and the Loadout picker (main menu)
+function renderCallShop(){
+  document.getElementById('callShopCondensed')._tc=meta.condensedBank;
+  const host=document.getElementById('callShopCards');host.innerHTML='';
+  Object.keys(CALLDOWNS).forEach(id=>{const K=CALLDOWNS[id],own=callOwned(id),start=CALL_START.includes(id),cost=CALL_SHOP[id]??8;
+    const card=document.createElement('div');card.className='unlockCard'+(own?' unlocked':'');
+    card.innerHTML=`<span class="ucIcon">${K.icon}</span><span class="ucName">${K.name}</span><span class="ucDesc">${K.desc}</span>`+
+      `<span class="ucPrice">${start?'Starter':own?'Owned':`<span class="crystalIcon condensed">⬢</span>${cost}`}</span>`+
+      `<button class="metaUnlock${own?' unlocked':''}">${own?'Owned':'Buy'}</button>`;
+    const btn=card.querySelector('button');btn._ds=own||meta.condensedBank<cost;
+    btn.onclick=()=>{if(callOwned(id)||meta.condensedBank<cost)return;meta.condensedBank-=cost;meta.calls=[...meta.calls,id];saveMeta();renderCallShop();renderUpgradeCards();refreshMenuMeta()};
+    host.appendChild(card)});
+}
+function renderLoadout(){
+  const L=callLoadout(),host=document.getElementById('loadoutCards');host.innerHTML='';
+  Object.keys(CALLDOWNS).filter(callOwned).forEach(id=>{const K=CALLDOWNS[id],on=L.includes(id);
+    const card=document.createElement('div');card.className='unlockCard'+(on?' unlocked':'');
+    card.innerHTML=`<span class="ucIcon">${K.icon}</span><span class="ucName">${K.name}</span><span class="ucDesc">${K.desc}</span><span class="ucPrice">◆${K.dat} a call</span>`+
+      `<button class="metaUnlock${on?' unlocked':''}">${on?'Selected':'Select'}</button>`;
+    // picking a third swaps out the one picked longest ago
+    card.querySelector('button').onclick=()=>{if(on)return;meta.callLoadout=[L[1],id].filter(Boolean);saveMeta();renderLoadout();refreshMenuMeta()};
+    host.appendChild(card)});
+  const n=Object.keys(CALLDOWNS).filter(callOwned).length;
+  document.getElementById('loadoutSummary')._tc=`Starting with ${L.map(id=>CALLDOWNS[id].name).join(' and ')}.`+(n<=2?' Buy more call-downs in Unlocks to swap these out.':'');
+}
+document.getElementById('openLoadoutBtn').onclick=()=>{
+  document.getElementById('mainMenuOverlay')._hd=true;
+  document.getElementById('loadoutOverlay')._hd=false;
+  renderLoadout();
+};
+document.getElementById('loadoutBackBtn').onclick=()=>{
+  document.getElementById('loadoutOverlay')._hd=true;
+  document.getElementById('mainMenuOverlay')._hd=false;
+  refreshMenuMeta();
+};
 document.getElementById('openUnlocksBtn').onclick=()=>{
   document.getElementById('mainMenuOverlay')._hd=true;
   document.getElementById('unlocksOverlay')._hd=false;
   renderUnlockCards();
   renderUpgradeCards();
+  renderCallShop();
 };
 document.getElementById('unlocksBackBtn').onclick=()=>{
   document.getElementById('unlocksOverlay')._hd=true;
@@ -6615,10 +6671,19 @@ function drawMinesFields(){
     ctx.restore()});
   S.mines.forEach(m=>{const armed=S.t>=m.arm,blink=armed&&Math.sin(S.t*5+m.seed)>0.6;ctx.fillStyle='#3a3f46';ctx.strokeStyle='#0b0e12';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(m.x,m.y-4);ctx.lineTo(m.x+4,m.y);ctx.lineTo(m.x,m.y+4);ctx.lineTo(m.x-4,m.y);ctx.closePath();ctx.fill();ctx.stroke();
     ctx.fillStyle=blink?'#ff8a5a':armed?'#a0452a':'#5c6b74';ctx.fillRect(m.x-1.2,m.y-1.2,2.4,2.4)})}
-// v4: a run starts with only CALL_START; every other call-down is unlocked for the run by its card
-// (or picked from a wreck's call-down cache), which also comes with CALL_CARD_N free charges
+// v4: a run starts with the two call-downs in your loadout (picked on the main menu from the ones you
+// own: CALL_START are owned from the start, the rest are bought in the Unlocks shop); every other
+// call-down is unlocked for the run by its card (or picked from a wreck's call-down cache), which
+// also comes with CALL_CARD_N free charges
 const CALL_START=['orbital','stasis'], CALL_CARD_N=2;
-Object.keys(CALLDOWNS).forEach(id=>{CALLDOWNS[id].unlocked=()=>CALL_START.includes(id)||!!(S.callUnlock&&S.callUnlock[id])});
+// shop prices in Condensed Crystal (the two starters are free)
+const CALL_SHOP={emp:7,droppod:10,bulwark:9,carpet:10,minefield:8,overclock:9,gravity:8,decoy:6};
+function callOwned(id){return !!CALLDOWNS[id]&&(CALL_START.includes(id)||meta.calls.includes(id))}
+// the stored pick, kept to owned call-downs and topped back up to two from the starters
+function callLoadout(){const L=[];(meta.callLoadout||[]).forEach(id=>{if(callOwned(id)&&!L.includes(id)&&L.length<2)L.push(id)});
+  CALL_START.concat(Object.keys(CALLDOWNS)).forEach(id=>{if(L.length<2&&callOwned(id)&&!L.includes(id))L.push(id)});return L}
+function runCallStart(){return (RUN&&RUN.loadout)||callLoadout()}
+Object.keys(CALLDOWNS).forEach(id=>{CALLDOWNS[id].unlocked=()=>runCallStart().includes(id)||!!(S.callUnlock&&S.callUnlock[id])});
 function unlockCall(id,n){S.callUnlock[id]=true;grantCall(id,n??CALL_CARD_N)}
 // a wreck's call-down cache: pick one of three call-downs (unlocking it, or more charges of one you have)
 function showCallChoice(){const ids=shuffled(Object.keys(CALLDOWNS)).slice(0,3);
@@ -9043,20 +9108,19 @@ function showRewardChoice(tier,band){
   });
   const cost=rerollCost();
   const rb=document.getElementById('rerollBtn');
-  rb._tc=`Reroll (${cost} ⬢)`;
-  rb._ds=S.condensed<cost;rb._hd=false;
+  rb._tc=`Reroll (◆${cost})`;
+  rb._ds=S.dat<cost;rb._hd=false;
   document.getElementById('rewardOverlay')._hd=false;
   sfx.veinDone();
 }
-// Spends escalating Condensed Crystal — the same currency banked into meta-progression at run's
-// end — to reroll the current choice at the same tier. S.rerollCount never resets mid-run, so the
+// Spends escalating Dat to reroll the current choice at the same tier. S.rerollCount never resets mid-run, so the
 // price keeps climbing no matter how many different veins' choices it's spent across.
 function rerollReward(){
   const choice=S.rewardChoice;
   if(!choice)return;
   const cost=rerollCost();
-  if(S.condensed<cost)return;
-  S.condensed-=cost;
+  if(S.dat<cost)return;
+  S.dat-=cost;
   S.rerollCount++;
   sfx.click();
   showRewardChoice(choice.tier,choice.band);
