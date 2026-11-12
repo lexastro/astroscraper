@@ -14,6 +14,7 @@ import argparse, base64, io, json, os, re, sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DIRS = ['north', 'south', 'east', 'west', 'northeast', 'northwest', 'southeast', 'southwest', 'near side']
 SPOKEN_DIR = {'northeast': 'north-east', 'northwest': 'north-west', 'southeast': 'south-east', 'southwest': 'south-west'}
+VARS = {'dir': DIRS, 'tier': ['common', 'rare', 'epic', 'legendary', 'hive'], 'side': ['left', 'right']}
 
 
 def read_lines():
@@ -29,9 +30,11 @@ def read_lines():
                 continue
             for i, line in enumerate(json.loads(a.group(1))):
                 base = f'{key}{":" + tag if tag else ""}:{i}'
-                if '{dir}' in line:
-                    for d in DIRS:
-                        clips[f'{base}:{d}'] = line.replace('{dir}', SPOKEN_DIR.get(d, d))
+                slot = re.search(r'\{(dir|tier|side)\}', line)
+                if slot:  # one clip per fill-in, as the game's VOX_DIRS / VOX_VARS name them
+                    for d in VARS[slot.group(1)]:
+                        said = SPOKEN_DIR.get(d, d) if slot.group(1) == 'dir' else d.capitalize() if slot.group(1) == 'tier' else d
+                        clips[f'{base}:{d}'] = line.replace(slot.group(0), said)
                 else:
                     clips[base] = line
     tut = src[src.index('const VOX_TUT={'):]
@@ -106,6 +109,18 @@ EL_TAGS = {
     'win': '[relieved, warm, proud]',
     'lose': '[quiet, strained, fading]',
     'tut': '[warm, friendly, clear, unhurried]',
+    'drift': '[alert, quick, firm]',
+    'slip': '[urgent, concerned]',
+    'slip:nd': '[urgent, concerned]',
+    'climb': '[pleased, brisk]',
+    'climb:nd': '[pleased, brisk]',
+    'seamOpen': '[excited, quick]',
+    'seamOpen:nd': '[excited, quick]',
+    'seamTapped': '[pleased, warm]',
+    'seamClosed': '[dry, deadpan]',
+    'tapped': '[focused, wry]',
+    'overdrill': '[tense, focused]',
+    'overWon': '[relieved, excited]',
 }
 
 
