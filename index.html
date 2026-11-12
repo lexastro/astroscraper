@@ -5601,6 +5601,7 @@ function pointSegDist(p,a,b){
 // of a live anchor (wireless tolerance, or close enough to re-run a cable) on its own, at which
 // point it reconnects and Sanity starts regenerating again. Call once per unit array, before its
 // own state-machine loop runs.
+const TETHER_DOCK_R=150; // v4: a unit this close to the Bastion has its cable reset
 function tetherPass(units,speed,dt){
   const anchors=anchorsList();
   units.forEach(u=>{
@@ -5618,6 +5619,8 @@ function tetherPass(units,speed,dt){
     if(u.sanity<SANITY_MAX)u.sanity=Math.min(SANITY_MAX,u.sanity+SANITY_REGEN*dt);
     if(nd<=tol){u.tetherOk=true;u.trail=null;u.cableLen=0;u.cableMaxed=false;return}
     if(!u.trail){u.trail=[{x:bestA.x,y:bestA.y}];u.cableHp=CABLE_HP_MAX*S.mods.cableHpMult}
+    // v4: back at the Bastion (or newly hooked onto it) the cable reels in to a straight run
+    else if(bestA===S.base&&(nd<=TETHER_DOCK_R||u.anchorRef!==S.base)){u.trail=[{x:bestA.x,y:bestA.y}];u.cableMaxed=false}
     spoolTrail(u,bestA);u.anchorRef=bestA;
     u.tetherOk=true;
   });
@@ -9781,6 +9784,7 @@ function drawTethers(){
   S.troops.concat(S.harvesters,S.builders).forEach(u=>{if(!u.trail||!u.anchorRef){u.rope=null;return}
     const h=anchorHook(u.anchorRef,u);if(!h){u.rope=null;return}const dx=u.x-h[0],dy=u.y-h[1],L=Math.hypot(dx,dy)||1,td=Math.min(L*0.6,h[2]*0.55+6),ux=dx/L,uy=dy/L,touch=[h[0]+ux*td,h[1]+uy*td];
     if(u.rope&&u.rope.anc!==u.anchorRef){u.rope.reel=2.5;u.rope.sleep=0}if(u.rope)u.rope.anc=u.anchorRef;
+    if(u.rope&&u.anchorRef===S.base&&L<=TETHER_DOCK_R){u.rope.reel=Math.max(u.rope.reel||0,0.3);u.rope.sleep=0} // v4: back at the Bastion, the slack winds straight in
     stepRope(u,touch,dt);if(u.rope.anc!==u.anchorRef)u.rope.anc=u.anchorRef;const hangPts=[];for(let k=0;k<=8;k++){const f=k/8;hangPts.push([h[0]+ux*td*f,h[1]+uy*td*f,h[2]*Math.pow(1-f,2.2)])}
     const pts=hangPts.concat(u.rope.P.slice(1).map(q=>[q.x,q.y,0.2]));drawHoses(pts,1,(u.id||0)%8,u.cableMaxed)});
 }
