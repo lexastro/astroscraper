@@ -996,6 +996,15 @@ const MECH_R=11, MECH_HP=160, MECH_SPEED=85, MECH_RANGE=140, MECH_DMG=5, MECH_CD
 // nothing's left to shoot. Keeps it from standing idle while something pecks at it from just out of
 // range, without letting it chase off across the map.
 const MECH_ENGAGE_R=300, MECH_LEASH=200;
+// v4: the Mech is now the Gatling Suppressor. A rotary cannon spins up as it fires: from one shot every
+// GAT_CD_SLOW to one every GAT_CD_FAST over GAT_SPINUP seconds, and it winds down when there's nothing
+// to shoot. Every hit slows its target to GAT_SLOW speed for GAT_SLOW_T. Spun up past half, it walks at
+// GAT_MOVE. A heavy shield in its left hand covers its front (GAT_SHIELD_ARC either side of where it
+// faces): shots coming at it there break on it, and melee from the front only does GAT_SHIELD_MELEE.
+const GAT_RANGE=210, GAT_DMG=2, GAT_CD_SLOW=0.5, GAT_CD_FAST=0.085, GAT_SPINUP=1.8, GAT_SPINDOWN=1.2, GAT_SLOW=0.55, GAT_SLOW_T=0.7, GAT_MOVE=0.5, GAT_SHIELD_ARC=0.95, GAT_SHIELD_MELEE=0.25;
+const gatMech=t=>t&&t.kind==='mech'&&!kitOf(t);
+// is a hit coming from src inside a Gatling Mech's shield arc?
+function gatShielded(t,src){if(!gatMech(t)||!src)return false;let da=Math.atan2(src.y-t.y,src.x-t.x)-t.ang;da=Math.atan2(Math.sin(da),Math.cos(da));return Math.abs(da)<GAT_SHIELD_ARC}
 // v4 Rocketeer: a meta-unlocked unit built to crack nests and Quakers. Slow to reload and frail, with
 // a tight blast that does little to a crowd — but its rockets hit ROCKET_VS_BIG times as hard on a
 // nest or a Quaker, from long range, and it picks those over anything else in reach.
@@ -1685,7 +1694,8 @@ function updateKitEffects(dt){
   S.enemies.forEach(e=>{if(e.hp<=0)return;
     if(e.bleedT>0){e.bleedT-=dt;e.hp-=BLEED_DPS*dt}
     if(e.markT>0)e.markT-=dt;
-    if(e.slowT>0){if(e._spd==null)e._spd=e.speed;e.speed=e._spd*CRYO_SLOW;e.slowT-=dt;if(e.slowT<=0){e.speed=e._spd;e._spd=null}}});
+    if(e.slowT>0)e.slowT-=dt;if(e.supT>0)e.supT-=dt;
+    const sm=(e.slowT>0?CRYO_SLOW:1)*(e.supT>0?GAT_SLOW:1);if(sm<1){if(e._spd==null)e._spd=e.speed;e.speed=e._spd*sm}else if(e._spd!=null){e.speed=e._spd;e._spd=null}});
   if(S.fires.length){S.fires=S.fires.filter(q=>{q.t-=dt;S.enemies.forEach(e=>{if(e.hp>0&&e.kind!=='nest'&&dist(e,q)<q.r+(e.r||8))e.hp-=FIRE_DPS*dt});
       if(!q.lit&&S.mods.wallType==='razor'){(S.wallLines||[]).forEach(L=>{if(L.type==='razor'&&!L.relayRing&&L.slats.some(sl=>!sl.dead&&dist(sl,q)<q.r+6)){L.burnT=FIRE_LINE_T;q.lit=true}})}
       return q.t>0})}
@@ -1711,6 +1721,27 @@ function drawBreaker(t){const HULL='#d6cfc3',JOINT='#858b95',DARKJ='#5d636c',st=
     rLimb([sh,el],3.6,JOINT);rLimb([el,fi],4.4,HULL);rO(el[0],el[1],2,DARKJ);
     ctx.save();ctx.translate(fi[0],fi[1]);ctx.rotate(-sd*e*0.18);rP([[-3.4,-3.6],[3.4,-3.6],[3.8,3.2],[-3.8,3.2]],HULL);rP([[-3.6,-4.8],[3.6,-4.8],[3.4,-3],[-3.4,-3]],JOINT);ctx.restore();
     rP([[sd*5.6,-5.2],[sd*11.4,-4.4],[sd*12.2,1.6],[sd*6.2,2.8]],HULL);rO(sd*9.2,-1.4,1.1,JOINT)});
+  rO(0,0.6,7.6,HULL);ctx.strokeStyle='rgba(16,19,23,0.4)';ctx.lineWidth=0.4;ctx.beginPath();ctx.moveTo(-5.4,3.4);ctx.lineTo(5.4,3.4);ctx.stroke();
+  ctx.strokeStyle='#f2f2ee';ctx.lineWidth=1.3;ctx.lineJoin='round';ctx.beginPath();ctx.moveTo(-3.2,-0.4);ctx.lineTo(0,-2.4);ctx.lineTo(3.2,-0.4);ctx.stroke();
+  rO(0,-5,2.3,'#f2f2ee');ctx.fillStyle='#f2a63c';ctx.beginPath();ctx.arc(0,-5,1.5,0,Math.PI*2);ctx.fill();ctx.fillStyle='#ffe9a8';ctx.beginPath();ctx.arc(-0.4,-5.4,0.6,0,Math.PI*2);ctx.fill();
+  ctx.restore()}
+
+// The Gatling Suppressor (the Mech with no kit), in the Breaker's family: short stomping legs, the dome
+// with its amber eye and chevron, shoulder pads; a big shield in the left hand held across its front,
+// a rotary cannon on the right arm whose six barrels turn faster as it spins up, an ammo drum on its
+// back feeding it by a belt.
+function drawGatMech(t){const HULL='#c9cfd6',JOINT='#7d8591',DARKJ='#535a64',GUN='#3a4048',st=t.moving?Math.sin(S.t*7):0,sp=t.spin||0,firing=S.t-(t.gatShotT??-9)<0.12;
+  ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2);
+  [-1,1].forEach(sd=>{const k=st*sd*2.6;rLimb([[sd*4.2,2],[sd*5.6,6+k]],3.4,JOINT);rP([[sd*5.6-3,5.4+k],[sd*5.6+3,5.4+k],[sd*5.6+3.4,10.4+k],[sd*5.6-3.4,10.4+k]],HULL);rP([[sd*5.6-2.6,9.2+k],[sd*5.6+2.6,9.2+k],[sd*5.6+3.4,10.4+k],[sd*5.6-3.4,10.4+k]],DARKJ)});
+  rP([[1.5,1.5],[6,1.5],[6,7.5],[1.5,7.5]],'#6f7b6a');rLimb([[3.8,1.5],[8,-2],[10.6,-5]],1,'#2a2f36'); // ammo drum and feed belt
+  const arm=(sd,e)=>{const sh=[sd*8.6,-0.6],el=[sd*(12.6-e*1.6),0.6-e*4],fi=[sd*(12.4-e*3),-3.6-e*7];rLimb([sh,el],3.6,JOINT);rLimb([el,fi],4.4,HULL);rO(el[0],el[1],2,DARKJ);return fi};
+  const pad=sd=>{rP([[sd*5.6,-5.2],[sd*11.4,-4.4],[sd*12.2,1.6],[sd*6.2,2.8]],HULL);rO(sd*9.2,-1.4,1.1,JOINT)};
+  // the shield, held across its front from the left hand
+  const fl=arm(-1,0.55);ctx.save();ctx.translate(fl[0],fl[1]);ctx.rotate(0.42);rP([[-7.6,-3.6],[5.6,-5],[7,-1.8],[-7,0.2]],HULL);rP([[-6.4,-2.8],[4.8,-4],[5.4,-2.6],[-6,-1.4]],'#9fb6d0');ctx.restore();pad(-1);
+  // the rotary cannon
+  const fr=arm(1,0.5);ctx.save();ctx.translate(fr[0],fr[1]);rP([[-3.4,-3],[3.4,-3],[3.4,3],[-3.4,3]],HULL);const b0=t.barrel||0;
+  for(let i=0;i<6;i++){const a=b0+i/6*Math.PI*2,bx=Math.cos(a)*2,bz=Math.sin(a);if(bz<0)continue;rP([[bx-0.7,-14],[bx+0.7,-14],[bx+0.7,-3],[bx-0.7,-3]],i%2?GUN:'#4a5058')}rO(0,-14,2.4,GUN);rO(0,-14,1,'#15181c');
+  if(firing){ctx.fillStyle='#ffe2a0';ctx.globalAlpha=0.6+0.4*Math.random();ctx.beginPath();ctx.arc(0,-16,2+Math.random()*1.6+sp,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1}ctx.restore();pad(1);
   rO(0,0.6,7.6,HULL);ctx.strokeStyle='rgba(16,19,23,0.4)';ctx.lineWidth=0.4;ctx.beginPath();ctx.moveTo(-5.4,3.4);ctx.lineTo(5.4,3.4);ctx.stroke();
   ctx.strokeStyle='#f2f2ee';ctx.lineWidth=1.3;ctx.lineJoin='round';ctx.beginPath();ctx.moveTo(-3.2,-0.4);ctx.lineTo(0,-2.4);ctx.lineTo(3.2,-0.4);ctx.stroke();
   rO(0,-5,2.3,'#f2f2ee');ctx.fillStyle='#f2a63c';ctx.beginPath();ctx.arc(0,-5,1.5,0,Math.PI*2);ctx.fill();ctx.fillStyle='#ffe9a8';ctx.beginPath();ctx.arc(-0.4,-5.4,0.6,0,Math.PI*2);ctx.fill();
@@ -3625,6 +3656,7 @@ function updateShardShots(dt){
       if(terrainAt(sh.x,sh.y)===2||sh.x<0||sh.y<0||sh.x>W||sh.y>H)return false;
       for(const u of hitList){const r=u===B?BASE_R:(u.r||10);if(u.kind==='stabilizer'?!stabTowerHit(u,sh.x,sh.y):Math.hypot(u.x-sh.x,u.y-sh.y)>r+3)continue;
         // a Paladin holding a shield wall turns shards that come at its face
+        if(gatShielded(u,{x:sh.x-sh.vx,y:sh.y-sh.vy})){spark(sh.x,sh.y,'#9fb6d0',4);if(sfxReady('block',0.08))tone(1300,0.04,'square',0.03);return false}
         if(u.kind==='brawler'&&u.wall&&!u.dest){let da=Math.atan2(sh.y-u.y,sh.x-u.x)-u.ang;da=Math.atan2(Math.sin(da),Math.cos(da));if(Math.abs(da)<1.1){spark(sh.x,sh.y,BRAWL_COLOR,4);if(sfxReady('block',0.08))tone(1400,0.04,'square',0.03);if(hasKit(u,'warden'))wardenReflect(sh,u);return false}}
         u.hp-=u.kind?allyHit(u,sh.dmg):sh.dmg;u.lastHitBy='enemy';hitFlash(u);spark(sh.x,sh.y,C.enemy,2);if(u===B&&sfxReady('damage',0.3))sfx.damage();return false}
     }
@@ -3848,19 +3880,19 @@ function spawnShard(x,y,k,kind){const D=SHARD[k],hp=Math.round(D.hp*(RUN?stopHpM
   S.enemies.push({x,y,r:D.r,hp,maxHp:hp,speed:D.speed*(RUN&&pressureOn('frenzy')?1.15:1),dmg:D.dmg,cd:0,kind,shard:k,core:true,target:null,aggro:kind==='roam'?260:1e9,home:{x,y},
     ang:rnd(0,Math.PI*2),faceT:rnd(1,3),stunT:0,seed:Math.floor(rnd(1,9999)),blinkT:rnd(0.3,0.9),cores:3,scd:0,chg:0,lungeT:0,slamT:0});
   return S.enemies[S.enemies.length-1]}
-function shardHit(u,dmg){u.hp-=allyHit(u,dmg);u.lastHitBy='enemy';hitFlash(u);spark(u.x,u.y,C.enemy,2);if(u===S.base&&sfxReady('damage',0.3)){shakeScreen(3,0.15);sfx.damage()}}
+function shardHit(u,dmg,src){u.hp-=allyHit(u,dmg,src);u.lastHitBy='enemy';hitFlash(u);spark(u.x,u.y,C.enemy,2);if(u===S.base&&sfxReady('damage',0.3)){shakeScreen(3,0.15);sfx.damage()}}
 // One of them with a target: returns true when it has done its own thing this frame, false to walk
 // up (and chew through walls) the ordinary way.
 function shardStep(e,tgt,dt){const k=e.shard;if(k==='husk')return false;
   let d=dist(e,tgt),tr=tgt.r||12;e.scd-=dt;
   if(k==='stalker'){const reach=e.r+tr+STALK_REACH;
-    if(e.lungeT>0){const was=e.lungeT;e.lungeT-=dt;if(was>STALK_LUNGE*0.5&&e.lungeT<=STALK_LUNGE*0.5&&e.lt&&e.lt.hp>0&&dist(e,e.lt)<=reach+12){shardHit(e.lt,e.dmg);if(sfxReady('stalk',0.08))tone(260,0.07,'sawtooth',0.035,0,120)}
+    if(e.lungeT>0){const was=e.lungeT;e.lungeT-=dt;if(was>STALK_LUNGE*0.5&&e.lungeT<=STALK_LUNGE*0.5&&e.lt&&e.lt.hp>0&&dist(e,e.lt)<=reach+12){shardHit(e.lt,e.dmg,e);if(sfxReady('stalk',0.08))tone(260,0.07,'sawtooth',0.035,0,120)}
       if(e.lungeT<=0)e.scd=STALK_CD;return true}
     if(d>reach)return false;e.ang=Math.atan2(tgt.y-e.y,tgt.x-e.x);if(e.scd<=0){e.lungeT=STALK_LUNGE;e.lt=tgt}return true}
   if(k==='static'){let w=null,wd=STATIC_HUNT_R;S.harvesters.forEach(h=>{const q=dist(h,e);if(h.hp>0&&q<wd){wd=q;w=h}});S.builders.forEach(h=>{const q=dist(h,e);if(h.hp>0&&q<wd){wd=q;w=h}});
     if(w){tgt=e.target=w;d=wd;tr=w.r||8}
     const reach=e.r+tr+4;e.ang=Math.atan2(tgt.y-e.y,tgt.x-e.x);
-    if(d<=reach&&!wallBetween(e,tgt)){if(e.cd<=0){shardHit(tgt,e.dmg);e.cd=STATIC_CD;e.atkT=S.t}return true}
+    if(d<=reach&&!wallBetween(e,tgt)){if(e.cd<=0){shardHit(tgt,e.dmg,e);e.cd=STATIC_CD;e.atkT=S.t}return true}
     e.blinkT-=dt;if(e.blinkT>0)return true;e.blinkT=rnd(0.55,0.95);
     const aim=enemyApproachPoint(e,tgt),a=Math.atan2(aim.y-e.y,aim.x-e.x)+rnd(-0.25,0.25);
     for(const hop of [Math.min(STATIC_HOP,Math.max(12,d-reach+2)),STATIC_HOP*0.6,STATIC_HOP*1.3]){const nx=e.x+Math.cos(a)*hop,ny=e.y+Math.sin(a)*hop;
@@ -3883,10 +3915,10 @@ function shardStep(e,tgt,dt){const k=e.shard;if(k==='husk')return false;
 function lanternFire(e){const ux=Math.cos(e.ang),uy=Math.sin(e.ang),hx=e.x+ux*5.4,hy=e.y+uy*5.4,B=S.base;let L=0,ex=hx,ey=hy;
   for(;L<LANT_LEN;L+=6){ex=hx+ux*L;ey=hy+uy*L;if(ex<0||ey<0||ex>W||ey>H)break;const w=wallAt(ex,ey);if(w){damageWall(w,LANT_WALL_DMG);spark(ex,ey,'#8d9aa8',4);break}if(terrainAt(ex,ey)===2)break}
   [B].concat(S.troops,S.harvesters,S.builders,S.turrets.filter(t=>t.built),S.relays.filter(r=>r.built&&r.hp>0),S.stabs.filter(st=>st.built&&st.hp>0),S.depots.filter(de=>de.built&&de.hp>0)).forEach(u=>{if(u.hp<=0)return;
-    const rx=u.x-hx,ry=u.y-hy,al=rx*ux+ry*uy;if(al<0||al>L)return;if(Math.abs(rx*uy-ry*ux)<(u===B?BASE_R:(u.r||10))+4)shardHit(u,e.dmg)});
+    const rx=u.x-hx,ry=u.y-hy,al=rx*ux+ry*uy;if(al<0||al>L)return;if(Math.abs(rx*uy-ry*ux)<(u===B?BASE_R:(u.r||10))+4)shardHit(u,e.dmg,e)});
   e.bhx=hx;e.bhy=hy;e.bex=ex;e.bey=ey;e.beamAt=S.t;tone(900,0.25,'sawtooth',0.05,0,160)}
 function colossusSlam(e){const fx=e.x+Math.cos(e.ang)*(e.r+10),fy=e.y+Math.sin(e.ang)*(e.r+10),B=S.base,hit=new Set();
-  [B].concat(S.troops,S.harvesters,S.builders,S.turrets.filter(t=>t.built),S.relays.filter(r=>r.built&&r.hp>0),S.stabs.filter(st=>st.built&&st.hp>0),S.depots.filter(de=>de.built&&de.hp>0)).forEach(u=>{if(u.hp>0&&Math.hypot(u.x-fx,u.y-fy)<COL_SLAM_R+(u===B?BASE_R:(u.r||10)))shardHit(u,e.dmg)});
+  [B].concat(S.troops,S.harvesters,S.builders,S.turrets.filter(t=>t.built),S.relays.filter(r=>r.built&&r.hp>0),S.stabs.filter(st=>st.built&&st.hp>0),S.depots.filter(de=>de.built&&de.hp>0)).forEach(u=>{if(u.hp>0&&Math.hypot(u.x-fx,u.y-fy)<COL_SLAM_R+(u===B?BASE_R:(u.r||10)))shardHit(u,e.dmg,e)});
   for(const rr of [8,28,48,66])for(let i=0;i<12;i++){const a=i/12*Math.PI*2,w=wallAt(fx+Math.cos(a)*rr,fy+Math.sin(a)*rr);if(w)hit.add(w)}
   hit.forEach(w=>damageWall(w,COL_WALL_DMG));e.ringAt=S.t;e.rx=fx;e.ry=fy;burst(fx,fy,'#3a0910',16,170,0.5);shakeScreen(5,0.3);sfx.explode()}
 function spawnColossus(v){const c0=waveSources(v)[0],cd=Math.hypot(v.x-c0.x,v.y-c0.y)||1,c={x:c0.x+(v.x-c0.x)/cd*70,y:c0.y+(v.y-c0.y)/cd*70},p=nearestPlain(Math.max(60,Math.min(W-60,c.x)),Math.max(60,Math.min(H-60,c.y)));spawnShard(p.x,p.y,'colossus','wave');
@@ -6833,7 +6865,8 @@ function manWall(L,units){
   sfx.click();
 }
 // damage an enemy deals to one of your units: less if it's manning a standing wall
-function allyHit(t,d){if(!(t.manning&&!t.dest&&S.wallLines&&S.wallLines.includes(t.manning)))return d;return d*(1-MAN_DMG_RED)*(hasKit(t,'lmg')&&t.manning.type==='heavy'?0.5:1)}
+function allyHit(t,d,src){if(src&&gatShielded(t,src)){d*=GAT_SHIELD_MELEE;if(sfxReady('gatBlock',0.1))tone(1100,0.04,'square',0.025);spark(t.x+Math.cos(t.ang)*12,t.y+Math.sin(t.ang)*12,'#9fb6d0',3)}
+  if(!(t.manning&&!t.dest&&S.wallLines&&S.wallLines.includes(t.manning)))return d;return d*(1-MAN_DMG_RED)*(hasKit(t,'lmg')&&t.manning.type==='heavy'?0.5:1)}
 function drawManHover(){
   if(buildMode||mouse.form||!S.sel.troops.size)return;
   const L=wallLineAt({x:mouse.wx,y:mouse.wy});if(!L)return;
@@ -7725,7 +7758,7 @@ function hordeStep(e,tgt,dt){
   if(db<BASE_R+e.r+6){e.hp-=HORDE_STOMP_DPS*dt;if(e.hp<=0)return}
   if(tgt.hold&&dist(e,tgt)<(tgt.r||8)+e.r+6){e.hp-=HOLD_CRUSH_DPS*dt;if(e.hp<=0)return}
   const reach=e.r+(tgt.r||12)+4,d=tgt===B?db:dist(e,tgt);
-  if(d<=reach){if(e.cd<=0){tgt.hp-=allyHit(tgt,e.dmg);tgt.lastHitBy='enemy';hitFlash(tgt);spark(tgt.x,tgt.y,C.enemy,1);e.cd=0.8;if(tgt===S.base){shakeScreen(2,0.12);sfx.damage()}}e.ang=Math.atan2(tgt.y-e.y,tgt.x-e.x);return}
+  if(d<=reach){if(e.cd<=0){tgt.hp-=allyHit(tgt,e.dmg,e);tgt.lastHitBy='enemy';hitFlash(tgt);spark(tgt.x,tgt.y,C.enemy,1);e.cd=0.8;if(tgt===S.base){shakeScreen(2,0.12);sfx.damage()}}e.ang=Math.atan2(tgt.y-e.y,tgt.x-e.x);return}
   let ux,uy;
   const f=(d<170||(tgt!==S.base&&d<380))?null:flowDir(e.x,e.y);
   if(f){ux=f.x;uy=f.y}else{ux=(tgt.x-e.x)/(d||1);uy=(tgt.y-e.y)/(d||1)}
@@ -7873,9 +7906,7 @@ function drawUnitBodyLive(t){
   else if(arty){const r=t.r;ctx.fillRect(t.x-r,t.y-r*0.6,r*2,r*1.2);ctx.strokeStyle=ctx.fillStyle;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(t.x,t.y);ctx.lineTo(t.x+r*1.7,t.y-r*0.9);ctx.stroke()}
   else if(mech&&hasKit(t,'breaker'))drawBreaker(t);
   else if(mech&&hasKit(t,'fieldrelay'))drawFieldRelay(t);
-  else if(mech){ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2);
-    const legW=t.r*0.42,legH=t.r*1.7,bodyW=t.r*1.7,bodyH=t.r*0.95;
-    ctx.fillRect(-bodyW/2-legW,-legH/2,legW,legH);ctx.fillRect(bodyW/2,-legH/2,legW,legH);ctx.fillRect(-bodyW/2,legH/2-bodyH,bodyW,bodyH);ctx.restore()}
+  else if(mech)drawGatMech(t);
   else if(t.kind==='marksman')drawMarksman(t);
   else{drawRifleman(t);if(hasKit(t,'lmg'))lmgOn(t)}
   kitBand(t);
@@ -8352,8 +8383,9 @@ function update(dt){
     const onWall=!brawl&&t.manning&&!t.dest&&S.wallLines&&S.wallLines.includes(t.manning);
     const kit=kitOf(t),brk=mech&&kit==='breaker',frl=mech&&kit==='fieldrelay';
     const radarBoost=mark&&kit==='spotter'&&S.mods.relayDef==='radar'&&radarRelays().some(r=>dist(r,t)<SPOT_RADAR_R)?SPOT_RADAR_RANGE:1;
-    const range=brawl?BRAWL_RANGE:brk?BRK_RANGE:(arty?ARTY_RANGE:gren?GREN_RANGE:mech?MECH_RANGE:rock?ROCKET_RANGE:mark?MARK_RANGE:TROOP_RANGE)*S.mods.squadRangeMult*(onWall?1+MAN_RANGE_BONUS:1)*(kit==='lmg'?LMG_RANGE:1)*radarBoost;
-    let speed=(arty?ARTY_SPEED:mech?MECH_SPEED:rock?ROCKET_SPEED:brawl?BRAWL_SPEED:mark?MARK_SPEED:TROOP_SPEED)*(kit==='lmg'?LMG_SPEED:1);
+    const range=brawl?BRAWL_RANGE:brk?BRK_RANGE:(arty?ARTY_RANGE:gren?GREN_RANGE:mech?(kit?MECH_RANGE:GAT_RANGE):rock?ROCKET_RANGE:mark?MARK_RANGE:TROOP_RANGE)*S.mods.squadRangeMult*(onWall?1+MAN_RANGE_BONUS:1)*(kit==='lmg'?LMG_RANGE:1)*radarBoost;
+    let speed=(arty?ARTY_SPEED:mech?MECH_SPEED:rock?ROCKET_SPEED:brawl?BRAWL_SPEED:mark?MARK_SPEED:TROOP_SPEED)*(kit==='lmg'?LMG_SPEED:1)*(mech&&!kit&&(t.spin||0)>0.5?GAT_MOVE:1);
+    if(mech&&!kit){if(S.t-(t.gatShotT??-9)>0.6)t.spin=Math.max(0,(t.spin||0)-dt/GAT_SPINDOWN);t.barrel=(t.barrel||0)+dt*(2+(t.spin||0)*34)}
     const px0=t.x,py0=t.y;
     if(t.pace&&t.state==='move')speed=Math.min(speed,t.pace); // v4: a group move keeps to its slowest unit's pace
     const factor=roughFactor(t.x,t.y);
@@ -8433,20 +8465,12 @@ function update(dt){
             e.kbx=dx/d*k;e.kby=dy/d*k;e.stunT=Math.max(e.stunT||0,0.7);e.thrownT=S.t+0.7;e.thrownBy=t});
           burst(best.x,best.y,'#ffd28a',t.hay?10:4,t.hay?160:90,0.25);if(sfxReady('punch',0.05))sfx.spearHit();t.cd=BRK_CD/squadFireRateMult()}
         else if(mech){
-          // shotgun blast: several weak pellets, each a visible travelling tracer-line projectile
-          // (see launchProjectile/explodeNade's pellet branch) scattered around the target, so a
-          // tight cluster of enemies can each catch one instead of a single point taking it all —
-          // but no pellet carries a blast radius of its own. Fired from whichever side cannon
-          // didn't fire last time, alternating shot to shot.
-          t.ang=Math.atan2(best.y-t.y,best.x-t.x);
-          const perp=t.ang+(t.mechSide?Math.PI/2:-Math.PI/2);
-          const muzzle={x:t.x+Math.cos(perp)*9,y:t.y+Math.sin(perp)*9};
-          for(let i=0;i<MECH_PELLETS;i++){
-            const jx=best.x+rnd(-MECH_PELLET_SPREAD,MECH_PELLET_SPREAD),jy=best.y+rnd(-MECH_PELLET_SPREAD,MECH_PELLET_SPREAD);
-            launchProjectile(muzzle,{x:jx,y:jy},{speed:MECH_PROJ_SPEED,dmg:MECH_DMG*S.mods.troopDmgMult,color:C.mech,pellet:true});
-          }
-          t.mechSide=!t.mechSide;
-          t.cd=MECH_CD;
+          // the rotary cannon: spins up while it has something to shoot; every hit slows what it hits
+          t.ang=Math.atan2(best.y-t.y,best.x-t.x);t.spin=Math.min(1,(t.spin||0)+(S.t-(t.gatShotT??-9)<0.6?Math.min(0.6,S.t-t.gatShotT):0.05)/GAT_SPINUP);t.gatShotT=S.t;
+          const m={x:t.x+Math.cos(t.ang)*15-Math.sin(t.ang)*5,y:t.y+Math.sin(t.ang)*15+Math.cos(t.ang)*5},j=12*(1-t.spin*0.5);
+          damageEnemy(best,GAT_DMG*S.mods.troopDmgMult);if(best.kind!=='nest')best.supT=GAT_SLOW_T;tracer(m,{x:best.x+rnd(-j,j)*0.3,y:best.y+rnd(-j,j)*0.3},'#f2b84b',1.1);
+          if(sfxReady('gat',0.045))tone(180+t.spin*120,0.04,'square',0.025,0,90);
+          t.cd=GAT_CD_SLOW+(GAT_CD_FAST-GAT_CD_SLOW)*t.spin;
         }
         else if(kit==='lmg'){t.ang=Math.atan2(best.y-t.y,best.x-t.x);t.shotT=S.t;
           if(Math.random()<LMG_MISS){const a=t.ang+rnd(-0.25,0.25);tracer(gunMuzzle(t,16),{x:t.x+Math.cos(a)*range,y:t.y+Math.sin(a)*range},C.accent)}
@@ -8461,6 +8485,7 @@ function update(dt){
       }
     }
     t.x=Math.max(10,Math.min(W-10,t.x));t.y=Math.max(10,Math.min(H-10,t.y));
+    if(mech)t.moving=(t.x-px0)**2+(t.y-py0)**2>0.02; // the Mech art's legs stomp while it walks
     // Troopers and Marksmen: face where they walk unless they've just been shooting; raise the rifle to fire
     if(t.kind==='troop'||mark||gren||rock){const mvx=t.x-px0,mvy=t.y-py0,recent=S.t-(t.shotT??-9)<1.4||S.t-(t.podShotT??-9)<1.2||t.chargeT>0||t.paintT>0||t.volley;
       if(!recent&&mvx*mvx+mvy*mvy>0.02)t.ang=Math.atan2(mvy,mvx);else if(!recent&&!t.dest&&t.formAng!=null)t.ang=t.formAng;
@@ -8747,7 +8772,7 @@ function update(dt){
     const reach=e.r+(tgt.r||12)+4;
     if(dist(e,tgt)<=reach&&!wallBetween(e,tgt)){
       if(e.cd<=0){
-        tgt.hp-=allyHit(tgt,e.dmg); tgt.lastHitBy='enemy'; hitFlash(tgt); spark(tgt.x,tgt.y,C.enemy,2); e.cd=0.8; e.atkT=S.t;
+        tgt.hp-=allyHit(tgt,e.dmg,e); tgt.lastHitBy='enemy'; hitFlash(tgt); spark(tgt.x,tgt.y,C.enemy,2); e.cd=0.8; e.atkT=S.t;
         if(tgt===B){shakeScreen(3,0.15);sfx.damage()}
       }
       return;
