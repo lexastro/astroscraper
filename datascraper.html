@@ -74,6 +74,7 @@ body.lowGfx #fogGrain{display:none}
 .build button:hover{background:var(--panel2)} .build button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .build button.on{border-color:var(--accent);background:var(--panel2)}
 .rcPair{display:block;margin-top:6px;color:#7d8996;font-size:12px}.rcPair.on{color:#f2b84b}
+.volRows{display:flex;flex-direction:column;gap:8px;width:100%;max-width:320px;margin-bottom:6px}.volRow{display:flex;align-items:center;gap:12px;font-family:var(--mono);font-size:12px;color:var(--fg)}.volRow span{width:80px;text-align:left}.volRow input{flex:1;accent-color:var(--accent)}
 .build button.dry{opacity:.55} .build button.dry:hover{opacity:.8}
 .build button .key{font-family:var(--mono);font-size:10px;color:var(--muted)}
 .build button .cost{font-family:var(--mono);font-size:11px;color:var(--dat)}
@@ -785,6 +786,11 @@ async function run(d){
 <div class="overlay" id="settingsOverlay" hidden>
   <h1>Settings</h1>
   <div class="menuMeta">
+    <div class="volRows">
+      <label class="volRow"><span>Music</span><input type="range" id="volMusic" min="0" max="100"></label>
+      <label class="volRow"><span>Ambience</span><input type="range" id="volAmb" min="0" max="100"></label>
+      <label class="volRow"><span>Effects</span><input type="range" id="volSfx" min="0" max="100"></label>
+    </div>
     <button id="recordingToggleBtn" class="metaUnlock secondary"></button>
     <button id="debugUnlockAllBtn" class="metaUnlock secondary">[Debug] Unlock everything free</button>
     <button id="debugWipeUpgradesBtn" class="metaUnlock secondary">[Debug] Wipe upgrades</button>
@@ -2984,6 +2990,101 @@ function drawExit(){
 const pressureOn=id=>!!(RUN&&RUN.pressure&&RUN.pressure.ids.includes(id));
 function pressureBonus(ids){return ids.reduce((a,id)=>a+(PRESSURE.find(p=>p.id===id)||{bonus:0}).bonus,0)}
 function pressureCost(ids){return ids.reduce((a,id)=>a+(PRESSURE.find(p=>p.id===id)||{cost:0}).cost,0)}
+// ---------- soundscape and music (v4) ----------
+// All synthesized, no files. Three buses (effects, music, ambience) with their own volumes, saved in
+// localStorage, into one master with a gentle compressor; music and ambience each send to a
+// generated reverb.
+// Ambience follows the zone you're in: Rim — dry wind, a low hollow drone, distant metal groaning;
+// Dense Field — softer wind, a shimmering drone, glass chimes and crystal creaks; Core — a deep
+// rumbling drone, distant thunder, embers crackling.
+// Music is generative, in D minor (Dm, B♭, F, C, two bars each at 84 bpm), with three layers that
+// fade in by intensity: calm (a slow pad and a few bell notes), drilling (a bass pulse and a steady
+// arpeggio), combat (drums and a quicker arpeggio). Intensity comes from what's happening: drilling,
+// and how many enemies are close to the Bastion and your units.
+const AUDIO_KEY='astroscraper.audio';let AUD={music:0.55,amb:0.7,sfx:1};try{Object.assign(AUD,JSON.parse(localStorage.getItem(AUDIO_KEY)||'{}'))}catch(e){}
+function saveAud(){try{localStorage.setItem(AUDIO_KEY,JSON.stringify(AUD))}catch(e){}}
+let BUS=null;
+function impulse(ac,secs,decay){const n=Math.floor(ac.sampleRate*secs),b=ac.createBuffer(2,n,ac.sampleRate);for(let c=0;c<2;c++){const d=b.getChannelData(c);for(let i=0;i<n;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/n,decay)}return b}
+function audioBus(){const ac=ensureAudio();if(!ac)return null;if(BUS&&BUS.ac===ac)return BUS;
+  const comp=ac.createDynamicsCompressor();comp.threshold.value=-18;comp.ratio.value=3;comp.connect(ac.destination);
+  const master=ac.createGain();master.gain.value=0.9;master.connect(comp);
+  const mk=v=>{const g=ac.createGain();g.gain.value=v;g.connect(master);return g};
+  const sfx=mk(AUD.sfx),music=mk(AUD.music*0.5),amb=mk(AUD.amb*0.55);
+  const verb=(out,secs)=>{const cv=ac.createConvolver();cv.buffer=impulse(ac,secs,2.6);const send=ac.createGain();send.gain.value=1;send.connect(cv);const ret=ac.createGain();ret.gain.value=0.55;cv.connect(ret);ret.connect(out);return send};
+  BUS={ac,master,sfx,music,amb,mVerb:verb(music,3.4),aVerb:verb(amb,4.2),duck:1};return BUS}
+function sfxOut(ac){const b=audioBus();return b?b.sfx:ac.destination}
+function setAudVol(k,v){AUD[k]=v;saveAud();const b=BUS;if(!b)return;const t=b.ac.currentTime;if(k==='sfx')b.sfx.gain.setTargetAtTime(v,t,0.05);if(k==='music')b.music.gain.setTargetAtTime(v*0.5*b.duck,t,0.1);if(k==='amb')b.amb.gain.setTargetAtTime(v*0.55,t,0.1)}
+// a single synthesized voice into a bus (and optionally its reverb)
+function voice(out,verb,o){const ac=BUS.ac,t0=o.t,osc=ac.createOscillator(),g=ac.createGain();osc.type=o.type||'sine';osc.frequency.setValueAtTime(o.f,t0);if(o.detune)osc.detune.value=o.detune;if(o.slide)osc.frequency.exponentialRampToValueAtTime(o.slide,t0+o.d);
+  let node=osc;if(o.lp){const f=ac.createBiquadFilter();f.type='lowpass';f.frequency.value=o.lp;f.Q.value=o.q||0.7;osc.connect(f);node=f}
+  const a=o.a||0.01,r=o.r||0.3,peak=o.g||0.1;g.gain.setValueAtTime(0.0001,t0);g.gain.linearRampToValueAtTime(peak,t0+a);g.gain.setValueAtTime(peak,t0+Math.max(a,o.d-r));g.gain.exponentialRampToValueAtTime(0.0001,t0+o.d);
+  node.connect(g);g.connect(out);if(verb&&o.wet){const s=BUS.ac.createGain();s.gain.value=o.wet;g.connect(s);s.connect(verb)}osc.start(t0);osc.stop(t0+o.d+0.05)}
+function noiseHit(out,verb,o){const ac=BUS.ac;if(!noiseBuf){noiseBuf=ac.createBuffer(1,ac.sampleRate,ac.sampleRate);const d=noiseBuf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1}
+  const src=ac.createBufferSource();src.buffer=noiseBuf;src.loop=true;const f=ac.createBiquadFilter();f.type=o.ft||'bandpass';f.frequency.setValueAtTime(o.f,o.t);if(o.slide)f.frequency.exponentialRampToValueAtTime(o.slide,o.t+o.d);f.Q.value=o.q||1;
+  const g=ac.createGain();g.gain.setValueAtTime(0.0001,o.t);g.gain.linearRampToValueAtTime(o.g,o.t+(o.a||0.005));g.gain.exponentialRampToValueAtTime(0.0001,o.t+o.d);src.connect(f);f.connect(g);g.connect(out);
+  if(verb&&o.wet){const s=ac.createGain();s.gain.value=o.wet;g.connect(s);s.connect(verb)}src.start(o.t,Math.random()*0.5);src.stop(o.t+o.d+0.05)}
+const mtof=m=>440*Math.pow(2,(m-69)/12);
+// ---- ambience: a looping wind bed and drone per zone, and scattered distant events ----
+const AMB_ZONE={rim:{wind:[420,0.5],drone:[38,45],wave:'sine',lp:260},dense:{wind:[700,0.35],drone:[39,46],wave:'triangle',lp:520,shimmer:true},core:{wind:[260,0.45],drone:[33,40],wave:'sawtooth',lp:180,rumble:true}};
+let AMB=null;
+function ambZone(){return S&&S.base?(STOP_BAND||bandAt(S.base.x,S.base.y)):'rim'}
+function startAmbience(zone){const b=audioBus();if(!b)return;const ac=b.ac,Z=AMB_ZONE[zone]||AMB_ZONE.rim;stopAmbience();
+  const nodes=[];const t=ac.currentTime;
+  // wind: looping noise through a band-pass whose centre and level drift slowly (two LFOs)
+  if(!noiseBuf){noiseBuf=ac.createBuffer(1,ac.sampleRate,ac.sampleRate);const d=noiseBuf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1}
+  const src=ac.createBufferSource();src.buffer=noiseBuf;src.loop=true;const bp=ac.createBiquadFilter();bp.type='bandpass';bp.frequency.value=Z.wind[0];bp.Q.value=0.6;
+  const wg=ac.createGain();wg.gain.value=0;wg.gain.linearRampToValueAtTime(Z.wind[1]*0.22,t+4);
+  const l1=ac.createOscillator(),l1g=ac.createGain();l1.frequency.value=0.07;l1g.gain.value=Z.wind[0]*0.45;l1.connect(l1g);l1g.connect(bp.frequency);
+  const l2=ac.createOscillator(),l2g=ac.createGain();l2.frequency.value=0.13;l2g.gain.value=Z.wind[1]*0.09;l2.connect(l2g);l2g.connect(wg.gain);
+  src.connect(bp);bp.connect(wg);wg.connect(b.amb);const ws=ac.createGain();ws.gain.value=0.35;wg.connect(ws);ws.connect(b.aVerb);
+  [src,l1,l2].forEach(n=>n.start());nodes.push(src,l1,l2);
+  // the drone: two low voices a fifth-ish apart, slightly detuned, through a low-pass
+  const dg=ac.createGain();dg.gain.value=0;dg.gain.linearRampToValueAtTime(Z.rumble?0.05:0.035,t+6);const lp=ac.createBiquadFilter();lp.type='lowpass';lp.frequency.value=Z.lp;lp.connect(dg);dg.connect(b.amb);
+  const ds=ac.createGain();ds.gain.value=0.5;dg.connect(ds);ds.connect(b.aVerb);
+  Z.drone.forEach((m,i)=>{[-6,6].forEach(dt=>{const o=ac.createOscillator();o.type=Z.wave;o.frequency.value=mtof(m);o.detune.value=dt+i*3;o.connect(lp);o.start();nodes.push(o)})});
+  if(Z.shimmer){const tr=ac.createOscillator(),trg=ac.createGain();tr.frequency.value=0.3;trg.gain.value=0.015;tr.connect(trg);trg.connect(dg.gain);tr.start();nodes.push(tr)}
+  AMB={zone,nodes,gains:[wg,dg],next:ac.currentTime+3}}
+function stopAmbience(){if(!AMB||!BUS)return;const t=BUS.ac.currentTime;AMB.gains.forEach(g=>{g.gain.cancelScheduledValues(t);g.gain.setValueAtTime(g.gain.value,t);g.gain.linearRampToValueAtTime(0,t+2)});const ns=AMB.nodes;setTimeout(()=>ns.forEach(n=>{try{n.stop()}catch(e){}}),2200);AMB=null}
+// a distant event, every few seconds, picked by zone
+function ambEvent(zone,t){const b=BUS,out=b.amb,v=b.aVerb,R=Math.random;
+  if(zone==='rim'){if(R()<0.6){const f=rnd(70,140);voice(out,v,{t,f,slide:f*rnd(0.6,0.8),d:rnd(2.5,4),a:0.8,r:1.5,g:0.025,type:'sawtooth',lp:500,q:6,wet:0.9})} // metal groaning
+    else noiseHit(out,v,{t,f:rnd(300,700),slide:rnd(150,300),d:rnd(2,3.5),a:0.8,g:0.05,q:0.8,wet:0.8})} // a gust
+  else if(zone==='dense'){const pent=[74,77,79,81,84,86,89,91];if(R()<0.7){const n=1+Math.floor(R()*3);for(let i=0;i<n;i++){const m=pent[Math.floor(R()*pent.length)]+12;voice(out,v,{t:t+i*rnd(0.12,0.35),f:mtof(m),d:rnd(2.5,4),a:0.005,r:2.5,g:0.018,wet:1})}} // glass chimes
+    else{const f=rnd(900,1600);voice(out,v,{t,f,slide:f*rnd(0.85,1.1),d:rnd(0.6,1.2),a:0.3,r:0.4,g:0.008,type:'triangle',wet:0.9})}} // a crystal creak
+  else{if(R()<0.55)noiseHit(out,v,{t,f:rnd(60,120),ft:'lowpass',d:rnd(3,5),a:0.6,g:0.16,q:0.5,wet:1}); // distant thunder
+    else{for(let i=0;i<8;i++)noiseHit(out,null,{t:t+R()*1.2,f:rnd(2500,5000),ft:'highpass',d:0.03,g:0.03,q:0.5})}}} // embers crackling
+// ---- music ----
+const MUS={bpm:84,step:0,next:0,lv:[1,0,0],want:[1,0,0],chords:[[50,57,62,65],[46,53,58,62],[41,48,53,57],[48,55,60,64]],scale:[62,64,65,67,69,70,72,74,76,77,79]};
+function musicIntensity(){if(!S||S.over||!S.base)return 0;const B=S.base,near=S.enemies.filter(e=>e.hp>0&&e.kind!=='nest'&&(debugNoFog||visible(e))&&(dist(e,B)<480||S.troops.some(u=>dist(e,u)<220))).length; // only what you can see
+  const drilling=S.activeVein&&S.activeVein.meter&&S.activeVein.meter.phase==='drill';return near>=8?2:(drilling||near>=4)?1:0}
+function musicStep(t){const b=BUS,out=b.music,v=b.mVerb,s=MUS.step,beat=60/MUS.bpm/2,bar=Math.floor(s/16),ch=MUS.chords[Math.floor(bar/2)%4],inBar=s%16,L=MUS.lv,R=Math.random;
+  // pad: each new chord, a slow swell of detuned voices
+  if(s%32===0&&L[0]>0.02)ch.forEach((m,i)=>[-7,7].forEach(dt=>voice(out,v,{t,f:mtof(m),detune:dt,d:beat*32+1,a:2.5,r:3,g:0.022*L[0]*(i?0.8:1),type:'sawtooth',lp:700+300*L[1],wet:0.7})));
+  // calm: a scattering of bell notes
+  if(L[0]>0.05&&inBar%4===0&&R()<0.35*(1-L[2]*0.7)){const m=MUS.scale[Math.floor(R()*MUS.scale.length)]+12;voice(out,v,{t,f:mtof(m),d:2.6,a:0.005,r:2.2,g:0.03*L[0],wet:0.9});voice(out,v,{t:t+beat*3,f:mtof(m),d:2,a:0.005,r:1.8,g:0.012*L[0],wet:1})}
+  // drilling: a bass pulse on the root, and an arpeggio up through the chord
+  if(L[1]>0.02){if(inBar%2===0)voice(out,null,{t,f:mtof(ch[0]-12),d:beat*1.6,a:0.01,r:0.2,g:0.06*L[1],type:'sawtooth',lp:260+200*L[2],q:2});
+    const arp=[0,1,2,3,2,1];if(inBar%2===0||L[2]>0.5){const m=ch[arp[(s/(L[2]>0.5?1:2)|0)%arp.length]]+12;voice(out,v,{t,f:mtof(m),d:beat*1.4,a:0.004,r:0.3,g:0.026*L[1],type:'triangle',lp:2400,wet:0.4})}}
+  // combat: kick, off-beat hats, a snare on 2 and 4
+  if(L[2]>0.02){if(inBar%4===0)voice(out,null,{t,f:110,slide:40,d:0.32,a:0.002,r:0.25,g:0.22*L[2]});
+    if(inBar%4===2)noiseHit(out,null,{t,f:8000,ft:'highpass',d:0.05,g:0.04*L[2],q:0.7});
+    if(inBar===4||inBar===12)noiseHit(out,v,{t,f:1800,d:0.18,g:0.09*L[2],q:0.8,wet:0.25})}
+  MUS.step++}
+// the scheduler: runs a little ahead of the audio clock; also ticks ambience and the music's intensity
+let audioTimer=null;
+function audioTick(){const b=BUS;if(!b||b.ac.state!=='running')return;const ac=b.ac,now=ac.currentTime;
+  const playing=S&&!menuOpen&&S.base&&!S.over;
+  // ambience follows the zone
+  if(playing){const z=ambZone();if(!AMB||AMB.zone!==z)startAmbience(z);if(AMB&&now>=AMB.next){ambEvent(AMB.zone,now+0.1);AMB.next=now+rnd(4,11)}}else if(AMB)stopAmbience();
+  // music layers ease towards the current intensity
+  const I=playing?musicIntensity():-1;MUS.want=I<0?[0.35,0,0]:[1,I>=1?1:0,I>=2?1:0];
+  for(let k=0;k<3;k++)MUS.lv[k]+=(MUS.want[k]-MUS.lv[k])*0.04;
+  const duck=menuOpen?0.5:1;if(duck!==b.duck){b.duck=duck;b.music.gain.setTargetAtTime(AUD.music*0.5*duck,now,0.4)}
+  const beat=60/MUS.bpm/2;if(MUS.next<now)MUS.next=now+0.05;
+  while(MUS.next<now+0.25){musicStep(MUS.next);MUS.next+=beat}}
+function startAudioEngine(){if(audioTimer)return;if(!audioBus())return;audioTimer=setInterval(audioTick,90)}
+// the engine starts on the first click or key press (browsers only allow audio after one)
+['pointerdown','keydown'].forEach(ev=>addEventListener(ev,()=>startAudioEngine(),{once:false,passive:true}));
 function startRun(){
   // v4: a run is a journey of stops (see "the run")
   // pay for the chosen Pressure (anything no longer affordable is dropped)
@@ -3182,6 +3283,7 @@ document.getElementById('consentAllowBtn').onclick=()=>setRecordingConsent(true)
 document.getElementById('consentDisableBtn').onclick=()=>setRecordingConsent(false);
 // Lets the player flip their choice anytime from the main menu, not just at the first-run gate.
 document.getElementById('recordingToggleBtn').onclick=()=>setRecordingConsent(!meta.recordingConsent);
+[['volMusic','music'],['volAmb','amb'],['volSfx','sfx']].forEach(([id,k])=>{const el=document.getElementById(id);el.value=Math.round(AUD[k]*100);el.oninput=()=>{startAudioEngine();setAudVol(k,el.value/100);if(k==='sfx'&&sfxReady('volTest',0.15))tone(660,0.08,'triangle',0.06)}});
 // Opens the main menu again after a run ends — Play then rolls a fresh map.
 function openMainMenu(){
   endTutorialState();
@@ -7262,7 +7364,7 @@ function tone(freq,dur,type,gain,delay,slideTo){
   osc.type=type||'sine'; osc.frequency.setValueAtTime(freq,t0);
   if(slideTo)osc.frequency.exponentialRampToValueAtTime(Math.max(20,slideTo),t0+dur);
   g.gain.setValueAtTime(0.0001,t0); g.gain.linearRampToValueAtTime(gain||0.15,t0+0.012); g.gain.exponentialRampToValueAtTime(0.001,t0+dur);
-  osc.connect(g); g.connect(ac.destination);
+  osc.connect(g); g.connect(sfxOut(ac));
   osc.start(t0); osc.stop(t0+dur+0.03);
 }
 let noiseBuf=null;
@@ -7272,7 +7374,7 @@ function noiseCrack(dur,gain,freq,delay){
   const t0=ac.currentTime+(delay||0),src=ac.createBufferSource(),f=ac.createBiquadFilter(),g=ac.createGain();
   src.buffer=noiseBuf;f.type='bandpass';f.frequency.value=freq||1800;f.Q.value=0.9;
   g.gain.setValueAtTime(gain,t0);g.gain.exponentialRampToValueAtTime(0.001,t0+dur);
-  src.connect(f);f.connect(g);g.connect(ac.destination);src.start(t0);src.stop(t0+dur+0.02);
+  src.connect(f);f.connect(g);g.connect(sfxOut(ac));src.start(t0);src.stop(t0+dur+0.02);
 }
 // v4: a derelict rig's distress call — a rising two-pulse sonar ping and a falling tail
 function distressPing(){tone(1175,0.16,'sine',0.07);tone(1175,0.16,'sine',0.07,0.26);tone(880,0.55,'sine',0.065,0.54,640)}
