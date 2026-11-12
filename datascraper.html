@@ -1917,11 +1917,14 @@ function mkHotspots(v){
     rp:rnd(0,Math.PI*2),rs:rnd(0.5,0.9),x:v.x,y:v.y,stab:null});
   return hs;
 }
+// v4: how far out the hotspots swing, as a share of the vein's radius (was 0.42–0.72): a wider
+// triangle steers harder, so the far ends of the meter (and its seams) are in reach
+const HOT_R=[0.5,1.15];
 function updateHotspots(v){
   if(!v.hot)return;
   v.hot.forEach(h=>{
     if(h.stab)return; // pinned under its Stabilizer
-    const rr=v.r*(0.42+0.3*(0.5+0.5*Math.sin(S.t*h.rs+h.rp))), a=h.a0+S.t*h.spin;
+    const rr=v.r*(HOT_R[0]+(HOT_R[1]-HOT_R[0])*(0.5+0.5*Math.sin(S.t*h.rs+h.rp))), a=h.a0+S.t*h.spin;
     h.x=v.x+Math.cos(a)*rr; h.y=v.y+Math.sin(a)*rr;
   });
 }
@@ -1938,15 +1941,19 @@ function stabHold(v){return veinStabs(v).reduce((a,st)=>a+st.hp/st.maxHp,0)}
 // glows hot, cracks the ground, and draws enemies to it from STRAIN_AGGRO_R; a damaged one's corner
 // pulls in toward the vein, shrinking the triangle and shoving the weight; and losing a strained
 // one jerks the needle hard the other way (STRAIN_KICK). Leaning also loosens the needle's hold.
+// v4: a triangle as wide as the vein (hotspots out at STEER_FULL_R) reaches STEER_BIG × as far as the old
+// reference one — about the edge of the zoomed meter; in between it grows steadily
+const STEER_BIG=1.2, STEER_FULL_R=1.0;
 const RED_GRACE=4, RED_RECOVER=1, STEER_LAG=2.5, STEER_MAX=0.85, STEER_REF_R=0.55, STEER_WOBBLE=0.4, STRAIN_AGGRO_R=520, STRAIN_KICK=0.6;
 function steerShape(v){
   const cs=veinStabs(v).map(st=>{const k=0.3+0.7*st.hp/st.maxHp;return {st,x:(st.x-v.x)*k,y:(st.y-v.y)*k}});
-  if(cs.length<3)return {cs,area:0,auth:0,cx:0,cy:0};
+  if(cs.length<3)return {cs,area:0,auth:0,reach:0,cx:0,cy:0};
   let cx=0,cy=0;cs.forEach(c=>{cx+=c.x;cy+=c.y});cx/=cs.length;cy/=cs.length;
   cs.sort((a,b)=>Math.atan2(a.y-cy,a.x-cx)-Math.atan2(b.y-cy,b.x-cx));
   let A=0;for(let i=0;i<cs.length;i++){const p=cs[i],q=cs[(i+1)%cs.length];A+=p.x*q.y-q.x*p.y}A=Math.abs(A)/2;
   const R=STEER_REF_R*v.r, ref=3*Math.sqrt(3)/4*R*R;
-  return {cs,area:A,auth:Math.min(1,A/ref),cx,cy};
+  // v4: past the reference size a wider triangle keeps reaching further instead of topping out
+  return {cs,area:A,auth:Math.min(1,A/ref),reach:A<ref?A/ref:Math.min(STEER_BIG,1+(STEER_BIG-1)*(Math.sqrt(A/ref)-1)/(STEER_FULL_R/STEER_REF_R-1)),cx,cy};
 }
 // keeps (x,y) inside the triangle — the nearest point on its edge if it's outside
 function clampToShape(cs,x,y){
@@ -1972,7 +1979,7 @@ function steerState(v){
   const L=sh.auth*Math.min(1,Math.hypot(m.w.x-sh.cx,m.w.y-sh.cy)/Math.max(1,meanR*0.75));
   const ls=sh.cs.map(c=>1/(Math.hypot(m.w.x-c.x,m.w.y-c.y)+0.08*v.r)**2), lmax=Math.max(...ls);
   sh.cs.forEach((c,i)=>{c.st.strain=c.st.lastStrain=L*ls[i]/lmax;c.st.steerDir=Math.sign(c.x-sh.cx)});
-  return {sh,s,target:s*sh.auth*STEER_MAX,L};
+  return {sh,s,target:s*sh.reach*STEER_MAX,L};
 }
 // The free hotspot nearest w, if within snapping distance, on a found, unfinished vein.
 function hotspotAt(w){
@@ -2263,10 +2270,10 @@ function drawSteerPad(v){
   pad._hd=!show; if(!show)return;
   const dpr=devicePixelRatio||1, cssS=pad.clientWidth||132, S2=Math.round(cssS*dpr); if(pad.width!==S2){pad.width=pad.height=S2}
   const g=pad.getContext('2d'), sv=steerState(v), sh=sv.sh, c0=S2/2;
-  padScale=(cssS/2-7)/(0.8*v.r); const P=(x,y)=>[c0+x*padScale*dpr,c0+y*padScale*dpr];
+  padScale=(cssS/2-7)/((HOT_R[1]+0.08)*v.r); const P=(x,y)=>[c0+x*padScale*dpr,c0+y*padScale*dpr];
   g.clearRect(0,0,S2,S2);
   // the hotspots' reach, for scale
-  g.strokeStyle='#1f2731';g.lineWidth=dpr;g.beginPath();g.arc(c0,c0,0.72*v.r*padScale*dpr,0,Math.PI*2);g.stroke();
+  g.strokeStyle='#1f2731';g.lineWidth=dpr;g.beginPath();g.arc(c0,c0,HOT_R[1]*v.r*padScale*dpr,0,Math.PI*2);g.stroke();
   g.strokeStyle='#1a2129';g.beginPath();g.moveTo(c0,4*dpr);g.lineTo(c0,S2-4*dpr);g.stroke();
   if(sh.cs.length>=3){
     g.beginPath();sh.cs.forEach((c,i)=>{const [x,y]=P(c.x,c.y);i?g.lineTo(x,y):g.moveTo(x,y)});g.closePath();
