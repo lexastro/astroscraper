@@ -2787,7 +2787,7 @@ function corruptUnit(u,type,label,reason){
     return;
   }
   const st=CORRUPT_STATS[type];
-  S.enemies.push({x:u.x,y:u.y,r:st.r,hp:st.hp,maxHp:st.hp,speed:st.speed,dmg:st.dmg,cd:0,kind:'corrupted',
+  S.enemies.push({x:u.x,y:u.y,r:st.r,hp:st.hp,maxHp:st.hp,speed:st.speed,dmg:st.dmg,cd:0,kind:'corrupted',unit:type,seed:Math.floor(Math.random()*9999),
     target:null,aggro:1e9,home:{x:u.x,y:u.y},ang:rnd(0,Math.PI*2),faceT:rnd(1,3),stunT:0});
   banner(fallen?`${label} has risen again — corrupted and hostile!`:`${label} lost its mind and turned hostile!`,'danger');
   burst(u.x,u.y,C.zone,16,130,0.5);sfx.sever();shakeScreen(5,0.25);
@@ -2802,7 +2802,7 @@ function unitLabel(u,type){
   return 'A fallen '+(u.kind==='grenadier'?'Grenadier':u.kind==='artillery'?'Artillery Piece':u.kind==='mech'?'Mech':u.kind==='rocket'?'Rocketeer':u.kind==='brawler'?'Paladin':u.kind==='marksman'?'Marksman':'Trooper');
 }
 function queueReanimation(u,type){
-  S.reanim.push({x:u.x,y:u.y,r:u.r,type,label:unitLabel(u,type),t:REANIMATE_T});
+  S.reanim.push({x:u.x,y:u.y,r:u.r,ang:u.ang||0,type,label:unitLabel(u,type),t:REANIMATE_T});
 }
 function updateReanimation(dt){
   S.reanim=S.reanim.filter(c=>{
@@ -8404,6 +8404,315 @@ function drawMarksman(t){
   ctx.restore();
   if(since<0.07){const m=gunMuzzle(t,16);ctx.save();ctx.translate(m.x,m.y);ctx.rotate(t.ang+Math.PI/2);rifleFlash(0,0,1.2);ctx.restore()}
 }
+// =====================================================================================================
+// ---------- CORRUPTED UNIT ART ----------
+// Corrupted copies of the player's units, drawn for the 'corrupted' enemies a unit turns into (see
+// drawCorruptEnemy below; the concept sheet is concepts/corrupted_units.html). They use the unit art
+// primitives above (rP/rO/rLimb/uSun), palState and the units' own constants. Each draw function takes a
+// unit-shaped object ({x,y,ang,flashT,...} plus that unit's own anim fields: shotT, aimV, chargeT, jabT,
+// atkT, bashT, pods, podShotT, podGrewT, paintT, paintTgt, spin, barrel, gatShotT), drawn facing t.ang.
+//
+// The look borrows from the hostile force's three families:
+//  - Dense glass: crimson spires (cSpire/cCluster) grown through armour, out of muzzles and pod cells.
+//  - Core shards: black slabs with crimson edges (cSlab) replacing limbs and plates; a pulsing red core
+//    (cCore) where an eye or lamp was; glowing cracks (cCrack).
+//  - Echoes: the whole body is blitted out of sync with itself, red and cyan copies jittering either
+//    side and horizontal bands slipping sideways or blinking out (cRender, cBlit).
+// The ally blue is drained to slate, white gear to bone, and each role colour is kept but scorched, so
+// a corrupted unit still reads as its source at a glance.
+//
+// drawCorruptBody goes through an offscreen buffer for the Echo glitch every frame (corrupted units are
+// few, so they aren't cached the way drawUnitBody caches the player's), and casts the units' shadow.
+// =====================================================================================================
+const CORR={body:'#4d5763',bone:'#b3aaa1',bone2:'#8e857d',grip:'#3a3436',blk:'#0a0506',core:'#120607',
+  edge:'#4e0c15',edge2:'#7d1420',hot:'#ff3a24',hot2:'#ffd0a0',red:'#ff2a2a',cyan:'#5ec8ff',deep:[105,12,20],
+  pod:'#b0652c',moss:'#3d4c35',mossD:'#262f20',viol:'#5b4785',violD:'#3b2c5e',hull:'#8d9198'};
+const CTAU=Math.PI*2;
+// a stable hash (the same mix as the game's glHash)
+function cHash(a,b,c){let h=(a*73856093)^(b*19349663)^(c*83492791);h=Math.imul(h^(h>>>15),2246822507);h=Math.imul(h^(h>>>13),3266489909);h^=h>>>16;return (h>>>0)/4294967296}
+const cId=t=>(t.id??t.seed??0)|0;
+const cQ=()=>Math.floor(S.t*10); // glitch frame: re-rolls ten times a second, like the Core shards
+// the visor colour: crimson, flickering cyan now and then (the Echo's other copy)
+const cVisor=(t,k)=>cHash(cId(t),cQ(),k||5)<0.13?CORR.cyan:CORR.hot;
+
+// ---- glow, recorded while drawing and added (lighter) after the glitch blit ----
+const CB={glows:[],calm:false,live:null}; // glows recorded while rendering; live: the buffers for poses drawn fresh
+function cGlowAt(x,y,r,a,col){const m=ctx.getTransform();CB.glows.push({x:m.a*x+m.c*y+m.e,y:m.b*x+m.d*y+m.f,r:r*Math.hypot(m.a,m.b),a,col:col||'255,58,36'})}
+
+// A glass spire in a unit's own frame, after the Dense spires: two faces meeting at a ridge, one lit
+// by the sun and one in shade, washed from deep red glass at the foot to a pale tip.
+function cSpire(x,y,a,len,w,col){col=col||CORR.deep;if(len<=0.05)return;
+  const [lx,ly]=uSun(),c=Math.cos(a),s=Math.sin(a),px=-s*w/2,py=c*w/2;
+  const T=[x+c*len,y+s*len],Lb=[x+px,y+py],Rb=[x-px,y-py],M=[x+c*len*0.16,y+s*len*0.16],litL=(px*lx+py*ly)>0;
+  const tri=(A,B,Cc)=>{ctx.beginPath();ctx.moveTo(A[0],A[1]);ctx.lineTo(B[0],B[1]);ctx.lineTo(Cc[0],Cc[1]);ctx.closePath()};
+  ctx.strokeStyle=U_OL;ctx.lineWidth=0.36;tri(Lb,T,Rb);ctx.stroke();
+  [[Lb,M,litL],[M,Rb,!litL]].forEach(([A,B,lit])=>{const k=lit?1.3:0.55,g=ctx.createLinearGradient(x,y,T[0],T[1]);
+    g.addColorStop(0,`rgba(${Math.min(255,col[0]*k*1.2+70)|0},${Math.min(255,col[1]*k+12)|0},${Math.min(255,col[2]*k+12)|0},0.96)`);
+    g.addColorStop(1,lit?'rgba(255,176,164,0.95)':`rgba(${Math.min(255,col[0]*k+60)|0},${Math.min(255,col[1]*k+14)|0},${Math.min(255,col[2]*k+18)|0},0.94)`);
+    ctx.fillStyle=g;tri(A,B,T);ctx.fill()});
+  const ln=(A,B)=>{ctx.beginPath();ctx.moveTo(A[0],A[1]);ctx.lineTo(B[0],B[1]);ctx.stroke()},hi='rgba(255,225,220,0.75)',lo='rgba(30,0,4,0.8)';
+  ctx.lineWidth=0.26;ctx.strokeStyle=litL?hi:lo;ln(Lb,T);ctx.strokeStyle=litL?lo:hi;ln(Rb,T);ctx.strokeStyle='rgba(255,235,230,0.4)';ctx.lineWidth=0.18;ln(M,T)}
+// n spires fanned round direction a (spread radians), base jittered across width w
+function cCluster(x,y,a,n,len,w,spread,seed){const L=[];
+  for(let i=0;i<n;i++){const aa=a+(n>1?(i/(n-1)-0.5)*spread:0)+(cHash(seed,i,1)-0.5)*0.3,o=(cHash(seed,i,3)-0.5)*w*0.8;
+    L.push({x:x+Math.cos(aa+Math.PI/2)*o,y:y+Math.sin(aa+Math.PI/2)*o,a:aa,l:len*(0.6+0.5*cHash(seed,i,2)),w:w*(0.7+0.4*cHash(seed,i,4))})}
+  L.sort((p,q)=>p.l-q.l).forEach(s=>cSpire(s.x,s.y,s.a,s.l,s.w))}
+// a Core slab: black, its sunny long edge crimson
+function cSlab(x,y,len,w,ang){ctx.save();ctx.translate(x,y);ctx.rotate(ang);const [,sy]=uSun(),e=Math.max(0.35,w*0.28);
+  ctx.fillStyle=CORR.blk;ctx.fillRect(-len/2,-w/2,len,w);ctx.fillStyle=CORR.edge2;ctx.fillRect(-len/2,sy<0?-w/2:w/2-e,len,e);
+  ctx.strokeStyle=U_OL;ctx.lineWidth=0.3;ctx.strokeRect(-len/2,-w/2,len,w);ctx.restore()}
+// a glowing crack across armour
+function cCrack(P,w){w=w||0.5;const p=0.65+0.35*Math.sin(S.t*6+P[0][0]*3+P[0][1]);const path=()=>{ctx.beginPath();P.forEach((q,i)=>i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]))};
+  ctx.save();ctx.lineCap='round';ctx.lineJoin='miter';ctx.strokeStyle='rgba(10,2,4,0.9)';ctx.lineWidth=w*1.9;path();ctx.stroke();
+  ctx.globalAlpha=p;ctx.strokeStyle=CORR.hot;ctx.lineWidth=w;path();ctx.stroke();ctx.strokeStyle=CORR.hot2;ctx.lineWidth=w*0.35;path();ctx.stroke();ctx.restore()}
+// a red core: dark, red rim, a pulsing heart (the Echo / Splinter core)
+function cCore(x,y,r){ctx.fillStyle=CORR.core;ctx.beginPath();ctx.arc(x,y,r,0,CTAU);ctx.fill();ctx.strokeStyle=CORR.red;ctx.lineWidth=Math.max(0.3,r*0.26);ctx.stroke();
+  ctx.fillStyle=CORR.red;ctx.globalAlpha=0.6+0.4*Math.sin(S.t*9+x*3);ctx.beginPath();ctx.arc(x,y,r*0.42,0,CTAU);ctx.fill();ctx.globalAlpha=1;cGlowAt(x,y,r*2.8,0.5)}
+// a red shard muzzle flash (in place of the amber rifle flash), in world space along ang
+function cShardFlash(X,Y,ang,s){ctx.save();ctx.translate(X,Y);ctx.rotate(ang+Math.PI/2);ctx.globalCompositeOperation='lighter';
+  ctx.fillStyle=CORR.hot;ctx.globalAlpha=0.9;ctx.beginPath();ctx.moveTo(0,-6*s);ctx.lineTo(1.6*s,0);ctx.lineTo(0,1.2*s);ctx.lineTo(-1.6*s,0);ctx.closePath();ctx.fill();
+  ctx.fillStyle=CORR.cyan;ctx.globalAlpha=0.5;ctx.fillRect(-2.6*s,-1.4*s,0.7*s,0.7*s);ctx.fillRect(1.9*s,-3*s,0.6*s,0.6*s);
+  ctx.fillStyle='#fff';ctx.globalAlpha=0.9;ctx.beginPath();ctx.arc(0,-1,0.9*s,0,CTAU);ctx.fill();ctx.restore()}
+
+// ---- the Echo glitch ----
+// cRender draws a corrupted unit (fn, given a copy of t standing at the origin facing ang) into an image
+// at sc pixels per world unit, with red, cyan and shadow-black copies of its silhouette at half size, and
+// the glows it asked for. cBlit puts that image down at t as an Echo moves: the shadow down-right, the
+// red copy one side and the cyan the other, jittering, then the body itself in horizontal bands, a few
+// slipped sideways and now and then one blinking out, then the glows, pulsing. E is the image's
+// half-size in world units, g the glitch strength (1 normal), da a last turn (the cached facing is
+// within half a step of the real one). Calm poses are cached (CUSPR) like the player's units; the few
+// that animate (a flash, a Paladin's jab, a unit rising) are rendered fresh each frame.
+const cCanvas=(w,h)=>{const c=document.createElement('canvas');c.width=w;c.height=h||w;return c};
+function cRender(t,fn,E,sc,ang,into){const S2=Math.ceil(E*2*sc),H2=Math.ceil(S2/2),e=into||{};
+  if(!e.c||e.c.width<S2){e.c=cCanvas(S2);e.red=cCanvas(H2);e.cyan=cCanvas(H2);e.shd=cCanvas(H2)}
+  const b=e.c.getContext('2d');b.setTransform(1,0,0,1,0,0);b.clearRect(0,0,e.c.width,e.c.height);b.setTransform(sc,0,0,sc,E*sc,E*sc);
+  const P=Object.create(t);P.x=0;P.y=0;P.ang=ang;CB.glows.length=0;const keep=ctx;ctx=b;try{fn(P)}finally{ctx=keep}
+  e.glows=CB.glows.map(G=>({x:G.x/sc-E,y:G.y/sc-E,r:G.r/sc,a:G.a,col:G.col}));
+  [[e.red,CORR.red],[e.cyan,C.ally],[e.shd,'rgba(0,0,0,0.48)']].forEach(([cv,col])=>{const x=cv.getContext('2d');x.setTransform(1,0,0,1,0,0);x.globalCompositeOperation='source-over';x.clearRect(0,0,cv.width,cv.height);
+    x.drawImage(e.c,0,0,S2,S2,0,0,H2,H2);x.globalCompositeOperation='source-in';x.fillStyle=col;x.fillRect(0,0,H2,H2);x.globalCompositeOperation='source-over'});
+  e.S2=S2;e.H2=H2;e.E=E;return e}
+function cBlit(e,t,da,g,id){const E=e.E,W2=E*2,S2=e.S2,H2=e.H2,A0=ctx.globalAlpha,q=cQ(),h=k=>cHash(id,q,k);
+  const j=(1.4+Math.sin(S.t*7+id)*0.7+(h(1)<0.07?1.8:0))*g,px=-Math.sin(t.ang)*j,py=Math.cos(t.ang)*j;
+  const put=(img,n,dx,dy,al)=>{ctx.save();ctx.globalAlpha=A0*al;ctx.translate(t.x+dx,t.y+dy);ctx.rotate(da);ctx.drawImage(img,0,0,n,n,-E,-E,W2,W2);ctx.restore()};
+  put(e.shd,H2,USPR_SH,USPR_SH,1);put(e.red,H2,px,py,0.36*g);put(e.cyan,H2,-px,-py,0.24*g);
+  ctx.save();ctx.translate(t.x,t.y);ctx.rotate(da);const N=8,bh=S2/N,k=W2/S2;
+  for(let i=0;i<N;i++){const y0=Math.floor(i*bh),y1=Math.floor((i+1)*bh),r=h(10+i);if(r>1-0.03*g||y1<=y0)continue; // a band blinks out
+    const slip=r<0.2*g?(h(30+i)-0.5)*3.4*g:0;ctx.drawImage(e.c,0,y0,S2,y1-y0,-E+slip,-E+y0*k,W2,(y1-y0)*k)}
+  ctx.globalCompositeOperation='lighter';e.glows.forEach(G=>{const a=G.a*(0.75+0.25*Math.sin(S.t*9+G.x*3)),gr=ctx.createRadialGradient(G.x,G.y,0,G.x,G.y,G.r);
+    gr.addColorStop(0,`rgba(${G.col},${a})`);gr.addColorStop(1,`rgba(${G.col},0)`);ctx.fillStyle=gr;ctx.fillRect(G.x-G.r,G.y-G.r,G.r*2,G.r*2)});
+  ctx.restore()}
+
+// riflePose (the Trooper / Marksman posture) with the corrupted options: its own body colour, a lurch
+// off true, a broken left arm that hangs instead of holding the handguard, and a torso hook for cracks.
+function cRiflePose(o){
+  const lerp=(a,b,k)=>a+(b-a)*k,a=o.a,blade=lerp(0.15,0.42,a);ctx.save();ctx.rotate(-blade*0.6+(o.lurch||0));
+  const sw=4.4,Ls=[-sw,0.6],Rs=[sw,-0.2],butt=[lerp(1.2,Rs[0]-1.2,a),lerp(1.5,-0.6,a)],rang=lerp(-0.75,blade*0.6-0.05,a)+(o.droop||0);
+  const ca=Math.cos(rang),sa=Math.sin(rang),along=d=>[butt[0]+sa*d,butt[1]-ca*d],grip=along(o.gy),guard=along(o.hy);
+  const AL=o.flash?'#fff':o.body,G3='#6f6863',G4='#2f2a2c';
+  if(o.pack)o.pack();
+  rP([[Ls[0]-1,Ls[1]],[Ls[0]+0.6,-1.8],[Rs[0]-0.6,-2.4],[Rs[0]+1,Rs[1]],[Rs[0]-0.4,2.6],[Ls[0]+0.4,2.8]],AL,0.6);
+  if(o.torso)o.torso();
+  if(o.broken){const sx=Math.sin(S.t*2.3+(o.seed||0))*0.5;rLimb([Ls,[Ls[0]-1.3,3.2],[Ls[0]-0.5+sx,6]],1.7,AL);rO(Ls[0]-0.5+sx,6,0.9,G4)}
+  else rLimb([Ls,[lerp(Ls[0]+1,-2.6,a),lerp(-2,-3.6,a)],guard],1.9,AL);
+  ctx.save();ctx.translate(butt[0],butt[1]);ctx.rotate(rang);rP([[-o.rw/2,-o.L],[o.rw/2,-o.L],[o.rw/2,0],[-o.rw/2,0]],G4);rP([[-o.rw/2-0.3,-o.L*0.42],[o.rw/2+0.3,-o.L*0.42],[o.rw/2+0.3,-o.L*0.22],[-o.rw/2-0.3,-o.L*0.22]],G3);if(o.rx)o.rx(o.L,o.rw);ctx.restore();
+  rLimb([Rs,[Rs[0]+lerp(1.2,2.2,a),lerp(1,-0.6,a)],grip],1.9,AL);
+  if(!o.broken)rO(guard[0],guard[1],1,G4);rO(grip[0],grip[1],1,G4);
+  const hx=lerp(0,butt[0]-1.4,a),hy=lerp(-0.4,-1.6,a);o.head(hx,hy);
+  ctx.restore()}
+
+// ---- Hollow Trooper ----
+// The Trooper's rifle stance, lurching off true, the left arm hanging dead. Glass has grown out of the
+// muzzle into a spire and through the left shoulder blade; the pack's amber ring is a red core; the
+// helmet is cracked and its blue visor strip burns red.
+function drawCorruptTrooper(t){
+  const since=S.t-(t.shotT??-9),kick=since<0.3?(since<0.05?since/0.05:1-(since-0.05)/0.25):0,a=t.aimV??RIFLE_READY,fl=t.flashT>0,sd=cId(t);
+  ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2);ctx.translate(0,kick*1.6);
+  cRiflePose({a,L:11,rw:1.6,gy:3,hy:7.5,flash:fl,body:CORR.body,broken:true,seed:sd,lurch:0.14+Math.sin(S.t*1.7+sd)*0.05,droop:0.12*(1-a),
+    pack:()=>{rP([[-3,2],[3,1.6],[3,5],[-3,5.4]],CORR.bone2);cCrack([[-3,3.2],[-1.2,3.9],[-0.6,5.3]],0.4);cCore(0,3.6,1.5)},
+    torso:()=>{cCrack([[1.4,-2.2],[0.6,-0.6],[1.8,0.6],[1,2.6]],0.45);cCluster(-3.6,1.6,2.35,3,4.6,1.6,1.05,sd*7+3)},
+    rx:(L)=>{cSpire(0,-L+1.4,-Math.PI/2,6,1.9);cCrack([[-0.5,-L*0.7],[0.4,-L*0.55],[-0.3,-L*0.4]],0.3)},
+    head:(hx,hy)=>{const X=hx+0.7,Y=hy+0.3;rO(X,Y,2.8,fl?'#fff':CORR.bone,0.6);ctx.fillStyle=CORR.blk;ctx.fillRect(X-1.8,Y-2.3,3.6,1.1);
+      ctx.fillStyle=cVisor(t);ctx.fillRect(X-1.4+(cHash(sd,cQ(),6)<0.2?0.6:0),Y-2.2,2.8,0.5);cCrack([[X+0.6,Y-1],[X+1.3,Y+0.3],[X+0.7,Y+1.6]],0.35)}});
+  ctx.restore()}
+
+// ---- Oathbreaker (Paladin) ----
+// The Paladin's frame, hunched and turned a little off its line. The hard-light shield has failed into
+// a ragged ring of red glass shards that hang where the arc was, drifting; the spear head is a glass
+// spire; the left pauldron is split and grown through with crystal; the visor slit burns red.
+function drawCorruptPaladin(t){
+  const s=palState(t),fl=t.flashT>0,L=(a,b,k)=>a+(b-a)*k,sd=cId(t),q=cQ();
+  const AD=fl?'#fff':CORR.body,G1=fl?'#fff':CORR.bone,G2=fl?'#fff':CORR.bone2,G3='#6f6863';
+  ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2-0.1+Math.sin(S.t*1.3+sd)*0.05);ctx.scale(PAL_SC,PAL_SC);
+  const lift=Math.max(0,s.bash)*1.2;ctx.translate(0,-lift);
+  const [hx,hy]=s.h,SL=18,back=5,pr=Math.sin(s.pitch*Math.PI/2),ang=L(0,-0.05,s.pitch),ux=Math.sin(ang),uy=-Math.cos(ang);
+  const tipX=hx+ux*(SL-back)*pr,tipY=hy+uy*(SL-back)*pr-(1-pr)*0.7,buttX=hx-ux*back*pr,buttY=hy-uy*back*pr;
+  const shaft=(ax,ay,bx,by)=>{ctx.strokeStyle='#000';ctx.lineWidth=1.5;ctx.lineCap='butt';ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);ctx.stroke();ctx.strokeStyle=G3;ctx.lineWidth=0.9;ctx.stroke()};
+  // left arm, torso, the split left pauldron, helmet
+  rLimb([[-4.6,0.2],[-5.6,-1.2],[-4.8,-2.6]],2,AD);
+  rP([[-6,0.8],[-4.6,-2.2],[4.6,-2.2],[6,0.8],[4.6,3],[-4.6,3]],AD,0.6);cCrack([[1.6,-2.1],[0.7,-0.4],[2,1],[1.2,2.9]],0.45);
+  rP([[-6.6,0.6],[-5.2,-2.5],[-3.2,-2.5],[-3.4,2.7],[-5.2,2.9]],G2);cCrack([[-6.3,0.2],[-4.9,-0.5],[-4.4,-2.3]],0.4);cCluster(-5.4,1.4,2.45,2,4,1.5,0.8,sd*5+1);
+  rO(0.3,-0.3,3,G1,0.6);ctx.fillStyle=CORR.blk;ctx.fillRect(-0.1,-2.8,0.8,2.9);ctx.fillStyle=cVisor(t);ctx.fillRect(-1.2,-2.2,3,0.5);cCrack([[1.7,-1.6],[0.9,-0.2],[2,1.2]],0.3);
+  // the spear, its head grown into a spire
+  if(pr>0.05)shaft(buttX,buttY,tipX,tipY);
+  ctx.save();ctx.translate(tipX,tipY);ctx.rotate(ang);cSpire(0,0.4,-Math.PI/2,L(2.2,6,pr),1.9);ctx.restore();
+  const el=[(PAL_SHL[0]+hx)/2+0.3,(PAL_SHL[1]+hy)/2];rLimb([PAL_SHL,el,[hx,hy]],2.1,AD);rO(hx,hy,1.1,G3);
+  rP([[6.6,0.6],[5.2,-2.5],[3.2,-2.5],[3.4,2.7],[5.2,2.9]],G2);ctx.fillStyle=CORR.edge2;ctx.fillRect(4,-0.6,1.6,1.2);
+  if(hy<PAL_EDGE){const k=(PAL_EDGE-PAL_SHL[1])/(hy-PAL_SHL[1]),ax=PAL_SHL[0]+(hx-PAL_SHL[0])*k;rLimb([[ax,PAL_EDGE],[hx,hy]],2.1,AD);rO(hx,hy,1.1,G3)}
+  if(hy>2.9){const k=(2.9-PAL_SHL[1])/(hy-PAL_SHL[1]),ax=PAL_SHL[0]+(hx-PAL_SHL[0])*k;rLimb([[ax,2.9],[hx,hy]],2.1,AD);rO(hx,hy,1.1,G3)}
+  rO(PAL_GL[0]-0.4,PAL_GL[1]+0.4,1.3,G3);
+  // the shield: what's left of the hard light, a ring of glass shards hanging on the arc
+  const push=Math.max(0,s.bash)*1.5;ctx.save();ctx.translate(PAL_SH_CX,PAL_SH_CY-4.2-push);
+  ctx.strokeStyle=CORR.hot;ctx.globalAlpha=0.1+0.14*cHash(sd,q,2);ctx.lineWidth=2.2;ctx.setLineDash([1.1,1.7]);ctx.beginPath();ctx.arc(0,4.2,PAL_SH_R,-Math.PI/2-PAL_SH_A,-Math.PI/2+PAL_SH_A);ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1;
+  for(let i=0;i<6;i++){const a=-Math.PI/2-PAL_SH_A+(i+0.5)/6*2*PAL_SH_A+Math.sin(S.t*2.2+i*1.7+sd)*0.04,r=PAL_SH_R+Math.sin(S.t*3+i)*0.35-(i%2)*0.5,
+      ta=a+Math.PI/2+(i%2?0.3:-0.15),ln=3.3+(i%3)*0.5,x=Math.cos(a)*r-Math.cos(ta)*ln*0.5,y=4.2+Math.sin(a)*r-Math.sin(ta)*ln*0.5;
+    if(i!==3||cHash(sd,q,7)>0.25)cSpire(x,y,ta,ln,1.7)} // one shard blinks out now and then
+  if(s.flare>0&&s.flare<1){ctx.fillStyle=CORR.hot;ctx.globalAlpha=0.3*(1-s.flare);ctx.beginPath();ctx.moveTo(0,0);ctx.arc(0,0,8+20*s.flare,-Math.PI/2-0.78,-Math.PI/2+0.78);ctx.closePath();ctx.fill();ctx.globalAlpha=1}
+  cGlowAt(0,-PAL_SH_R+4.2,7,0.22);
+  ctx.restore();ctx.restore()}
+
+// ---- Brood Carrier (Grenadier) ----
+// The missile pod has split and something is growing in it: each loaded cell holds a glass spire instead
+// of a missile, and an emptied cell grows one back (popping in like a reload). Its left arm hangs; the
+// helmet is bowed forward and off to one side, the front sight a red point.
+function drawCorruptGrenadier(t){
+  const fl=t.flashT>0,AL=fl?'#fff':CORR.body,n=t.pods??GREN_PODS,OC=fl?'#fff':CORR.pod,sd=cId(t),pop=S.t-(t.podShotT??-9);
+  ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2+0.14+Math.sin(S.t*1.5+sd)*0.04);ctx.scale(1.15,1.15);
+  rP([[-4.6,0.8],[4.6,0.8],[4.9,7.8],[-4.4,7.4]],OC,0.6);ctx.fillStyle='#000';ctx.globalAlpha=0.3;ctx.fillRect(-4.5,6.3,9.3,1.3);ctx.globalAlpha=1;
+  cCrack([[-4.5,4.2],[-2.8,3.9],[-0.2,4.8],[2.2,3.7],[4.7,4.3]],0.5);cCrack([[0.2,0.9],[-0.4,2.2]],0.35);
+  for(let i=0;i<4;i++){const cx=-1.8+(i%2)*3.6,cy=2.8+(i>>1)*2.6,loaded=i>=GREN_PODS-n,grow=loaded&&i===GREN_PODS-n?Math.min(1,(S.t-(t.podGrewT??-9))/0.35):1;
+    rO(cx,cy,1.15,'#1a0608',0.4);ctx.strokeStyle=CORR.edge2;ctx.lineWidth=0.35;ctx.beginPath();ctx.arc(cx,cy,0.8,0,CTAU);ctx.stroke()}
+  for(let i=3;i>=0;i--){const cx=-1.8+(i%2)*3.6,cy=2.8+(i>>1)*2.6,loaded=i>=GREN_PODS-n,grow=loaded&&i===GREN_PODS-n?Math.min(1,(S.t-(t.podGrewT??-9))/0.35):1;
+    if(!loaded)continue;const a=Math.PI/2+(i%2?0.7:-0.7)+(i>>1?0:(i%2?-0.35:0.35));cSpire(cx-Math.cos(a)*0.7,cy-Math.sin(a)*0.7,a,(3.2+(i>>1)*1.2)*grow,1.8*Math.max(0.35,grow))}
+  if(pop<0.3){const cell=GREN_PODS-n-1;if(cell>=0){const cx=-1.8+(cell%2)*3.6,cy=2.8+(cell>>1)*2.6;ctx.fillStyle=CORR.hot;ctx.globalAlpha=0.5*(1-pop/0.3);ctx.beginPath();ctx.arc(cx,cy,1.4+pop*8,0,CTAU);ctx.fill();ctx.globalAlpha=1}}
+  cGlowAt(0,4.2,6,0.28);
+  rP([[-5.4,0.6],[-4,-2],[4,-2],[5.4,0.6],[4,2.6],[-4,2.6]],AL,0.6);cCrack([[-1.6,-1.9],[-0.6,-0.3],[-1.8,1.2],[-1,2.5]],0.4);
+  rLimb([[-4,0.2],[-5.4,2.4],[-5.5,5]],1.8,AL);rO(-5.5,5,0.9,CORR.grip);
+  rLimb([[4,0.2],[4.4,-2.6],[2.6,-4.4]],1.9,AL);rO(2.6,-4.4,1,CORR.grip);
+  ctx.fillStyle=CORR.grip;ctx.fillRect(-0.8,-5,3.2,1.6);ctx.fillStyle=CORR.hot;ctx.fillRect(0.3,-4.8,1,1.2);
+  cCluster(4.6,0.2,0.05,2,3.4,1.3,0.7,sd*3+9);
+  const X=0.6,Y=-0.9;rO(X,Y,2.7,fl?'#fff':CORR.bone,0.6);ctx.fillStyle=OC;ctx.fillRect(X-0.6,Y-2.4,1.2,4.4);ctx.fillStyle=CORR.blk;ctx.fillRect(X-1.7,Y-2,3.4,1);ctx.fillStyle=cVisor(t);ctx.fillRect(X-1.3,Y-1.9,2.6,0.5);
+  cCrack([[X-1.9,Y+0.2],[X-0.9,Y+1],[X-1.2,Y+2.2]],0.3);
+  ctx.restore()}
+
+// ---- Lantern Marksman ----
+// The Marksman, still kneeling, but its cloak hangs in torn strips that slip sideways like the Core
+// shards' scanlines, and its hood has split down the middle like a Lantern's head: the seam opens and
+// burns white-hot as it charges. The rail's charge line is red; glass grows along the barrel.
+function drawCorruptMarksman(t){
+  const since=S.t-(t.shotT??-9),kick=since<0.4?Math.max(0,1-since/0.4):0,a=t.aimV??RIFLE_READY,fl=t.flashT>0,charge=t.chargeT>0?1-t.chargeT/MARK_CHARGE:0,kneel=!t.moving,sd=cId(t),q=cQ();
+  ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2);ctx.translate(0,kick*2);
+  const MC=fl?'#fff':CORR.moss,MD=fl?'#fff':CORR.mossD;
+  if(kneel)rP([[-1.5,3],[1.5,3],[1.8,8],[-0.8,8.4]],fl?'#fff':'#2c3640');
+  cRiflePose({a,L:16,rw:1.4,gy:4,hy:10,flash:fl,body:CORR.body,lurch:0.06,seed:sd,
+    pack:()=>{const w=Math.sin(S.t*3+sd)*0.5,cloak=()=>{ctx.fillStyle=MC;ctx.strokeStyle='#000';ctx.lineWidth=0.5;ctx.beginPath();ctx.moveTo(-5.4,-0.4);ctx.quadraticCurveTo(-7,5,-4+w,9.5);
+        for(let i=0;i<5;i++){ctx.lineTo(-4+w+i*2,9.5+(i%2?-2:1.2))}ctx.lineTo(4.6-w,9);ctx.quadraticCurveTo(7,5,5.4,-0.4);ctx.closePath();ctx.fill();ctx.stroke();
+        ctx.strokeStyle=MD;ctx.lineWidth=0.6;ctx.beginPath();ctx.moveTo(-2,2);ctx.lineTo(-2.6,8);ctx.moveTo(1.6,2);ctx.lineTo(2.2,8);ctx.stroke()};
+      for(let b=0;b<5;b++){const y0=-1+b*2.25,sl=cHash(sd,q,40+b)<0.4?(cHash(sd,q,50+b)-0.5)*2.8:(b%2?0.5:-0.4);
+        ctx.save();ctx.beginPath();ctx.rect(-9,y0,18,b===4?3.5:1.85);ctx.clip();ctx.translate(sl,0);cloak();ctx.restore()}
+      cSpire(-4.4,5.2,2.3,3.6,1.4);cSpire(3.8,7,1.0,2.8,1.2)},
+    torso:()=>{cCrack([[1.5,-2.1],[0.4,-0.4],[1.6,1]],0.4)},
+    rx:(L,w)=>{ctx.fillStyle='#6d6560';ctx.fillRect(-w/2-0.4,-L-1.5,w+0.8,1.8);ctx.fillStyle=CORR.hot;ctx.fillRect(-0.3,-L-1.3,0.6,0.6);
+      cSpire(w/2-0.1,-L*0.62,-Math.PI/2+0.45,3.4,1.2);cSpire(-w/2+0.1,-L*0.35,-Math.PI/2-0.5,2.6,1);
+      if(charge>0){ctx.fillStyle=CORR.hot;ctx.globalAlpha=charge;ctx.fillRect(-0.35,-L+1,0.7,(L-6)*charge);ctx.globalAlpha=0.35*charge;ctx.beginPath();ctx.arc(0,-L-0.6,2.5+charge,0,CTAU);ctx.fill();ctx.globalAlpha=1;cGlowAt(0,-L-0.6,5+charge*4,0.5*charge)}},
+    head:(hx,hy)=>{rO(hx,hy,2.9,MC,0.6);ctx.fillStyle=MD;ctx.beginPath();ctx.arc(hx,hy+0.4,2,Math.PI*0.05,Math.PI*0.95);ctx.fill();
+      const op=Math.min(1,0.18+0.82*charge+(since<0.35?1-since/0.35:0));ctx.save();ctx.translate(hx,hy);ctx.rotate(0.12);
+      ctx.fillStyle=CORR.blk;ctx.fillRect(-0.45-op*0.75,-3,0.9+op*1.5,6);ctx.fillStyle=CORR.hot;ctx.fillRect(-0.22-op*0.45,-2.6,0.44+op*0.9,5.2);ctx.fillStyle=CORR.hot2;ctx.fillRect(-0.08-op*0.16,-2.2,0.16+op*0.32,4.4);ctx.restore();
+      cGlowAt(hx,hy,3+op*5,0.25+0.4*op)}});
+  ctx.restore()}
+
+// ---- False Spotter (Rocketeer) ----
+// The violet launcher, cracked along its length, carried lopsided on one good arm, with a cluster of
+// glass grown out of the exhaust end; the helmet's sight glitches between red and cyan. Its laser
+// (drawCorruptFx) flickers red and cyan and marks with four glass shards instead of a ring.
+function drawCorruptRocketeer(t){
+  const fl=t.flashT>0,AD=fl?'#fff':CORR.body,VC=fl?'#fff':CORR.viol,VD=fl?'#fff':CORR.violD,a=t.aimV??RIFLE_READY,since=S.t-(t.shotT??-9),kick=since<0.25?1-since/0.25:0,ang=0.3+(0-0.3)*a+0.2,sd=cId(t);
+  ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2);ctx.translate(0,kick*1.6);
+  rLimb([[-4,0.2],[-5.6,2.6],[-5.1,5.4]],1.8,AD);rO(-5.1,5.4,0.9,CORR.grip);
+  rP([[-5.4,0.6],[-4,-2],[4,-2],[5.4,0.6],[4,2.6],[-4,2.6]],AD,0.6);cCrack([[-1.8,-1.9],[-0.8,-0.2],[-2,1.2],[-1.2,2.5]],0.4);
+  ctx.save();ctx.translate(3,0.6);ctx.rotate(ang);
+  cCluster(0,6.6,Math.PI/2,3,5,1.8,0.9,sd*2+2);
+  rP([[-2.3,-12],[2.3,-12],[2.3,7],[-2.3,7]],VC,0.6);rP([[-2.7,-12.6],[2.7,-12.6],[2.7,-10.6],[-2.7,-10.6]],VD);rP([[-2.7,5.6],[2.7,5.6],[2.7,7.6],[-2.7,7.6]],VD);rP([[-3,-6],[-2.3,-6],[-2.3,-2.6],[-3,-2.6]],CORR.grip);
+  cCrack([[-2.2,-8.4],[-0.5,-6.6],[-1.1,-3.8],[1,-1.8],[0.3,1.4],[2.2,3.4]],0.5);
+  ctx.fillStyle=cVisor(t,7);ctx.beginPath();ctx.arc(1.4,-11,0.7,0,CTAU);ctx.fill();cGlowAt(1.4,-11,2.6,0.5);
+  ctx.restore();
+  rLimb([[4,0],[5.6,-0.8],[3.8,-2.4]],1.9,AD);rO(3.8,-2.4,1,CORR.grip);
+  const jx=cHash(sd,cQ(),8)<0.2?(cHash(sd,cQ(),9)-0.5)*1.6:0;
+  cSpire(-0.6,1.2,2.25,3.2,1.3);
+  rO(0.9,-0.4,2.8,VC,0.6);ctx.fillStyle=VD;ctx.fillRect(-0.8+jx,-2.7,3.4,1.1);ctx.fillStyle=cVisor(t);ctx.fillRect(-0.4+jx,-2.6,2.6,0.5);cCrack([[2.6,-1.2],[1.6,0.2],[2.4,1.6]],0.3);
+  ctx.restore()}
+
+// ---- Husk Suppressor (Mech) ----
+// The Gatling Suppressor, hollowed out. The amber eye is a red core; the dome is cracked through and a
+// crown of glass grows out of its back; the white chevron is snapped. The shield is a black Core slab
+// with glass along its edge; the six barrels have fused into five spires that still turn as it spins
+// up; the ammo drum has burst into crystal; the right leg is rebuilt from slabs.
+function drawCorruptMech(t){
+  const HULL=t.flashT>0?'#fff':CORR.hull,JOINT='#5d6168',DARKJ='#35383d',st=t.moving?Math.sin(S.t*7):0,sp=t.spin||0,firing=S.t-(t.gatShotT??-9)<0.12,sd=cId(t);
+  ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2+Math.sin(S.t*0.9+sd)*0.04);ctx.scale(MECH_SC,MECH_SC);
+  {const k=-st*2.6;rLimb([[-4.2,2],[-5.6,6+k]],3.4,JOINT);rP([[-8.6,5.4+k],[-2.6,5.4+k],[-2.2,10.4+k],[-9,10.4+k]],HULL);rP([[-8.2,9.2+k],[-3,9.2+k],[-2.2,10.4+k],[-9,10.4+k]],DARKJ)}
+  {const k=st*2.6;cSlab(4.8,3.8,4.8,3.2,1.25);cSlab(5.8,7.8+k,5.6,4.4,1.62);cSlab(6.6,10.4+k,3.4,2.4,1.95);cSpire(7.6,8.2+k,0.3,3.2,1.4)}
+  rP([[1.5,1.5],[6,1.5],[6.4,7.5],[1.5,7.5]],'#4a3f36');cCrack([[1.8,3],[3.6,4.3],[3,6],[5.8,7.2]],0.5);cCluster(4,5.2,1.75,3,6.4,2,1.2,sd+3);
+  rLimb([[3.8,1.5],[8,-2],[10.6,-5]],1,'#2a1d20');
+  const arm=(s,e)=>{const sh=[s*8.6,-0.6],el=[s*(12.6-e*1.6),0.6-e*4],fi=[s*(12.4-e*3),-3.6-e*7];rLimb([sh,el],3.6,JOINT);rLimb([el,fi],4.4,HULL);rO(el[0],el[1],2,DARKJ);return fi};
+  const pad=s=>{rP([[s*5.6,-5.2],[s*11.4,-4.4],[s*12.2,1.6],[s*6.2,2.8]],HULL);rO(s*9.2,-1.4,1.1,JOINT)};
+  // the shield, now a Core slab with glass along its front edge
+  const fl=arm(-1,0.55);ctx.save();ctx.translate(fl[0],fl[1]);ctx.rotate(0.42);
+  rP([[-7.8,-3.2],[-2.4,-5.8],[5.8,-5.4],[7.2,-1.6],[0.6,0.6],[-7,0.4]],CORR.blk,0.6);
+  ctx.strokeStyle=CORR.edge2;ctx.lineWidth=0.9;ctx.beginPath();ctx.moveTo(-7.6,-3.1);ctx.lineTo(-2.4,-5.5);ctx.lineTo(5.6,-5.1);ctx.lineTo(7,-1.7);ctx.stroke();
+  ctx.strokeStyle=CORR.edge;ctx.lineWidth=0.5;ctx.beginPath();ctx.moveTo(-5,-1.6);ctx.lineTo(-1,-3.6);ctx.lineTo(4.4,-3.2);ctx.stroke();
+  cSpire(-5,-4.4,-1.95,3.8,1.6);cSpire(0.8,-5.6,-1.55,5.6,2);cSpire(5.4,-5,-1.15,3.6,1.5);
+  ctx.restore();pad(-1);cCrack([[-6.2,-4.6],[-8.6,-2.4],[-9.6,0.6],[-11.6,1.2]],0.45);
+  // the fused cannon: five spires that turn on the drum as it spins up
+  const fr=arm(1,0.5);ctx.save();ctx.translate(fr[0],fr[1]);rP([[-3.4,-3],[3.4,-3],[3.4,3],[-3.4,3]],HULL);cCrack([[-2.8,-1],[-0.6,0.4],[0.4,2.6]],0.4);
+  const b0=t.barrel||0,B=[];for(let i=0;i<5;i++){const a=b0+i/5*CTAU,bz=Math.sin(a);if(bz<-0.35)continue;B.push({bx:Math.cos(a)*2.1,bz,l:9+cHash(sd,i,9)*4})}
+  B.sort((p,q)=>p.bz-q.bz).forEach(b=>cSpire(b.bx,-2.6,-Math.PI/2+b.bx*0.07,b.l,1.25));cCore(0,-3,1.3);
+  if(firing){ctx.save();ctx.globalCompositeOperation='lighter';ctx.fillStyle=CORR.hot;ctx.globalAlpha=0.55+0.4*Math.random();ctx.beginPath();ctx.arc(0,-14.5,1.2+Math.random()*1+sp*0.6,0,CTAU);ctx.fill();
+    ctx.fillStyle=CORR.cyan;ctx.globalAlpha=0.5;for(let i=0;i<3;i++){const a=-Math.PI/2+(Math.random()-0.5)*0.8,r=3+Math.random()*4;ctx.fillRect(Math.cos(a)*r-0.4,-15+Math.sin(a)*r-0.4,0.8,0.8)}ctx.restore()}
+  ctx.restore();pad(1);cCrack([[7.2,-4.6],[8.6,-2],[11.2,-0.6]],0.4);
+  rO(0,0.6,7.6,HULL);cCrack([[-6.6,-1.6],[-3.4,-0.2],[-4,2.6],[-1.2,5.6]],0.55);cCrack([[2.6,-6.8],[3.6,-3.4],[6.8,-1.4]],0.45);
+  ctx.strokeStyle='#d6cfc4';ctx.lineWidth=1.3;ctx.lineJoin='round';ctx.lineCap='butt';ctx.beginPath();ctx.moveTo(-3.2,-0.4);ctx.lineTo(-1.1,-1.7);ctx.moveTo(0.5,-1.8);ctx.lineTo(1.2,-2.2);ctx.lineTo(3.4,0.2);ctx.stroke();
+  cCluster(0,4.4,Math.PI/2,4,7,2.4,1.6,sd+11);
+  rO(0,-5,2.3,'#cbc4ba');cCore(0,-5,1.7);
+  ctx.restore()}
+
+// the dispatcher, in the shape of drawUnitBodyLive
+const CORRUPT_DRAW={troop:drawCorruptTrooper,brawler:drawCorruptPaladin,grenadier:drawCorruptGrenadier,marksman:drawCorruptMarksman,rocket:drawCorruptRocketeer,mech:drawCorruptMech};
+const CORRUPT_E={troop:28,brawler:32,grenadier:26,marksman:32,rocket:28,mech:40},CORRUPT_G={troop:1,brawler:0.9,grenadier:0.9,marksman:0.9,rocket:1,mech:0.7};
+const CUSPR=new Map();
+function drawCorruptBody(t){const k=t.kind||'troop',E=CORRUPT_E[k],g=CORRUPT_G[k],id=cId(t),fn=CORRUPT_DRAW[k];
+  const sc=Math.min(3,Math.ceil(cam.z*gDpr()*2)/2);
+  if(t.flashT>0||(k==='brawler'&&S.t-(t.atkT??-9)<0.75)){cBlit(cRender(t,fn,E,sc,t.ang,CB.live||(CB.live={})),t,0,g,id);return}
+  const step=CTAU/USPR_ANG,ai=((Math.round(t.ang/step)%USPR_ANG)+USPR_ANG)%USPR_ANG,a=ai*step;
+  const mv=(k==='marksman'||k==='mech')&&!!t.moving,leg=k==='mech'&&mv?Math.floor((((S.t*7/CTAU)%1)+1)%1*4):0,key=k+'|'+sc+'|'+ai+'|'+(mv?1:0)+leg;
+  let e=cacheGet(CUSPR,key);
+  if(!e){const t0=S.t;if(k==='mech'&&mv)S.t=(leg+0.5)/4*CTAU/7; // the mech's stride, in four steps
+    try{e=cRender(t,fn,E,sc,a,null)}finally{S.t=t0}cachePut(CUSPR,key,e,240)}
+  let da=t.ang-a;da=Math.atan2(Math.sin(da),Math.cos(da));cBlit(e,t,da,g,id)}
+// ---- Corrupted enemies ----
+// A unit that corrupts (its Sanity ran out, or it was killed and rose again) becomes a kind:'corrupted'
+// enemy with e.unit naming what it was. For now every one of them just shambles up and hits in melee,
+// like a zombie (the ordinary enemy melee). This dresses that up with its unit's corrupted art, carried
+// slack (no aiming, no firing): each blow lurches it forward and cuts a red arc, like an Echo's strike;
+// a corrupted Paladin jabs with its spear instead. Units with no corrupted art keep the plain triangle.
+function drawCorruptEnemy(e){const k=e.unit,t=e._cu||(e._cu={kind:k,id:e.seed||0,pods:GREN_PODS,barrel:0}),since=S.t-(e.atkT??-9);
+  if(Math.hypot(e.x-(e._px??e.x),e.y-(e._py??e.y))>0.02)e._mvT=S.t;e._px=e.x;e._py=e.y;
+  const lunge=since<0.22?Math.sin(since/0.22*Math.PI)*(k==='mech'?3:4.5):0;
+  t.x=e.x+Math.cos(e.ang)*lunge;t.y=e.y+Math.sin(e.ang)*lunge;t.ang=e.ang;t.flashT=e.flashT;t.moving=S.t-(e._mvT??-9)<0.2;
+  t.aimV=0.12;t.shotT=-9;t.chargeT=0;t.paintT=0;t.gatShotT=-9;t.spin=0;t.podShotT=-9;
+  if(k==='brawler'){t.atkT=e.atkT??-9;t.jabT=0;t.bashT=-9}
+  drawCorruptBody(t);
+  if(since<0.25&&k!=='brawler'){const sl=since<0.1?since/0.1:1-(since-0.1)/0.15,R=e.r+(k==='mech'?12:6);ctx.save();ctx.translate(t.x,t.y);ctx.rotate(e.ang+Math.PI/2);
+    ctx.globalAlpha=Math.max(0,sl);ctx.strokeStyle=CORR.red;ctx.lineWidth=1.6;ctx.beginPath();ctx.arc(0,0,R,-Math.PI/2-1.1*sl,-Math.PI/2+1.1*sl);ctx.stroke();
+    ctx.strokeStyle='#fff';ctx.lineWidth=0.6;ctx.beginPath();ctx.arc(0,0,R,-Math.PI/2-0.8*sl,-Math.PI/2+0.8*sl);ctx.stroke();ctx.restore();ctx.globalAlpha=1}
+  if(e.hp<e.maxHp)hpbar(e.x,e.y-e.r-(k==='mech'?16:10),e.r*2+4,e.hp/e.maxHp)}
+// A fallen unit about to rise: its own body, lying still and dimmed, cross-fades into its corrupted
+// one as the moment comes, the Echo glitch growing with it.
+function drawReanimating(c,p){const u=c._u||(c._u={kind:c.type,id:Math.floor(Math.random()*9999),x:c.x,y:c.y,ang:c.ang,aimV:0.1,pods:GREN_PODS,barrel:0,flashT:0});
+  if(p<1){ctx.globalAlpha=0.7*(1-p);drawUnitBodyLive(u)}
+  ctx.globalAlpha=Math.min(1,p*1.4);cBlit(cRender(u,CORRUPT_DRAW[c.type],CORRUPT_E[c.type],Math.min(3,Math.ceil(cam.z*gDpr()*2)/2),u.ang,CB.live||(CB.live={})),u,0,0.3+0.9*p,u.id);ctx.globalAlpha=1}
+// ---------- end of CORRUPTED UNIT ART ----------
+
 // ---------- update ----------
 function update(dt){
   if(S.over||S.rewardChoice||S.paused)return;
@@ -10243,6 +10552,7 @@ function draw(){
   // fallen units mid-reanimation: a grey husk, with a violet ring closing in on it and the husk
   // flushing violet as the moment it rises gets closer
   S.reanim.forEach(c=>{const p=1-Math.max(0,c.t)/REANIMATE_T, fl=0.75+0.25*Math.sin(performance.now()/45);
+    if(CORRUPT_DRAW[c.type]){drawReanimating(c,p);ctx.globalAlpha=0.25+0.45*p;ctx.strokeStyle=C.zone;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(c.x,c.y,c.r+4+(1-p)*22,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;return}
     ctx.globalAlpha=0.85;ctx.fillStyle='#4a4f57';ctx.beginPath();ctx.arc(c.x,c.y,c.r,0,Math.PI*2);ctx.fill();
     ctx.globalAlpha=p*0.8*fl;ctx.fillStyle=C.zone;ctx.beginPath();ctx.arc(c.x,c.y,c.r,0,Math.PI*2);ctx.fill();
     ctx.globalAlpha=0.35+0.5*p;ctx.strokeStyle=C.zone;ctx.lineWidth=2;ctx.beginPath();ctx.arc(c.x,c.y,c.r+4+(1-p)*22,0,Math.PI*2);ctx.stroke();
@@ -10259,6 +10569,7 @@ function draw(){
     if(e.kind==='splinter'){drawSplinter(e);if(e.hp<e.maxHp)hpbar(e.x,e.y-e.r-10,e.r*2+4,e.hp/e.maxHp);return}
     if(e.kind==='wave'||e.kind==='roam'){drawEcho(e);if(e.hp<e.maxHp)hpbar(e.x,e.y-e.r-14,e.r*2+4,e.hp/e.maxHp);return}
     if(e.kind==='lancer'){drawLancer(e);return}
+    if(e.kind==='corrupted'&&CORRUPT_DRAW[e.unit]){if(e.x>x0-60&&e.x<x1+60&&e.y>y0-60&&e.y<y1+60)drawCorruptEnemy(e);return}
     if(e.kind==='saboteur'){drawSaboteur(e);if(e.hp<e.maxHp)hpbar(e.x,e.y-e.r-8,e.r*2+4,e.hp/e.maxHp);return}
     const a=e.ang,brute=e.kind==='brute';ctx.fillStyle=e.flashT>0?'#fff':(e.core?'#0a0a0a':(e.kind==='roam'?'#d9775f':e.kind==='saboteur'?C.cable:e.kind==='corrupted'?C.zone:C.enemy));ctx.beginPath();
     ctx.moveTo(e.x+Math.cos(a)*e.r*1.3,e.y+Math.sin(a)*e.r*1.3);ctx.lineTo(e.x+Math.cos(a+2.5)*e.r,e.y+Math.sin(a+2.5)*e.r);ctx.lineTo(e.x+Math.cos(a-2.5)*e.r,e.y+Math.sin(a-2.5)*e.r);ctx.closePath();ctx.fill();
