@@ -10543,7 +10543,12 @@ function drawHoses(pts3,n,seed,hot){if(pts3.length<2)return;SKO.x=0;SKO.y=0;SKO.
     ctx.beginPath();ctx.moveTo(q[0]+nx*hw-ux,q[1]+ny*hw-uy);ctx.lineTo(q[0]+nx*hw+ux,q[1]+ny*hw+uy);ctx.lineTo(q[0]-nx*hw+ux,q[1]-ny*hw+uy);ctx.lineTo(q[0]-nx*hw-ux,q[1]-ny*hw-uy);ctx.closePath();ctx.fillStyle=k===1?'#c99a3a':'#25282c';ctx.fill()})}
   SKO.s=SK_SCALE}
 // where a cable leaves its anchor: a Relay's hook facing the far end, or the Rig's back
-function anchorHook(a,to){if(!a)return null;if(a.kind==='mech')return [a.x,a.y,12];if(a===S.base){const h=a._m?a._m.hook:[RIG_R+3.6,2.9,80];return [a.x+h[0],a.y+h[1],h[2]]}return relayHookFor(a,to)}
+// v4: a cable hooks onto the Rig on whichever side faces its far end (round the column at the drum's
+// height), not at one fixed point
+function rigHook(B,to){const z=B._m?B._m.hook[2]:80,a=to?Math.atan2(to.y-B.y,to.x-B.x):0.2,r=RIG_R+2.4;return [B.x+Math.cos(a)*r,B.y+Math.sin(a)*r,z]}
+// on the Rig's near side (toward the camera, +y): drawn over the Rig; the far side goes behind it
+const rigHookFront=(B,h)=>h[1]>B.y+0.5;
+function anchorHook(a,to){if(!a)return null;if(a.kind==='mech')return [a.x,a.y,12];if(a===S.base)return rigHook(a,to);return relayHookFor(a,to)}
 // ---- the pooling rope (visual only; the trail still decides length, snapping and what enemies cut).
 // Links ROPE_SEG apart, pinned at the touchdown under the hook and at the unit; 8 relaxation passes;
 // links only pull, so slack bunches on the floor; the winch feeds out when pulled and winds in toward
@@ -10572,6 +10577,7 @@ function stepRope(u,a0,dt){let R=u.rope;const tx=u.x,ty=u.y;
   while(R.wind>=ROPE_SEG&&P.length>2){R.wind-=ROPE_SEG;P.splice(1,1)}
   if(!rate)R.wind=0;R.sleep=motion<0.3&&!rate?R.sleep+dt:0}
 function drawTethers(){
+  const front=[];
   const dt=Math.max(0,Math.min(0.05,S.t-(S._ropeT??S.t)));S._ropeT=S.t;
   // the load each Relay carries: units hanging off it by cable, plus every Relay below it and its own load
   const relays=S.relays.filter(r=>r.built&&r.trail&&r.anchorRef),units=S.troops.concat(S.harvesters,S.builders);
@@ -10580,15 +10586,19 @@ function drawTethers(){
   relays.forEach(r=>{const A=anchorHook(r.anchorRef,r),Bh=relayHookFor(r,r.anchorRef);if(!A)return;const tr=r.trail.slice(1);const pts=[A].concat(tr.map(q=>[q.x,q.y,0]),[Bh]);
     let L=0;for(let i=1;i<pts.length;i++)L+=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]);let acc=0;const sag=Math.min(Math.min(A[2],Bh[2])-2,L*0.09+4);
     const Z=pts.map((q,i)=>{if(i)acc+=Math.hypot(q[0]-pts[i-1][0],q[1]-pts[i-1][1]);const f=L?acc/L:0;return [q[0],q[1],Math.max(0.3,A[2]+(Bh[2]-A[2])*f-sag*4*f*(1-f))]});
-    drawHoses(Z,1+total(r),(r.x%7)*0.3,r.cableMaxed)});
+    const draw=()=>drawHoses(Z,1+total(r),(r.x%7)*0.3,r.cableMaxed);if(r.anchorRef===S.base&&rigHookFront(S.base,A))front.push(draw);else draw()});
   // unit cables: hang from the hook, then the pooling rope to the unit
   S.troops.concat(S.harvesters,S.builders).forEach(u=>{if(!u.trail||!u.anchorRef){u.rope=null;return}
     const h=anchorHook(u.anchorRef,u);if(!h){u.rope=null;return}const dx=u.x-h[0],dy=u.y-h[1],L=Math.hypot(dx,dy)||1,td=Math.min(L*0.6,h[2]*0.55+6),ux=dx/L,uy=dy/L,touch=[h[0]+ux*td,h[1]+uy*td];
     if(u.rope&&u.rope.anc!==u.anchorRef){u.rope.reel=2.5;u.rope.sleep=0}if(u.rope)u.rope.anc=u.anchorRef;
     if(u.rope&&u.anchorRef===S.base&&L<=TETHER_DOCK_R){u.rope.reel=Math.max(u.rope.reel||0,0.3);u.rope.dock=true;u.rope.sleep=0} // v4: back at the Rig, the slack winds straight in (fast)
     stepRope(u,touch,dt);if(u.rope.anc!==u.anchorRef)u.rope.anc=u.anchorRef;const hangPts=[];for(let k=0;k<=8;k++){const f=k/8;hangPts.push([h[0]+ux*td*f,h[1]+uy*td*f,h[2]*Math.pow(1-f,2.2)])}
-    const pts=hangPts.concat(u.rope.P.slice(1).map(q=>[q.x,q.y,0.2]));drawHoses(pts,1,(u.id||0)%8,u.cableMaxed)});
+    const pts=hangPts.concat(u.rope.P.slice(1).map(q=>[q.x,q.y,0.2])),draw=()=>drawHoses(pts,1,(u.id||0)%8,u.cableMaxed);
+    if(u.anchorRef===S.base&&rigHookFront(S.base,h))front.push(draw);else draw()});
+  S._frontHoses=front;
 }
+// the cables leaving the front of the Rig, drawn after it (set aside by drawTethers)
+function drawTethersFront(){const f=S._frontHoses;S._frontHoses=null;if(f)f.forEach(d=>d())}
 function drawGuardGlyph(x,y){
   ctx.strokeStyle=C.ally;ctx.lineWidth=1.8;
   ctx.beginPath();ctx.moveTo(x-5,y-20);ctx.lineTo(x+5,y-20);ctx.lineTo(x+5,y-16);ctx.quadraticCurveTo(x+5,y-12,x,y-10);ctx.quadraticCurveTo(x-5,y-12,x-5,y-16);ctx.closePath();ctx.stroke();
@@ -10755,7 +10765,7 @@ function draw(){
   // the Rig: the Needle tower
   drawPOIs(); // wrecks and beacons lie on the ground, under the Rig and units
   // cables run under the Rig's turret, hanging from beneath it
-  drawRigTower(B);if(!(S.landing&&!S.landing.touch))drawTethers();drawBolts();drawRigTop(B);drawDrillReadout(B);if(!S.landing)hpbar(B.x,B.y-RIG_TOP-(B._hov||0)*0.5-8,B.r*2,B.hp/B.maxHp);drawRiftMeter(B);
+  const ldg=S.landing&&!S.landing.touch;if(!ldg)drawTethers();drawRigTower(B);drawBolts();drawRigTop(B);if(!ldg)drawTethersFront();drawDrillReadout(B);if(!S.landing)hpbar(B.x,B.y-RIG_TOP-(B._hov||0)*0.5-8,B.r*2,B.hp/B.maxHp);drawRiftMeter(B);
   if(WIRELESS_ENABLED){
     const bwt=0.5+0.5*Math.sin(S.t*2.2);
     ctx.strokeStyle=C.cable;ctx.globalAlpha=0.2*bwt;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(B.x,B.y,WIRELESS_TOL_DENSE*S.mods.relayTolMult,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;
