@@ -3948,11 +3948,11 @@ function shardStep(e,tgt,dt){const k=e.shard;if(k==='husk')return false;
   if(k==='static'){let w=null,wd=STATIC_HUNT_R;S.harvesters.forEach(h=>{const q=dist(h,e);if(h.hp>0&&q<wd){wd=q;w=h}});S.builders.forEach(h=>{const q=dist(h,e);if(h.hp>0&&q<wd){wd=q;w=h}});
     if(w){tgt=e.target=w;d=wd;tr=w.r||8}
     const reach=e.r+tr+4;e.ang=Math.atan2(tgt.y-e.y,tgt.x-e.x);
-    if(d<=reach&&!wallBetween(e,tgt)){if(e.cd<=0){shardHit(tgt,e.dmg,e);e.cd=STATIC_CD;e.atkT=S.t}return true}
+    if(d<=reach&&!wallBetween(e,tgt,true)){if(e.cd<=0){shardHit(tgt,e.dmg,e);e.cd=STATIC_CD;e.atkT=S.t}return true}
     e.blinkT-=dt;if(e.blinkT>0)return true;e.blinkT=rnd(0.55,0.95);
     const aim=enemyApproachPoint(e,tgt),a=Math.atan2(aim.y-e.y,aim.x-e.x)+rnd(-0.25,0.25);
     for(const hop of [Math.min(STATIC_HOP,Math.max(12,d-reach+2)),STATIC_HOP*0.6,STATIC_HOP*1.3]){const nx=e.x+Math.cos(a)*hop,ny=e.y+Math.sin(a)*hop;
-      if(nx<10||ny<10||nx>W-10||ny>H-10||terrainAt(nx,ny)===2||wallAt(nx,ny))continue;
+      if(nx<10||ny<10||nx>W-10||ny>H-10||terrainAt(nx,ny)===2||wallAt(nx,ny,true))continue;
       e.bx=e.x;e.by=e.y;e.bt=S.t;e.x=nx;e.y=ny;if(sfxReady('blink',0.12))tone(1800,0.03,'square',0.015,0,600);return true}
     return true}
   if(k==='lantern'){
@@ -3964,12 +3964,12 @@ function shardStep(e,tgt,dt){const k=e.shard;if(k==='husk')return false;
     const want=Math.max(1,Math.ceil(e.hp/e.maxHp*3));if(want<e.cores){e.cores=want;e.speed*=0.8;burst(e.x,e.y,SH_HOT,20,160,0.6);sfx.kill();msg(`One of the Colossus's cores burst — ${want} left, and it is slowing.`)}
     if(e.lsx==null||Math.hypot(e.x-e.lsx,e.y-e.lsy)>SMEAR_STEP){S.smears.push({x:e.x,y:e.y,t:S.t,s:Math.random()});e.lsx=e.x;e.lsy=e.y}
     if(e.slamT>0){const was=e.slamT;e.slamT-=dt;if(was>COL_SLAM*0.4&&e.slamT<=COL_SLAM*0.4)colossusSlam(e);return true}
-    const aim=enemyApproachPoint(e,tgt),a=Math.atan2(aim.y-e.y,aim.x-e.x),wall=wallAt(e.x+Math.cos(a)*(e.r+8),e.y+Math.sin(a)*(e.r+8));
+    const aim=enemyApproachPoint(e,tgt),a=Math.atan2(aim.y-e.y,aim.x-e.x),wall=wallAt(e.x+Math.cos(a)*(e.r+8),e.y+Math.sin(a)*(e.r+8),true);
     if(d<=e.r+tr+14||wall){e.ang=wall?a:Math.atan2(tgt.y-e.y,tgt.x-e.x);if(e.scd<=0){e.slamT=COL_SLAM;e.scd=COL_CD}return true}
     return false}
   return false}
 function lanternFire(e){const ux=Math.cos(e.ang),uy=Math.sin(e.ang),hx=e.x+ux*5.4,hy=e.y+uy*5.4,B=S.base;let L=0,ex=hx,ey=hy;
-  for(;L<LANT_LEN;L+=6){ex=hx+ux*L;ey=hy+uy*L;if(ex<0||ey<0||ex>W||ey>H)break;const w=wallAt(ex,ey);if(w){damageWall(w,LANT_WALL_DMG);spark(ex,ey,'#8d9aa8',4);break}if(terrainAt(ex,ey)===2)break}
+  for(;L<LANT_LEN;L+=6){ex=hx+ux*L;ey=hy+uy*L;if(ex<0||ey<0||ex>W||ey>H)break;const w=wallAt(ex,ey,true);if(w){damageWall(w,LANT_WALL_DMG);spark(ex,ey,'#8d9aa8',4);break}if(terrainAt(ex,ey)===2)break}
   [B].concat(S.troops,S.harvesters,S.builders,S.turrets.filter(t=>t.built),S.relays.filter(r=>r.built&&r.hp>0),S.stabs.filter(st=>st.built&&st.hp>0),S.depots.filter(de=>de.built&&de.hp>0)).forEach(u=>{if(u.hp<=0)return;
     const rx=u.x-hx,ry=u.y-hy,al=rx*ux+ry*uy;if(al<0||al>L)return;if(Math.abs(rx*uy-ry*ux)<(u===B?BASE_R:(u.r||10))+4)shardHit(u,e.dmg,e)});
   e.bhx=hx;e.bhy=hy;e.bex=ex;e.bey=ey;e.beamAt=S.t;tone(900,0.25,'sawtooth',0.05,0,160)}
@@ -3989,7 +3989,7 @@ function spawnHuskCore(p){const hp=Math.round(HUSKCORE_HP*(RUN?stopHpMult():1));
   S.enemies.push({x:p.x,y:p.y,r:5,hp,maxHp:hp,speed:HUSKCORE_SPEED,dmg:0,cd:0,kind:'huskcore',core:true,target:null,aggro:0,home:{x:p.x,y:p.y},ang:rnd(0,Math.PI*2),faceT:9,stunT:0,seed:p.seed+7,life:0})}
 function huskCoreStep(e,dt){e._enemy=true;e.life+=dt;let n=null,nd=Infinity;liveNests().forEach(q=>{const d=dist(q,e);if(d<nd){nd=d;n=q}});
   const B=S.base,to=n||{x:e.x+(e.x-B.x),y:e.y+(e.y-B.y)},aim=n?waypointFor(e,n.x,n.y):to,a=Math.atan2(aim.y-e.y,aim.x-e.x)+Math.sin(e.life*9+e.seed)*0.5;
-  const sp=e.speed*enemyRoughFactor(e.x,e.y)*dt,nx=e.x+Math.cos(a)*sp,ny=e.y+Math.sin(a)*sp;if(nx>10&&ny>10&&nx<W-10&&ny<H-10&&terrainAt(nx,ny)!==2&&!wallAt(nx,ny)){e.x=nx;e.y=ny}e.ang=a;
+  const sp=e.speed*enemyRoughFactor(e.x,e.y)*dt,nx=e.x+Math.cos(a)*sp,ny=e.y+Math.sin(a)*sp;if(nx>10&&ny>10&&nx<W-10&&ny<H-10&&terrainAt(nx,ny)!==2&&!wallAt(nx,ny,true)){e.x=nx;e.y=ny}e.ang=a;
   if(n&&nd<n.r+16){e.hp=0;e.silent=true;const h=spawnShard(e.x,e.y,'husk','roam');h.home={x:n.x,y:n.y};burst(e.x,e.y,SH_HOT,10,90,0.4);return}
   if(e.life>HUSKCORE_LIFE){e.hp=0;e.silent=true;burst(e.x,e.y,SH_HOT,6,60,0.3)}}
 function drawShard(e){const k=e.shard||'huskcore',t=S.t+e.seed%50,fl=e.flashT>0,sm=x=>x<=0?0:x>=1?1:x*x*(3-2*x);
@@ -6659,7 +6659,7 @@ function updateMinesFields(dt){
   S.fields=S.fields.filter(q=>{q.t-=dt;
     if(q.kind==='overclock'){const r2=q.r*q.r;S.troops.forEach(u=>{if(u.cd>0&&(u.x-q.x)**2+(u.y-q.y)**2<r2)u.cd-=dt});S.turrets.forEach(u=>{if(u.built&&u.cd>0&&(u.x-q.x)**2+(u.y-q.y)**2<r2)u.cd-=dt})}
     else if(q.kind==='gravity'){S.enemies.forEach(e=>{if(e.hp<=0||e.kind==='nest')return;const dx=q.x-e.x,dy=q.y-e.y,d=Math.hypot(dx,dy);if(d>q.r||d<10)return;
-      const big=e.shard==='colossus'||e.kind==='quaker'||e.kind==='brute',s=Math.min(d-8,GRAV_PULL*(big?0.3:1)*(0.45+0.55*d/q.r)*dt),nx=e.x+dx/d*s,ny=e.y+dy/d*s;if(!wallAt(nx,ny)&&terrainAt(nx,ny)!==2){e.x=nx;e.y=ny}})}
+      const big=e.shard==='colossus'||e.kind==='quaker'||e.kind==='brute',s=Math.min(d-8,GRAV_PULL*(big?0.3:1)*(0.45+0.55*d/q.r)*dt),nx=e.x+dx/d*s,ny=e.y+dy/d*s;if(!wallAt(nx,ny,true)&&terrainAt(nx,ny)!==2){e.x=nx;e.y=ny}})}
     return q.t>0})}
 function drawMinesFields(){
   S.fields.forEach(q=>{const fade=Math.min(1,(q.T-q.t)/0.3)*Math.min(1,q.t/0.5);ctx.save();
@@ -7372,7 +7372,8 @@ function drawWallLines(){
       const vi=(sl.vi??idx)%3,half=sl.half,cv=half*W.cover,rs=sl.up<1?0.4+0.6*sl.up:1,slam=T==='heavy'&&sl.up<1?1+0.15*(1-sl.up):1,th=WS_SH[T];
       ctx.save();ctx.translate(sl.x+2.4,sl.y+3);ctx.rotate(L.ang);ctx.fillStyle='rgba(0,0,0,0.35)';ctx.fillRect(-cv,-th*rs/2,cv*2,th*rs);ctx.restore();
       ctx.save();ctx.translate(sl.x,sl.y);ctx.rotate(L.ang);ctx.scale(slam,rs*slam);
-      ctx.drawImage(wallSprite(T,wsDb(sl,T),vi,ai,sc,half),-WS_E,-WS_E,WS_E*2,WS_E*2);
+      if(L.powered===false)ctx.globalAlpha=0.55; // cut off from the network: derelict, enemies walk past it
+      ctx.drawImage(wallSprite(T,wsDb(sl,T),vi,ai,sc,half),-WS_E,-WS_E,WS_E*2,WS_E*2);ctx.globalAlpha=1;
       if(sl.flashT>0){ctx.globalAlpha=0.5;ctx.fillStyle='#fff';ctx.fillRect(-cv,-th/2,cv*2,th);ctx.globalAlpha=1}
       if(D.fx)D.fx({t:S.t,i:idx,d:sl.maxHp?1-sl.hp/sl.maxHp:0,seg:half*2,up:sl.up,powered:L.powered,down:sl.downT>0,hit:Math.max(0,1-(S.t-(sl.hitT??-9))/0.35),grow:sl.growT0!=null?Math.min(1,(S.t-sl.growT0)/1.2):null});
       ctx.restore()});
@@ -7580,11 +7581,13 @@ const sfx={
   surge(){if(!sfxReady('surge',0.2))return;tone(900,0.08,'sine',0.07);tone(1400,0.12,'sine',0.06,0.05,1800)},
 };
 // Only a FINISHED wall is a solid obstacle — a queued/under-construction site is just a ghost preview.
-function wallAt(x,y){
+// v4: foe=true is the enemies' view: a wall line cut off from the network (out of reach of the Bastion
+// and every live Relay, like the ring left at an old vein) is derelict to them — they walk past it.
+function wallAt(x,y,foe){
   if(!S.wallLines||!S.wallLines.length)return undefined;
   if(S.wallDirty||!S.wallGrid)rebuildWallGrid();
   const b=S.wallGrid.get(key(Math.floor(x/WALL_GRID),Math.floor(y/WALL_GRID)));if(!b)return undefined;
-  for(const sl of b){if(sl.dead||sl.up<0.6||sl.downT>0)continue;const L=sl.line;if(L.type==='shield'&&!L.powered)continue;const rx=x-sl.x,ry=y-sl.y,al=rx*L.ux+ry*L.uy,pp=rx*-L.uy+ry*L.ux;
+  for(const sl of b){if(sl.dead||sl.up<0.6||sl.downT>0)continue;const L=sl.line;if(L.type==='shield'&&!L.powered)continue;if(foe&&L.powered===false)continue;const rx=x-sl.x,ry=y-sl.y,al=rx*L.ux+ry*L.uy,pp=rx*-L.uy+ry*L.ux;
     if(Math.abs(al)<=sl.half+2&&Math.abs(pp)<=WALL_THICK/2+(L.type==='heavy'?5:3))return sl}
   return undefined;
 }
@@ -7610,8 +7613,8 @@ function cornerSealed(x,y){
   if(c&&d&&!a&&!b)return c;
   return undefined;
 }
-function wallBetween(a,b){if(!S.wallLines||!S.wallLines.length)return false;const d=dist(a,b);const steps=Math.max(1,Math.ceil(d/8));
-  for(let s=0;s<=steps;s++){const t=s/steps;if(wallAt(a.x+(b.x-a.x)*t,a.y+(b.y-a.y)*t))return true}
+function wallBetween(a,b,foe){if(!S.wallLines||!S.wallLines.length)return false;const d=dist(a,b);const steps=Math.max(1,Math.ceil(d/8));
+  for(let s=0;s<=steps;s++){const t=s/steps;if(wallAt(a.x+(b.x-a.x)*t,a.y+(b.y-a.y)*t,foe))return true}
   return false}
 // A wall/turret/relay site can be destroyed by enemies mid-build; confirm it's still the live
 // object before a builder keeps working it.
@@ -7847,7 +7850,7 @@ function hordeStep(e,tgt,dt){
   const f=(d<170||(tgt!==S.base&&d<380))?null:flowDir(e.x,e.y);
   if(f){ux=f.x;uy=f.y}else{ux=(tgt.x-e.x)/(d||1);uy=(tgt.y-e.y)/(d||1)}
   const wv=Math.sin(S.t*2.3+e.seed)*0.4*Math.min(1,d/200),c=Math.cos(wv),s=Math.sin(wv);[ux,uy]=[ux*c-uy*s,ux*s+uy*c];
-  const w=wallAt(e.x+ux*(e.r+6),e.y+uy*(e.r+6));
+  const w=wallAt(e.x+ux*(e.r+6),e.y+uy*(e.r+6),true);
   if(w){if(e.cd<=0){damageWall(w,e.dmg*1.5);spark(w.x,w.y,C.enemy,1);e.cd=0.8;wallTouch(w,e)}return}
   const sp=e.speed*enemyRoughFactor(e.x,e.y)*dt,nx=e.x+ux*sp,ny=e.y+uy*sp;
   if(!hordeBlocked(nx,ny)){e.x=nx;e.y=ny}else if(!hordeBlocked(nx,e.y))e.x=nx;else if(!hordeBlocked(e.x,ny))e.y=ny;
@@ -8789,7 +8792,7 @@ function update(dt){
       e.stunT-=dt;
       if(e.kbx||e.kby){
         const nx=e.x+e.kbx*dt, ny=e.y+e.kby*dt;
-        if(nx>0&&ny>0&&nx<W&&ny<H&&!wallAt(nx,ny)&&terrainAt(nx,ny)!==2){e.x=nx;e.y=ny}else{const hw=wallAt(nx,ny);e.kbx=0;e.kby=0;if((e.thrownT||0)>S.t&&(hw||terrainAt(nx,ny)===2))breakerImpact(e,hw)}
+        if(nx>0&&ny>0&&nx<W&&ny<H&&!wallAt(nx,ny,true)&&terrainAt(nx,ny)!==2){e.x=nx;e.y=ny}else{const hw=wallAt(nx,ny,true);e.kbx=0;e.kby=0;if((e.thrownT||0)>S.t&&(hw||terrainAt(nx,ny)===2))breakerImpact(e,hw)}
         const k=Math.exp(-ENERGY_SURGE_KB_DECAY*dt); e.kbx*=k; e.kby*=k;
         if(e.stunT<=0||Math.hypot(e.kbx,e.kby)<5){e.kbx=0;e.kby=0}
       }
@@ -8818,8 +8821,9 @@ function update(dt){
       if(!tgt&&dist(e,B)<e.aggro+120)tgt=B;
     } else if(e.kind!=='saboteur'){
       if(!tgt||bd>220){let bt=B,btd=dist(e,B);
-        S.turrets.forEach(tu=>{if(!tu.built)return;const d=dist(e,tu);if(d<btd*0.6){bt=tu;btd=d}});
-        S.relays.forEach(r=>{if(!r.built||r.hp<=0)return;const d=dist(e,r);if(d<btd*0.6){bt=r;btd=d}});
+        // v4: only live infrastructure draws them: a dark Turret or a cut-off Relay left at an old vein is ignored
+        S.turrets.forEach(tu=>{if(!tu.built||tu.powered===false)return;const d=dist(e,tu);if(d<btd*0.6){bt=tu;btd=d}});
+        S.relays.forEach(r=>{if(!r.built||r.hp<=0||r.tetherOk===false)return;const d=dist(e,r);if(d<btd*0.6){bt=r;btd=d}});
         S.depots.forEach(de=>{if(!de.built||de.hp<=0)return;const d=dist(e,de);if(d<btd*0.6){bt=de;btd=d}});
         S.stabs.forEach(st=>{if(!st.built||st.hp<=0)return;const d=dist(e,st);if(d<btd*0.8){bt=st;btd=d}});
         tgt=bt;}
@@ -8854,7 +8858,7 @@ function update(dt){
       return;
     }
     const reach=e.r+(tgt.r||12)+4;
-    if(dist(e,tgt)<=reach&&!wallBetween(e,tgt)){
+    if(dist(e,tgt)<=reach&&!wallBetween(e,tgt,true)){
       if(e.cd<=0){
         tgt.hp-=allyHit(tgt,e.dmg,e); tgt.lastHitBy='enemy'; hitFlash(tgt); spark(tgt.x,tgt.y,C.enemy,2); e.cd=0.8; e.atkT=S.t;
         if(tgt===B){shakeScreen(3,0.15);sfx.damage()}
@@ -8864,7 +8868,7 @@ function update(dt){
     const aim=enemyApproachPoint(e,tgt);
     const dx=aim.x-e.x,dy=aim.y-e.y,L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L,look=e.r+6,perp=e.r*0.6;
     const probes=[{x:e.x+ux*look,y:e.y+uy*look},{x:e.x+ux*look-uy*perp,y:e.y+uy*look+ux*perp},{x:e.x+ux*look+uy*perp,y:e.y+uy*look-ux*perp}];
-    let w=null; for(const pt of probes){w=wallAt(pt.x,pt.y); if(w)break}
+    let w=null; for(const pt of probes){w=wallAt(pt.x,pt.y,true); if(w)break}
     if(w){if(e.cd<=0){damageWall(w,e.dmg*1.5);spark(w.x,w.y,C.enemy,2);e.cd=0.8;wallTouch(w,e)}return}
     const factor=enemyRoughFactor(e.x,e.y);
     moveToward(e,aim,e.speed*factor,dt);
@@ -8876,8 +8880,8 @@ function update(dt){
     if(d<m&&d>0.5){const an=a.kind==='nest',bn=b.kind==='nest';if(an&&bn)continue;
       const p=(m-d)/2*(an||bn?2:1),dx=(b.x-a.x)/d,dy=(b.y-a.y)/d;
       const anx=an?a.x:a.x-dx*p,any=an?a.y:a.y-dy*p,bnx=bn?b.x:b.x+dx*p,bny=bn?b.y:b.y+dy*p;
-      if(!wallAt(anx,any)){a.x=anx;a.y=any}
-      if(!wallAt(bnx,bny)){b.x=bnx;b.y=bny}
+      if(!wallAt(anx,any,true)){a.x=anx;a.y=any}
+      if(!wallAt(bnx,bny,true)){b.x=bnx;b.y=bny}
     }}}
 
   cableLenPass(allies);
