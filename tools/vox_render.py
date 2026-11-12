@@ -86,8 +86,8 @@ EL_TAGS = {
     'red': '[urgent, rushed, raised voice]',
     'rupture': '[sharp inhale] [urgent, strained]',
     'drained': '[warm, pleased]',
-    'wave': '[alert, crisp, mission control radio call]',
-    'wave:nd': '[alert, crisp, mission control radio call]',
+    'wave': '[alert, crisp]',
+    'wave:nd': '[alert, crisp]',
     'greatWave': '[urgent, tense, raised voice]',
     'patrol': '[alert, wry]',
     'colossus': '[urgent, commanding]',
@@ -98,12 +98,12 @@ EL_TAGS = {
     'lostStab': '[urgent, rushed]',
     'turned': '[quiet, regretful]',
     'distress': '[curious, attentive]',
-    'hullHalf': '[tense but controlled, dry]',
+    'hullHalf': '[tense, controlled, dry]',
     'hullLow': '[shouting, urgent, alarmed]',
-    'noDat': '[matter of fact, light]',
-    'cap': '[matter of fact, light]',
+    'noDat': '[plain, light]',
+    'cap': '[plain, light]',
     'win': '[relieved, warm, proud]',
-    'lose': '[quiet, strained, fading] ...',
+    'lose': '[quiet, strained, fading]',
     'tut': '[warm, friendly, clear, unhurried]',
 }
 
@@ -143,11 +143,12 @@ def write_script():
     print('wrote', path, 'and', allp, len(clips), 'lines')
 
 
-def split_long(files, out_dir):
+def split_long(files, out_dir, first=0, count=None):
     """Cut one or more long takes of elevenlabs-all.txt (in order) into one file per line, named by
     slug(), at the N-1 longest silences, so pauses inside a line don't split it."""
     import numpy as np, soundfile as sf
     clips = list(read_lines())
+    clips = clips[first:first + count if count else None]  # a take of just part of the script
     parts, sr = [], None
     for f in files:
         s, r = sf.read(f, dtype='float32', always_2d=True)
@@ -222,12 +223,14 @@ def main():
     ap.add_argument('--script', action='store_true', help='write vox/elevenlabs-script.md')
     ap.add_argument('--from-dir', help='pack ElevenLabs takes from this folder')
     ap.add_argument('--from-long', nargs='+', help='cut long takes of elevenlabs-all.txt (in order) into clips')
+    ap.add_argument('--first', type=int, default=0, help='--from-long: index of the take first line in the script')
+    ap.add_argument('--count', type=int, help='--from-long: how many lines the take holds')
     ap.add_argument('--out', default=os.path.join(ROOT, 'vox', 'takes'), help='where --from-long writes the clips')
     a = ap.parse_args()
     if a.script:
         return write_script()
     if a.from_long:
-        return split_long(a.from_long, a.out)
+        return split_long(a.from_long, a.out, a.first, a.count)
     if a.from_dir:
         return pack_from_dir(a.from_dir)
     if not a.models:
