@@ -1946,6 +1946,9 @@ function stabHold(v){return veinStabs(v).reduce((a,st)=>a+st.hp/st.maxHp,0)}
 // v4: a triangle as wide as the vein (hotspots out at STEER_FULL_R) reaches STEER_BIG × as far as the old
 // reference one — about the edge of the zoomed meter; in between it grows steadily
 const STEER_BIG=1.2, STEER_FULL_R=1.0;
+// v4: needle steadiness — each healthy Stabilizer divides the turbulence by (1+STAB_CALM×its health);
+// the sway turns round over NEEDLE_SWAY_T s; a drift only counts after DRIFT_GRACE s off the band
+const STAB_CALM=0.5, NEEDLE_SWAY_T=0.6, DRIFT_GRACE=0.8;
 const RED_GRACE=4, RED_RECOVER=1, STEER_LAG=2.5, STEER_MAX=0.85, STEER_REF_R=0.55, STEER_WOBBLE=0.4, STRAIN_AGGRO_R=520, STRAIN_KICK=0.6;
 function steerShape(v){
   const cs=veinStabs(v).map(st=>{const k=0.3+0.7*st.hp/st.maxHp;return {st,x:(st.x-v.x)*k,y:(st.y-v.y)*k}});
@@ -2088,7 +2091,13 @@ function updateMeter(v,dt){
   // of the weight can't flip the payout
   if(m.aim==null)m.aim=sv.target;
   m.aim+=(sv.target-m.aim)*Math.min(1,dt/STEER_LAG);
-  m.x+=-K*(m.x-m.aim)*dt+sig*Math.sqrt(dt)*gauss();
+  // v4: the turbulence is a smooth swaying (a slowly wandering push, NEEDLE_SWAY_T seconds to turn
+  // round), not a fresh random kick every frame, and each healthy Stabilizer calms it (STAB_CALM): with
+  // three standing the needle holds close to where it's steered. The spread is set so the swaying
+  // covers about what the old jitter did, divided by the calming.
+  {const se=sig/(1+STAB_CALM*stabHold(v)*(m.over==='run'?0.3:1)),sw=se*Math.sqrt(K/2); // (an overdrill shakes through most of the calm)
+   m.wn=(m.wn||0)-(m.wn||0)*dt/NEEDLE_SWAY_T+sw*Math.sqrt(2*dt/NEEDLE_SWAY_T)*gauss();
+   m.x+=(-K*(m.x-m.aim)+m.wn)*dt}
   let here=stripAt(m.strip,m.anchor+m.x*ZOOM_HALF);
   if(m.over==='run'&&Math.abs(m.x)>m.safe)here={red:true};
   m.hereTier=here.red?null:here.tier;
@@ -2114,7 +2123,9 @@ function updateMeter(v,dt){
     else{msg(`Yield climbed to ${best}.`);tone(660,0.12,'sine',0.06,0,880);tone(880,0.18,'sine',0.05,0.12,1175)}}
   m.yieldTier=best;
   // drifting: the needle sits on a lower band than the one being paid, so the yield is about to slip
-  const dr=tierRank(here.tier)<tierRank(best);
+  // (it has to sit on the lower band DRIFT_GRACE seconds before it counts: a brief brush doesn't)
+  m.offT=tierRank(here.tier)<tierRank(best)?(m.offT||0)+dt:0;
+  const dr=m.offT>=DRIFT_GRACE;
   if(dr&&!m.drift&&S.t>(m.driftCue||0)){m.driftCue=S.t+2.5;tone(980,0.07,'square',0.035);tone(980,0.07,'square',0.035,0.12);voxSay('drift')/*VOX*/}
   m.drift=dr;
   // the seam: opens partway through, and fills while the needle sits in it
