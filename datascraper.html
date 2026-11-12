@@ -2826,6 +2826,7 @@ function reset(landing){
   // v4: the last stop — the contract vein is awake from the start, ringed by its great mounds
   placePOIs(); // v4: wrecks (ported from v3)
   {const maze=STOP_BAND==='dense'&&S.barrier;if(maze)denseMaze();
+   if(S.barrier&&!tutorialMap){S.routeFixes=ensureBastionRoutes();if(S.routeFixes)console.info('map',mapSeed,': carved',S.routeFixes,'missing Bastion route(s)')}
    const glass=STOP_BAND&&!tutorialMap?placeGlass():false; // v4: purple glass formations in the rift
    if(maze||glass){const keep=rand;rand=seededRng(mapSeed*131+17);terrainCv=buildTerrainCanvas();rand=keep;buildTerrainBlur()}}
   startTerrainPaint(true); // the ground paints in the background; a loading screen covers it until the area round the landing is done
@@ -4992,6 +4993,29 @@ function denseMaze(){
   avoid.forEach(o=>{if(!B.mask[cc(o.x,o.y)])clearDisk(o.x,o.y,90)});
   if(S.rigSite)clearDisk(S.rigSite.x,S.rigSite.y,RIG_ISLAND_R); // the derelict rig's island
 }
+
+// v4: a safety net after the maze and terrain are final: the Bastion must be able to walk from where it
+// lands to the breach and every vein site on its side of the wall, and from the far mouth of the
+// breach to the way out and the sites beyond. Anything it can't reach gets a corridor carved to the
+// nearest ground it can (two tiles wide, through rift first and rock only if it must; never through
+// the wall). Returns how many targets needed one. dry: only count them.
+function ensureBastionRoutes(dry){const B=S.barrier;if(!B||!S.breachSite)return 0;const N=TGX*TGY,bx=B.centre,can=q=>frameAB(q.x,q.y).a;
+  const cc=(x,y)=>Math.max(0,Math.min(TGY-1,Math.floor(y/TCELL)))*TGX+Math.max(0,Math.min(TGX-1,Math.floor(x/TCELL)));
+  const pass=id=>!B.mask[id]&&(terrain[id]===0||terrain[id]===1);
+  const flood=s=>{const r=new Uint8Array(N),q=[s];if(!pass(s))return r;r[s]=1;while(q.length){const id=q.pop(),x=id%TGX,y=(id-x)/TGX;
+    for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){const nx=x+dx,ny=y+dy;if(nx<0||ny<0||nx>=TGX||ny>=TGY)continue;const n=ny*TGX+nx;if(!r[n]&&pass(n)){r[n]=1;q.push(n)}}}return r};
+  let fixed=0;
+  const fix=(start,targets)=>{const s=cc(start.x,start.y);targets.forEach(t=>{const reach=flood(s),tid=cc(t.x,t.y);if(reach[tid])return;fixed++;if(dry)return;
+    // cheapest way from the target to ground the Bastion can already reach
+    const gC=new Float32Array(N).fill(Infinity),came=new Int32Array(N).fill(-1),h=new MinHeap();gC[tid]=0;h.push(tid,0);let hit=-1;
+    while(!h.empty()){const id=h.pop();if(reach[id]){hit=id;break}const x=id%TGX,y=(id-x)/TGX;
+      for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){const nx=x+dx,ny=y+dy;if(nx<1||ny<1||nx>=TGX-1||ny>=TGY-1)continue;const n=ny*TGX+nx;if(B.mask[n])continue;
+        const c=pass(n)?1:terrain[n]===RIFT?6:30,ng=gC[id]+c;if(ng<gC[n]){gC[n]=ng;came[n]=id;h.push(n,ng)}}}
+    if(hit<0)return;
+    for(let id=hit;id>=0;id=came[id]){const x=id%TGX,y=(id-x)/TGX;for(let dy=0;dy<=1;dy++)for(let dx=0;dx<=1;dx++){const gx=x+dx,gy=y+dy;if(gx<TGX&&gy<TGY&&!B.mask[gy*TGX+gx])terrain[gy*TGX+gx]=0}}})};
+  fix(S.base,[S.breachSite,...S.sites.filter(t=>can(t)<bx-BARRIER_HALF)]);
+  if(B.out)fix(B.out,[...(B.exitPt?[B.exitPt]:[]),...S.sites.filter(t=>can(t)>bx+BARRIER_HALF)]);
+  return fixed}
 function carveLine(x0,y0,x1,y1,w){
   const d=Math.hypot(x1-x0,y1-y0); const steps=Math.max(1,Math.ceil(d/(TCELL*0.5)));
   for(let i=0;i<=steps;i++){
