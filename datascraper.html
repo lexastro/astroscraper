@@ -3070,8 +3070,8 @@ function buildStop(carry){
   const spawn=pickSpawn();
   reset(spawn);
   applyCarry(carry);
-  if(!carry)runCallStart().forEach(id=>grantCall(id,CALL_LOADOUT_CHARGES)); // a fresh run: the loadout comes charged
-  beginLanding();
+  // a fresh run: the loadout comes charged, and the Rig lands (later stops start with it already down)
+  if(!carry){runCallStart().forEach(id=>grantCall(id,CALL_LOADOUT_CHARGES));beginLanding()}
   const st=stopInfo();
   if(RUN.stop===0&&pressureNote())setTimeout(()=>msg(pressureNote().trim()),50);
   msg(st.final?`Stop ${RUN.stop+1} of ${RUN_STOPS.length} — the heart of the Core. The contract vein is here and already stirring: take bearings from stray energy to triangulate it, then drain it.`:
