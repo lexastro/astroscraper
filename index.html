@@ -1255,7 +1255,7 @@ function tryRescueStrand(){
   if(!strandInReach()){note('Get closer to the squad');return}
   if(!payDat(g.cost,'Taking on the stranded squad'))return;
   g.done=true;g.units.forEach(u=>{S.troops.push(u);guardBastion(u);burst(u.x,u.y,C.ally,6,80,0.35)});
-  floatText(g.x,g.y-40,`-${g.cost} Dat`,C.dat);sfx.build();
+  floatText(g.x,g.y-40,`-${g.cost} Dat`,C.dat);sndAt(g.x,g.y,()=>sfx.build());
   S.strand=null;updateBuildBar();
 }
 function updateStrand(dt){
@@ -1315,7 +1315,7 @@ function tryCaptureRig(){
   const r=S.rig;if(!r||r.online||!r.seen||S.over||S.paused)return;
   if(!rigLinked()){note('The derelict rig needs a Relay link');return}
   if(S.dat<RIG_DAT){note(`Need ◆${RIG_DAT}`);return}
-  S.dat-=RIG_DAT;r.online=true;floatText(r.x,r.y-60,`-${RIG_DAT} Dat`,C.dat);burst(r.x,r.y,C.accent,28,170,0.8);shakeScreen(3,0.2);sfx.build();
+  S.dat-=RIG_DAT;r.online=true;floatText(r.x,r.y-60,`-${RIG_DAT} Dat`,C.dat);burst(r.x,r.y,C.accent,28,170,0.8);shakeScreen(3,0.2);sndAt(r.x,r.y,()=>sfx.build());
   updateBuildBar();
 }
 function updateRig(dt){
@@ -1701,7 +1701,7 @@ const SPOT_T=6, SPOT_MULT=1.25, SPOT_RADAR_R=420, SPOT_RADAR_RANGE=1.4, CLUSTER_
 const BRK_RANGE=24, BRK_CD=0.55, BRK_DMG=15, BRK_SPLASH=6, BRK_SPLASH_R=26, BRK_HAY_EVERY=4, BRK_HAY_R=44, BRK_HAY_KB=380, BRK_IMPACT=45, BRK_SEEK=200;
 const FR_CAP=6, FR_HEAL=4, FR_R=150, FR_COMBAT_R=220;
 // Breaker: the impact when a thrown enemy hits a wall, with that wall type's twist
-function breakerImpact(e,w){e.thrownT=0;const L=w&&w.line,type=L?L.type:'std';let dm=BRK_IMPACT*(type==='heavy'?2:1);damageEnemy(e,dm);burst(e.x,e.y,'#ffd28a',8,120,0.3);if(sfxReady('brkHit',0.06))sfx.explode();
+function breakerImpact(e,w){e.thrownT=0;const L=w&&w.line,type=L?L.type:'std';let dm=BRK_IMPACT*(type==='heavy'?2:1);damageEnemy(e,dm);burst(e.x,e.y,'#ffd28a',8,120,0.3);if(sfxReady('brkHit',0.06))sndAt(e.x,e.y,()=>sfx.explode());
   if(type==='elec')e.stunT=Math.max(e.stunT||0,2);
   else if(type==='razor'){e.bleedT=BLEED_T}
   else if(type==='glass')S.enemies.forEach(o=>{if(o!==e&&o.hp>0&&o.kind!=='nest'&&dist(o,e)<40)damageEnemy(o,12)});
@@ -2138,7 +2138,7 @@ function ruptureVein(v,why){
   v.meter=null; v.prepT=0;
   if(v.contract){v.drillProg=0;v.crackedT=CRACKED_T}else collapseVein(v,true);
   burst(v.x,v.y,C.enemy,46,260,1.0); burst(v.x,v.y,'#ffb36b',24,200,0.7);
-  sfx.explode(); shakeScreen(12,0.7);
+  sndAt(v.x,v.y,()=>sfx.explode()); shakeScreen(12,0.7);
   banner(`${why} The Rig took ${dmg} damage, and ${v.contract?`the contract vein needs ${CRACKED_T}s to settle before it can be struck again`:'the vein has collapsed'}.`,'danger');
   updateMeterUI(true); updateBuildBar();
 }
@@ -2511,7 +2511,7 @@ function takeBearing(st){
   let tgt=bearingTarget();
   if(!tgt){let bd=Infinity;S.veins.forEach(v=>{if(v.contract||!veinAlive(v))return;const d=dist(v,st);if(d<bd){bd=d;tgt=v}})}
   st.live=false; st.t=STRAY_RESPAWN_T;
-  burst(st.x,st.y,STRAY_COL,16,120,0.6); sfx.ping();
+  burst(st.x,st.y,STRAY_COL,16,120,0.6); sndAt(st.x,st.y,()=>sfx.ping());
   if(!tgt){msg('The stray energy fades — there was no vein signal in it.');return}
   const ang=Math.atan2(tgt.y-st.y,tgt.x-st.x)+rnd(-BEARING_ERR,BEARING_ERR);
   S.bearings.push({x:st.x,y:st.y,ang,target:tgt,born:S.t});
@@ -2790,14 +2790,14 @@ function corruptUnit(u,type,label,reason){
     S.troops.concat(S.harvesters).concat(S.builders).forEach(a=>{if(a!==u&&dist(a,u)<=MARTYR_R){a.hp-=MARTYR_DMG;a.lastHitBy='martyr';hitFlash(a)}});
     if(dist(S.base,u)<=MARTYR_R){S.base.hp-=MARTYR_DMG;hitFlash(S.base)}
     banner(fallen?`${label} detonated as it rose again!`:`${label} lost its mind and detonated!`,'danger');
-    burst(u.x,u.y,C.enemy,24,180,0.6);sfx.explode();shakeScreen(7,0.35);
+    burst(u.x,u.y,C.enemy,24,180,0.6);sndAt(u.x,u.y,()=>sfx.explode());shakeScreen(7,0.35);
     return;
   }
   const st=CORRUPT_STATS[type];
   S.enemies.push({x:u.x,y:u.y,r:st.r,hp:st.hp,maxHp:st.hp,speed:st.speed,dmg:st.dmg,cd:0,kind:'corrupted',unit:type,seed:Math.floor(Math.random()*9999),
     target:null,aggro:1e9,home:{x:u.x,y:u.y},ang:rnd(0,Math.PI*2),faceT:rnd(1,3),stunT:0});
   banner(fallen?`${label} has risen again — corrupted and hostile!`:`${label} lost its mind and turned hostile!`,'danger');
-  burst(u.x,u.y,C.zone,16,130,0.5);sfx.sever();shakeScreen(5,0.25);
+  burst(u.x,u.y,C.zone,16,130,0.5);sndAt(u.x,u.y,()=>sfx.sever());shakeScreen(5,0.25);
 }
 // Death by enemy hands isn't the end: a unit an enemy kills lies still for REANIMATE_T, then rises
 // as a Corrupted enemy (or, with Martyrs, detonates as it rises). Units lost any other way — a
@@ -3827,7 +3827,7 @@ function updateShardShots(dt){
         // a Paladin holding a shield wall turns shards that come at its face
         if(gatShielded(u,{x:sh.x-sh.vx,y:sh.y-sh.vy})){spark(sh.x,sh.y,'#9fb6d0',4);if(sfxReady('block',0.08))tone(1300,0.04,'square',0.03);return false}
         if(u.kind==='brawler'&&u.wall&&!u.dest){let da=Math.atan2(sh.y-u.y,sh.x-u.x)-u.ang;da=Math.atan2(Math.sin(da),Math.cos(da));if(Math.abs(da)<1.1){spark(sh.x,sh.y,BRAWL_COLOR,4);if(sfxReady('block',0.08))tone(1400,0.04,'square',0.03);if(hasKit(u,'warden'))wardenReflect(sh,u);return false}}
-        u.hp-=structHit(u,u.kind?allyHit(u,sh.dmg):sh.dmg,'shot',sh.src);u.lastHitBy='enemy';hitFlash(u);spark(sh.x,sh.y,C.enemy,2);if(u===B&&sfxReady('damage',0.3))sfx.damage();return false}
+        u.hp-=structHit(u,u.kind?allyHit(u,sh.dmg):sh.dmg,'shot',sh.src);u.lastHitBy='enemy';hitFlash(u);spark(sh.x,sh.y,C.enemy,2);if(u===B&&sfxReady('damage',0.3))sndAt(sh.x,sh.y,()=>sfx.damage());return false}
     }
     sh.ang+=sh.spin*dt;return (sh.life-=dt)>0;
   });
@@ -4064,7 +4064,7 @@ function spawnShard(x,y,k,kind){const D=SHARD[k],hp=Math.round(D.hp*(RUN?stopHpM
   S.enemies.push({x,y,r:D.r,hp,maxHp:hp,speed:D.speed*(RUN&&pressureOn('frenzy')?1.15:1),dmg:D.dmg,cd:0,kind,shard:k,core:true,target:null,aggro:kind==='roam'?260:1e9,home:{x,y},
     ang:rnd(0,Math.PI*2),faceT:rnd(1,3),stunT:0,seed:Math.floor(rnd(1,9999)),blinkT:rnd(0.3,0.9),cores:3,scd:0,chg:0,lungeT:0,slamT:0});
   return S.enemies[S.enemies.length-1]}
-function shardHit(u,dmg,src){u.hp-=structHit(u,allyHit(u,dmg,src),src&&src.shard==='lantern'?'beam':src&&src.shard==='colossus'?'blast':'melee',src);u.lastHitBy='enemy';hitFlash(u);spark(u.x,u.y,C.enemy,2);if(u===S.base&&sfxReady('damage',0.3)){shakeScreen(3,0.15);sfx.damage()}}
+function shardHit(u,dmg,src){u.hp-=structHit(u,allyHit(u,dmg,src),src&&src.shard==='lantern'?'beam':src&&src.shard==='colossus'?'blast':'melee',src);u.lastHitBy='enemy';hitFlash(u);spark(u.x,u.y,C.enemy,2);if(u===S.base&&sfxReady('damage',0.3)){shakeScreen(3,0.15);sndAt(u.x,u.y,()=>sfx.damage())}}
 // One of them with a target: returns true when it has done its own thing this frame, false to walk
 // up (and chew through walls) the ordinary way.
 function shardStep(e,tgt,dt){const k=e.shard;if(k==='husk')return false;
@@ -4089,7 +4089,7 @@ function shardStep(e,tgt,dt){const k=e.shard;if(k==='husk')return false;
       if(e.chg>=LANT_CHARGE){lanternFire(e);e.chg=0;e.scd=LANT_CD}return true}
     if(d>LANT_RANGE+tr)return false;e.ang=Math.atan2(tgt.y-e.y,tgt.x-e.x);if(e.scd<=0)e.chg=0.001;return true}
   if(k==='colossus'){e.cd=9; // never the ordinary bite: it only slams
-    const want=Math.max(1,Math.ceil(e.hp/e.maxHp*3));if(want<e.cores){e.cores=want;e.speed*=0.8;burst(e.x,e.y,SH_HOT,20,160,0.6);sfx.kill();msg(`One of the Colossus's cores burst — ${want} left, and it is slowing.`)}
+    const want=Math.max(1,Math.ceil(e.hp/e.maxHp*3));if(want<e.cores){e.cores=want;e.speed*=0.8;burst(e.x,e.y,SH_HOT,20,160,0.6);sndAt(e.x,e.y,()=>sfx.kill());msg(`One of the Colossus's cores burst — ${want} left, and it is slowing.`)}
     if(e.lsx==null||Math.hypot(e.x-e.lsx,e.y-e.lsy)>SMEAR_STEP){S.smears.push({x:e.x,y:e.y,t:S.t,s:Math.random()});e.lsx=e.x;e.lsy=e.y}
     if(e.slamT>0){const was=e.slamT;e.slamT-=dt;if(was>COL_SLAM*0.4&&e.slamT<=COL_SLAM*0.4)colossusSlam(e);return true}
     const aim=enemyApproachPoint(e,tgt),a=Math.atan2(aim.y-e.y,aim.x-e.x),wall=wallAt(e.x+Math.cos(a)*(e.r+8),e.y+Math.sin(a)*(e.r+8),true);
@@ -4104,7 +4104,7 @@ function lanternFire(e){const ux=Math.cos(e.ang),uy=Math.sin(e.ang),hx=e.x+ux*5.
 function colossusSlam(e){const fx=e.x+Math.cos(e.ang)*(e.r+10),fy=e.y+Math.sin(e.ang)*(e.r+10),B=S.base,hit=new Set();
   [B].concat(S.troops,S.harvesters,S.builders,S.turrets.filter(t=>t.built),S.relays.filter(r=>r.built&&r.hp>0),S.stabs.filter(st=>st.built&&st.hp>0),S.depots.filter(de=>de.built&&de.hp>0)).forEach(u=>{if(u.hp>0&&Math.hypot(u.x-fx,u.y-fy)<COL_SLAM_R+(u===B?BASE_R:(u.r||10)))shardHit(u,e.dmg,e)});
   for(const rr of [8,28,48,66])for(let i=0;i<12;i++){const a=i/12*Math.PI*2,w=wallAt(fx+Math.cos(a)*rr,fy+Math.sin(a)*rr);if(w)hit.add(w)}
-  hit.forEach(w=>damageWall(w,COL_WALL_DMG));e.ringAt=S.t;e.rx=fx;e.ry=fy;burst(fx,fy,'#3a0910',16,170,0.5);shakeScreen(5,0.3);sfx.explode()}
+  hit.forEach(w=>damageWall(w,COL_WALL_DMG));e.ringAt=S.t;e.rx=fx;e.ry=fy;burst(fx,fy,'#3a0910',16,170,0.5);shakeScreen(5,0.3);sndAt(fx,fy,()=>sfx.explode())}
 function spawnColossus(v){const c0=waveSources(v)[0],cd=Math.hypot(v.x-c0.x,v.y-c0.y)||1,c={x:c0.x+(v.x-c0.x)/cd*70,y:c0.y+(v.y-c0.y)/cd*70},p=nearestPlain(Math.max(60,Math.min(W-60,c.x)),Math.max(60,Math.min(H-60,c.y)));spawnShard(p.x,p.y,'colossus','wave');
   banner(`A Colossus is coming from the ${compassName(Math.atan2(p.y-v.y,p.x-v.x))||'dark'}. Its trail slows your units and its fists hit everything round them — burst its three cores.`,'danger');sfx.wave()}
 // the smear a Colossus leaves: slows your units while it lasts
@@ -4228,7 +4228,7 @@ function quakeAt(e){
   burst(e.x,e.y,'#c9a46b',22,170,0.6);S.quakes.push({x:e.x,y:e.y,r:0,t:0});
   [S.base,...S.troops,...S.turrets,...S.relays,...S.stabs].forEach(o=>{if(o.hp>0&&dist(o,e)<QUAKER_SPLASH_R+(o.r||10)){o.hp-=structHit(o,QUAKER_SPLASH_DMG,'blast');o.lastHitBy='enemy';hitFlash(o)}});
   const f=v?Math.max(0,1-dist(e,v)/QUAKER_REACH):0;
-  shakeScreen(2+5*f,0.35);sfx.explode();
+  shakeScreen(2+5*f,0.35);sndAt(e.x,e.y,()=>sfx.explode());
   if(!v||!veinAlive(v)||S.activeVein!==v||f<=0)return;
   const m=v.meter;
   if(m&&m.phase==='drill'){const sv=steerState(v), away=m.x-sv.target;m.x+=(away?Math.sign(away):(Math.random()<0.5?-1:1))*QUAKER_KICK*f}
@@ -5900,7 +5900,7 @@ function cableLenPass(units){
     if(u.cableLen>maxCableLen){
       severUnit(u);
       banner('A cable stretched too far and snapped — a unit has gone dark.','danger');
-      sfx.sever();
+      sndAt(u.x,u.y,()=>sfx.sever());
       return;
     }
     const last=u.trail[u.trail.length-1];
@@ -6334,13 +6334,13 @@ function fabUnit(k){
   const a=rnd(0,Math.PI*2), u=mkTroop(Date.now()+Math.floor(Math.random()*1000),k);
   u.x=S.base.x+Math.cos(a)*(S.base.r+12);u.y=S.base.y+Math.sin(a)*(S.base.r+12);
   S.troops.push(u);guardBastion(u);
-  burst(u.x,u.y,C.ally,8,90,0.35);sfx.build();
+  burst(u.x,u.y,C.ally,8,90,0.35);sndAt(u.x,u.y,()=>sfx.build());
   updateBuildBar();
 }
 // Structures are lobbed from the Rig and stand up the moment they land.
 function landFabShot(sh){
   const w={x:sh.tx,y:sh.ty};
-  if(sh.k==='wallpost'){const L=sh.line;L.posts[sh.end]=true;burst(w.x,w.y,'#8d9aa8',8,100,0.35);shakeScreen(1.5,0.1);sfx.build();
+  if(sh.k==='wallpost'){const L=sh.line;L.posts[sh.end]=true;burst(w.x,w.y,'#8d9aa8',8,100,0.35);shakeScreen(1.5,0.1);sndAt(w.x,w.y,()=>sfx.build());
     if(L.posts[0]&&L.posts[1]&&L.raiseT0==null)L.raiseT0=S.t;return}
   if(sh.k==='turret'||sh.k==='podturret'){
     const pod=sh.k==='podturret',hp=pod?PODT_HP:TURRET_HP;
@@ -6350,7 +6350,7 @@ function landFabShot(sh){
       state:null,tetherOk:false,trail:null,cableHp:0,cableLen:0,cableMaxed:false,reconnectT:0,wasFree:false,gunCd:0,ang:0,landT:S.t});
     if(S.mods.relayDef==='walled')relayRing(S.relays[S.relays.length-1]);
   }
-  burst(w.x,w.y,C.builder,12,120,0.45);shakeScreen(2,0.12);sfx.build();
+  burst(w.x,w.y,C.builder,12,120,0.45);shakeScreen(2,0.12);sndAt(w.x,w.y,()=>sfx.build());
 }
 function updateFabShots(dt){
   S.fabShots=S.fabShots.filter(sh=>{sh.t+=dt;if(sh.t<sh.dur)return true;landFabShot(sh);return false});
@@ -6754,7 +6754,7 @@ Object.assign(CALLDOWNS,{
     drawFall(c,f){if(f<0.55)return;const k=(f-0.55)/0.45;ctx.save();ctx.globalCompositeOperation='lighter';ctx.globalAlpha=0.15+0.5*k;ctx.strokeStyle='#ffe0a0';ctx.lineWidth=(1+4*k)/cam.z;ctx.beginPath();ctx.moveTo(c.x,c.y-900);ctx.lineTo(c.x,c.y);ctx.stroke();ctx.restore()},
     land(x,y,c){callEnemiesIn(x,y,c.r,e=>damageEnemy(e,isBigTarget(e)?ORB_DMG*0.5:ORB_DMG));
       S.enemies.filter(e=>e.kind==='nest'&&e.hp>0&&Math.hypot(e.x-x,e.y-y)<c.r+e.r).forEach(e=>damageEnemy(e,ORB_DMG*ORB_NEST));
-      callFx(x,y,c.r,'#ffe0a0',0.6,'beam');burst(x,y,'#ffd28a',30,240,0.6);shakeScreen(7,0.35);sfx.explode();tone(120,0.5,'sawtooth',0.07,0,40)}},
+      callFx(x,y,c.r,'#ffe0a0',0.6,'beam');burst(x,y,'#ffd28a',30,240,0.6);shakeScreen(7,0.35);sndAt(x,y,()=>sfx.explode());tone(120,0.5,'sawtooth',0.07,0,40)}},
   stasis:{name:'Stasis Field',icon:'❄',dat:160,delay:0.8,r:150,desc:`Freezes every enemy in a wide circle for ${STASIS_T}s. No damage: it buys time.`,
     land(x,y,c){callEnemiesIn(x,y,c.r,e=>{e.stunT=Math.max(e.stunT||0,STASIS_T);e.kbx=0;e.kby=0});callFx(x,y,c.r,'#8fe3ff',STASIS_T,'stasis');tone(1400,0.4,'sine',0.05,0,300)}},
   emp:{name:'EMP Burst',icon:'⌁',dat:140,delay:1,r:230,desc:`The swarm in a big circle drops dead; everything else takes ${EMP_DMG} and is dazed for ${EMP_STUN}s.`,
@@ -6764,16 +6764,16 @@ Object.assign(CALLDOWNS,{
     drawFall(c,f){fallBody(c,f,'#dfe6ee',16)},
     land(x,y,c){callEnemiesIn(x,y,c.r+20,e=>{damageEnemy(e,DROPPOD_DMG);const a=Math.atan2(e.y-y,e.x-x);e.kbx=Math.cos(a)*260;e.kby=Math.sin(a)*260;e.stunT=Math.max(e.stunT||0,0.5)});
       for(let i=0;i<DROPPOD_N;i++){const u=mkTroop(Date.now()+i+Math.floor(Math.random()*1e4),'troop'),a=i/DROPPOD_N*Math.PI*2,p=nearestPlain(x+Math.cos(a)*14,y+Math.sin(a)*14);u.x=p.x;u.y=p.y;u.state='idle';S.troops.push(u)}
-      burst(x,y,'#dfe6ee',22,180,0.5);callFx(x,y,c.r+20,'#dfe6ee',0.45,'ring');shakeScreen(4,0.2);sfx.explode();updateBuildBar()}},
+      burst(x,y,'#dfe6ee',22,180,0.5);callFx(x,y,c.r+20,'#dfe6ee',0.45,'ring');shakeScreen(4,0.2);sndAt(x,y,()=>sfx.explode());updateBuildBar()}},
   bulwark:{name:'Bulwark Drop',icon:'⬡',dat:180,delay:1.5,r:70,desc:'A ring of walls of your current wall type slams down round the spot, already standing.',
     drawFall(c,f){fallBody(c,f,'#8d9aa8',14)},
     land(x,y,c){const N=6,R=c.r,pts=[];for(let i=0;i<N;i++){const a=Math.PI/N+i/N*Math.PI*2;pts.push({x:x+Math.cos(a)*R,y:y+Math.sin(a)*R})}
       for(let i=0;i<N;i++){const p=pts[i],q=pts[(i+1)%N];if([p,q].some(o=>o.x<20||o.y<20||o.x>W-20||o.y>H-20))continue;if(wallAt((p.x+q.x)/2,(p.y+q.y)/2))continue;
         const L=addWallLine(p,q,true);if(!L)continue;S.fabShots=S.fabShots.filter(sh=>sh.line!==L);L.posts=[true,true];L.raiseT0=S.t;L.callDrop=true}
       callEnemiesIn(x,y,R+10,e=>{const a=Math.atan2(e.y-y,e.x-x);e.kbx=Math.cos(a)*200;e.kby=Math.sin(a)*200;e.stunT=Math.max(e.stunT||0,0.4)});
-      burst(x,y,'#8d9aa8',20,160,0.5);callFx(x,y,R,'#c3ccd6',0.45,'ring');shakeScreen(4,0.2);sfx.build();wallTowers()}},
+      burst(x,y,'#8d9aa8',20,160,0.5);callFx(x,y,R,'#c3ccd6',0.45,'ring');shakeScreen(4,0.2);sndAt(x,y,()=>sfx.build());wallTowers()}},
   carpet:{name:'Carpet Shells',icon:'⋯',dat:200,delay:1.6,r:48,line:true,desc:`Click a start and an end: ${CARPET_N} shells land one after another along the line, ${CARPET_DMG} damage each. For a wave on its way in.`,
-    land(x,y,c){callEnemiesIn(x,y,c.r,e=>damageEnemy(e,isBigTarget(e)?CARPET_DMG*0.5:CARPET_DMG));burst(x,y,'#ffb070',12,160,0.4);callFx(x,y,c.r,'#ffb070',0.35,'ring');shakeScreen(2.5,0.12);if(sfxReady('carpet',0.05))sfx.explode()}},
+    land(x,y,c){callEnemiesIn(x,y,c.r,e=>damageEnemy(e,isBigTarget(e)?CARPET_DMG*0.5:CARPET_DMG));burst(x,y,'#ffb070',12,160,0.4);callFx(x,y,c.r,'#ffb070',0.35,'ring');shakeScreen(2.5,0.12);if(sfxReady('carpet',0.05))sndAt(x,y,()=>sfx.explode())}},
   minefield:{name:'Minefield',icon:'✳',dat:150,delay:1.2,r:120,desc:`${MINE_N} mines scatter round the spot and wait. Each goes off when an enemy steps on it: ${MINE_DMG} damage round it.`,
     land(x,y,c){for(let i=0;i<MINE_N;i++){const a=rnd(0,Math.PI*2),d=Math.sqrt(Math.random())*c.r,p={x:x+Math.cos(a)*d,y:y+Math.sin(a)*d};if(terrainAt(p.x,p.y)===2||wallAt(p.x,p.y))continue;S.mines.push({x:p.x,y:p.y,arm:S.t+MINE_ARM+i*0.04,seed:Math.random()*9})}
       if(S.mines.length>MINE_MAX)S.mines.splice(0,S.mines.length-MINE_MAX);burst(x,y,'#8d9aa8',14,140,0.4);tone(500,0.1,'square',0.04,0,300)}},
@@ -6788,7 +6788,7 @@ Object.assign(CALLDOWNS,{
 // mines go off under the first enemy to step on one; fields (Overclock, Gravity Well) tick down
 function updateMinesFields(dt){
   if(S.mines.length){S.mines=S.mines.filter(m=>{if(S.t<m.arm)return true;let hit=false;for(const e of S.enemies){if(e.hp>0&&e.kind!=='nest'&&Math.hypot(e.x-m.x,e.y-m.y)<MINE_TRIP+(e.r||8)){hit=true;break}}
-    if(!hit)return true;callEnemiesIn(m.x,m.y,MINE_BLAST,e=>damageEnemy(e,isBigTarget(e)?MINE_DMG*0.5:MINE_DMG));burst(m.x,m.y,'#ffb070',12,150,0.4);callFx(m.x,m.y,MINE_BLAST,'#ffb070',0.35,'ring');if(sfxReady('mine',0.05))sfx.explode();return false})}
+    if(!hit)return true;callEnemiesIn(m.x,m.y,MINE_BLAST,e=>damageEnemy(e,isBigTarget(e)?MINE_DMG*0.5:MINE_DMG));burst(m.x,m.y,'#ffb070',12,150,0.4);callFx(m.x,m.y,MINE_BLAST,'#ffb070',0.35,'ring');if(sfxReady('mine',0.05))sndAt(m.x,m.y,()=>sfx.explode());return false})}
   if(!S.fields.length)return;
   S.fields=S.fields.filter(q=>{q.t-=dt;
     if(q.kind==='overclock'){const r2=q.r*q.r;S.troops.forEach(u=>{if(u.cd>0&&(u.x-q.x)**2+(u.y-q.y)**2<r2)u.cd-=dt});S.turrets.forEach(u=>{if(u.built&&u.cd>0&&(u.x-q.x)**2+(u.y-q.y)**2<r2)u.cd-=dt})}
@@ -7153,7 +7153,7 @@ function landingTick(dt){const L=S.landing,B=S.base;if(!L.snd)L.snd=landSound();
     shakeScreen(8,0.6);burst(B.x,B.y,'#b9a48a',46,230,1.1);burst(B.x,B.y,'#8fe3ff',14,120,0.5)}}
 // after touchdown (the game running again): the crew walk out, then the landing is over
 function emergeTick(dt){const L=S.landing,B=S.base;L.et-=dt;
-  while(L.et<=0&&L.q.length){const u=L.q.shift();if(u.hp>0){u.hidden=false;u.x=B.x+rnd(-4,4);u.y=B.y+rnd(2,8)}L.et+=LAND_EMERGE_GAP;tone(520+rnd(-40,40),0.05,'square',0.02)}
+  while(L.et<=0&&L.q.length){const u=L.q.shift();if(u.hp>0){u.hidden=false;u.x=B.x+rnd(-4,4);u.y=B.y+rnd(2,8)}L.et+=LAND_EMERGE_GAP;sndAt(B.x,B.y,()=>tone(520+rnd(-40,40),0.05,'square',0.02))}
   if(!L.q.length)S.landing=null}
 // ---- Rig sounds (v4) ----
 let RIG_NOISE=null;
@@ -7179,7 +7179,7 @@ function legSound(dir){if(!sfxReady('rigLegs',0.25))return;const d=dir>0?1/RIG_L
   tone(dir>0?150:240,d*0.9,'sawtooth',0.028,0,dir>0?240:150);tone(dir>0?300:480,d*0.9,'triangle',0.014,0,dir>0?480:300);
   tone(85,0.12,'square',0.06,d*0.92,50);noiseCrack(0.08,0.12,420,d*0.92)}
 // the mining laser: a held, buzzing hum with a sizzle on top, while it fires
-let LASER_SND=null;
+let LASER_SND=null;const LASER_VOL=0.028; // v4: was 0.07 — it sat on top of everything while drilling
 function laserSound(level){const ac=actx;if(!ac||ac.state!=='running'){return}
   const mute=menuOpen||!S||S.paused||S.tacPause||S.over||S.rewardChoice;const want=mute?0:level;
   if(want>0.02&&!LASER_SND){const out=sfxOut(ac),t=ac.currentTime,g=ac.createGain();g.gain.value=0.0001;g.connect(out);
@@ -7188,9 +7188,11 @@ function laserSound(level){const ac=actx;if(!ac||ac.state!=='running'){return}
     const trem=ac.createOscillator();trem.frequency.value=13;const tg=ac.createGain();tg.gain.value=0.25;const amp=ac.createGain();amp.gain.value=0.75;trem.connect(tg);tg.connect(amp.gain);
     const n=ac.createBufferSource();n.buffer=rigNoise(ac);n.loop=true;const hp=ac.createBiquadFilter();hp.type='bandpass';hp.frequency.value=3200;hp.Q.value=0.9;const ng=ac.createGain();ng.gain.value=0.35;
     o1.connect(lp);o2.connect(lp);lp.connect(amp);n.connect(hp);hp.connect(ng);ng.connect(amp);amp.connect(g);
-    [o1,o2,trem,n].forEach(x=>x.start(t));LASER_SND={g,nodes:[o1,o2,trem,n],lp};
-    tone(1400,0.18,'sine',0.04,0,500)} // it fires up with a downward zip
-  if(LASER_SND){const t=ac.currentTime;LASER_SND.g.gain.setTargetAtTime(Math.max(0.0001,0.07*want),t,0.08);LASER_SND.lp.frequency.setTargetAtTime(500+500*want+Math.random()*120,t,0.05);
+    const pn=ac.createStereoPanner?ac.createStereoPanner():null;amp.disconnect();if(pn){amp.connect(pn);pn.connect(g)}else amp.connect(g);
+    [o1,o2,trem,n].forEach(x=>x.start(t));LASER_SND={g,nodes:[o1,o2,trem,n],lp,pn};
+    sndAt(S.base.x,S.base.y,()=>tone(1400,0.18,'sine',0.025,0,500))} // it fires up with a downward zip
+  if(LASER_SND){const t=ac.currentTime,mx=sndMix(S.base.x,S.base.y);if(LASER_SND.pn)LASER_SND.pn.pan.setTargetAtTime(mx.pan,t,0.1);
+    LASER_SND.g.gain.setTargetAtTime(Math.max(0.0001,LASER_VOL*want*Math.min(1,mx.g)),t,0.08);LASER_SND.lp.frequency.setTargetAtTime(500+500*want+Math.random()*120,t,0.05);
     if(want<=0.02){const L=LASER_SND;LASER_SND=null;L.g.gain.setTargetAtTime(0.0001,t,0.06);L.nodes.forEach(x=>{try{x.stop(t+0.4)}catch(e){}})}}}
 const RC={G:'#999',DK:'#4a4f57',M1:'#5d6670',M2:'#8d9aa8',TOP:'#a9b6c4',SL:'#6f7c89',W:'#e6e6e6',WT:'#f2f2f2',ANT:'#c9ced4',LASER:'#ffd27a',AMB:'#e8a43a',ARM:'#7a848f',ARM2:'#a8b2bc',ARM3:'#5c656f',PDC:'#d9dee4'};
 const skEach=S0=>{S0.grp='each';return S0};
@@ -7495,7 +7497,7 @@ function landStabilizer(sh){
   if(!v.surveyed){v.surveyed=true;S.surveyVein=v;msg(`Vein surveyed — ${ripeTier(v)} tier. The survey panel shows when it ripens next or how long until it collapses.`)}
   else S.surveyVein=v;
   const before=v.lifeBonus||0; v.lifeBonus=Math.min(STAB_LIFE_BONUS*HOTSPOTS_PER_VEIN,before+STAB_LIFE_BONUS);
-  burst(h.x,h.y,veinEnergy(v).col,16,140,0.5); shakeScreen(2,0.15); sfx.build();
+  burst(h.x,h.y,veinEnergy(v).col,16,140,0.5); shakeScreen(2,0.15); sndAt(h.x,h.y,()=>sfx.build());
 }
 function updateStabilizerShots(dt){
 
@@ -7863,7 +7865,7 @@ function explodeNade(n){
   if(n.kit==='fire')S.fires.push({x:n.tx,y:n.ty,r:splashR*0.9,t:FIRE_T});
   if(n.kit==='cluster'&&!n.sub)for(let i=0;i<CLUSTER_N;i++){const a=i/CLUSTER_N*Math.PI*2+0.6,d=rnd(22,34);launchProjectile({x:n.tx,y:n.ty},{x:n.tx+Math.cos(a)*d,y:n.ty+Math.sin(a)*d},{speed:160,minDur:0.3,dmg:dmg*CLUSTER_DMG,splashR:splashR*0.6,color:'#ffd28a',sub:true,kit:'cluster'})}
   burst(n.tx,n.ty,n.color||C.enemy,n.big?22:14,n.big?170:140,n.big?0.55:0.4);
-  sfx.explode();
+  sndAt(n.tx,n.ty,()=>sfx.explode());
   shakeScreen(n.big?4:2,n.big?0.25:0.15);
 }
 // ---------- juice: particles, floating text, screen shake ----------
@@ -7889,24 +7891,47 @@ const sfxCd={};
 // (real time, not S.t: the game clock starts again at 0 every map, which left every sound used on an
 // earlier map 'too recent' and silent until the new clock caught up with the old timestamps)
 function sfxReady(key,minGap){const t=performance.now()/1000;if(t-(sfxCd[key]??-999)<minGap)return false;sfxCd[key]=t;return true}
+// v4: positional sound. A world sound played inside sndAt(x,y,…) is panned left/right by where it is on
+// screen and turned down the further it is from the middle of your view: full volume across the centre
+// of the screen (SND_FOCUS of the way out to a corner), fading past that and well down off-screen, a
+// little louder right where you're looking. Zoomed in, what you're looking at is louder; zoomed out,
+// everything is a touch quieter. A sound in the fog, where none of your units can see, is muffled and
+// quieter. Interface sounds and map-wide alerts stay where they are, in the middle.
+let SND_POS=null;
+const SND_FOCUS=0.55, SND_FADE=0.6, SND_PAN=0.75, SND_FOG=0.45, SND_MIN=0.03;
+function sndAt(x,y,fn){const k=SND_POS;SND_POS={x,y};try{fn()}finally{SND_POS=k}}
+function sndMix(x,y){if(!S||!cam)return {g:1,pan:0,fog:false};const vw=cv.clientWidth||innerWidth,vh=cv.clientHeight||innerHeight,z=cam.z||1;
+  const dx=(x-cam.x)*z,dy=(y-cam.y)*z,R=0.5*Math.hypot(vw,vh),d=Math.hypot(dx,dy);
+  let g=d<=R*SND_FOCUS?1:1/(1+Math.pow((d-R*SND_FOCUS)/(R*SND_FADE),2));
+  g*=(1+0.15*Math.max(0,1-d/(R*0.3)))/1.15; // a little louder right where you're looking (the middle is the old volume)
+  g*=Math.max(0.65,Math.min(1.15,0.75+0.25*z)); // zoom: up to +15% zoomed right in, down to −35% zoomed right out
+  let fog=false;try{fog=!debugNoFog&&!visibleNow({x,y})}catch(e){}if(fog)g*=SND_FOG;
+  return {g,pan:Math.max(-1,Math.min(1,dx/(vw/2)))*SND_PAN,fog}}
+// where a sound plays into: the effects bus, through its own pan/volume (and muffle) when it has a position
+function sndOut(ac){const out=sfxOut(ac);if(!SND_POS)return {node:out,g:1};const m=sndMix(SND_POS.x,SND_POS.y);if(m.g<SND_MIN)return null;
+  let node=out;if(m.fog){const lp=ac.createBiquadFilter();lp.type='lowpass';lp.frequency.value=900;lp.connect(node);node=lp}
+  if(ac.createStereoPanner){const pn=ac.createStereoPanner();pn.pan.value=m.pan;pn.connect(node);node=pn}
+  return {node,g:m.g}}
 function tone(freq,dur,type,gain,delay,slideTo){
   const ac=ensureAudio(); if(!ac)return;
+  const so=sndOut(ac); if(!so)return; gain=(gain||0.15)*so.g;
   const t0=ac.currentTime+(delay||0);
   const osc=ac.createOscillator(), g=ac.createGain();
   osc.type=type||'sine'; osc.frequency.setValueAtTime(freq,t0);
   if(slideTo)osc.frequency.exponentialRampToValueAtTime(Math.max(20,slideTo),t0+dur);
   g.gain.setValueAtTime(0.0001,t0); g.gain.linearRampToValueAtTime(gain||0.15,t0+0.012); g.gain.exponentialRampToValueAtTime(0.001,t0+dur);
-  osc.connect(g); g.connect(sfxOut(ac));
+  osc.connect(g); g.connect(so.node);
   osc.start(t0); osc.stop(t0+dur+0.03);
 }
 let noiseBuf=null;
 function noiseCrack(dur,gain,freq,delay){
   const ac=ensureAudio();if(!ac)return;
+  const so=sndOut(ac);if(!so)return;gain*=so.g;
   if(!noiseBuf){noiseBuf=ac.createBuffer(1,Math.floor(ac.sampleRate*0.2),ac.sampleRate);const d=noiseBuf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1}
   const t0=ac.currentTime+(delay||0),src=ac.createBufferSource(),f=ac.createBiquadFilter(),g=ac.createGain();
   src.buffer=noiseBuf;f.type='bandpass';f.frequency.value=freq||1800;f.Q.value=0.9;
   g.gain.setValueAtTime(gain,t0);g.gain.exponentialRampToValueAtTime(0.001,t0+dur);
-  src.connect(f);f.connect(g);g.connect(sfxOut(ac));src.start(t0);src.stop(t0+dur+0.02);
+  src.connect(f);f.connect(g);g.connect(so.node);src.start(t0);src.stop(t0+dur+0.02);
 }
 // v4: a derelict rig's distress call — a rising two-pulse sonar ping and a falling tail
 function distressPing(){tone(1175,0.16,'sine',0.07);tone(1175,0.16,'sine',0.07,0.26);tone(880,0.55,'sine',0.065,0.54,640)}
@@ -8076,7 +8101,7 @@ function updateDrones(dt){
     d.state=d.target?(L<10?'repair':'fly'):d.loot?'fly':'dock';
     if(d.loot&&L<12){const o=d.loot,amt=o.amt;
       if(S.shards.includes(o))S.shards=S.shards.filter(x=>x!==o);else o.amt=0;
-      S.dat+=amt;floatText(o.x,o.y-10,'+'+amt,C.dat);sfx.gather();spark(o.x,o.y,C.dat,3);updateBuildBar();d.loot=null}
+      S.dat+=amt;floatText(o.x,o.y-10,'+'+amt,C.dat);sndAt(o.x,o.y,()=>sfx.gather());spark(o.x,o.y,C.dat,3);updateBuildBar();d.loot=null}
     if(d.state==='repair'){
       const o=d.target;
       if(o.hp<o.maxHp)o.hp=Math.min(o.maxHp,o.hp+DRONE_HPS*dt)
@@ -8217,7 +8242,7 @@ function hordeStep(e,tgt,dt){
   if(db<BASE_R+e.r+6){e.hp-=HORDE_STOMP_DPS*dt;if(e.hp<=0)return}
   if(tgt.hold&&dist(e,tgt)<(tgt.r||8)+e.r+6){e.hp-=HOLD_CRUSH_DPS*dt;if(e.hp<=0)return}
   const reach=e.r+(tgt.r||12)+4,d=tgt===B?db:dist(e,tgt);
-  if(d<=reach){if(e.cd<=0){tgt.hp-=structHit(tgt,allyHit(tgt,e.dmg,e),'melee',e);tgt.lastHitBy='enemy';hitFlash(tgt);spark(tgt.x,tgt.y,C.enemy,1);e.cd=0.8;if(tgt===S.base){shakeScreen(2,0.12);sfx.damage()}}e.ang=Math.atan2(tgt.y-e.y,tgt.x-e.x);return}
+  if(d<=reach){if(e.cd<=0){tgt.hp-=structHit(tgt,allyHit(tgt,e.dmg,e),'melee',e);tgt.lastHitBy='enemy';hitFlash(tgt);spark(tgt.x,tgt.y,C.enemy,1);e.cd=0.8;if(tgt===S.base){shakeScreen(2,0.12);sndAt(tgt.x,tgt.y,()=>sfx.damage())}}e.ang=Math.atan2(tgt.y-e.y,tgt.x-e.x);return}
   let ux,uy;
   const f=(d<170||(tgt!==S.base&&d<380))?null:flowDir(e.x,e.y);
   if(f){ux=f.x;uy=f.y}else{ux=(tgt.x-e.x)/(d||1);uy=(tgt.y-e.y)/(d||1)}
@@ -8284,7 +8309,7 @@ function brawlerShove(t){
   S.enemies.forEach(e=>{if(e.hp<=0||e.kind==='nest'||e.kind==='quaker')return;const dx=e.x-t.x,dy=e.y-t.y,d=Math.hypot(dx,dy);
     if(d>BRAWL_KB_R+(e.r||0)||d<1)return;let da=Math.atan2(dy,dx)-t.ang;da=Math.atan2(Math.sin(da),Math.cos(da));if(Math.abs(da)>BRAWL_KB_ARC/2)return;
     const k=(e.kind==='brute'?0.35:1)*BRAWL_KB_SPEED*(1-0.4*d/BRAWL_KB_R);e.kbx=dx/d*k;e.kby=dy/d*k;e.stunT=Math.max(e.stunT||0,BRAWL_KB_STUN)});
-  (S.shoves||(S.shoves=[])).push({x:t.x,y:t.y,a:t.ang,t:0});t.bashT=S.t;sfx.shieldBash();
+  (S.shoves||(S.shoves=[])).push({x:t.x,y:t.y,a:t.ang,t:0});t.bashT=S.t;sndAt(t.x,t.y,()=>sfx.shieldBash());
 }
 // ---------- Paladin art ----------
 // Top-down, facing t.ang: a hard-light shield projected from the left gauntlet, a spear in the right
@@ -9044,7 +9069,7 @@ function update(dt){
       const livingEarned=Math.round((v.reward.living||0)*tierMult*S.mods.livingMult);
       S.dat+=datEarned; S.living+=livingEarned; S.condensed+=condensedEarned;
       burst(v.x,v.y,TIER_COLOR[tier],24,140,0.7);
-      if(datEarned){burst(v.x,v.y,C.dat,30,190,0.9);floatText(v.x,v.y-16,'+'+datEarned+' Dat',C.dat);sfx.gather()}
+      if(datEarned){burst(v.x,v.y,C.dat,30,190,0.9);floatText(v.x,v.y-16,'+'+datEarned+' Dat',C.dat);sndAt(v.x,v.y,()=>sfx.gather())}
       if(livingEarned)floatText(v.x,v.y-34,'+'+livingEarned+' Living',C.living);
       floatText(v.x,v.y+(datEarned||livingEarned?2:-16),'+'+condensedEarned+' Condensed',C.condensed);
       if(v.contract){S.over='win';sfx.win();shakeScreen(6,0.5);showOverlay('Living Crystal Extracted',`The contract vein is drained at ${tier} tier. Astroscraper crew, mission complete. +${condensedEarned} Condensed Crystal.`)}
@@ -9083,7 +9108,7 @@ function update(dt){
   // plants them at once, over a rift they stay up
   {const onRift=terrainAt(B.x,B.y)===RIFT,want=onRift?0:B.locked?1:(B.dest||S.t<(B.legHoldT||0))?0:1,cur=B.legDep??1;
    B.legDep=want<cur?Math.max(want,cur-dt*RIG_LEG_FOLD):Math.min(want,cur+dt*RIG_LEG_UNFOLD);
-   const dir=Math.sign(want-cur);if(dir&&dir!==B._legDir)legSound(dir);B._legDir=dir}
+   const dir=Math.sign(want-cur);if(dir&&dir!==B._legDir)sndAt(B.x,B.y,()=>legSound(dir));B._legDir=dir}
   if(B.dest&&!B.locked&&(B.legDep<=0.02||B.riftShove)){
     const aim=B.riftShove?B.dest:waypointFor(B,B.dest.x,B.dest.y);
     const factor=terrainAt(B.x,B.y)===1?MUD_MULT:1;
@@ -9121,7 +9146,7 @@ function update(dt){
   tetherPass(S.builders,BUILDER_SPEED*S.mods.moveSpeedMult,dt);
   debugPass();
   // Sanity hit 0 — the unit snaps and defects to the enemy side
-  S.troops=S.troops.filter(t=>{if(t.sanity<=0){sfx.death(t.kind||'troop');corruptUnit(t,t.kind,t.kind==='grenadier'?'A Grenadier':t.kind==='artillery'?'An Artillery Piece':t.kind==='mech'?'A Mech':t.kind==='rocket'?'A Rocketeer':t.kind==='brawler'?'A Paladin':t.kind==='marksman'?'A Marksman':'A Trooper');S.sel.troops.delete(t.id);return false}return true});
+  S.troops=S.troops.filter(t=>{if(t.sanity<=0){sndAt(t.x,t.y,()=>sfx.death(t.kind||'troop'));corruptUnit(t,t.kind,t.kind==='grenadier'?'A Grenadier':t.kind==='artillery'?'An Artillery Piece':t.kind==='mech'?'A Mech':t.kind==='rocket'?'A Rocketeer':t.kind==='brawler'?'A Paladin':t.kind==='marksman'?'A Marksman':'A Trooper');S.sel.troops.delete(t.id);return false}return true});
   S.harvesters=S.harvesters.filter(h=>{if(h.sanity<=0){corruptUnit(h,'harvester','A Harvester');S.sel.harv.delete(h.id);return false}return true});
   S.builders=S.builders.filter(bu=>{if(bu.sanity<=0){releaseBuilderClaim(bu);corruptUnit(bu,'builder','A Builder');S.sel.bu.delete(bu.id);return false}return true});
 
@@ -9181,7 +9206,7 @@ function update(dt){
     // a Paladin's jab: once the wind-up runs out it lands on its target if that's still in reach
     if(brawl&&t.jabT>0){t.jabT-=dt;const c=t.jabTgt;if(c&&c.hp>0)t.ang=Math.atan2(c.y-t.y,c.x-t.x);
       if(t.jabT<=0){t.jabT=0;t.jabTgt=null;t.atkT=S.t;
-        if(c&&c.hp>0&&dist(t,c)-(c.r||0)<=range+6){const dm=BRAWL_DMG*S.mods.troopDmgMult;damageEnemy(c,dm);sfx.spearHit();if(kit==='razor')c.bleedT=BLEED_T;
+        if(c&&c.hp>0&&dist(t,c)-(c.r||0)<=range+6){const dm=BRAWL_DMG*S.mods.troopDmgMult;damageEnemy(c,dm);sndAt(c.x,c.y,()=>sfx.spearHit());if(kit==='razor')c.bleedT=BLEED_T;
           // a little cleave: whatever else is huddled against the target takes some too
           S.enemies.forEach(e=>{if(e!==c&&e.hp>0&&dist(e,c)<BRAWL_CLEAVE_R)damageEnemy(e,dm*BRAWL_CLEAVE)});
           if(t.wall&&rnd(0,1)<BRAWL_KB_CHANCE)brawlerShove(t);
@@ -9191,11 +9216,11 @@ function update(dt){
       if(t.chargeT>0){t.chargeT-=dt;const c=t.chargeTgt;if(c&&c.hp>0)t.ang=Math.atan2(c.y-t.y,c.x-t.x);
         if(t.chargeT<=0){t.chargeT=0;t.chargeTgt=null;
           if(c&&c.hp>0&&dist(t,c)<=range+(c.r||0)){const pane=kit==='rail'&&crossesShield(t,c),end=troopPierce(t,c,range*1.15,MARK_DMG*S.mods.troopDmgMult*(pane?1.5:1),kit==='rail'?99:MARK_PIERCE);tracer(gunMuzzle(t,16),end,pane?'#8fe3ff':'#bfefff',pane?5:3);t.shotT=S.t;if(kit==='spotter')c.markT=SPOT_T;
-            sfx.rail()}
+            sndAt(t.x,t.y,()=>sfx.rail())}
           t.cd=MARK_CD/squadFireRateMult();if(t.hold&&!t.dest)t.cd/=1+Math.min(HOLD_LINK_MAX,HOLD_LINK_BONUS*(t.holdLinks||0))}}
       else if(t.cd<=0){let best=null,bd=range;S.enemies.forEach(e=>{if(e.hp<=0||!visible(e))return;const d=dist(e,t);if(d<bd){bd=d;best=e}});
         if(t.state==='attack'&&t.target&&t.target.hp>0&&S.enemies.includes(t.target)&&dist(t,t.target)<=range+(t.target.r||0))best=t.target; // your order first
-        if(best){t.chargeT=MARK_CHARGE;t.chargeTgt=best;t.ang=Math.atan2(best.y-t.y,best.x-t.x);sfx.railCharge()}}
+        if(best){t.chargeT=MARK_CHARGE;t.chargeTgt=best;t.ang=Math.atan2(best.y-t.y,best.x-t.x);sndAt(t.x,t.y,()=>sfx.railCharge())}}
     }
     const movedNow=(t.x-px0)**2+(t.y-py0)**2>0.02;
     const ord=t.state==='attack'&&t.target&&t.target.hp>0&&S.enemies.includes(t.target)&&dist(t,t.target)-(brawl?t.target.r||0:0)<=range?t.target:null; // what you told it to shoot
@@ -9209,14 +9234,14 @@ function update(dt){
         if(gren){if(!t.volley&&(t.pods??GREN_PODS)>=GREN_PODS){t.volley=true;t.volT=0;t.volTgt=best;t.volAt=null}t.cd=0.2}
         else if(brawl){t.ang=Math.atan2(best.y-t.y,best.x-t.x);
           // the spear swings back first (PAL_WIND); the jab lands when it comes forward (see the wind-up tick above)
-          if(!(t.jabT>0)){t.jabT=PAL_WIND;t.jabTgt=best;sfx.spearSwing()}t.cd=BRAWL_CD/squadFireRateMult()}
+          if(!(t.jabT>0)){t.jabT=PAL_WIND;t.jabTgt=best;sndAt(t.x,t.y,()=>sfx.spearSwing())}t.cd=BRAWL_CD/squadFireRateMult()}
         else if(rock){t.ang=Math.atan2(best.y-t.y,best.x-t.x);if(!(t.paintT>0)){t.paintT=ROCKET_PAINT;t.paintTgt=best}t.cd=ROCKET_CD/squadFireRateMult()}
         else if(arty){launchProjectile(t,best,{speed:ARTY_PROJ_SPEED,dmg:ARTY_DMG,splashR:ARTY_SPLASH_R,color:C.condensed,big:true});t.cd=ARTY_CD}
         else if(brk){t.ang=Math.atan2(best.y-t.y,best.x-t.x);t.punchN=(t.punchN||0)+1;t.punchSide=!t.punchSide;t.punchT=S.t;t.hay=t.punchN%BRK_HAY_EVERY===0;
           damageEnemy(best,BRK_DMG*S.mods.troopDmgMult);S.enemies.forEach(e=>{if(e!==best&&e.hp>0&&e.kind!=='nest'&&dist(e,best)<BRK_SPLASH_R)damageEnemy(e,BRK_SPLASH*S.mods.troopDmgMult)});
           if(t.hay)S.enemies.forEach(e=>{if(e.hp<=0||e.kind==='nest'||e.kind==='quaker'||dist(e,best)>BRK_HAY_R)return;const dx=e.x-t.x,dy=e.y-t.y,d=Math.hypot(dx,dy)||1,k=(e.kind==='brute'||e.shard==='colossus'?0.35:1)*BRK_HAY_KB;
             e.kbx=dx/d*k;e.kby=dy/d*k;e.stunT=Math.max(e.stunT||0,0.7);e.thrownT=S.t+0.7;e.thrownBy=t});
-          burst(best.x,best.y,'#ffd28a',t.hay?10:4,t.hay?160:90,0.25);if(sfxReady('punch',0.05))sfx.spearHit();t.cd=BRK_CD/squadFireRateMult()}
+          burst(best.x,best.y,'#ffd28a',t.hay?10:4,t.hay?160:90,0.25);if(sfxReady('punch',0.05))sndAt(best.x,best.y,()=>sfx.spearHit());t.cd=BRK_CD/squadFireRateMult()}
         else if(mech){
           // the rotary cannon: spins up while it has something to shoot; every hit slows what it hits
           t.ang=Math.atan2(best.y-t.y,best.x-t.x);t.spin=Math.min(1,(t.spin||0)+(S.t-(t.gatShotT??-9)<0.6?Math.min(0.6,S.t-t.gatShotT):0.05)/GAT_SPINUP);t.gatShotT=S.t;
@@ -9228,8 +9253,8 @@ function update(dt){
         else if(kit==='lmg'){t.ang=Math.atan2(best.y-t.y,best.x-t.x);t.shotT=S.t;
           if(Math.random()<LMG_MISS){const a=t.ang+rnd(-0.25,0.25);tracer(gunMuzzle(t,16),{x:t.x+Math.cos(a)*range,y:t.y+Math.sin(a)*range},C.accent)}
           else{damageEnemy(best,TROOP_DMG*S.mods.troopDmgMult);const j=rnd(-6,6);tracer(gunMuzzle(t,16),{x:best.x+j,y:best.y-j},C.accent)}
-          if(sfxReady('lmg',0.05))sfx.rifle();t.cd=TROOP_CD/LMG_RATE/squadFireRateMult()}
-        else{t.ang=Math.atan2(best.y-t.y,best.x-t.x);const end=troopPierce(t,best,range,TROOP_DMG*S.mods.troopDmgMult);tracer(gunMuzzle(t,11),end,kit==='shock'?'#8fe3ff':C.accent);t.shotT=S.t;sfx.rifle();t.cd=TROOP_CD/squadFireRateMult();
+          if(sfxReady('lmg',0.05))sndAt(t.x,t.y,()=>sfx.rifle());t.cd=TROOP_CD/LMG_RATE/squadFireRateMult()}
+        else{t.ang=Math.atan2(best.y-t.y,best.x-t.x);const end=troopPierce(t,best,range,TROOP_DMG*S.mods.troopDmgMult);tracer(gunMuzzle(t,11),end,kit==='shock'?'#8fe3ff':C.accent);t.shotT=S.t;sndAt(t.x,t.y,()=>sfx.rifle());t.cd=TROOP_CD/squadFireRateMult();
           if(kit==='shock'){best.stunT=Math.max(best.stunT||0,SHOCK_STUN);
             if(onWall&&t.manning.type==='elec'){let n2=null,nd2=SHOCK_CHAIN_R;S.enemies.forEach(e=>{if(e===best||e.hp<=0||e.kind==='nest')return;const d=dist(e,best);if(d<nd2){nd2=d;n2=e}});
               if(n2){damageEnemy(n2,TROOP_DMG*0.7*S.mods.troopDmgMult);n2.stunT=Math.max(n2.stunT||0,SHOCK_STUN);(S.zaps||(S.zaps=[])).push({x0:best.x,y0:best.y,x1:n2.x,y1:n2.y,t:0,seed:Math.floor(Math.random()*999)})}}}}
@@ -9271,7 +9296,7 @@ function update(dt){
       if(!n||(n.amt<=0&&h.carry===0)){h.state='idle';h.node=null}
       else if(h.carry>=CARRY*S.mods.carryMult||n.amt<=0){
         const dp=dropoffPoint(h); const aim=waypointFor(h,dp.x,dp.y); moveToward(h,aim,HARV_SPEED*S.mods.moveSpeedMult*factor,dt);
-        if(dist(h,dp)<dp.r){if(h.carry>0){floatText(h.x,h.y-14,'+'+h.carry,C.dat);sfx.gather()}S.dat+=h.carry;S.minedWindowAmt+=h.carry;h.carry=0;updateBuildBar();if(n.amt<=0){h.state='idle';h.node=null}}
+        if(dist(h,dp)<dp.r){if(h.carry>0){floatText(h.x,h.y-14,'+'+h.carry,C.dat);sndAt(h.x,h.y,()=>sfx.gather())}S.dat+=h.carry;S.minedWindowAmt+=h.carry;h.carry=0;updateBuildBar();if(n.amt<=0){h.state='idle';h.node=null}}
       }
       else if(dist(h,n)>22){const aim=waypointFor(h,n.x,n.y);moveToward(h,aim,HARV_SPEED*S.mods.moveSpeedMult*factor,dt)}
       else{h.hv+=dt;if(h.hv>0.175){h.hv=0;n.amt--;h.carry++}}
@@ -9279,7 +9304,7 @@ function update(dt){
     else if(h.state==='return'){
       const dp=dropoffPoint(h); const aim=waypointFor(h,dp.x,dp.y); moveToward(h,aim,HARV_SPEED*S.mods.moveSpeedMult*factor,dt);
       if(dist(h,dp)<dp.r){
-        if(h.carry>0){floatText(h.x,h.y-14,'+'+h.carry,C.dat);sfx.gather();S.dat+=h.carry;S.minedWindowAmt+=h.carry;h.carry=0;updateBuildBar()}
+        if(h.carry>0){floatText(h.x,h.y-14,'+'+h.carry,C.dat);sndAt(h.x,h.y,()=>sfx.gather());S.dat+=h.carry;S.minedWindowAmt+=h.carry;h.carry=0;updateBuildBar()}
         h.state='idle';h.node=null;
       }
     }
@@ -9332,7 +9357,7 @@ function update(dt){
       else if(dist(bu,site)>26){const aim=waypointFor(bu,site.x,site.y);moveToward(bu,aim,BUILDER_SPEED*S.mods.moveSpeedMult*factor,dt)}
       else{
         site.buildT+=dt;
-        if(site.buildT>=site.buildTotal){site.built=true;site.builder=null;bu.target=null;bu.state='idle';sfx.build();spark(site.x,site.y,C.builder,8)}
+        if(site.buildT>=site.buildTotal){site.built=true;site.builder=null;bu.target=null;bu.state='idle';sndAt(site.x,site.y,()=>sfx.build());spark(site.x,site.y,C.builder,8)}
       }
     }
     else if(bu.state==='repair'){
@@ -9359,7 +9384,7 @@ function update(dt){
   S.nodes.forEach(n=>{if(n.amt<=0)return;
     const who=dist(n,B)<B.r+DAT_PICKUP_R?B:S.troops.find(t=>dist(t,n)<t.r+DAT_PICKUP_R*pickupRangeMult());
     if(!who)return;
-    S.dat+=n.amt;floatText(n.x,n.y-14,'+'+n.amt+' Dat',C.dat);burst(n.x,n.y,C.dat,10,100,0.4);sfx.gather();
+    S.dat+=n.amt;floatText(n.x,n.y-14,'+'+n.amt+' Dat',C.dat);burst(n.x,n.y,C.dat,10,100,0.4);sndAt(n.x,n.y,()=>sfx.gather());
     n.amt=0;n.found=true});
   // A vein is SEEN once any of your units' sight reaches into its zone; its mining point is FOUND
   // once sight reaches the point itself. The contract vein is never found by sight — only by
@@ -9532,7 +9557,7 @@ function update(dt){
     if(dist(e,tgt)<=reach&&!wallBetween(e,tgt,true)){
       if(e.cd<=0){
         tgt.hp-=structHit(tgt,allyHit(tgt,e.dmg,e),'melee',e); tgt.lastHitBy='enemy'; hitFlash(tgt); spark(tgt.x,tgt.y,C.enemy,2); e.cd=0.8; e.atkT=S.t;
-        if(tgt===B){shakeScreen(3,0.15);sfx.damage()}
+        if(tgt===B){shakeScreen(3,0.15);sndAt(tgt.x,tgt.y,()=>sfx.damage())}
       }
       return;
     }
@@ -9561,14 +9586,14 @@ function update(dt){
   // deaths
   const bruteDeaths=[];
   S.enemies=S.enemies.filter(e=>{if(e.hp<=0){
-    if(e.kind==='nest'){nestDestroyed(e);sfx.kill();return false}
+    if(e.kind==='nest'){nestDestroyed(e);sndAt(e.x,e.y,()=>sfx.kill());return false}
     if(e.silent)return false;
-    if(e.shard==='colossus'){S.nodes.push({x:e.x,y:e.y,amt:COL_DAT,max:COL_DAT,found:true});burst(e.x,e.y,SH_HOT,34,200,0.8);burst(e.x,e.y,'#1a0a0c',26,150,0.9);shakeScreen(6,0.4);sfx.explode();msg(`Colossus down — it dropped ${COL_DAT} Dat.`);return false}
+    if(e.shard==='colossus'){S.nodes.push({x:e.x,y:e.y,amt:COL_DAT,max:COL_DAT,found:true});burst(e.x,e.y,SH_HOT,34,200,0.8);burst(e.x,e.y,'#1a0a0c',26,150,0.9);shakeScreen(6,0.4);sndAt(e.x,e.y,()=>sfx.explode());msg(`Colossus down — it dropped ${COL_DAT} Dat.`);return false}
     if(e.shard==='husk')bruteDeaths.push({x:e.x,y:e.y,husk:true,seed:e.seed});
-    if(e.kind==='quaker'){S.nodes.push({x:e.x,y:e.y,amt:QUAKER_DAT,max:QUAKER_DAT,found:true});burst(e.x,e.y,'#c9a46b',26,170,0.7);sfx.kill();msg(`Quaker down — it dropped ${QUAKER_DAT} Dat.`);return false}
+    if(e.kind==='quaker'){S.nodes.push({x:e.x,y:e.y,amt:QUAKER_DAT,max:QUAKER_DAT,found:true});burst(e.x,e.y,'#c9a46b',26,170,0.7);sndAt(e.x,e.y,()=>sfx.kill());msg(`Quaker down — it dropped ${QUAKER_DAT} Dat.`);return false}
     const brute=e.kind==='brute';
     burst(e.x,e.y,brute?'#ff2a2a':e.kind==='saboteur'?C.cable:C.enemy,brute?20:e.horde?3:5,brute?150:90,brute?0.6:undefined);
-    sfx.kill();
+    sndAt(e.x,e.y,()=>sfx.kill());
     if(Math.random()<(e.horde?HORDE_SHARD_P:0.35))S.shards.push({x:e.x+rnd(-8,8),y:e.y+rnd(-8,8),amt:Math.round(rnd(1,3)),rot:rnd(0,Math.PI*2)});
     if(brute)bruteDeaths.push({x:e.x,y:e.y});
     return false}return true});
@@ -9585,31 +9610,31 @@ function update(dt){
     shakeScreen(7,0.4);
     banner('A Brute has burst apart — a swarm is pouring out of the wreckage!','danger');
   });
-  S.turrets.forEach(t=>{if(t.hp<=0&&!t.quiet){burst(t.x,t.y,C.accent,10,110,0.5);sfx.relayDown()}});
+  S.turrets.forEach(t=>{if(t.hp<=0&&!t.quiet){burst(t.x,t.y,C.accent,10,110,0.5);sndAt(t.x,t.y,()=>sfx.relayDown())}});
   S.turrets=S.turrets.filter(t=>t.hp>0);
   // a destroyed Relay stays put instead of vanishing — it just goes fully dark (no tether, no
   // anchoring for anyone) until a repair-mode builder brings its HP back above zero.
   S.relays.forEach(r=>{
     if(r.hp<=0){
-      if(!r.wasDestroyed){r.wasDestroyed=true;r.tetherOk=false;r.trail=null;r.cableLen=0;r.cableMaxed=false;r.state=null;r.reconnectT=0;banner('A Relay was destroyed — repair it to bring it back online.','danger');burst(r.x,r.y,C.cable,10,110,0.5);sfx.relayDown();shakeScreen(4,0.2)}
+      if(!r.wasDestroyed){r.wasDestroyed=true;r.tetherOk=false;r.trail=null;r.cableLen=0;r.cableMaxed=false;r.state=null;r.reconnectT=0;banner('A Relay was destroyed — repair it to bring it back online.','danger');burst(r.x,r.y,C.cable,10,110,0.5);sndAt(r.x,r.y,()=>sfx.relayDown());shakeScreen(4,0.2)}
     } else if(r.wasDestroyed)r.wasDestroyed=false;
   });
   // a destroyed Depot stays put too — it just stops accepting deposits until repaired.
   S.depots.forEach(de=>{
     if(de.hp<=0){
-      if(!de.wasDestroyed){de.wasDestroyed=true;banner('A Depot was destroyed — repair it before harvesters can drop off there again.','danger');burst(de.x,de.y,C.dat,10,110,0.5);sfx.relayDown();shakeScreen(4,0.2)}
+      if(!de.wasDestroyed){de.wasDestroyed=true;banner('A Depot was destroyed — repair it before harvesters can drop off there again.','danger');burst(de.x,de.y,C.dat,10,110,0.5);sndAt(de.x,de.y,()=>sfx.relayDown());shakeScreen(4,0.2)}
     } else if(de.wasDestroyed)de.wasDestroyed=false;
   });
   // a destroyed Stabilizer is gone for good — its hotspot comes loose and starts drifting again
   S.stabs.forEach(st=>{if(st.hp<=0){if(st.hot)st.hot.stab=null;
     {const m=st.vein&&st.vein.meter;if(m&&m.phase==='drill'&&(st.lastStrain||0)>0.1){m.x-=(st.steerDir||0)*STRAIN_KICK*st.lastStrain;shakeScreen(5,0.3)}}
-    if(!st.silent){burst(st.x,st.y,C.zone,14,130,0.5);sfx.relayDown();shakeScreen(3,0.2);banner('A Stabilizer was destroyed — the drill needle is slipping!','danger')}}});
+    if(!st.silent){burst(st.x,st.y,C.zone,14,130,0.5);sndAt(st.x,st.y,()=>sfx.relayDown());shakeScreen(3,0.2);banner('A Stabilizer was destroyed — the drill needle is slipping!','danger')}}});
   S.stabs=S.stabs.filter(st=>st.hp>0);
   // units killed by an enemy go down and, a moment later, get back up corrupted
   debugPass();
-  S.troops.forEach(t=>{if(t.hp<=0){S.sel.troops.delete(t.id);sfx.death(t.kind||'troop');if(t.lastHitBy==='enemy')queueReanimation(t,t.kind||'troop')}});
-  S.harvesters.forEach(h=>{if(h.hp<=0){S.sel.harv.delete(h.id);sfx.death('harvester');if(h.lastHitBy==='enemy')queueReanimation(h,'harvester')}});
-  S.builders.forEach(bu=>{if(bu.hp<=0){S.sel.bu.delete(bu.id);sfx.death('builder');if(bu.lastHitBy==='enemy')queueReanimation(bu,'builder')}});
+  S.troops.forEach(t=>{if(t.hp<=0){S.sel.troops.delete(t.id);sndAt(t.x,t.y,()=>sfx.death(t.kind||'troop'));if(t.lastHitBy==='enemy')queueReanimation(t,t.kind||'troop')}});
+  S.harvesters.forEach(h=>{if(h.hp<=0){S.sel.harv.delete(h.id);sndAt(h.x,h.y,()=>sfx.death('harvester'));if(h.lastHitBy==='enemy')queueReanimation(h,'harvester')}});
+  S.builders.forEach(bu=>{if(bu.hp<=0){S.sel.bu.delete(bu.id);sndAt(bu.x,bu.y,()=>sfx.death('builder'));if(bu.lastHitBy==='enemy')queueReanimation(bu,'builder')}});
   S.troops=S.troops.filter(t=>t.hp>0); S.troops.forEach(t=>{if(dist(t,B)<BASE_FOOTPRINT+60&&!S.enemies.some(e=>dist(e,t)<200))t.hp=Math.min(t.maxHp,t.hp+6*dt)});
   S.harvesters=S.harvesters.filter(h=>h.hp>0); S.harvesters.forEach(h=>{if(dist(h,B)<BASE_FOOTPRINT+60&&!S.enemies.some(e=>dist(e,h)<200))h.hp=Math.min(h.maxHp,h.hp+6*dt)});
   S.builders.forEach(bu=>{if(bu.hp<=0)releaseBuilderClaim(bu)});
@@ -9622,7 +9647,7 @@ function update(dt){
     const looters=S.troops.concat(S.harvesters).concat(S.builders);
     S.shards=S.shards.filter(sh=>{
       const got=looters.some(u=>dist(u,sh)<u.r+10*pickupRangeMult());
-      if(got){S.dat+=sh.amt;floatText(sh.x,sh.y-10,'+'+sh.amt,C.dat);sfx.gather();spark(sh.x,sh.y,C.dat,3);updateBuildBar()}
+      if(got){S.dat+=sh.amt;floatText(sh.x,sh.y-10,'+'+sh.amt,C.dat);sndAt(sh.x,sh.y,()=>sfx.gather());spark(sh.x,sh.y,C.dat,3);updateBuildBar()}
       return !got;
     });
   }
