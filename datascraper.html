@@ -146,6 +146,17 @@ body.lowGfx #fogGrain{display:none}
   width:min(460px,calc(100vw - 32px));background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px 10px 9px;
   box-shadow:0 4px 16px rgba(0,0,0,.5);font-size:12px}
 .drillMeter[hidden]{display:none}
+.drillMeter.steering{width:min(600px,calc(100vw - 32px))}
+/* v4: the needle has left the band the yield is riding on: amber pulse so it reads from the corner of your eye */
+.drillMeter.drift:not(.alarm){border-color:#ffb33c;animation:meterDrift .9s ease-in-out infinite}
+@keyframes meterDrift{50%{box-shadow:0 0 0 2px rgba(255,179,60,.6),0 0 22px rgba(255,179,60,.45)}}
+.drillMeter.seam:not(.alarm):not(.drift){border-color:#6ff0ff;box-shadow:0 0 0 1px rgba(111,240,255,.5),0 0 18px rgba(111,240,255,.35)}
+@media (prefers-reduced-motion:reduce){.drillMeter.drift{animation:none}}
+#dmBank,#dmOver{border:0;font:inherit;font-weight:700;padding:5px 12px;border-radius:4px;cursor:pointer}
+#dmBank{background:var(--accent);color:#1a1200}
+#dmOver{background:#7a1f16;color:#ffd9cf;border:1px solid var(--enemy)}
+#dmBank .key,#dmOver .key{font-family:var(--mono);font-size:10px;opacity:.7;margin-left:4px}
+.dmBtns{display:flex;gap:6px;flex:none}
 .drillMeter.alarm{border-color:var(--enemy);animation:meterAlarm .6s ease-in-out infinite}
 @keyframes meterAlarm{50%{box-shadow:0 0 0 2px rgba(255,92,77,.65),0 0 26px rgba(255,92,77,.55)}}
 @media (prefers-reduced-motion:reduce){.drillMeter.alarm{animation:none;box-shadow:0 0 0 2px rgba(255,92,77,.65)}}
@@ -188,7 +199,7 @@ body.lowGfx #fogGrain{display:none}
 #dmYield{font-weight:700;font-size:12px}
 #dmCanvas{display:block;flex:1;min-width:0;height:44px;border-radius:3px}
 .dmBody{display:flex;gap:8px;align-items:center}
-#dmPad{display:block;flex:none;width:132px;height:132px;background:#0b0f14;border:1px solid var(--line);border-radius:4px;cursor:grab;touch-action:none}
+#dmPad{display:block;flex:none;width:184px;height:184px;background:#0b0f14;border:1px solid var(--line);border-radius:4px;cursor:grab;touch-action:none}
 #dmPad:active{cursor:grabbing}
 #dmPad[hidden]{display:none}
 .dmFoot{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:6px;color:var(--muted);min-height:26px}
@@ -410,7 +421,7 @@ body.lowGfx #fogGrain{display:none}
   .tutPanel{top:calc(env(safe-area-inset-top,0px) + 52px);max-height:calc(100vh - 140px);overflow-y:auto}
   .toasts{top:calc(env(safe-area-inset-top,0px) + 56px)}
   .drillMeter{bottom:calc(68px + env(safe-area-inset-bottom,0px));padding:5px 8px 6px;width:min(420px,calc(100vw - 32px))}
-  #dmPad{width:96px;height:96px} #dmHint{display:none} .dmFoot{min-height:0;margin-top:3px} .dmHead{margin-bottom:3px}
+  #dmPad{width:120px;height:120px} #dmHint{display:none} .dmFoot{min-height:0;margin-top:3px} .dmHead{margin-bottom:3px}
   .help.open{inset:6% 6%;max-height:88vh}
 }
 /* While the menus are up, the world behind them stays hidden — nothing about the next map shows. */
@@ -678,7 +689,7 @@ async function run(d){
     <button class="dmStab" data-i="1"><span class="sTop"><span class="sName">STAB 2</span><span class="sState"></span></span><span class="sBar"><i></i></span><span class="sSub"></span></button>
     <button class="dmStab" data-i="2"><span class="sTop"><span class="sName">STAB 3</span><span class="sState"></span></span><span class="sBar"><i></i></span><span class="sSub"></span></button>
   </div>
-  <div class="dmFoot"><span id="dmHint"></span><button id="dmStrike" hidden>Strike <span class="key">F</span></button></div>
+  <div class="dmFoot"><span id="dmHint"></span><span class="dmBtns"><button id="dmStrike" hidden>Strike <span class="key">F</span></button><button id="dmBank" hidden>Bank it <span class="key">F</span></button><button id="dmOver" hidden>Overdrill <span class="key">O</span></button></span></div>
 </div>
 
 <div class="mini" id="miniWrap"><canvas id="mini" width="180" height="180"></canvas><button id="miniToggle" class="miniToggle" aria-label="Expand minimap">⤢</button></div>
@@ -2012,6 +2023,31 @@ function buildStrip(v){
 // end of the strip counts as red.
 function stripAt(st,p){if(p<0||p>1)return {red:true};for(const q of st.segs)if(p>=q.a&&p<=q.b)return q;return {tier:st.floor}}
 function gauss(){let u=0,w=0;while(u===0)u=Math.random();while(w===0)w=Math.random();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*w)}
+// v4: tier rank, for telling a slipping yield from a climbing one
+const tierRank=t=>t==='Hive'?4:TIER_ORDER_ALL.indexOf(t);
+// v4: the SEAM — once per drill, somewhere between SEAM_AT_MIN and SEAM_AT_MAX of the way through, a
+// thin seam opens on the meter well off to one side of where you struck (SEAM_OFF of the zoomed
+// view). Steer the needle into it and keep it there SEAM_HOLD seconds in all (it needn't be in one go)
+// before it closes after SEAM_LIFE, and the vein pays a second reward card. Reaching it means leaning
+// the weight hard: strained Stabilizers, enemies drawn to them, and the yield may slip meanwhile.
+const SEAM_AT_MIN=0.25, SEAM_AT_MAX=0.55, SEAM_LIFE=15, SEAM_HOLD=4, SEAM_HW=0.08, SEAM_OFF=[0.45,0.72];
+// v4: OVERDRILL — when the vein is tapped out you can bank it (F) or keep drilling (O) for OVER_T
+// more seconds: the needle bucks harder (OVER_TURB) and red closes in from both ends of the meter
+// (down to OVER_SAFE_MIN of the view either side of the strike), and a wave comes at once. Hold out
+// without rupturing and the vein pays a second reward card; rupture and you lose the lot. The
+// choice banks itself after OVER_OFFER_T.
+const OVER_T=20, OVER_TURB=1.6, OVER_SAFE_MIN=0.38, OVER_OFFER_T=8;
+function openSeam(v){const m=v.meter;
+  for(let k=0;k<12;k++){const side=Math.random()<0.5?-1:1,x=side*rnd(SEAM_OFF[0],SEAM_OFF[1]),p=m.anchor+x*ZOOM_HALF;
+    if([x-SEAM_HW,x,x+SEAM_HW].some(q=>stripAt(m.strip,m.anchor+q*ZOOM_HALF).red))continue;
+    m.seam={x,hw:SEAM_HW,t:SEAM_LIFE,hold:0};
+    banner(`A SEAM has opened on the drill meter, off to the ${side<0?'left':'right'} — steer the needle into it for ${SEAM_HOLD}s before it closes and the vein pays a second reward.`,'success');
+    tone(1320,0.12,'sine',0.06);tone(1760,0.2,'sine',0.05,0.1);return}
+  m.seamDone=true}
+function overdrillChoice(go){const v=S.activeVein,m=v&&v.meter;if(!m||m.over!=='offer')return;
+  if(!go){m.over='bank';sfx.click();return}
+  m.over='run';m.overT=0;sfx.wave();shakeScreen(5,0.4);spawnVeinWave(v);
+  banner(`OVERDRILL — hold the needle out of the closing red for ${OVER_T}s for a second reward. Rupture and you lose everything this vein would pay.`,'danger')}
 function beginStrike(v){v.meter={phase:'strike',strip:buildStrip(v),p:rnd(0,1),dir:rnd(0,1)<0.5?1:-1,t:0};updateMeterUI()}
 function strikeReady(){const v=S.activeVein;return !!(v&&v.meter&&v.meter.phase==='strike'&&!S.paused&&!S.tacPause&&!S.rewardChoice&&!S.over)}
 function doStrike(){
@@ -2019,7 +2055,7 @@ function doStrike(){
   const m=v.meter, hit=stripAt(m.strip,m.p);
   if(hit.red){ruptureVein(v,'The strike landed in the red — the vein ruptured!');return}
   const tier=hit.tier;
-  v.meter={phase:'zoom',t:0,strip:m.strip,anchor:m.p,x:0,anchorTier:tier,yieldTier:tier,share:{[tier]:1}};
+  v.meter={phase:'zoom',t:0,strip:m.strip,anchor:m.p,x:0,anchorTier:tier,yieldTier:tier,share:{[tier]:1},hereTier:tier,seamAt:v.contract?2:rnd(SEAM_AT_MIN,SEAM_AT_MAX)};
   if(hit.jackpot){msg(`JACKPOT — struck the ${tier} sliver! The vein is overcharged. Hold the Stabilizers to keep it.`);sfx.win();shakeScreen(5,0.3);burst(v.mine.x,v.mine.y,TIER_COLOR[tier],30,180,0.8)}
   else{msg(`Struck at ${tier} tier — drilling. Keep the Stabilizers standing to hold it there.`);sfx.resume()}
 }
@@ -2034,14 +2070,19 @@ function updateMeter(v,dt){
   }
   if(m.phase==='zoom'){m.t+=dt;if(m.t>=ZOOM_T){m.phase='drill';v.startT=S.t}return}
   if(m.phase!=='drill'||v.paused)return;
-  const sv=steerState(v), K=(METER_K_BASE+METER_K_STAB*stabHold(v))*(1+0.5*sv.sh.auth)*(1-STEER_WOBBLE*sv.L), sig=METER_TURB[m.anchorTier];
+  if(m.over==='offer'){m.offerT=(m.offerT??OVER_OFFER_T)-dt;if(m.offerT<=0)m.over='bank'}
+  if(m.over==='run'){m.overT+=dt;m.safe=1-(1-OVER_SAFE_MIN)*Math.min(1,m.overT/OVER_T);
+    if(m.overT>=OVER_T){m.over='won';v.bonus=(v.bonus||0)+1;banner('Overdrill held! The vein pays a second reward.','success');sfx.win();burst(v.mine.x,v.mine.y,C.accent,36,200,0.9)}}
+  const sv=steerState(v), K=(METER_K_BASE+METER_K_STAB*stabHold(v))*(1+0.5*sv.sh.auth)*(1-STEER_WOBBLE*sv.L), sig=METER_TURB[m.anchorTier]*(m.over==='run'?OVER_TURB:1);
   // v4: the Stabilizers take a while to bring the needle round — it's pulled toward m.aim, which
   // only catches up with where the weight points over STEER_LAG seconds, so a last-second swing
   // of the weight can't flip the payout
   if(m.aim==null)m.aim=sv.target;
   m.aim+=(sv.target-m.aim)*Math.min(1,dt/STEER_LAG);
   m.x+=-K*(m.x-m.aim)*dt+sig*Math.sqrt(dt)*gauss();
-  const here=stripAt(m.strip,m.anchor+m.x*ZOOM_HALF);
+  let here=stripAt(m.strip,m.anchor+m.x*ZOOM_HALF);
+  if(m.over==='run'&&Math.abs(m.x)>m.safe)here={red:true};
+  m.hereTier=here.red?null:here.tier;
   // v4: slipping into the red no longer ruptures on the spot — an alarm sounds and the danger builds
   // for RED_GRACE seconds; get the needle out in time and it drains away again (RED_RECOVER × as
   // fast). No yield is earned while the needle sits in the red.
@@ -2058,7 +2099,21 @@ function updateMeter(v,dt){
   const k=Math.min(1,dt/METER_AVG_T);let best=null,bs=-1;
   m.share[here.tier]=m.share[here.tier]||0;
   for(const t in m.share){m.share[t]+=((t===here.tier?1:0)-m.share[t])*k;if(m.share[t]>bs){bs=m.share[t];best=t}}
+  // v4: say so the moment the payout changes — a slip is loud (it's easy to miss while you're fighting)
+  if(best!==m.yieldTier){const down=tierRank(best)<tierRank(m.yieldTier);
+    if(down){banner(`YIELD SLIPPED to ${best} — steer the needle back onto the ${m.yieldTier} band!`,'danger');tone(660,0.16,'triangle',0.08,0,440);tone(520,0.22,'triangle',0.07,0.17,330)}
+    else{msg(`Yield climbed to ${best}.`);tone(660,0.12,'sine',0.06,0,880);tone(880,0.18,'sine',0.05,0.12,1175)}}
   m.yieldTier=best;
+  // drifting: the needle sits on a lower band than the one being paid, so the yield is about to slip
+  const dr=tierRank(here.tier)<tierRank(best);
+  if(dr&&!m.drift&&S.t>(m.driftCue||0)){m.driftCue=S.t+2.5;tone(980,0.07,'square',0.035);tone(980,0.07,'square',0.035,0.12)}
+  m.drift=dr;
+  // the seam: opens partway through, and fills while the needle sits in it
+  if(!m.seamDone&&!m.seam&&!m.over&&v.drillProg>=m.seamAt*v.richness)openSeam(v);
+  if(m.seam){const sm=m.seam;sm.t-=dt;
+    if(Math.abs(m.x-sm.x)<=sm.hw){sm.hold+=dt;sm.inT=(sm.inT||0)+dt;if(sm.inT>0.5){sm.inT=0;tone(1320+440*sm.hold/SEAM_HOLD,0.05,'sine',0.03)}}
+    if(sm.hold>=SEAM_HOLD){m.seam=null;m.seamDone=true;v.bonus=(v.bonus||0)+1;banner('Seam tapped! The vein will pay a second reward.','success');sfx.win();burst(v.mine.x,v.mine.y,'#6ff0ff',30,180,0.8)}
+    else if(sm.t<=0){m.seam=null;m.seamDone=true;msg('The seam closed.')}}
 }
 // A failed strike or a needle that drifts into the red: the vein blows. The Bastion takes a hit
 // that grows with how ambitious the meter was, everything nearby is caught in the blast, the
@@ -2098,7 +2153,8 @@ function updateSurveyUI(){
   if(v&&(!veinAlive(v)||v.done))v=S.surveyVein=null;
   const meter=document.getElementById('drillMeter'), body=meter.querySelector('.dmBody'), docked=!meter.hidden&&S.activeVein===v;
   // the meter's up for another vein: keep out of its way
-  if(!v||menuOpen||S.over||(!meter.hidden&&!docked)){el._hd=true;return}
+  // v4: once you're locked on, ripeness no longer matters: the survey steps aside for a bigger steering pad
+  if(!v||menuOpen||S.over||!meter.hidden){el._hd=true;if(el.parentNode===body){meter.parentNode.insertBefore(el,meter);el.classList.remove('inMeter')}return}
   el._hd=false;
   if(docked&&el.parentNode!==body){body.appendChild(el);el.classList.add('inMeter')}
   else if(!docked&&el.parentNode===body){meter.parentNode.insertBefore(el,meter);el.classList.remove('inMeter')}
@@ -2147,17 +2203,23 @@ function updateMeterUI(){
   const m=v.meter, title=document.getElementById('dmTitle'), yieldEl=document.getElementById('dmYield'), hint=document.getElementById('dmHint');
   document.getElementById('dmStrike')._hd=m.phase!=='strike';
   const nStab=veinStabs(v).length;
-  el.classList.toggle('alarm',!!m.inRed);
+  el.classList.toggle('alarm',!!m.inRed);el.classList.toggle('drift',m.phase==='drill'&&!!m.drift&&!m.inRed);el.classList.toggle('seam',!!m.seam);el.classList.toggle('steering',m.phase!=='strike');
+  document.getElementById('dmBank')._hd=document.getElementById('dmOver')._hd=m.over!=='offer';
   if(m.phase==='strike'){title._sc='';
     title._tc=m.t<1.5?'STRIKE!':`STRIKE! — bands shrinking: ${Math.round(100*Math.max(STRIKE_SHRINK_MIN,1-m.t/STRIKE_SHRINK_T))}% wide`;
     const h=stripAt(m.strip,m.p);yieldEl._tc=h.red?'RUPTURE':h.tier;yieldEl._sc=h.red?C.enemy:CARD_TIER_COLOR[h.tier];
     hint._tc='Stop the needle on a good band — the thin sliver is a tier above the vein, red ruptures it.';
   }else{
-    title._tc=m.phase==='zoom'?'Struck — locking in…':m.inRed?`⚠ RUPTURE IN ${Math.max(0,RED_GRACE-m.redT).toFixed(1)}s — steer out of the red!`:m.redT>0?`Drilling — danger easing (${Math.round(100*m.redT/RED_GRACE)}%)`:v.stalled?'Drilling — STALLED':v.paused?'Drilling — PAUSED':'Drilling';
-    title._sc=m.inRed||m.redT>0?C.enemy:'';
-    yieldEl._tc=`Yield: ${m.yieldTier}`;yieldEl._sc=CARD_TIER_COLOR[m.yieldTier];
+    title._tc=m.phase==='zoom'?'Struck — locking in…':m.inRed?`⚠ RUPTURE IN ${Math.max(0,RED_GRACE-m.redT).toFixed(1)}s — steer out of the red!`:m.redT>0?`Drilling — danger easing (${Math.round(100*m.redT/RED_GRACE)}%)`
+      :m.over==='offer'?`Vein tapped — bank it or overdrill (${Math.ceil(m.offerT??OVER_OFFER_T)}s)`:m.over==='run'?`OVERDRILL — hold on ${Math.ceil(OVER_T-m.overT)}s`
+      :m.drift?`⚠ Needle on ${m.hereTier} — yield slipping!`:m.seam?`SEAM open — ${Math.ceil(m.seam.t)}s · ${Math.round(100*m.seam.hold/SEAM_HOLD)}% tapped`
+      :v.stalled?'Drilling — STALLED':v.paused?'Drilling — PAUSED':'Drilling';
+    title._sc=m.inRed||m.redT>0||m.over==='run'?C.enemy:m.drift?'#ffb33c':m.seam?'#6ff0ff':'';
+    yieldEl._tc=`Yield: ${m.yieldTier}${v.bonus?` · +${v.bonus} bonus`:''}`;yieldEl._sc=CARD_TIER_COLOR[m.yieldTier];
     const hold=nStab?Math.round(100*stabHold(v)/nStab):0;
-    hint._tc=nStab>=3?`Drag the weight to steer — east pushes the needle right. The Stabilizer you lean on draws the enemy. (${hold}%)`
+    if(m.over==='offer')hint._tc='Overdrill: red closes in and a wave comes — survive and get a second reward, rupture and lose it all.';
+    else if(m.over==='run')hint._tc='Keep the needle between the closing red walls.';
+    else hint._tc=nStab>=3?`Drag the weight to steer — east pushes the needle right. The Stabilizer you lean on draws the enemy. (${hold}%)`
       :nStab?`${nStab} Stabilizer${nStab===1?'':'s'} holding at ${hold}% — pin all 3 to steer the needle.`:'No Stabilizers — the needle is drifting freely.';
   }
   // extraction progress, and how long the drill has left at its current rate
@@ -2182,6 +2244,10 @@ function updateMeterUI(){
     if(q.tier==='Hive'){g.save();g.beginPath();g.rect(x0,barY,Math.max(1,x1-x0),barH);g.clip();g.strokeStyle='rgba(10,0,4,0.6)';g.lineWidth=2*dpr;
       const off=(performance.now()/60)%(7*dpr);for(let sx=x0-barH-7*dpr+off;sx<x1;sx+=7*dpr){g.beginPath();g.moveTo(sx,barY+barH);g.lineTo(sx+barH,barY);g.stroke()}g.restore()}
   });
+  if(m.over==='run'){g.fillStyle=C.enemy;g.globalAlpha=0.8;const a=X(m.anchor-m.safe*ZOOM_HALF),b=X(m.anchor+m.safe*ZOOM_HALF);g.fillRect(0,barY,Math.max(0,a),barH);g.fillRect(b,barY,Wc-b,barH);g.globalAlpha=1}
+  if(m.seam){const sm=m.seam,a=X(m.anchor+(sm.x-sm.hw)*ZOOM_HALF),b=X(m.anchor+(sm.x+sm.hw)*ZOOM_HALF),pl=0.6+0.4*Math.sin(performance.now()/120);
+    g.strokeStyle='#6ff0ff';g.lineWidth=2*dpr;g.globalAlpha=pl;g.strokeRect(a,barY-2*dpr,b-a,barH+4*dpr);g.globalAlpha=0.35;g.fillStyle='#6ff0ff';g.fillRect(a,barY,b-a,barH);
+    g.globalAlpha=1;g.fillRect(a,barY+barH+2*dpr,(b-a)*sm.hold/SEAM_HOLD,3*dpr)}
   const np=m.phase==='strike'?m.p:m.anchor+m.x*ZOOM_HALF, nx=X(np);
   g.strokeStyle='#fff';g.lineWidth=2*dpr;g.beginPath();g.moveTo(nx,barY-3*dpr);g.lineTo(nx,barY+barH+2*dpr);g.stroke();
   g.fillStyle='#fff';g.beginPath();g.moveTo(nx,barY-1);g.lineTo(nx-5*dpr,2*dpr);g.lineTo(nx+5*dpr,2*dpr);g.closePath();g.fill();
@@ -2214,6 +2280,8 @@ function drawSteerPad(v){
   sh.cs.forEach(c=>{const [x,y]=P(c.x,c.y),sn=c.st.strain||0;
     if(sn>0.05){g.fillStyle='#ffb36b';g.globalAlpha=0.6*sn;g.beginPath();g.arc(x,y,(4+6*sn)*dpr,0,Math.PI*2);g.fill();g.globalAlpha=1}
     g.fillStyle=c.st.hp/c.st.maxHp<0.4?C.enemy:'#dfe6ee';g.beginPath();g.arc(x,y,2.6*dpr,0,Math.PI*2);g.fill()});
+  if(m.seam){const sd=Math.sign(m.seam.x),ax=sd>0?S2-7*dpr:7*dpr,pl=0.55+0.45*Math.sin(performance.now()/120);
+    g.fillStyle='#6ff0ff';g.globalAlpha=pl;g.beginPath();g.moveTo(ax,c0);g.lineTo(ax-sd*9*dpr,c0-8*dpr);g.lineTo(ax-sd*9*dpr,c0+8*dpr);g.closePath();g.fill();g.globalAlpha=1}
   if(m.w){const [wx,wy]=P(m.w.x,m.w.y);
     g.fillStyle=C.accent;g.strokeStyle='#0b0e12';g.lineWidth=1.5*dpr;g.beginPath();g.arc(wx,wy,4.5*dpr,0,Math.PI*2);g.fill();g.stroke()}
   else{g.fillStyle='#5d6874';g.font=`600 ${9*dpr}px ${css('--mono')}`;g.textAlign='center';g.textBaseline='middle';g.fillText('PIN 3',c0,c0)}
@@ -2228,6 +2296,7 @@ function drawSteerPad(v){
   pad.addEventListener('dblclick',()=>{const v=S.activeVein;if(v&&v.meter)v.meter.w=null}); // back to the centre
   pad.addEventListener('contextmenu',e=>e.preventDefault());}
 document.getElementById('dmStrike').onclick=()=>doStrike();
+document.getElementById('dmBank').onclick=()=>overdrillChoice(false);document.getElementById('dmOver').onclick=()=>overdrillChoice(true);
 
 // ---------- exploration: the crack network, energy pulses, living veins, strays ----------
 // The whole map is laced with cracks, generated with the terrain and baked into the ground as
@@ -6073,6 +6142,7 @@ addEventListener('keydown',e=>{
   else if(e.key.toLowerCase()==='y'){const r=S.rig;if(r&&r.seen&&!r.online&&!r.vein.done&&!(S.strand&&S.strand.seen&&strandInReach()))tryCaptureRig();else tryRescueStrand()}
   else if(e.key.toLowerCase()==='f'){if(!e.repeat)tryLockdown()}
   else if(e.key.toLowerCase()==='g'){tryProbe()}
+  else if(e.key.toLowerCase()==='o'){const m=S.base.locked&&S.activeVein&&S.activeVein.meter;if(m&&m.over==='offer')overdrillChoice(true)}
   else if(e.key.toLowerCase()==='v'){followSelected()}
   else if(e.key.toLowerCase()==='x'){holdSelected()}
   else if(e.key==='`'){setDebugMode(!debugNoFog)}
@@ -6457,7 +6527,7 @@ function renderDrillCards(v){
 const FIRST_WAVE_DELAY=17;
 function tryLockdown(){
   if(S.over||S.rewardChoice||S.paused)return;
-  if(S.base.locked){if(strikeReady())doStrike();return}
+  if(S.base.locked){if(strikeReady())doStrike();else{const m=S.activeVein&&S.activeVein.meter;if(m&&m.over==='offer')overdrillChoice(false)}return}
   const v=canLockdown();
   if(!v){
     const cracked=S.veins.find(x=>x.crackedT>0&&dist(S.base,x.mine)<BASE_R+18);
@@ -8406,7 +8476,9 @@ function update(dt){
         sfx.saboteurs();
       }
     }
-    if(v.drillProg>=v.richness){
+    // v4: a tapped vein offers Overdrill first (not the contract vein: it ends the run)
+    if(v.drillProg>=v.richness&&!v.contract&&v.meter){const m=v.meter;v.drillProg=v.richness;if(!m.over){m.over='offer';m.offerT=OVER_OFFER_T;m.seam=null;m.seamDone=true;tone(880,0.1,'sine',0.06);msg('Vein tapped — F to bank it, O to overdrill for a second reward.')}}
+    if(v.drillProg>=v.richness&&(v.contract||!v.meter||v.meter.over==='bank'||v.meter.over==='won')){
       v.done=true; B.locked=false; setBuild(null); S.activeVein=null;
       // reward scales with how fast it was actually drilled (baseline/elapsed ~ average throttle
       // sustained) — stalling out of Dat drags this down, finishing early drives it up. Baseline
@@ -8440,7 +8512,7 @@ function update(dt){
         }
         if(v.hive)tail=` The Mega nest is broken.${salvageFab()}`+tail;
         msg(`${v.hive?'Hive vein':'Vein'} drained at ${tier} tier — +${datEarned} Dat Crystal and +${condensedEarned} Condensed Crystal.${tail}`);
-        shakeScreen(4,0.3);showRewardChoice(rewardTierFor(tier,v.band),v.band);
+        shakeScreen(4,0.3);S.rewardQueue=[];for(let i=0;i<(v.bonus||0);i++)S.rewardQueue.push({tier:rewardTierFor(tier,v.band),band:v.band});showRewardChoice(rewardTierFor(tier,v.band),v.band);
       }
     }
     }
@@ -9211,6 +9283,8 @@ function pickReward(i){
   document.getElementById('rewardOverlay')._hd=true;
   S.rewardChoice=null;
   updateBuildBar();
+  // v4: a seam or an overdrill earned another pick
+  if(S.rewardQueue&&S.rewardQueue.length){const q=S.rewardQueue.shift();showRewardChoice(q.tier,q.band);document.getElementById('rewardTitle')._tc=`Bonus Reward — ${q.tier} Tier`}
 }
 
 // ---------- the Bastion: a quad walker ----------
@@ -9419,6 +9493,16 @@ function drawWalker(B,noTop){
     B.feet.forEach(f=>{ctx.beginPath();ctx.arc(f.x,f.y,9,0,Math.PI*2);ctx.stroke()});ctx.restore()}
   if(!noTop)drawWalkerTop(B);
 }
+// v4: while drilling, the yield tier floats over the Bastion; when the needle drifts off it, an amber
+// warning with the tier it's slipping toward; a seam or an overdrill shows there too
+function drawDrillReadout(B){const v=S.activeVein,m=v&&v.meter;if(!B.locked||!m||m.phase!=='drill')return;
+  const z=cam.z||1,fs=13/z,y=B.y-B.r*2.2-22/z;let txt=m.yieldTier.toUpperCase(),col=CARD_TIER_COLOR[m.yieldTier];
+  if(m.inRed){txt='⚠ RED';col=C.enemy}else if(m.over==='run'){txt=`OVERDRILL ${Math.ceil(OVER_T-m.overT)}`;col=C.enemy}
+  else if(m.drift){txt=`▼ ${m.yieldTier.toUpperCase()} → ${m.hereTier.toUpperCase()}`;col='#ffb33c'}else if(m.seam){txt=`◆ SEAM ${Math.round(100*m.seam.hold/SEAM_HOLD)}%`;col='#6ff0ff'}
+  const pl=m.drift||m.inRed?0.65+0.35*Math.sin(S.t*12):1;
+  ctx.save();ctx.font=`700 ${fs}px ${css('--mono')}`;ctx.textAlign='center';ctx.textBaseline='middle';const w=ctx.measureText(txt).width+10/z;
+  ctx.globalAlpha=0.8*pl;ctx.fillStyle='#0b0f14';ctx.fillRect(B.x-w/2,y-fs*0.75,w,fs*1.5);ctx.globalAlpha=pl;ctx.strokeStyle=col;ctx.lineWidth=1.2/z;ctx.strokeRect(B.x-w/2,y-fs*0.75,w,fs*1.5);
+  ctx.fillStyle=col;ctx.fillText(txt,B.x,y);ctx.restore()}
 function drawWalkerTop(B){ctx.drawImage(WK_TOP_C,B.x-WK_R,B.y-WK_R,WK_R*2,WK_R*2)}
 // ---------- draw ----------
 function drawCable(u,col){
@@ -10090,7 +10174,7 @@ function draw(){
   // base: the quad walker
   drawPOIs(); // wrecks and beacons lie on the ground, under the Bastion and units
   // cables run under the Bastion's turret, hanging from beneath it
-  drawWalker(B,true);drawTethers();drawBolts();drawWalkerTop(B);hpbar(B.x,B.y-B.r*2.2-8,B.r*2,B.hp/B.maxHp);
+  drawWalker(B,true);drawTethers();drawBolts();drawWalkerTop(B);drawDrillReadout(B);hpbar(B.x,B.y-B.r*2.2-8,B.r*2,B.hp/B.maxHp);
   if(WIRELESS_ENABLED){
     const bwt=0.5+0.5*Math.sin(S.t*2.2);
     ctx.strokeStyle=C.cable;ctx.globalAlpha=0.2*bwt;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(B.x,B.y,WIRELESS_TOL_DENSE*S.mods.relayTolMult,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;
