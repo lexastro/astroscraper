@@ -128,6 +128,8 @@ EL_TAGS = {
     'seamReturn:nd': '[focused, brisk]',
     'seamLate': '[urgent, raised voice]',
     'seamLate:nd': '[urgent, raised voice]',
+    'spillSoon': '[concerned, low and steady]',
+    'spill': '[urgent, raised voice]',
 }
 
 

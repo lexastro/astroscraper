@@ -11087,6 +11087,10 @@ const VOX_EV={
   seamIn:{p:2,cd:0,l:["You're in. Hold it there.","That's it. Keep it steady in the seam."]},
   seamReturn:{p:2,cd:0,l:["Now bring it back to {tier}.","Good. Now back onto {tier} before the drill's done."],nd:["Now bring it back to the band."]},
   seamLate:{p:1,cd:0,l:["Drill's nearly done. Get back to {tier}!","We're almost through. Back to {tier}, now!"],nd:["Drill's nearly done. Back onto the band!"]},
+  // a crowd piled up behind the barrier (voxCrowd): a heads-up while the breach vein drains, and
+  // "brace" instead of the calm breach line when the wall comes down
+  spillSoon:{p:2,cd:0,l:["Heads up. There's a crowd piled up behind that wall. When it breaks, they're coming through.","Careful. Something's massing on the far side of the wall. Get ready before it drops."]},
+  spill:{p:1,cd:0,l:["Wall's down, and everything behind it is coming through! Brace!","Here they come! They've been waiting behind that wall. Positions!","The way's open, both ways! Brace for the rush!"]},
 };
 // fill-ins for {dir}/{tier}/{side}: each one is its own recorded clip
 const VOX_VARS={tier:['common','rare','epic','legendary','hive'],side:['left','right']};
@@ -11144,7 +11148,7 @@ const VOX_DIRS=['north','south','east','west','northeast','northwest','southeast
 const voxRec=()=>!VOX.voice;
 // the recorded pack: base64 MP3 per line id, fetched once the announcer is on, decoded on first use
 const VOXP={state:'none',clips:null,bufs:{},chain:null};
-const VOX_PACK_V=6; // bump whenever vox/vesper.json is re-packed, so browsers don't keep the old one cached
+const VOX_PACK_V=8; // bump whenever vox/vesper.json is re-packed, so browsers don't keep the old one cached
 function voxLoadPack(){if(VOXP.state!=='none'||!voxRec())return;VOXP.state='loading';
   fetch('vox/vesper.json?v='+VOX_PACK_V).then(r=>r.ok?r.json():Promise.reject(r.status)).then(j=>{VOXP.clips=j.clips;VOXP.state='ready'}).catch(e=>{VOXP.state='failed';console.info('announcer: no voice pack, using the browser voice',e)})}
 function voxVoices(){return voxSynth?voxSynth.getVoices().filter(v=>/^en/i.test(v.lang)):[]}
@@ -11158,6 +11162,7 @@ function voxHear(s){if(!VOX.on||menuOpen)return;s=String(s);
   for(let [re,key] of VOX_HEAR){const m=s.match(re);if(!m)continue;
     // a unit turning: angry in the thick of it, sad when it's quiet (no drilling, few enemies near)
     if(key==='turned'&&typeof musicIntensity==='function'&&musicIntensity()===0)key='turnedSad';
+    if(key==='breach'&&voxCrowd()>=VOX_SPILL_N)key='spill';
     if(m[1]){voxSay(key,m[1].toLowerCase());return}
     const d=s.match(/\b(?:from|to) the ((?:north|south|east|west)\w*)/);
     voxSay(key,d&&VOX_DIRS.includes(d[1])?d[1]:null);return}}
@@ -11224,6 +11229,12 @@ function voxSeamChase(){const m=voxMeter(),sm=m&&m.seam;return !!sm&&Math.sign(m
 // chasing now, or the seam's over and the yield hasn't yet climbed back to where it was
 function voxSeamBusy(){const m=voxMeter(),X=VOXQ.sx;if(!m)return false;if(voxSeamChase())return true;
   return !!(X&&X.m===m&&(X.go||X.inn)&&m.seamDone&&!m.seam&&!X.back)}
+// enemies piled up against the far side of the barrier, the ones that rush in once it's open
+const VOX_SPILL_N=6;
+function voxCrowd(){const B=S.barrier;if(!B||typeof frameAB!=='function')return 0;const far=B.centre+BARRIER_HALF;
+  return S.enemies.reduce((n,e)=>{if(!(e.hp>0)||e.kind==='nest')return n;const a=frameAB(e.x,e.y).a;return n+(a>far&&a<far+700?1:0)},0)}
+function voxSpillTick(){const v=S.activeVein;if(!v||v!==S.breachVein||!v.meter||v.meter.phase!=='drill'||VOXQ.spillS===S)return;
+  if(v.drillProg>=0.7*v.richness&&voxCrowd()>=VOX_SPILL_N){VOXQ.spillS=S;voxSay('spillSoon')}}
 function voxSeamTick(){const m=voxMeter(),v=S.activeVein;if(!m)return;
   let X=VOXQ.sx;if(!X||X.m!==m)X=VOXQ.sx={m,tier:null,go:0,inn:0,ret:0,late:0,back:0};
   const sm=m.seam;
@@ -11240,7 +11251,7 @@ function voxSeamTick(){const m=voxMeter(),v=S.activeVein;if(!m)return;
 setInterval(()=>{if(!VOX.on||typeof S==='undefined'||!S||!S.base)return;
   if(S!==VOXQ.sRef){VOXQ.sRef=S;VOXQ.over=S.over;VOXQ.hull=0;if(!tutorial)VOXQ.tutStep=-1}
   if(S.over!==VOXQ.over){VOXQ.over=S.over;if(S.over==='win'||S.over==='lose'){VOXQ.q=[];voxHalt();voxSay(S.over)}return}
-  if(menuOpen||S.over)return;voxSeamTick();const f=S.base.hp/S.base.maxHp;
+  if(menuOpen||S.over)return;voxSeamTick();voxSpillTick();const f=S.base.hp/S.base.maxHp;
   if(f>0.7)VOXQ.hull=0;else if(f<=0.25&&VOXQ.hull<2){VOXQ.hull=2;voxSay('hullLow')}else if(f<=0.5&&VOXQ.hull<1){VOXQ.hull=1;voxSay('hullHalf')}},500);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)voxStopAll()});
 if(VOX.on)voxLoadPack();
