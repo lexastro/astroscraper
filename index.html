@@ -9218,7 +9218,7 @@ function drawPlate(o,lift,flash){
 const WK_LEGS_C=document.createElement('canvas'),WK_TOP_C=document.createElement('canvas'),WK_SH_C=document.createElement('canvas'),WK_R=110;
 // Each layer casts its shadow down-right: the legs a short one, the turret riding high above them a longer one.
 const WK_SH_LEGS=6,WK_SH_TOP=12;
-function drawWalker(B){
+function drawWalker(B,noTop){
   updateWalker(B);
   const sc=Math.min(4,cam.z*gDpr()),S2=Math.ceil(WK_R*2*sc),main=ctx;
   [WK_LEGS_C,WK_TOP_C,WK_SH_C].forEach(c=>{if(c.width!==S2){c.width=c.height=S2}});
@@ -9262,8 +9262,9 @@ function drawWalker(B){
   ctx.drawImage(WK_LEGS_C,B.x-WK_R,B.y-WK_R,WK_R*2,WK_R*2);
   if(B.plant>0.05){ctx.save();ctx.globalAlpha=B.plant;ctx.strokeStyle=C.accent;ctx.lineWidth=1.5;
     B.feet.forEach(f=>{ctx.beginPath();ctx.arc(f.x,f.y,9,0,Math.PI*2);ctx.stroke()});ctx.restore()}
-  ctx.drawImage(WK_TOP_C,B.x-WK_R,B.y-WK_R,WK_R*2,WK_R*2);
+  if(!noTop)drawWalkerTop(B);
 }
+function drawWalkerTop(B){ctx.drawImage(WK_TOP_C,B.x-WK_R,B.y-WK_R,WK_R*2,WK_R*2)}
 // ---------- draw ----------
 function drawCable(u,col){
   if(!u.trail||u.trail.length===0)return;
@@ -9931,7 +9932,9 @@ function draw(){
     if(de.hp<de.maxHp)hpbar(de.x,de.y-20,22,de.hp/de.maxHp);
   });
   // base: the quad walker
-  drawWalker(B);hpbar(B.x,B.y-B.r*2.2-8,B.r*2,B.hp/B.maxHp);
+  drawPOIs(); // wrecks and beacons lie on the ground, under the Bastion and units
+  // cables run under the Bastion's turret, hanging from beneath it
+  drawWalker(B,true);drawTethers();drawBolts();drawWalkerTop(B);hpbar(B.x,B.y-B.r*2.2-8,B.r*2,B.hp/B.maxHp);
   if(WIRELESS_ENABLED){
     const bwt=0.5+0.5*Math.sin(S.t*2.2);
     ctx.strokeStyle=C.cable;ctx.globalAlpha=0.2*bwt;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(B.x,B.y,WIRELESS_TOL_DENSE*S.mods.relayTolMult,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;
@@ -9943,8 +9946,6 @@ function draw(){
     ctx.globalAlpha=0.18;ctx.beginPath();ctx.arc(pg.x,pg.y,pg.r,0,Math.PI*2);ctx.stroke();
     ctx.globalAlpha=0.6;ctx.beginPath();ctx.arc(pg.x,pg.y,pg.r,-Math.PI/2,-Math.PI/2+Math.PI*2*f);ctx.stroke();ctx.globalAlpha=1});
   if(B.dest){ctx.strokeStyle='rgba(94,200,255,0.5)';ctx.setLineDash([6,6]);ctx.beginPath();ctx.moveTo(B.x,B.y);ctx.lineTo(B.dest.x,B.dest.y);ctx.stroke();ctx.setLineDash([])}
-  // cables (drawn under the units they belong to)
-  drawTethers();drawBolts();
   // hold: a link line between held units backing each other up, and corner brackets on each
   {const hd=S.troops.filter(t=>t.hold&&!t.dest&&t.state!=='attack');ctx.save();ctx.strokeStyle=C.accent;ctx.lineWidth=1.5;ctx.globalAlpha=0.45;ctx.setLineDash([3,4]);ctx.beginPath();
    for(let i=0;i<hd.length;i++)for(let j=i+1;j<hd.length;j++)if(dist(hd[i],hd[j])<HOLD_LINK_R){ctx.moveTo(hd[i].x,hd[i].y);ctx.lineTo(hd[j].x,hd[j].y)}
@@ -10004,7 +10005,7 @@ function draw(){
     ctx.globalAlpha=p*0.8*fl;ctx.fillStyle=C.zone;ctx.beginPath();ctx.arc(c.x,c.y,c.r,0,Math.PI*2);ctx.fill();
     ctx.globalAlpha=0.35+0.5*p;ctx.strokeStyle=C.zone;ctx.lineWidth=2;ctx.beginPath();ctx.arc(c.x,c.y,c.r+4+(1-p)*22,0,Math.PI*2);ctx.stroke();
     ctx.globalAlpha=1});
-  drawPOIs();drawRig();drawStrand();positionPoiBtns();
+  drawRig();drawStrand();positionPoiBtns();
   // enemies (only visible)
     drawSmears();
   S.enemies.forEach(e=>{if(e.kind==='nest'){if(debugNoFog||e.seen)drawNest(e);return}
