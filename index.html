@@ -146,6 +146,17 @@ body.lowGfx #fogGrain{display:none}
   width:min(460px,calc(100vw - 32px));background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px 10px 9px;
   box-shadow:0 4px 16px rgba(0,0,0,.5);font-size:12px}
 .drillMeter[hidden]{display:none}
+.drillMeter.steering{width:min(600px,calc(100vw - 32px))}
+/* v4: the needle has left the band the yield is riding on: amber pulse so it reads from the corner of your eye */
+.drillMeter.drift:not(.alarm){border-color:#ffb33c;animation:meterDrift .9s ease-in-out infinite}
+@keyframes meterDrift{50%{box-shadow:0 0 0 2px rgba(255,179,60,.6),0 0 22px rgba(255,179,60,.45)}}
+.drillMeter.seam:not(.alarm):not(.drift){border-color:#6ff0ff;box-shadow:0 0 0 1px rgba(111,240,255,.5),0 0 18px rgba(111,240,255,.35)}
+@media (prefers-reduced-motion:reduce){.drillMeter.drift{animation:none}}
+#dmBank,#dmOver{border:0;font:inherit;font-weight:700;padding:5px 12px;border-radius:4px;cursor:pointer}
+#dmBank{background:var(--accent);color:#1a1200}
+#dmOver{background:#7a1f16;color:#ffd9cf;border:1px solid var(--enemy)}
+#dmBank .key,#dmOver .key{font-family:var(--mono);font-size:10px;opacity:.7;margin-left:4px}
+.dmBtns{display:flex;gap:6px;flex:none}
 .drillMeter.alarm{border-color:var(--enemy);animation:meterAlarm .6s ease-in-out infinite}
 @keyframes meterAlarm{50%{box-shadow:0 0 0 2px rgba(255,92,77,.65),0 0 26px rgba(255,92,77,.55)}}
 @media (prefers-reduced-motion:reduce){.drillMeter.alarm{animation:none;box-shadow:0 0 0 2px rgba(255,92,77,.65)}}
@@ -188,7 +199,7 @@ body.lowGfx #fogGrain{display:none}
 #dmYield{font-weight:700;font-size:12px}
 #dmCanvas{display:block;flex:1;min-width:0;height:44px;border-radius:3px}
 .dmBody{display:flex;gap:8px;align-items:center}
-#dmPad{display:block;flex:none;width:132px;height:132px;background:#0b0f14;border:1px solid var(--line);border-radius:4px;cursor:grab;touch-action:none}
+#dmPad{display:block;flex:none;width:184px;height:184px;background:#0b0f14;border:1px solid var(--line);border-radius:4px;cursor:grab;touch-action:none}
 #dmPad:active{cursor:grabbing}
 #dmPad[hidden]{display:none}
 .dmFoot{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:6px;color:var(--muted);min-height:26px}
@@ -410,7 +421,7 @@ body.lowGfx #fogGrain{display:none}
   .tutPanel{top:calc(env(safe-area-inset-top,0px) + 52px);max-height:calc(100vh - 140px);overflow-y:auto}
   .toasts{top:calc(env(safe-area-inset-top,0px) + 56px)}
   .drillMeter{bottom:calc(68px + env(safe-area-inset-bottom,0px));padding:5px 8px 6px;width:min(420px,calc(100vw - 32px))}
-  #dmPad{width:96px;height:96px} #dmHint{display:none} .dmFoot{min-height:0;margin-top:3px} .dmHead{margin-bottom:3px}
+  #dmPad{width:120px;height:120px} #dmHint{display:none} .dmFoot{min-height:0;margin-top:3px} .dmHead{margin-bottom:3px}
   .help.open{inset:6% 6%;max-height:88vh}
 }
 /* While the menus are up, the world behind them stays hidden — nothing about the next map shows. */
@@ -657,7 +668,7 @@ async function run(d){
     <button id="bRig" hidden><span class="icon">⛭</span><span id="bRigLabel">Power the Rig</span><span class="cost" id="cRig"></span><span class="key">Y</span></button>
     <button id="bStrand" hidden><span class="icon">⚑</span><span>Take on Squad</span><span class="cost" id="cStrand"></span><span class="key">Y</span></button>
     <button id="bPing"><span class="icon">◬</span><span id="bPingLabel">Probe</span><span class="cost" id="cProbe">●●●</span><span class="key">G</span></button>
-    <button id="bCall" style="display:none" title="One-shot strikes and drops, called in anywhere your network reaches"><span class="icon">⇣</span><span>Call-down</span><span class="cost" id="cCall"></span><span class="key">C</span></button>
+    <button id="bCall" style="display:none" title="One-shot strikes and drops, called in anywhere you can see or your network reaches"><span class="icon">⇣</span><span>Call-down</span><span class="cost" id="cCall"></span><span class="key">C</span></button>
     <button id="bAutoBuy" title="When on, using an empty stock buys the charge with Dat automatically"><span class="icon">⟳</span><span id="bAutoBuyLabel">Auto-buy: off</span></button>
   </div>
 </div>
@@ -678,7 +689,7 @@ async function run(d){
     <button class="dmStab" data-i="1"><span class="sTop"><span class="sName">STAB 2</span><span class="sState"></span></span><span class="sBar"><i></i></span><span class="sSub"></span></button>
     <button class="dmStab" data-i="2"><span class="sTop"><span class="sName">STAB 3</span><span class="sState"></span></span><span class="sBar"><i></i></span><span class="sSub"></span></button>
   </div>
-  <div class="dmFoot"><span id="dmHint"></span><button id="dmStrike" hidden>Strike <span class="key">F</span></button></div>
+  <div class="dmFoot"><span id="dmHint"></span><span class="dmBtns"><button id="dmStrike" hidden>Strike <span class="key">F</span></button><button id="dmBank" hidden>Bank it <span class="key">F</span></button><button id="dmOver" hidden>Overdrill <span class="key">O</span></button></span></div>
 </div>
 
 <div class="mini" id="miniWrap"><canvas id="mini" width="180" height="180"></canvas><button id="miniToggle" class="miniToggle" aria-label="Expand minimap">⤢</button></div>
@@ -744,6 +755,7 @@ async function run(d){
     <div class="metaRow"><span class="crystalIcon living">❖</span><span class="v" id="metaLiving">0</span><span class="crystalIcon condensed">⬢</span><span class="v" id="metaCondensed">0</span></div>
     <button id="openUnlocksBtn" class="secondary">Unlocks</button>
     <button id="openPressureBtn" class="secondary">Pressure</button>
+    <button id="openLoadoutBtn" class="secondary">Loadout</button>
   </div>
   <button id="tutorialBtn" class="secondary">Tutorial</button>
   <button id="settingsBtn" class="secondary">Settings</button>
@@ -769,7 +781,23 @@ async function run(d){
     <p>Spend Condensed Crystal on permanent upgrades — some can be bought more than once, each time pricier than the last.</p>
     <div class="unlockCards" id="upgradeCards"></div>
   </div>
+  <div class="shopSection">
+    <div class="shopHeader"><b>Call-downs</b><span class="metaRow"><span class="crystalIcon condensed">⬢</span><span class="v" id="callShopCondensed">0</span></span></div>
+    <p>Spend Condensed Crystal to own a call-down for good. Pick the two you start each run with under Loadout on the main menu.</p>
+    <div class="unlockCards" id="callShopCards"></div>
+  </div>
   <button id="unlocksBackBtn" class="secondary">Back</button>
+</div>
+
+<div class="overlay" id="loadoutOverlay" hidden>
+  <h1>Loadout</h1>
+  <div class="shopSection">
+    <div class="shopHeader"><b>Starting call-downs</b></div>
+    <p>Pick the two call-downs every run starts with. Buy more in Unlocks; the rest can still turn up as cards and wreck finds during a run.</p>
+    <div class="unlockCards" id="loadoutCards"></div>
+    <p id="loadoutSummary"></p>
+  </div>
+  <button id="loadoutBackBtn" class="secondary">Back</button>
 </div>
 
 <div class="overlay" id="pressureOverlay" hidden>
@@ -847,7 +875,7 @@ let EPI_REACH=5000;
 // v4: a run of stops (see "the run" section). STOP_BAND, while set, makes every point of the map
 // read as that one zone; RUN holds which stop the run is on and what carries over.
 const RUN_STOPS=[{band:'rim'},{band:'dense',split:true},{band:'dense'},{band:'core',final:true}]; // v4: a half-Rim, half-Dense stop between the Rim and the Dense Field // v4: one stop per zone (was two)
-const STOP_HP=[1,1,1.1,1.25];          // enemy toughness per stop, on top of the zone's own
+const STOP_HP=[1,1,1.1,1.15];          // enemy toughness per stop, on top of the zone's own
 const STOP_DEPTH=[0,0.25,0.5,1];          // how deep each stop counts as, for depth-scaled pressure
 const RIM_VEINS=4; // v4: a Rim stop has 4 ordinary veins (it had about 7), so it plays shorter
 const STOP_NESTS={rim:Math.round(10*MS*1.1),dense:Math.round(11*MS*1.1),core:Math.round(10*MS*1.1*0.64)}, STOP_RICH={rim:[20,30],dense:[40,58],core:[75,95]};
@@ -938,7 +966,7 @@ function rollLayout(){
 }
 // Core enemies are a visibly tougher tier — black body, red outline — rather than just a palette
 // swap of the same stats.
-const CORE_ENEMY_HP_MULT=1.8;
+const CORE_ENEMY_HP_MULT=1.4; // v4: eased from 1.8
 // Brute: a rare, lumbering Core-only guardian — tanky and very slow, but when it finally goes
 // down it ruptures into a big swarm of small Core fighters rather than just dying quietly.
 const BRUTE_R=22, BRUTE_HP=420, BRUTE_SPEED=20, BRUTE_DMG=20, BRUTE_CHANCE=0.05, BRUTE_BURST_MIN=18, BRUTE_BURST_MAX=22;
@@ -1404,11 +1432,13 @@ function loadMeta(){
         // every stored tier, whatever the key — listing them by hand here silently dropped any
         // upgrade added later (Rapid Loaders / Magnetic Collectors) on every page reload
         upgrades:Object.fromEntries(Object.entries(mu).map(([k,v])=>[k,v|0])),
-        recordingConsent:m.recordingConsent===true?true:m.recordingConsent===false?false:undefined};
+        recordingConsent:m.recordingConsent===true?true:m.recordingConsent===false?false:undefined,
+        // v4: call-downs bought in the shop, and the two picked to start every run with (checked against CALLDOWNS in callLoadout)
+        calls:Array.isArray(m.calls)?m.calls.filter(x=>typeof x==='string'):[],callLoadout:Array.isArray(m.callLoadout)?m.callLoadout.filter(x=>typeof x==='string').slice(0,2):[]};
     }
   }catch(e){}
   return {condensedBank:0,livingBank:0,unlockArtillery:false,unlockGrenadier:false,unlockMech:false,unlockRocket:false,unlockPodTurret:false,pressure:[],
-    upgrades:{bastionHp:0,unitHp:0,pingRange:0},recordingConsent:undefined};
+    upgrades:{bastionHp:0,unitHp:0,pingRange:0},recordingConsent:undefined,calls:[],callLoadout:[]};
 }
 function saveMeta(){try{localStorage.setItem(META_KEY,JSON.stringify(meta))}catch(e){}}
 let meta=loadMeta();
@@ -1440,7 +1470,7 @@ const VEIN_DAT_PER_RICH=3;
 // no progress, no Dat burn, and no wave/saboteur clocks running, same as being paused. Throttle
 // is still locked in up front; it just doesn't start spending/spawning until prep finishes.
 const PREP_TIME=60;
-const BASE_SPAWN_INTERVAL={rim:21,dense:21,core:16}; // v4: Core eased from 10 s — with its bigger waves it was ~10x the Dense Field's pressure // v4: Rim/Dense waves come much sooner (stretched to leave room for the longer wave warning)
+const BASE_SPAWN_INTERVAL={rim:21,dense:21,core:20}; // v4: Core eased from 10 s — with its bigger waves it was ~10x the Dense Field's pressure // v4: Rim/Dense waves come much sooner (stretched to leave room for the longer wave warning)
 const AMBIENT_INTERVAL={rim:45,dense:22,core:7};
 // Off-zone mining pressure: parking harvesters on an open Dat Crystal cluster instead of locking
 // the Bastion down on a vein skips drilling's wave/saboteur spawns entirely — nothing stops the
@@ -1457,7 +1487,7 @@ const WAVE_FRONT_HALF=260; // half-width of the line a wave spawns along, across
 // WAVE_SPAWN_DIST, so it arrives as drilling starts.
 const FIRST_WAVE_LEAD=9;
 const STAB_HUNTER_FRAC=0.35; // share of each drilling wave sent after the Stabilizers
-const WAVE_SPAWN_DIST=820,WAVE_BASE_N={rim:11,dense:13,core:20}; // ~1.4x, in step with the longer gaps between waves
+const WAVE_SPAWN_DIST=820,WAVE_BASE_N={rim:11,dense:13,core:16}; // ~1.4x, in step with the longer gaps between waves
 // v4 horde: every drilling wave brings a flood of swarmlings with it — HORDE_MULT times the wave's
 // own size, each one trivial on its own (a shot or two) but dangerous in a mass. They move as a
 // crowd on one shared flow field toward the Bastion instead of each planning its own path, so they
@@ -1489,7 +1519,7 @@ const TIER_THREAT_BAND={rim:0.85,dense:0.75,core:0.5};
 // dies to a stray hit; a whole pack left unchecked still shreds a cable fast. They spawn out past
 // the Relay itself, on the far side from the vein, so the swarm is visible closing in before it
 // arrives.
-const SABOTEUR_INTERVAL={rim:28,dense:22,core:16}, SABOTEUR_SPAWN_DIST=500, SABOTEUR_BASE_N={rim:5,dense:8,core:14};
+const SABOTEUR_INTERVAL={rim:28,dense:22,core:21}, SABOTEUR_SPAWN_DIST=500, SABOTEUR_BASE_N={rim:5,dense:8,core:10};
 // The drill burns Dat Crystal per second to run — the rate scales with throttle (so the TOTAL
 // cost to finish a vein is throttle-invariant, but a faster throttle demands a faster supply of
 // Dat or the drill literally stalls). CONDENSED_RATE converts how much faster than baseline
@@ -1619,10 +1649,10 @@ function ripeStart(i){let t=0;for(let k=0;k<i;k++)t+=RIPEN_DWELL[Math.min(k,RIPE
 // never offer a Legendary card — there's no separate restriction to maintain here, the existing
 // tier-decay ladder does it for free.
 const TIER_TRADE_DAT={Common:60,Rare:140,Epic:260,Legendary:450,Hive:700};
-// Rerolling a reward choice costs Condensed Crystal — the same currency that gets banked into
-// meta-progression at run's end — and gets pricier each time, tracked on S.rerollCount so the
-// escalation persists for the whole run rather than resetting at every new vein's choice.
-const REROLL_BASE_COST=10, REROLL_COST_STEP=8;
+// Rerolling a reward choice costs Dat (v4: it used to cost Condensed Crystal) and gets pricier each
+// time, tracked on S.rerollCount so the escalation persists for the whole run rather than resetting
+// at every new vein's choice.
+const REROLL_BASE_COST=40, REROLL_COST_STEP=30;
 function rerollCost(){return REROLL_BASE_COST+S.rerollCount*REROLL_COST_STEP}
 // Spawns n fresh Troopers / Grenadiers with guaranteed-unique ids, for the recruit-style reward
 // cards below.
@@ -1993,6 +2023,31 @@ function buildStrip(v){
 // end of the strip counts as red.
 function stripAt(st,p){if(p<0||p>1)return {red:true};for(const q of st.segs)if(p>=q.a&&p<=q.b)return q;return {tier:st.floor}}
 function gauss(){let u=0,w=0;while(u===0)u=Math.random();while(w===0)w=Math.random();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*w)}
+// v4: tier rank, for telling a slipping yield from a climbing one
+const tierRank=t=>t==='Hive'?4:TIER_ORDER_ALL.indexOf(t);
+// v4: the SEAM — once per drill, somewhere between SEAM_AT_MIN and SEAM_AT_MAX of the way through, a
+// thin seam opens on the meter well off to one side of where you struck (SEAM_OFF of the zoomed
+// view). Steer the needle into it and keep it there SEAM_HOLD seconds in all (it needn't be in one go)
+// before it closes after SEAM_LIFE, and the vein pays a second reward card. Reaching it means leaning
+// the weight hard: strained Stabilizers, enemies drawn to them, and the yield may slip meanwhile.
+const SEAM_AT_MIN=0.25, SEAM_AT_MAX=0.55, SEAM_LIFE=15, SEAM_HOLD=4, SEAM_HW=0.08, SEAM_OFF=[0.45,0.72];
+// v4: OVERDRILL — when the vein is tapped out you can bank it (F) or keep drilling (O) for OVER_T
+// more seconds: the needle bucks harder (OVER_TURB) and red closes in from both ends of the meter
+// (down to OVER_SAFE_MIN of the view either side of the strike), and a wave comes at once. Hold out
+// without rupturing and the vein pays a second reward card; rupture and you lose the lot. The
+// choice banks itself after OVER_OFFER_T.
+const OVER_T=20, OVER_TURB=1.6, OVER_SAFE_MIN=0.38, OVER_OFFER_T=8;
+function openSeam(v){const m=v.meter;
+  for(let k=0;k<12;k++){const side=Math.random()<0.5?-1:1,x=side*rnd(SEAM_OFF[0],SEAM_OFF[1]),p=m.anchor+x*ZOOM_HALF;
+    if([x-SEAM_HW,x,x+SEAM_HW].some(q=>stripAt(m.strip,m.anchor+q*ZOOM_HALF).red))continue;
+    m.seam={x,hw:SEAM_HW,t:SEAM_LIFE,hold:0};
+    banner(`A SEAM has opened on the drill meter, off to the ${side<0?'left':'right'} — steer the needle into it for ${SEAM_HOLD}s before it closes and the vein pays a second reward.`,'success');
+    tone(1320,0.12,'sine',0.06);tone(1760,0.2,'sine',0.05,0.1);return}
+  m.seamDone=true}
+function overdrillChoice(go){const v=S.activeVein,m=v&&v.meter;if(!m||m.over!=='offer')return;
+  if(!go){m.over='bank';sfx.click();return}
+  m.over='run';m.overT=0;sfx.wave();shakeScreen(5,0.4);spawnVeinWave(v);
+  banner(`OVERDRILL — hold the needle out of the closing red for ${OVER_T}s for a second reward. Rupture and you lose everything this vein would pay.`,'danger')}
 function beginStrike(v){v.meter={phase:'strike',strip:buildStrip(v),p:rnd(0,1),dir:rnd(0,1)<0.5?1:-1,t:0};updateMeterUI()}
 function strikeReady(){const v=S.activeVein;return !!(v&&v.meter&&v.meter.phase==='strike'&&!S.paused&&!S.tacPause&&!S.rewardChoice&&!S.over)}
 function doStrike(){
@@ -2000,7 +2055,7 @@ function doStrike(){
   const m=v.meter, hit=stripAt(m.strip,m.p);
   if(hit.red){ruptureVein(v,'The strike landed in the red — the vein ruptured!');return}
   const tier=hit.tier;
-  v.meter={phase:'zoom',t:0,strip:m.strip,anchor:m.p,x:0,anchorTier:tier,yieldTier:tier,share:{[tier]:1}};
+  v.meter={phase:'zoom',t:0,strip:m.strip,anchor:m.p,x:0,anchorTier:tier,yieldTier:tier,share:{[tier]:1},hereTier:tier,seamAt:v.contract?2:rnd(SEAM_AT_MIN,SEAM_AT_MAX)};
   if(hit.jackpot){msg(`JACKPOT — struck the ${tier} sliver! The vein is overcharged. Hold the Stabilizers to keep it.`);sfx.win();shakeScreen(5,0.3);burst(v.mine.x,v.mine.y,TIER_COLOR[tier],30,180,0.8)}
   else{msg(`Struck at ${tier} tier — drilling. Keep the Stabilizers standing to hold it there.`);sfx.resume()}
 }
@@ -2015,14 +2070,19 @@ function updateMeter(v,dt){
   }
   if(m.phase==='zoom'){m.t+=dt;if(m.t>=ZOOM_T){m.phase='drill';v.startT=S.t}return}
   if(m.phase!=='drill'||v.paused)return;
-  const sv=steerState(v), K=(METER_K_BASE+METER_K_STAB*stabHold(v))*(1+0.5*sv.sh.auth)*(1-STEER_WOBBLE*sv.L), sig=METER_TURB[m.anchorTier];
+  if(m.over==='offer'){m.offerT=(m.offerT??OVER_OFFER_T)-dt;if(m.offerT<=0)m.over='bank'}
+  if(m.over==='run'){m.overT+=dt;m.safe=1-(1-OVER_SAFE_MIN)*Math.min(1,m.overT/OVER_T);
+    if(m.overT>=OVER_T){m.over='won';v.bonus=(v.bonus||0)+1;banner('Overdrill held! The vein pays a second reward.','success');sfx.win();burst(v.mine.x,v.mine.y,C.accent,36,200,0.9)}}
+  const sv=steerState(v), K=(METER_K_BASE+METER_K_STAB*stabHold(v))*(1+0.5*sv.sh.auth)*(1-STEER_WOBBLE*sv.L), sig=METER_TURB[m.anchorTier]*(m.over==='run'?OVER_TURB:1);
   // v4: the Stabilizers take a while to bring the needle round — it's pulled toward m.aim, which
   // only catches up with where the weight points over STEER_LAG seconds, so a last-second swing
   // of the weight can't flip the payout
   if(m.aim==null)m.aim=sv.target;
   m.aim+=(sv.target-m.aim)*Math.min(1,dt/STEER_LAG);
   m.x+=-K*(m.x-m.aim)*dt+sig*Math.sqrt(dt)*gauss();
-  const here=stripAt(m.strip,m.anchor+m.x*ZOOM_HALF);
+  let here=stripAt(m.strip,m.anchor+m.x*ZOOM_HALF);
+  if(m.over==='run'&&Math.abs(m.x)>m.safe)here={red:true};
+  m.hereTier=here.red?null:here.tier;
   // v4: slipping into the red no longer ruptures on the spot — an alarm sounds and the danger builds
   // for RED_GRACE seconds; get the needle out in time and it drains away again (RED_RECOVER × as
   // fast). No yield is earned while the needle sits in the red.
@@ -2039,7 +2099,21 @@ function updateMeter(v,dt){
   const k=Math.min(1,dt/METER_AVG_T);let best=null,bs=-1;
   m.share[here.tier]=m.share[here.tier]||0;
   for(const t in m.share){m.share[t]+=((t===here.tier?1:0)-m.share[t])*k;if(m.share[t]>bs){bs=m.share[t];best=t}}
+  // v4: say so the moment the payout changes — a slip is loud (it's easy to miss while you're fighting)
+  if(best!==m.yieldTier){const down=tierRank(best)<tierRank(m.yieldTier);
+    if(down){banner(`YIELD SLIPPED to ${best} — steer the needle back onto the ${m.yieldTier} band!`,'danger');tone(660,0.16,'triangle',0.08,0,440);tone(520,0.22,'triangle',0.07,0.17,330)}
+    else{msg(`Yield climbed to ${best}.`);tone(660,0.12,'sine',0.06,0,880);tone(880,0.18,'sine',0.05,0.12,1175)}}
   m.yieldTier=best;
+  // drifting: the needle sits on a lower band than the one being paid, so the yield is about to slip
+  const dr=tierRank(here.tier)<tierRank(best);
+  if(dr&&!m.drift&&S.t>(m.driftCue||0)){m.driftCue=S.t+2.5;tone(980,0.07,'square',0.035);tone(980,0.07,'square',0.035,0.12)}
+  m.drift=dr;
+  // the seam: opens partway through, and fills while the needle sits in it
+  if(!m.seamDone&&!m.seam&&!m.over&&v.drillProg>=m.seamAt*v.richness)openSeam(v);
+  if(m.seam){const sm=m.seam;sm.t-=dt;
+    if(Math.abs(m.x-sm.x)<=sm.hw){sm.hold+=dt;sm.inT=(sm.inT||0)+dt;if(sm.inT>0.5){sm.inT=0;tone(1320+440*sm.hold/SEAM_HOLD,0.05,'sine',0.03)}}
+    if(sm.hold>=SEAM_HOLD){m.seam=null;m.seamDone=true;v.bonus=(v.bonus||0)+1;banner('Seam tapped! The vein will pay a second reward.','success');sfx.win();burst(v.mine.x,v.mine.y,'#6ff0ff',30,180,0.8)}
+    else if(sm.t<=0){m.seam=null;m.seamDone=true;msg('The seam closed.')}}
 }
 // A failed strike or a needle that drifts into the red: the vein blows. The Bastion takes a hit
 // that grows with how ambitious the meter was, everything nearby is caught in the blast, the
@@ -2079,7 +2153,8 @@ function updateSurveyUI(){
   if(v&&(!veinAlive(v)||v.done))v=S.surveyVein=null;
   const meter=document.getElementById('drillMeter'), body=meter.querySelector('.dmBody'), docked=!meter.hidden&&S.activeVein===v;
   // the meter's up for another vein: keep out of its way
-  if(!v||menuOpen||S.over||(!meter.hidden&&!docked)){el._hd=true;return}
+  // v4: once you're locked on, ripeness no longer matters: the survey steps aside for a bigger steering pad
+  if(!v||menuOpen||S.over||!meter.hidden){el._hd=true;if(el.parentNode===body){meter.parentNode.insertBefore(el,meter);el.classList.remove('inMeter')}return}
   el._hd=false;
   if(docked&&el.parentNode!==body){body.appendChild(el);el.classList.add('inMeter')}
   else if(!docked&&el.parentNode===body){meter.parentNode.insertBefore(el,meter);el.classList.remove('inMeter')}
@@ -2128,17 +2203,23 @@ function updateMeterUI(){
   const m=v.meter, title=document.getElementById('dmTitle'), yieldEl=document.getElementById('dmYield'), hint=document.getElementById('dmHint');
   document.getElementById('dmStrike')._hd=m.phase!=='strike';
   const nStab=veinStabs(v).length;
-  el.classList.toggle('alarm',!!m.inRed);
+  el.classList.toggle('alarm',!!m.inRed);el.classList.toggle('drift',m.phase==='drill'&&!!m.drift&&!m.inRed);el.classList.toggle('seam',!!m.seam);el.classList.toggle('steering',m.phase!=='strike');
+  document.getElementById('dmBank')._hd=document.getElementById('dmOver')._hd=m.over!=='offer';
   if(m.phase==='strike'){title._sc='';
     title._tc=m.t<1.5?'STRIKE!':`STRIKE! — bands shrinking: ${Math.round(100*Math.max(STRIKE_SHRINK_MIN,1-m.t/STRIKE_SHRINK_T))}% wide`;
     const h=stripAt(m.strip,m.p);yieldEl._tc=h.red?'RUPTURE':h.tier;yieldEl._sc=h.red?C.enemy:CARD_TIER_COLOR[h.tier];
     hint._tc='Stop the needle on a good band — the thin sliver is a tier above the vein, red ruptures it.';
   }else{
-    title._tc=m.phase==='zoom'?'Struck — locking in…':m.inRed?`⚠ RUPTURE IN ${Math.max(0,RED_GRACE-m.redT).toFixed(1)}s — steer out of the red!`:m.redT>0?`Drilling — danger easing (${Math.round(100*m.redT/RED_GRACE)}%)`:v.stalled?'Drilling — STALLED':v.paused?'Drilling — PAUSED':'Drilling';
-    title._sc=m.inRed||m.redT>0?C.enemy:'';
-    yieldEl._tc=`Yield: ${m.yieldTier}`;yieldEl._sc=CARD_TIER_COLOR[m.yieldTier];
+    title._tc=m.phase==='zoom'?'Struck — locking in…':m.inRed?`⚠ RUPTURE IN ${Math.max(0,RED_GRACE-m.redT).toFixed(1)}s — steer out of the red!`:m.redT>0?`Drilling — danger easing (${Math.round(100*m.redT/RED_GRACE)}%)`
+      :m.over==='offer'?`Vein tapped — bank it or overdrill (${Math.ceil(m.offerT??OVER_OFFER_T)}s)`:m.over==='run'?`OVERDRILL — hold on ${Math.ceil(OVER_T-m.overT)}s`
+      :m.drift?`⚠ Needle on ${m.hereTier} — yield slipping!`:m.seam?`SEAM open — ${Math.ceil(m.seam.t)}s · ${Math.round(100*m.seam.hold/SEAM_HOLD)}% tapped`
+      :v.stalled?'Drilling — STALLED':v.paused?'Drilling — PAUSED':'Drilling';
+    title._sc=m.inRed||m.redT>0||m.over==='run'?C.enemy:m.drift?'#ffb33c':m.seam?'#6ff0ff':'';
+    yieldEl._tc=`Yield: ${m.yieldTier}${v.bonus?` · +${v.bonus} bonus`:''}`;yieldEl._sc=CARD_TIER_COLOR[m.yieldTier];
     const hold=nStab?Math.round(100*stabHold(v)/nStab):0;
-    hint._tc=nStab>=3?`Drag the weight to steer — east pushes the needle right. The Stabilizer you lean on draws the enemy. (${hold}%)`
+    if(m.over==='offer')hint._tc='Overdrill: red closes in and a wave comes — survive and get a second reward, rupture and lose it all.';
+    else if(m.over==='run')hint._tc='Keep the needle between the closing red walls.';
+    else hint._tc=nStab>=3?`Drag the weight to steer — east pushes the needle right. The Stabilizer you lean on draws the enemy. (${hold}%)`
       :nStab?`${nStab} Stabilizer${nStab===1?'':'s'} holding at ${hold}% — pin all 3 to steer the needle.`:'No Stabilizers — the needle is drifting freely.';
   }
   // extraction progress, and how long the drill has left at its current rate
@@ -2163,6 +2244,10 @@ function updateMeterUI(){
     if(q.tier==='Hive'){g.save();g.beginPath();g.rect(x0,barY,Math.max(1,x1-x0),barH);g.clip();g.strokeStyle='rgba(10,0,4,0.6)';g.lineWidth=2*dpr;
       const off=(performance.now()/60)%(7*dpr);for(let sx=x0-barH-7*dpr+off;sx<x1;sx+=7*dpr){g.beginPath();g.moveTo(sx,barY+barH);g.lineTo(sx+barH,barY);g.stroke()}g.restore()}
   });
+  if(m.over==='run'){g.fillStyle=C.enemy;g.globalAlpha=0.8;const a=X(m.anchor-m.safe*ZOOM_HALF),b=X(m.anchor+m.safe*ZOOM_HALF);g.fillRect(0,barY,Math.max(0,a),barH);g.fillRect(b,barY,Wc-b,barH);g.globalAlpha=1}
+  if(m.seam){const sm=m.seam,a=X(m.anchor+(sm.x-sm.hw)*ZOOM_HALF),b=X(m.anchor+(sm.x+sm.hw)*ZOOM_HALF),pl=0.6+0.4*Math.sin(performance.now()/120);
+    g.strokeStyle='#6ff0ff';g.lineWidth=2*dpr;g.globalAlpha=pl;g.strokeRect(a,barY-2*dpr,b-a,barH+4*dpr);g.globalAlpha=0.35;g.fillStyle='#6ff0ff';g.fillRect(a,barY,b-a,barH);
+    g.globalAlpha=1;g.fillRect(a,barY+barH+2*dpr,(b-a)*sm.hold/SEAM_HOLD,3*dpr)}
   const np=m.phase==='strike'?m.p:m.anchor+m.x*ZOOM_HALF, nx=X(np);
   g.strokeStyle='#fff';g.lineWidth=2*dpr;g.beginPath();g.moveTo(nx,barY-3*dpr);g.lineTo(nx,barY+barH+2*dpr);g.stroke();
   g.fillStyle='#fff';g.beginPath();g.moveTo(nx,barY-1);g.lineTo(nx-5*dpr,2*dpr);g.lineTo(nx+5*dpr,2*dpr);g.closePath();g.fill();
@@ -2195,6 +2280,8 @@ function drawSteerPad(v){
   sh.cs.forEach(c=>{const [x,y]=P(c.x,c.y),sn=c.st.strain||0;
     if(sn>0.05){g.fillStyle='#ffb36b';g.globalAlpha=0.6*sn;g.beginPath();g.arc(x,y,(4+6*sn)*dpr,0,Math.PI*2);g.fill();g.globalAlpha=1}
     g.fillStyle=c.st.hp/c.st.maxHp<0.4?C.enemy:'#dfe6ee';g.beginPath();g.arc(x,y,2.6*dpr,0,Math.PI*2);g.fill()});
+  if(m.seam){const sd=Math.sign(m.seam.x),ax=sd>0?S2-7*dpr:7*dpr,pl=0.55+0.45*Math.sin(performance.now()/120);
+    g.fillStyle='#6ff0ff';g.globalAlpha=pl;g.beginPath();g.moveTo(ax,c0);g.lineTo(ax-sd*9*dpr,c0-8*dpr);g.lineTo(ax-sd*9*dpr,c0+8*dpr);g.closePath();g.fill();g.globalAlpha=1}
   if(m.w){const [wx,wy]=P(m.w.x,m.w.y);
     g.fillStyle=C.accent;g.strokeStyle='#0b0e12';g.lineWidth=1.5*dpr;g.beginPath();g.arc(wx,wy,4.5*dpr,0,Math.PI*2);g.fill();g.stroke()}
   else{g.fillStyle='#5d6874';g.font=`600 ${9*dpr}px ${css('--mono')}`;g.textAlign='center';g.textBaseline='middle';g.fillText('PIN 3',c0,c0)}
@@ -2209,6 +2296,7 @@ function drawSteerPad(v){
   pad.addEventListener('dblclick',()=>{const v=S.activeVein;if(v&&v.meter)v.meter.w=null}); // back to the centre
   pad.addEventListener('contextmenu',e=>e.preventDefault());}
 document.getElementById('dmStrike').onclick=()=>doStrike();
+document.getElementById('dmBank').onclick=()=>overdrillChoice(false);document.getElementById('dmOver').onclick=()=>overdrillChoice(true);
 
 // ---------- exploration: the crack network, energy pulses, living veins, strays ----------
 // The whole map is laced with cracks, generated with the terrain and baked into the ground as
@@ -2334,7 +2422,7 @@ function emergeVein(site,o){
   {const src={x:v.mine.x,y:v.mine.y};indexPulse(src,o.contract?VEIN_GLOW_R:Math.max(v.reach,VEIN_GLOW_R));v.pd=src.pd;v.pi=src.pi}
   // a guard cluster camps every vein, sized by how deep it sits
   if(o.guards!==false){
-    const n=v.band==='core'?rnd(20,28):v.band==='dense'?rnd(10,15):rnd(6,10);
+    const n=v.band==='core'?rnd(14,20):v.band==='dense'?rnd(10,15):rnd(6,10);
     for(let i=0;i<n;i++){const a=rnd(0,Math.PI*2),rr=rnd(0,v.r*0.85);
       const p=nearestPlain(v.x+Math.cos(a)*rr,v.y+Math.sin(a)*rr);spawnEnemy(p.x,p.y,'roam')}
   }
@@ -3007,11 +3095,44 @@ function setInvuln(on){dbgInvuln=on;dbgInvBtn.textContent='Invincible units: '+(
 function debugPass(){if(!S)return;
   if(dbgGod){if(S.dat<DBG_DAT)S.dat=DBG_DAT;S.base.hp=S.base.maxHp}
   if(dbgInvuln)for(const a of [S.troops,S.harvesters,S.builders])for(const u of a){u.hp=u.maxHp;if(u.sanity!=null)u.sanity=SANITY_MAX}}
-function setDebugMode(on){debugNoFog=on;dbgBar.hidden=!on;if(!on){if(dbgGod)setGod(false);if(dbgInvuln)setInvuln(false)}msg(on?'Debug on: fog of war off, debug buttons at the top':'Debug off: fog of war back on')}
+function setDebugMode(on){debugNoFog=on;dbgBar.hidden=!on;if(!on){if(dbgGod)setGod(false);if(dbgInvuln)setInvuln(false);if(!dbgCards.hidden)dbgCardsShow(false)}msg(on?'Debug on: fog of war off, debug buttons at the top':'Debug off: fog of war back on')}
 const dbgSkip=dbgButton('Next map',()=>{
   if(!RUN||!S||S.over||tutorialMap||stopInfo().final){msg('Debug: no next map to skip to');return}
   if(dbgGod&&dbgDatSave)dbgDatSave.S=null;RUN.carry=captureCarry();advanceStop()});
 const dbgGodBtn=dbgButton('God mode: off',()=>setGod(!dbgGod)),dbgInvBtn=dbgButton('Invincible units: off',()=>setInvuln(!dbgInvuln));
+// v4: Give card — a searchable list of every reward card in every tier; click one to apply it right
+// away (the game pauses while the list is open). Cards you already hold, or that can't apply yet, are
+// greyed out but can still be forced with shift-click.
+let dbgCardsPaused=null;
+const dbgCards=document.createElement('div');dbgCards.hidden=true;
+dbgCards.style.cssText='position:fixed;top:48px;left:50%;transform:translateX(-50%);z-index:51;width:min(760px,calc(100vw - 32px));max-height:calc(100vh - 80px);display:flex;flex-direction:column;gap:8px;padding:12px;background:rgba(20,14,10,0.97);border:1px solid #ff9a5a;border-radius:6px;font:12px var(--mono,monospace);color:#eef1f4';
+dbgCards.innerHTML='<div style="display:flex;gap:8px;align-items:center"><input id="dbgCardQ" placeholder="Search cards (name, text or tier)" style="flex:1;padding:6px 8px;background:#120c08;color:#eef1f4;border:1px solid #6a4a32;border-radius:4px;font:inherit"><span id="dbgCardN" style="color:#9aa3ad"></span><button id="dbgCardX" style="'+dbgBtnCss+'">Close</button></div>'+
+  '<div style="color:#9aa3ad">Click to give yourself the card. Grey = already held or not usable yet; shift-click to force it.</div><div id="dbgCardList" style="overflow:auto;display:flex;flex-direction:column;gap:4px"></div>';
+document.body.appendChild(dbgCards);
+['pointerdown','click','wheel','contextmenu'].forEach(ev=>dbgCards.addEventListener(ev,e=>e.stopPropagation()));
+function dbgCardsShow(on){if(!S){msg('Debug: start a run first');return}
+  if(on===dbgCards.hidden){dbgCards.hidden=!on;
+    if(on){dbgCardsPaused=S.paused;S.paused=true;const q=document.getElementById('dbgCardQ');q.value='';renderDbgCards();q.focus()}
+    else if(dbgCardsPaused!==null){S.paused=dbgCardsPaused;dbgCardsPaused=null}}
+  dbgCardsBtn.style.background=on?'#5a2a12':'#2a1a12'}
+function renderDbgCards(){
+  const q=document.getElementById('dbgCardQ').value.trim().toLowerCase(),host=document.getElementById('dbgCardList');host.innerHTML='';let n=0;
+  Object.keys(UPGRADES).forEach(tier=>UPGRADES[tier].forEach(u=>{
+    const plain=String(u.desc||'').replace(/<[^>]+>/g,' ');
+    if(q&&!(u.name+' '+plain+' '+tier).toLowerCase().includes(q))return;n++;
+    let held=false;try{held=!!(u.has&&u.has())}catch(_){}
+    const b=document.createElement('button'),col=CARD_TIER_COLOR[tier]||'#ccc';
+    b.style.cssText='text-align:left;padding:6px 8px;background:#1c140e;color:#eef1f4;border:1px solid #3a2a1e;border-left:3px solid '+col+';border-radius:4px;font:inherit;cursor:pointer;opacity:'+(held?0.45:1);
+    b.innerHTML='<b style="color:'+col+'">'+tier+'</b> · <b>'+u.name+'</b>'+(held?' <i style="color:#9aa3ad">(held)</i>':'')+'<div style="color:#9aa3ad;margin-top:2px">'+plain+'</div>';
+    b.onclick=e=>{let h=false;try{h=!!(u.has&&u.has())}catch(_){}if(h&&!e.shiftKey){msg('Debug: already held — shift-click to force it');return}
+      u.apply();updateBuildBar();sfx.click();msg('Debug: gave '+tier+' card "'+u.name+'"');renderDbgCards()};
+    host.appendChild(b)}));
+  document.getElementById('dbgCardN').textContent=n+' cards';
+}
+document.getElementById('dbgCardQ').addEventListener('input',renderDbgCards);
+document.getElementById('dbgCardQ').addEventListener('keydown',e=>{if(e.key==='Escape'){e.stopPropagation();dbgCardsShow(false)}});
+document.getElementById('dbgCardX').onclick=()=>dbgCardsShow(false);
+const dbgCardsBtn=dbgButton('Give card',()=>dbgCardsShow(dbgCards.hidden));
 document.body.appendChild(dbgBar);
 // the way out: a band of gold chevrons along the east edge once the breach is open
 function drawExit(){
@@ -3131,9 +3252,9 @@ function startRun(){
   // pay for the chosen Pressure (anything no longer affordable is dropped)
   const ids=[];meta.pressure.forEach(id=>{if(PRESSURE.some(p=>p.id===id)&&pressureCost([...ids,id])<=meta.condensedBank)ids.push(id)});
   meta.condensedBank-=pressureCost(ids);saveMeta();
-  RUN={stop:0,carry:null,pressure:{ids,bonus:pressureBonus(ids)}};
+  RUN={stop:0,carry:null,pressure:{ids,bonus:pressureBonus(ids)},loadout:callLoadout()};
   menuOpen=false;
-  ['mainMenuOverlay','unlocksOverlay','pressureOverlay','settingsOverlay','stopOverlay'].forEach(id=>document.getElementById(id)._hd=true);
+  ['mainMenuOverlay','unlocksOverlay','pressureOverlay','loadoutOverlay','settingsOverlay','stopOverlay'].forEach(id=>document.getElementById(id)._hd=true);
   buildStop(null);
 }
 // Shared by every "spend Living Crystal to permanently unlock X" unit — Artillery, Grenadier,
@@ -3171,6 +3292,7 @@ function pickupRangeMult(){const t=meta.upgrades.pickupRange||0;return t>0?1+MET
 function refreshMenuMeta(){
   document.getElementById('metaLiving')._tc=meta.livingBank;
   document.getElementById('metaCondensed')._tc=meta.condensedBank;
+  {const ob=document.getElementById('openLoadoutBtn');if(ob)try{ob._tc='Loadout: '+callLoadout().map(id=>CALLDOWNS[id].icon).join(' ')}catch(e){}}
   const rb=document.getElementById('recordingToggleBtn');
   rb._tc=meta.recordingConsent?'Gameplay Recording: On (click to disable)':'Gameplay Recording: Off (click to enable)';
   const allUnlocked=UNLOCKS.every(u=>meta[u.flag]);
@@ -3225,7 +3347,7 @@ function renderUpgradeCards(){
       meta.condensedBank-=u.costs[tier];
       meta.upgrades[u.key]=tier+1;
       saveMeta();
-      renderUpgradeCards();
+      renderUpgradeCards();renderCallShop();
       refreshMenuMeta();
     };
     host.appendChild(card);
@@ -3263,11 +3385,47 @@ document.getElementById('pressureBackBtn').onclick=()=>{
   document.getElementById('mainMenuOverlay')._hd=false;
   refreshMenuMeta();
 };
+// v4: the call-down shop (Unlocks panel) and the Loadout picker (main menu)
+function renderCallShop(){
+  document.getElementById('callShopCondensed')._tc=meta.condensedBank;
+  const host=document.getElementById('callShopCards');host.innerHTML='';
+  Object.keys(CALLDOWNS).forEach(id=>{const K=CALLDOWNS[id],own=callOwned(id),start=CALL_START.includes(id),cost=CALL_SHOP[id]??8;
+    const card=document.createElement('div');card.className='unlockCard'+(own?' unlocked':'');
+    card.innerHTML=`<span class="ucIcon">${K.icon}</span><span class="ucName">${K.name}</span><span class="ucDesc">${K.desc}</span>`+
+      `<span class="ucPrice">${start?'Starter':own?'Owned':`<span class="crystalIcon condensed">⬢</span>${cost}`}</span>`+
+      `<button class="metaUnlock${own?' unlocked':''}">${own?'Owned':'Buy'}</button>`;
+    const btn=card.querySelector('button');btn._ds=own||meta.condensedBank<cost;
+    btn.onclick=()=>{if(callOwned(id)||meta.condensedBank<cost)return;meta.condensedBank-=cost;meta.calls=[...meta.calls,id];saveMeta();renderCallShop();renderUpgradeCards();refreshMenuMeta()};
+    host.appendChild(card)});
+}
+function renderLoadout(){
+  const L=callLoadout(),host=document.getElementById('loadoutCards');host.innerHTML='';
+  Object.keys(CALLDOWNS).filter(callOwned).forEach(id=>{const K=CALLDOWNS[id],on=L.includes(id);
+    const card=document.createElement('div');card.className='unlockCard'+(on?' unlocked':'');
+    card.innerHTML=`<span class="ucIcon">${K.icon}</span><span class="ucName">${K.name}</span><span class="ucDesc">${K.desc}</span><span class="ucPrice">◆${K.dat} a call</span>`+
+      `<button class="metaUnlock${on?' unlocked':''}">${on?'Selected':'Select'}</button>`;
+    // picking a third swaps out the one picked longest ago
+    card.querySelector('button').onclick=()=>{if(on)return;meta.callLoadout=[L[1],id].filter(Boolean);saveMeta();renderLoadout();refreshMenuMeta()};
+    host.appendChild(card)});
+  const n=Object.keys(CALLDOWNS).filter(callOwned).length;
+  document.getElementById('loadoutSummary')._tc=`Starting with ${L.map(id=>CALLDOWNS[id].name).join(' and ')}.`+(n<=2?' Buy more call-downs in Unlocks to swap these out.':'');
+}
+document.getElementById('openLoadoutBtn').onclick=()=>{
+  document.getElementById('mainMenuOverlay')._hd=true;
+  document.getElementById('loadoutOverlay')._hd=false;
+  renderLoadout();
+};
+document.getElementById('loadoutBackBtn').onclick=()=>{
+  document.getElementById('loadoutOverlay')._hd=true;
+  document.getElementById('mainMenuOverlay')._hd=false;
+  refreshMenuMeta();
+};
 document.getElementById('openUnlocksBtn').onclick=()=>{
   document.getElementById('mainMenuOverlay')._hd=true;
   document.getElementById('unlocksOverlay')._hd=false;
   renderUnlockCards();
   renderUpgradeCards();
+  renderCallShop();
 };
 document.getElementById('unlocksBackBtn').onclick=()=>{
   document.getElementById('unlocksOverlay')._hd=true;
@@ -3390,7 +3548,7 @@ const TUTORIAL_STEPS=[
    done:()=>(S.wallLines||[]).length>=2},
   {title:'Formations',
    text:()=>`Now your units. Select some (<kbd>Ctrl</kbd>+<kbd>A</kbd> for all of them) and <b>right-click and drag</b>: the drag is their front line. They spread out along it facing square to it — the longer the drag, the wider apart. In a mixed group, <b>Paladins</b> take the front rank and lock their shields into one band of light, with Troopers behind.`,
-   done:()=>S.troops.some(t=>t.formAng!=null&&!t.manning)},
+   done:()=>!!S.formDragged},
   {title:'Man the wall',
    text:()=>`Unpause (<kbd>Space</kbd>) so your walls finish rising. Then select some Troopers and <b>right-click a wall</b>: they line up behind it in one rank, taking 25% less damage and shooting 15% further. Hover a wall with units selected to see how many it holds.`,
    done:()=>S.troops.some(t=>t.manning)},
@@ -3806,22 +3964,37 @@ function shCore(x,y,s,ang,glow,open){const c=shx;c.save();c.translate(x,y);c.rot
   c.restore()}
 let SH_BUF=null,SH_SHB=null,SH_BX=null,SH_SX=null;
 // Draws drawFn (a figure of half-size ext, turned to ang) at world X,Y: shadow, torn bands, core glow.
-function shFigure(X,Y,ang,ext,seed,t,drawFn,tear,alpha,flash){
+// v4 (performance): each enemy keeps its finished picture (shadow, torn bands, flash) in its own small
+// canvas and only redraws it SH_RE times a second (the same rate its jitter re-rolls) or when it turns
+// or flashes; every other frame it is one image copy plus its core glows from a pre-made glow sprite.
+const SH_RE=0.1, SH_PAD=14;
+let SH_GLOW=null;
+function shGlowSprite(){if(SH_GLOW)return SH_GLOW;const c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d'),g=x.createRadialGradient(32,32,0,32,32,32);
+  g.addColorStop(0,'rgba(255,70,40,1)');g.addColorStop(1,'rgba(255,40,20,0)');x.fillStyle=g;x.fillRect(0,0,64,64);return SH_GLOW=c}
+function shFigure(X,Y,ang,ext,seed,t,drawFn,tear,alpha,flash,cc){
   if(!SH_BUF){SH_BUF=document.createElement('canvas');SH_SHB=document.createElement('canvas');SH_BUF.width=SH_BUF.height=SH_SHB.width=SH_SHB.height=SH_BS;SH_BX=SH_BUF.getContext('2d');SH_SX=SH_SHB.getContext('2d')}
-  const k=SH_SC*SH_Q,Sz=Math.min(SH_BS,Math.ceil(ext*2*k)),Wd=Sz/SH_Q,b=SH_BX,s=SH_SX;shSeed=seed;shQ=Math.floor(t*10+seed*0.37);shRi=0;shSi=0;shGlows=[];
-  b.setTransform(1,0,0,1,0,0);b.clearRect(0,0,Sz,Sz);b.setTransform(k,0,0,k,Sz/2,Sz/2);b.rotate(ang);shx=b;drawFn();
-  s.setTransform(1,0,0,1,0,0);s.globalCompositeOperation='source-over';s.clearRect(0,0,Sz,Sz);s.drawImage(SH_BUF,0,0,Sz,Sz,0,0,Sz,Sz);s.globalCompositeOperation='source-in';s.fillStyle='rgba(0,0,0,0.4)';s.fillRect(0,0,Sz,Sz);
-  const off=SH_SC*2.2,L=X-Wd/2,T=Y-Wd/2;ctx.save();ctx.globalAlpha=alpha;ctx.drawImage(SH_SHB,0,0,Sz,Sz,L+off,T+off,Wd,Wd);
-  // bands: untorn runs go down in one piece, a torn band is drawn slipped, with a faint copy slipped the other way
-  let y=0,bi=0,run=0;const flush=to=>{if(to>run)ctx.drawImage(SH_BUF,0,run,Sz,to-run,L,T+run/SH_Q,Wd,(to-run)/SH_Q);run=to};
-  while(y<Sz){const h=Math.min(Sz-y,Math.max(2,Math.round((1.5+glHash(seed,shQ,900+bi)*6)*k*0.5)));
-    if(glHash(seed,shQ,500+bi)<tear){const dx=(glHash(seed,shQ,700+bi)-0.5)*SH_SC*7*(0.4+tear);flush(y);
-      ctx.globalAlpha=alpha*0.35;ctx.drawImage(SH_BUF,0,y,Sz,h,L-dx*0.8,T+y/SH_Q,Wd,h/SH_Q);ctx.globalAlpha=alpha;ctx.drawImage(SH_BUF,0,y,Sz,h,L+dx,T+y/SH_Q,Wd,h/SH_Q);run=y+h}
-    y+=h;bi++}
-  flush(Sz);
-  if(flash){s.fillStyle='#fff';s.fillRect(0,0,Sz,Sz);ctx.globalAlpha=0.75*alpha;ctx.drawImage(SH_SHB,0,0,Sz,Sz,L,T,Wd,Wd)}
-  ctx.globalAlpha=1;ctx.globalCompositeOperation='lighter';
-  shGlows.forEach(g=>{const gx=L+g.x/SH_Q,gy=T+g.y/SH_Q,R=g.r/SH_Q,gr=ctx.createRadialGradient(gx,gy,0,gx,gy,R);gr.addColorStop(0,`rgba(255,70,40,${g.a*alpha})`);gr.addColorStop(1,'rgba(255,40,20,0)');ctx.fillStyle=gr;ctx.fillRect(gx-R,gy-R,2*R,2*R)});
+  const k=SH_SC*SH_Q,Sz=Math.min(SH_BS,Math.ceil(ext*2*k)),Wd=Sz/SH_Q,P=SH_PAD*SH_Q,Cs=Sz+2*P;
+  if(!cc)cc={};
+  const fl=!!flash,da=Math.abs(Math.atan2(Math.sin(ang-(cc._sha??ang+9)),Math.cos(ang-(cc._sha??ang+9))));
+  if(!cc._shc||cc._shSz!==Cs||S.t>=cc._shT||S.t<cc._shT-1||da>0.1||cc._shF!==fl){
+    if(!cc._shc||cc._shSz!==Cs){cc._shc=document.createElement('canvas');cc._shc.width=cc._shc.height=Cs;cc._shSz=Cs}
+    cc._sha=ang;cc._shF=fl;cc._shT=S.t+SH_RE*(0.85+0.3*Math.random());
+    const b=SH_BX,s=SH_SX,o=cc._shc.getContext('2d');shSeed=seed;shQ=Math.floor(t*10+seed*0.37);shRi=0;shSi=0;shGlows=[];
+    b.setTransform(1,0,0,1,0,0);b.clearRect(0,0,Sz,Sz);b.setTransform(k,0,0,k,Sz/2,Sz/2);b.rotate(ang);shx=b;drawFn();
+    s.setTransform(1,0,0,1,0,0);s.globalCompositeOperation='source-over';s.clearRect(0,0,Sz,Sz);s.drawImage(SH_BUF,0,0,Sz,Sz,0,0,Sz,Sz);s.globalCompositeOperation='source-in';s.fillStyle='rgba(0,0,0,0.4)';s.fillRect(0,0,Sz,Sz);
+    o.setTransform(1,0,0,1,0,0);o.globalAlpha=1;o.clearRect(0,0,Cs,Cs);const off=SH_SC*2.2*SH_Q;o.drawImage(SH_SHB,0,0,Sz,Sz,P+off,P+off,Sz,Sz);
+    // bands: untorn runs go down in one piece, a torn band is drawn slipped, with a faint copy slipped the other way
+    let y=0,bi=0,run=0;const flush=to=>{if(to>run)o.drawImage(SH_BUF,0,run,Sz,to-run,P,P+run,Sz,to-run);run=to};
+    while(y<Sz){const h=Math.min(Sz-y,Math.max(2,Math.round((1.5+glHash(seed,shQ,900+bi)*6)*k*0.5)));
+      if(glHash(seed,shQ,500+bi)<tear){const dx=(glHash(seed,shQ,700+bi)-0.5)*SH_SC*7*(0.4+tear)*SH_Q;flush(y);
+        o.globalAlpha=0.35;o.drawImage(SH_BUF,0,y,Sz,h,P-dx*0.8,P+y,Sz,h);o.globalAlpha=1;o.drawImage(SH_BUF,0,y,Sz,h,P+dx,P+y,Sz,h);run=y+h}
+      y+=h;bi++}
+    flush(Sz);
+    if(fl){s.fillStyle='#fff';s.fillRect(0,0,Sz,Sz);o.globalAlpha=0.75;o.drawImage(SH_SHB,0,0,Sz,Sz,P,P,Sz,Sz);o.globalAlpha=1}
+    cc._shg=shGlows.map(g=>({x:g.x/SH_Q,y:g.y/SH_Q,r:g.r/SH_Q,a:g.a}))}
+  const L=X-Wd/2,T=Y-Wd/2;ctx.save();ctx.globalAlpha=alpha;ctx.drawImage(cc._shc,L-SH_PAD,T-SH_PAD,Wd+2*SH_PAD,Wd+2*SH_PAD);
+  ctx.globalCompositeOperation='lighter';const gs=shGlowSprite();
+  for(const g of cc._shg){ctx.globalAlpha=Math.min(1,g.a*alpha);ctx.drawImage(gs,L+g.x-g.r,T+g.y-g.r,2*g.r,2*g.r)}
   ctx.restore()}
 // splinters flying out and fading, u 0..1
 function shSlivers(X,Y,u,seed,n){ctx.save();ctx.globalAlpha=Math.max(0,1-u);shx=ctx;const sc=SH_SC;
@@ -3874,7 +4047,7 @@ const SHARD_WAVE=[['stalker',0.14],['static',0.14],['husk',0.16],['lantern',0.07
 const STALK_REACH=30,STALK_LUNGE=0.5,STALK_CD=1.5,STATIC_HOP=46,STATIC_CD=0.6,STATIC_HUNT_R=520;
 const HUSKCORE_HP=14,HUSKCORE_SPEED=150,HUSKCORE_LIFE=9;
 const LANT_RANGE=300,LANT_CHARGE=1.4,LANT_LOCK=0.4,LANT_CD=2.6,LANT_LEN=440,LANT_WALL_DMG=25;
-const COL_SLAM=0.8,COL_CD=2.8,COL_SLAM_R=70,COL_WALL_DMG=45,COL_FIRST=45,COL_EVERY=80,COL_PER_VEIN=2,COL_DAT=40;
+const COL_SLAM=0.8,COL_CD=2.8,COL_SLAM_R=70,COL_WALL_DMG=45,COL_FIRST=70,COL_EVERY=80,COL_PER_VEIN=2,COL_DAT=40;
 const SMEAR_LIFE=12,SMEAR_R=17,SMEAR_SLOW=0.55,SMEAR_STEP=12;
 function rollShard(kind){let r=rand();for(const [k,p] of (kind==='roam'?SHARD_ROAM:SHARD_WAVE)){if(r<p)return k;r-=p}return null}
 function spawnShard(x,y,k,kind){const D=SHARD[k],hp=Math.round(D.hp*(RUN?stopHpMult():1));
@@ -3893,11 +4066,11 @@ function shardStep(e,tgt,dt){const k=e.shard;if(k==='husk')return false;
   if(k==='static'){let w=null,wd=STATIC_HUNT_R;S.harvesters.forEach(h=>{const q=dist(h,e);if(h.hp>0&&q<wd){wd=q;w=h}});S.builders.forEach(h=>{const q=dist(h,e);if(h.hp>0&&q<wd){wd=q;w=h}});
     if(w){tgt=e.target=w;d=wd;tr=w.r||8}
     const reach=e.r+tr+4;e.ang=Math.atan2(tgt.y-e.y,tgt.x-e.x);
-    if(d<=reach&&!wallBetween(e,tgt)){if(e.cd<=0){shardHit(tgt,e.dmg,e);e.cd=STATIC_CD;e.atkT=S.t}return true}
+    if(d<=reach&&!wallBetween(e,tgt,true)){if(e.cd<=0){shardHit(tgt,e.dmg,e);e.cd=STATIC_CD;e.atkT=S.t}return true}
     e.blinkT-=dt;if(e.blinkT>0)return true;e.blinkT=rnd(0.55,0.95);
     const aim=enemyApproachPoint(e,tgt),a=Math.atan2(aim.y-e.y,aim.x-e.x)+rnd(-0.25,0.25);
     for(const hop of [Math.min(STATIC_HOP,Math.max(12,d-reach+2)),STATIC_HOP*0.6,STATIC_HOP*1.3]){const nx=e.x+Math.cos(a)*hop,ny=e.y+Math.sin(a)*hop;
-      if(nx<10||ny<10||nx>W-10||ny>H-10||terrainAt(nx,ny)===2||wallAt(nx,ny))continue;
+      if(nx<10||ny<10||nx>W-10||ny>H-10||terrainAt(nx,ny)===2||wallAt(nx,ny,true))continue;
       e.bx=e.x;e.by=e.y;e.bt=S.t;e.x=nx;e.y=ny;if(sfxReady('blink',0.12))tone(1800,0.03,'square',0.015,0,600);return true}
     return true}
   if(k==='lantern'){
@@ -3909,12 +4082,12 @@ function shardStep(e,tgt,dt){const k=e.shard;if(k==='husk')return false;
     const want=Math.max(1,Math.ceil(e.hp/e.maxHp*3));if(want<e.cores){e.cores=want;e.speed*=0.8;burst(e.x,e.y,SH_HOT,20,160,0.6);sfx.kill();msg(`One of the Colossus's cores burst — ${want} left, and it is slowing.`)}
     if(e.lsx==null||Math.hypot(e.x-e.lsx,e.y-e.lsy)>SMEAR_STEP){S.smears.push({x:e.x,y:e.y,t:S.t,s:Math.random()});e.lsx=e.x;e.lsy=e.y}
     if(e.slamT>0){const was=e.slamT;e.slamT-=dt;if(was>COL_SLAM*0.4&&e.slamT<=COL_SLAM*0.4)colossusSlam(e);return true}
-    const aim=enemyApproachPoint(e,tgt),a=Math.atan2(aim.y-e.y,aim.x-e.x),wall=wallAt(e.x+Math.cos(a)*(e.r+8),e.y+Math.sin(a)*(e.r+8));
+    const aim=enemyApproachPoint(e,tgt),a=Math.atan2(aim.y-e.y,aim.x-e.x),wall=wallAt(e.x+Math.cos(a)*(e.r+8),e.y+Math.sin(a)*(e.r+8),true);
     if(d<=e.r+tr+14||wall){e.ang=wall?a:Math.atan2(tgt.y-e.y,tgt.x-e.x);if(e.scd<=0){e.slamT=COL_SLAM;e.scd=COL_CD}return true}
     return false}
   return false}
 function lanternFire(e){const ux=Math.cos(e.ang),uy=Math.sin(e.ang),hx=e.x+ux*5.4,hy=e.y+uy*5.4,B=S.base;let L=0,ex=hx,ey=hy;
-  for(;L<LANT_LEN;L+=6){ex=hx+ux*L;ey=hy+uy*L;if(ex<0||ey<0||ex>W||ey>H)break;const w=wallAt(ex,ey);if(w){damageWall(w,LANT_WALL_DMG);spark(ex,ey,'#8d9aa8',4);break}if(terrainAt(ex,ey)===2)break}
+  for(;L<LANT_LEN;L+=6){ex=hx+ux*L;ey=hy+uy*L;if(ex<0||ey<0||ex>W||ey>H)break;const w=wallAt(ex,ey,true);if(w){damageWall(w,LANT_WALL_DMG);spark(ex,ey,'#8d9aa8',4);break}if(terrainAt(ex,ey)===2)break}
   [B].concat(S.troops,S.harvesters,S.builders,S.turrets.filter(t=>t.built),S.relays.filter(r=>r.built&&r.hp>0),S.stabs.filter(st=>st.built&&st.hp>0),S.depots.filter(de=>de.built&&de.hp>0)).forEach(u=>{if(u.hp<=0)return;
     const rx=u.x-hx,ry=u.y-hy,al=rx*ux+ry*uy;if(al<0||al>L)return;if(Math.abs(rx*uy-ry*ux)<(u===B?BASE_R:(u.r||10))+4)shardHit(u,e.dmg,e)});
   e.bhx=hx;e.bhy=hy;e.bex=ex;e.bey=ey;e.beamAt=S.t;tone(900,0.25,'sawtooth',0.05,0,160)}
@@ -3934,28 +4107,28 @@ function spawnHuskCore(p){const hp=Math.round(HUSKCORE_HP*(RUN?stopHpMult():1));
   S.enemies.push({x:p.x,y:p.y,r:5,hp,maxHp:hp,speed:HUSKCORE_SPEED,dmg:0,cd:0,kind:'huskcore',core:true,target:null,aggro:0,home:{x:p.x,y:p.y},ang:rnd(0,Math.PI*2),faceT:9,stunT:0,seed:p.seed+7,life:0})}
 function huskCoreStep(e,dt){e._enemy=true;e.life+=dt;let n=null,nd=Infinity;liveNests().forEach(q=>{const d=dist(q,e);if(d<nd){nd=d;n=q}});
   const B=S.base,to=n||{x:e.x+(e.x-B.x),y:e.y+(e.y-B.y)},aim=n?waypointFor(e,n.x,n.y):to,a=Math.atan2(aim.y-e.y,aim.x-e.x)+Math.sin(e.life*9+e.seed)*0.5;
-  const sp=e.speed*enemyRoughFactor(e.x,e.y)*dt,nx=e.x+Math.cos(a)*sp,ny=e.y+Math.sin(a)*sp;if(nx>10&&ny>10&&nx<W-10&&ny<H-10&&terrainAt(nx,ny)!==2&&!wallAt(nx,ny)){e.x=nx;e.y=ny}e.ang=a;
+  const sp=e.speed*enemyRoughFactor(e.x,e.y)*dt,nx=e.x+Math.cos(a)*sp,ny=e.y+Math.sin(a)*sp;if(nx>10&&ny>10&&nx<W-10&&ny<H-10&&terrainAt(nx,ny)!==2&&!wallAt(nx,ny,true)){e.x=nx;e.y=ny}e.ang=a;
   if(n&&nd<n.r+16){e.hp=0;e.silent=true;const h=spawnShard(e.x,e.y,'husk','roam');h.home={x:n.x,y:n.y};burst(e.x,e.y,SH_HOT,10,90,0.4);return}
   if(e.life>HUSKCORE_LIFE){e.hp=0;e.silent=true;burst(e.x,e.y,SH_HOT,6,60,0.3)}}
 function drawShard(e){const k=e.shard||'huskcore',t=S.t+e.seed%50,fl=e.flashT>0,sm=x=>x<=0?0:x>=1?1:x*x*(3-2*x);
   const mv=Math.hypot(e.x-(e._lx==null?e.x:e._lx),e.y-(e._ly==null?e.y:e._ly));e._lx=e.x;e._ly=e.y;e.wk=(e.wk||0)+((mv>0.03?1:0)-(e.wk||0))*0.15;
   if(e.da==null)e.da=e.ang;e.da+=Math.atan2(Math.sin(e.ang-e.da),Math.cos(e.ang-e.da))*0.2;const a=e.da,wk=e.wk;let top=e.r+12;
-  if(k==='stalker'){const atk=e.lungeT>0?Math.sin(Math.PI*(1-e.lungeT/STALK_LUNGE)):0;shFigure(e.x,e.y,a,36,e.seed,t,()=>shStalker(t,wk,atk),0.07,1,fl);top=22}
+  if(k==='stalker'){const atk=e.lungeT>0?Math.sin(Math.PI*(1-e.lungeT/STALK_LUNGE)):0;shFigure(e.x,e.y,a,36,e.seed,t,()=>shStalker(t,wk,atk),0.07,1,fl,e);top=22}
   else if(k==='static'){const since=e.bt!=null?S.t-e.bt:9,as=e.atkT!=null?S.t-e.atkT:9,atk=as<0.3?Math.sin(as/0.3*Math.PI):0;
     if(since<0.25){shSlivers(e.bx,e.by,since/0.25,e.seed,8);shSlivers(e.x,e.y,1-since/0.25,e.seed+1,8)}
-    shFigure(e.x+(Math.random()<0.05?2.4:0),e.y,e.ang,16,e.seed,t,()=>shStatic(t,1,atk),e.blinkT<0.15?0.9:0.28,since<0.12?since/0.12:1,fl);
+    shFigure(e.x+(Math.random()<0.05?2.4:0),e.y,e.ang,16,e.seed,t,()=>shStatic(t,1,atk),e.blinkT<0.15?0.9:0.28,since<0.12?since/0.12:1,fl,e);
     if(atk>0.05){ctx.save();ctx.globalAlpha=atk;ctx.strokeStyle=SH_HOT;ctx.lineWidth=1.1;ctx.beginPath();ctx.arc(e.x+Math.cos(e.ang)*5,e.y+Math.sin(e.ang)*5,15,e.ang-0.9*atk,e.ang+0.9*atk);ctx.stroke();ctx.restore()}}
-  else if(k==='husk')shFigure(e.x,e.y,a,22,e.seed,t,()=>shHusk(t,wk),0.05,1,fl);
-  else if(k==='huskcore'){shFigure(e.x,e.y,e.ang,8,e.seed,t,()=>shHuskCore(t),0.25,1,fl);top=12}
+  else if(k==='husk')shFigure(e.x,e.y,a,22,e.seed,t,()=>shHusk(t,wk),0.05,1,fl,e);
+  else if(k==='huskcore'){shFigure(e.x,e.y,e.ang,8,e.seed,t,()=>shHuskCore(t),0.25,1,fl,e);top=12}
   else if(k==='lantern'){const c=e.chg>0?Math.min(1,e.chg/LANT_CHARGE):0,bs=e.beamAt!=null?S.t-e.beamAt:9,beam=bs<0.4?1-bs/0.4:0,open=beam?1:c>0?sm(c)*0.8:bs<1?Math.max(0,1-(bs-0.4)/0.6):0,fa=c>0||beam?e.ang:a;
     if(c>0&&!beam){const lock=e.chg>=LANT_CHARGE-LANT_LOCK,hx=e.x+Math.cos(e.ang)*5.4,hy=e.y+Math.sin(e.ang)*5.4;ctx.save();ctx.globalAlpha=lock?0.85:0.15+0.35*c;ctx.strokeStyle=SH_HOT;ctx.lineWidth=lock?1.4:0.9;if(!lock)ctx.setLineDash([5,5]);
       ctx.beginPath();ctx.moveTo(hx,hy);ctx.lineTo(hx+Math.cos(e.ang)*LANT_LEN,hy+Math.sin(e.ang)*LANT_LEN);ctx.stroke();ctx.restore()}
-    shFigure(e.x,e.y,fa,22,e.seed,t,()=>shLantern(t,c,open),0.05+c*0.3,1,fl);
+    shFigure(e.x,e.y,fa,22,e.seed,t,()=>shLantern(t,c,open),0.05+c*0.3,1,fl,e);
     if(beam){ctx.save();ctx.globalCompositeOperation='lighter';ctx.lineCap='round';ctx.globalAlpha=beam;ctx.strokeStyle='rgba(255,60,35,0.55)';ctx.lineWidth=8;ctx.beginPath();ctx.moveTo(e.bhx,e.bhy);ctx.lineTo(e.bex,e.bey);ctx.stroke();
       ctx.strokeStyle=SH_HOT2;ctx.lineWidth=2;ctx.stroke();ctx.restore()}}
   else{const p=e.slamT>0?1-e.slamT/COL_SLAM:0,slam=e.slamT>0?(p<0.6?sm(p/0.6):1-sm((p-0.6)/0.4)):0,rs=e.ringAt!=null?(S.t-e.ringAt)/0.9:9;
     if(rs<1){ctx.save();ctx.globalAlpha=1-rs;ctx.strokeStyle=SH_HOT;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(e.rx,e.ry,12+rs*(COL_SLAM_R-12),0,Math.PI*2);ctx.stroke();ctx.restore();shSlivers(e.rx,e.ry,rs,e.seed+3,18)}
-    shFigure(e.x,e.y,a,46,e.seed,t,()=>shColossus(t,wk,slam,e.cores),0.06,1,fl);top=40}
+    shFigure(e.x,e.y,a,46,e.seed,t,()=>shColossus(t,wk,slam,e.cores),0.06,1,fl,e);top=40}
   if(e.hp<e.maxHp)hpbar(e.x,e.y-top,e.r*2+6,e.hp/e.maxHp)}
 // ---------- Lance Splinters ----------
 // v4: the Dense Field's artillery, the Splinter's big sibling. One comes with each drilling wave in
@@ -4028,7 +4201,7 @@ function drawLancer(e){glUse();
 // and it bounds away to a new spot instead. You have to go out and kill it.
 const QUAKER_HP=600, QUAKER_R=22, QUAKER_SPEED=34, QUAKER_STANDOFF=[520,640], QUAKER_JUMP_EVERY=[7,11], QUAKER_AIR_T=1.3;
 const QUAKER_KICK=0.6, QUAKER_REACH=1500, QUAKER_STAB_DMG=20, QUAKER_SPLASH_R=110, QUAKER_SPLASH_DMG=40, QUAKER_SHY_R=190, QUAKER_DAT=25;
-const QUAKER_INTERVAL={rim:55,dense:40,core:30}, QUAKER_MAX={rim:1,dense:2,core:3};
+const QUAKER_INTERVAL={rim:55,dense:40,core:38}, QUAKER_MAX={rim:1,dense:2,core:2};
 function spawnQuaker(v){
   const a=rnd(0,Math.PI*2), d=WAVE_SPAWN_DIST*1.1;
   const p=nearestPlain(Math.max(60,Math.min(W-60,v.x+Math.cos(a)*d)),Math.max(60,Math.min(H-60,v.y+Math.sin(a)*d)));
@@ -4096,7 +4269,7 @@ const NEST={
   mound: {name:'Brood mound',hp:550, r:26,patrolT:40,patrolN:[3,4],brood:7, guards:4,defend:3,feed:1.1,dat:30},
   great: {name:'Great brood mound',hp:900,r:32,patrolT:35,patrolN:[4,5],brood:9,guards:5,defend:4,feed:1.4,dat:45},
 };
-const NEST_BAND_MULT={rim:1,dense:1.5,core:2}; // brood/patrol/guard counts scale with depth
+const NEST_BAND_MULT={rim:1,dense:1.5,core:1.7}; // brood/patrol/guard counts scale with depth
 const NEST_START={rim:{n:6,mix:[0.7,0.3]},dense:{n:6,mix:[0.3,0.5]},core:{n:4,mix:[0,0.4]}}; // mix: small, medium share (rest large)
 const NEST_FEED_R=1600, NEST_STRAGGLERS=0.75, NEST_GAP=550*MS, NEST_BASE_CLEAR=900*MS;
 const NEST_SPROUT_T=140, NEST_CAP=22, NEST_DEFEND_CD=7, NEST_GROW_QUIET=15, NEST_PATROL_REACH=[450,900];
@@ -5602,6 +5775,7 @@ function pointSegDist(p,a,b){
 // of a live anchor (wireless tolerance, or close enough to re-run a cable) on its own, at which
 // point it reconnects and Sanity starts regenerating again. Call once per unit array, before its
 // own state-machine loop runs.
+const TETHER_DOCK_R=150; // v4: a unit this close to the Bastion has its cable reset
 function tetherPass(units,speed,dt){
   const anchors=anchorsList();
   units.forEach(u=>{
@@ -5619,6 +5793,8 @@ function tetherPass(units,speed,dt){
     if(u.sanity<SANITY_MAX)u.sanity=Math.min(SANITY_MAX,u.sanity+SANITY_REGEN*dt);
     if(nd<=tol){u.tetherOk=true;u.trail=null;u.cableLen=0;u.cableMaxed=false;return}
     if(!u.trail){u.trail=[{x:bestA.x,y:bestA.y}];u.cableHp=CABLE_HP_MAX*S.mods.cableHpMult}
+    // v4: back at the Bastion (or newly hooked onto it) the cable reels in to a straight run
+    else if(bestA===S.base&&(nd<=TETHER_DOCK_R||u.anchorRef!==S.base)){u.trail=[{x:bestA.x,y:bestA.y}];u.cableMaxed=false}
     spoolTrail(u,bestA);u.anchorRef=bestA;
     u.tetherOk=true;
   });
@@ -5743,19 +5919,22 @@ function severUnit(u){
 }
 // Enemies opportunistically chew through any cable they wander near, independent of whatever
 // else they're doing in combat. A cable that runs out of HP severs its owner.
+const CSG=64; // cable-cut lookup grid cell size
+const IDLE_TICK=0.2; // how often an unseen, idle roamer updates (see the enemy loop)
 function cableSeverPass(allUnits,dt){
+  let grid=null;
   S.enemies.forEach(e=>{
     if(e.kind==='nest')return;
     e.cableCd=(e.cableCd||0)-dt;
     if(e.cableCd>0)return;
+    // v4 (performance): only the cable segments bucketed into this enemy's grid cell are checked
+    if(!grid){grid=new Map();const R=CABLE_HIT_RANGE;
+      allUnits.forEach(u=>{if(!u.trail)return;for(let i=0;i<u.trail.length-1;i++){const p=u.trail[i],q=u.trail[i+1];
+        for(let gx=Math.floor((Math.min(p.x,q.x)-R)/CSG);gx<=Math.floor((Math.max(p.x,q.x)+R)/CSG);gx++)for(let gy=Math.floor((Math.min(p.y,q.y)-R)/CSG);gy<=Math.floor((Math.max(p.y,q.y)+R)/CSG);gy++){
+          const k=gx*65536+gy;let L=grid.get(k);if(!L)grid.set(k,L=[]);L.push(u,p,q)}}})}
+    const L=grid.get(Math.floor(e.x/CSG)*65536+Math.floor(e.y/CSG));if(!L)return;
     let best=null,bd=CABLE_HIT_RANGE;
-    allUnits.forEach(u=>{
-      if(!u.trail)return;
-      for(let i=0;i<u.trail.length-1;i++){
-        const d=pointSegDist(e,u.trail[i],u.trail[i+1]);
-        if(d<bd){bd=d;best=u}
-      }
-    });
+    for(let i=0;i<L.length;i+=3){const d=pointSegDist(e,L[i+1],L[i+2]);if(d<bd){bd=d;best=L[i]}}
     if(best){best.cableHp-=CABLE_DMG;e.cableCd=CABLE_CD}
   });
   let anySevered=false;
@@ -5830,11 +6009,11 @@ cv.addEventListener('pointerdown',e=>{
     return;
   }
   if(e.button===1){mouse.panning=true;mouse.x=e.clientX;mouse.y=e.clientY;return}
-  if(e.button===2&&mouse.wallDraw){mouse.wallDraw=null;return} // right-click: cancel the wall being drawn
+  if(e.button===2&&buildMode==='wall'){mouse.wallDraw=null;setBuild(null);sfx.click();return} // right-click: drop the wall being drawn and leave wall mode
   if(e.button===2){
     // with combat units selected, a right-drag lays out a formation (see formationSlots); a plain
     // right-click (no drag) is still an ordinary order, issued on release
-    if(S.sel.troops.size&&!buildMode&&!probeMode&&!pingMode&&!callMode){mouse.form={x0:w.x,y0:w.y,x1:w.x,y1:w.y,sx:e.clientX,sy:e.clientY,moved:false};return}
+    if(S.sel.troops.size&&!buildMode&&!probeMode&&!pingMode&&!callMode){mouse.form={x0:w.x,y0:w.y,x1:w.x,y1:w.y,sx:e.clientX,sy:e.clientY,moved:false};try{cv.setPointerCapture(e.pointerId)}catch(_){};return}
     rightClick(w);return}
   if(e.button===0){
     if(callMode){fireCall(w);return}
@@ -5845,6 +6024,8 @@ cv.addEventListener('pointerdown',e=>{
     mouse.down=true;mouse.drag={x0:w.x,y0:w.y,x1:w.x,y1:w.y,moved:false};
   }
 });
+// v4: a formation drag can't get stuck following the cursor: losing the pointer (alt-tab, a cancelled touch) drops it
+cv.addEventListener('pointercancel',()=>{mouse.form=null});cv.addEventListener('lostpointercapture',()=>{if(mouse.form&&!mouse.form.touch){const f=mouse.form;mouse.form=null;if(f.moved)orderFormation(f)}});
 cv.addEventListener('pointermove',e=>{
   const w=toWorld(e.clientX,e.clientY);mouse.wx=w.x;mouse.wy=w.y;
   // click-and-drag wall building: each new grid cell the pointer crosses while held down gets its
@@ -5962,6 +6143,7 @@ addEventListener('keydown',e=>{
   else if(e.key.toLowerCase()==='y'){const r=S.rig;if(r&&r.seen&&!r.online&&!r.vein.done&&!(S.strand&&S.strand.seen&&strandInReach()))tryCaptureRig();else tryRescueStrand()}
   else if(e.key.toLowerCase()==='f'){if(!e.repeat)tryLockdown()}
   else if(e.key.toLowerCase()==='g'){tryProbe()}
+  else if(e.key.toLowerCase()==='o'){const m=S.base.locked&&S.activeVein&&S.activeVein.meter;if(m&&m.over==='offer')overdrillChoice(true)}
   else if(e.key.toLowerCase()==='v'){followSelected()}
   else if(e.key.toLowerCase()==='x'){holdSelected()}
   else if(e.key==='`'){setDebugMode(!debugNoFog)}
@@ -6346,7 +6528,7 @@ function renderDrillCards(v){
 const FIRST_WAVE_DELAY=17;
 function tryLockdown(){
   if(S.over||S.rewardChoice||S.paused)return;
-  if(S.base.locked){if(strikeReady())doStrike();return}
+  if(S.base.locked){if(strikeReady())doStrike();else{const m=S.activeVein&&S.activeVein.meter;if(m&&m.over==='offer')overdrillChoice(false)}return}
   const v=canLockdown();
   if(!v){
     const cracked=S.veins.find(x=>x.crackedT>0&&dist(S.base,x.mine)<BASE_R+18);
@@ -6382,6 +6564,15 @@ function toggleTacPause(){
   if(!S||S.over||S.rewardChoice||S.paused||menuOpen)return;
   S.tacPause=!S.tacPause;S.tacUsed=true;sfx.click();
 }
+// Wall mode on screen: an amber frame and a banner above the build bar saying how to lay walls and how to leave
+function drawWallMode(vw,vh){
+  if(buildMode!=='wall')return;
+  const coarse=matchMedia('(pointer:coarse)').matches,txt='WALL MODE',sub=coarse?'drag to lay a wall · tap Wall again to exit':'drag to lay a wall · right-click or Esc to exit';
+  ctx.save();ctx.strokeStyle='rgba(242,182,60,0.5)';ctx.lineWidth=3;ctx.strokeRect(1.5,1.5,vw-3,vh-3);
+  ctx.textAlign='center';ctx.textBaseline='middle';ctx.font='700 14px '+css('--mono');const w1=ctx.measureText(txt).width;ctx.font='500 12px '+css('--mono');const w=Math.max(w1,ctx.measureText(sub).width)+32,y=vh-128;
+  ctx.fillStyle='rgba(11,14,18,0.88)';ctx.fillRect(vw/2-w/2,y,w,44);ctx.strokeStyle='rgba(242,182,60,0.75)';ctx.lineWidth=1;ctx.strokeRect(vw/2-w/2+0.5,y+0.5,w-1,43);
+  ctx.fillStyle=C.accent;ctx.font='700 14px '+css('--mono');ctx.fillText(txt,vw/2,y+14);ctx.fillStyle='#c9d1d9';ctx.font='500 12px '+css('--mono');ctx.fillText(sub,vw/2,y+31);
+  ctx.restore()}
 function drawTacPause(vw,vh){
   if(!S.tacPause)return;
   ctx.save();
@@ -6470,9 +6661,10 @@ function callR(id){return CALLDOWNS[id].r*(S.mods.callRadiusMult||1)}
 function callDelay(id){return CALLDOWNS[id].delay*(S.mods.callDelayMult||1)}
 // the points calls can be made round: the Bastion and every live tethered Relay
 function callAnchors(){const A=[S.base];S.relays.forEach(r=>{if(r.built&&r.hp>0&&r.tetherOk)A.push(r)});return A}
-function inCallRange(w){return callAnchors().some(a=>dist(a,w)<=BUILD_R)}
+// v4: a call-down can land near the network, or anywhere you can see right now (units, probes, pings)
+function inCallRange(w){return callAnchors().some(a=>dist(a,w)<=BUILD_R)||debugNoFog||visibleNow(w)}
 function grantCall(id,n){if(!CALLDOWNS[id])return;S.calls[id]=(S.calls[id]||0)+(n||1);updateBuildBar()}
-function setCallMode(id){callMode=id;S.callStart=null;updateBuildBar()}
+function setCallMode(id){callMode=id;S.callStart=null;if(id){S.sel.troops.clear();S.sel.harv.clear();S.sel.bu.clear();S.sel.base=false;closeProdMenu()}updateBuildBar()}
 function tryCall(id){
   if(callMode===id){setCallMode(null);return}
   if(!((S.calls[id]||0)>0)&&S.dat<callPrice(id)){note(`${CALLDOWNS[id].name} costs ◆${callPrice(id)}`);return}
@@ -6480,8 +6672,8 @@ function tryCall(id){
 // a line call-down's end: clamped to CARPET_LEN from its start
 function callLineEnd(s,w){const dx=w.x-s.x,dy=w.y-s.y,L=Math.hypot(dx,dy)||1,l=Math.max(CARPET_LEN[0],Math.min(CARPET_LEN[1],L));return {x:s.x+dx/L*l,y:s.y+dy/L*l}}
 function fireCall(w){const id=callMode,K=CALLDOWNS[id];if(!K){setCallMode(null);return}
-  if(K.line&&!S.callStart){if(!inCallRange(w)){note('Outside your network: start it near the Bastion or a live Relay');return}S.callStart={x:w.x,y:w.y};note('Now click where the line ends');sfx.click();return}
-  if(!K.line&&!inCallRange(w)){note('Outside your network: call it near the Bastion or a live Relay');return}
+  if(K.line&&!S.callStart){if(!inCallRange(w)){note('Out of sight: start it somewhere you can see, or near the Bastion or a live Relay');return}S.callStart={x:w.x,y:w.y};note('Now click where the line ends');sfx.click();return}
+  if(!K.line&&!inCallRange(w)){note('Out of sight: call it somewhere you can see, or near the Bastion or a live Relay');return}
   if((S.calls[id]||0)>0)S.calls[id]--;else{const p=callPrice(id);if(S.dat<p){note(`${K.name} costs ◆${p}`);setCallMode(null);return}S.dat-=p}
   if(K.line){const s=S.callStart,e=callLineEnd(s,w),T=callDelay(id),r=callR(id),echo=rand()<(S.mods.callEcho||0);
     for(let k=0;k<(echo?2:1);k++)for(let i=0;i<CARPET_N;i++){const f=i/(CARPET_N-1),o=k?r*0.8:0,nx=-(e.y-s.y),ny=e.x-s.x,nl=Math.hypot(nx,ny)||1;
@@ -6591,7 +6783,7 @@ function updateMinesFields(dt){
   S.fields=S.fields.filter(q=>{q.t-=dt;
     if(q.kind==='overclock'){const r2=q.r*q.r;S.troops.forEach(u=>{if(u.cd>0&&(u.x-q.x)**2+(u.y-q.y)**2<r2)u.cd-=dt});S.turrets.forEach(u=>{if(u.built&&u.cd>0&&(u.x-q.x)**2+(u.y-q.y)**2<r2)u.cd-=dt})}
     else if(q.kind==='gravity'){S.enemies.forEach(e=>{if(e.hp<=0||e.kind==='nest')return;const dx=q.x-e.x,dy=q.y-e.y,d=Math.hypot(dx,dy);if(d>q.r||d<10)return;
-      const big=e.shard==='colossus'||e.kind==='quaker'||e.kind==='brute',s=Math.min(d-8,GRAV_PULL*(big?0.3:1)*(0.45+0.55*d/q.r)*dt),nx=e.x+dx/d*s,ny=e.y+dy/d*s;if(!wallAt(nx,ny)&&terrainAt(nx,ny)!==2){e.x=nx;e.y=ny}})}
+      const big=e.shard==='colossus'||e.kind==='quaker'||e.kind==='brute',s=Math.min(d-8,GRAV_PULL*(big?0.3:1)*(0.45+0.55*d/q.r)*dt),nx=e.x+dx/d*s,ny=e.y+dy/d*s;if(!wallAt(nx,ny,true)&&terrainAt(nx,ny)!==2){e.x=nx;e.y=ny}})}
     return q.t>0})}
 function drawMinesFields(){
   S.fields.forEach(q=>{const fade=Math.min(1,(q.T-q.t)/0.3)*Math.min(1,q.t/0.5);ctx.save();
@@ -6603,10 +6795,19 @@ function drawMinesFields(){
     ctx.restore()});
   S.mines.forEach(m=>{const armed=S.t>=m.arm,blink=armed&&Math.sin(S.t*5+m.seed)>0.6;ctx.fillStyle='#3a3f46';ctx.strokeStyle='#0b0e12';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(m.x,m.y-4);ctx.lineTo(m.x+4,m.y);ctx.lineTo(m.x,m.y+4);ctx.lineTo(m.x-4,m.y);ctx.closePath();ctx.fill();ctx.stroke();
     ctx.fillStyle=blink?'#ff8a5a':armed?'#a0452a':'#5c6b74';ctx.fillRect(m.x-1.2,m.y-1.2,2.4,2.4)})}
-// v4: a run starts with only CALL_START; every other call-down is unlocked for the run by its card
-// (or picked from a wreck's call-down cache), which also comes with CALL_CARD_N free charges
+// v4: a run starts with the two call-downs in your loadout (picked on the main menu from the ones you
+// own: CALL_START are owned from the start, the rest are bought in the Unlocks shop); every other
+// call-down is unlocked for the run by its card (or picked from a wreck's call-down cache), which
+// also comes with CALL_CARD_N free charges
 const CALL_START=['orbital','stasis'], CALL_CARD_N=2;
-Object.keys(CALLDOWNS).forEach(id=>{CALLDOWNS[id].unlocked=()=>CALL_START.includes(id)||!!(S.callUnlock&&S.callUnlock[id])});
+// shop prices in Condensed Crystal (the two starters are free)
+const CALL_SHOP={emp:7,droppod:10,bulwark:9,carpet:10,minefield:8,overclock:9,gravity:8,decoy:6};
+function callOwned(id){return !!CALLDOWNS[id]&&(CALL_START.includes(id)||meta.calls.includes(id))}
+// the stored pick, kept to owned call-downs and topped back up to two from the starters
+function callLoadout(){const L=[];(meta.callLoadout||[]).forEach(id=>{if(callOwned(id)&&!L.includes(id)&&L.length<2)L.push(id)});
+  CALL_START.concat(Object.keys(CALLDOWNS)).forEach(id=>{if(L.length<2&&callOwned(id)&&!L.includes(id))L.push(id)});return L}
+function runCallStart(){return (RUN&&RUN.loadout)||callLoadout()}
+Object.keys(CALLDOWNS).forEach(id=>{CALLDOWNS[id].unlocked=()=>runCallStart().includes(id)||!!(S.callUnlock&&S.callUnlock[id])});
 function unlockCall(id,n){S.callUnlock[id]=true;grantCall(id,n??CALL_CARD_N)}
 // a wreck's call-down cache: pick one of three call-downs (unlocking it, or more charges of one you have)
 function showCallChoice(){const ids=shuffled(Object.keys(CALLDOWNS)).slice(0,3);
@@ -6785,6 +6986,8 @@ function troopBaseSpeed(t){const k=t.kind;return k==='artillery'?ARTY_SPEED:k===
 // FORM_RANK_GAP behind it. Each kind of unit gets its own rank(s): Paladins in front, then Mechs,
 // then Troopers, with the long-range units at the back.
 const FORM_DRAG_PX=14, FORM_MIN_GAP=18, FORM_RANK_GAP=32;
+// a one-click move: the line is as wide as the group stands now, but at least wide enough for FORM_MOVE_ROW of its biggest kind, and at most FORM_MOVE_MAXW
+const FORM_MOVE_ROW=8, FORM_MOVE_MAXW=520;
 const FORM_ORDER={brawler:0,mech:1,troop:2,grenadier:3,rocket:3,marksman:4,artillery:4};
 function formationUnits(){return [...S.sel.troops].map(id=>S.troops.find(t=>t.id===id)).filter(Boolean)}
 function formationSlots(f,units){
@@ -6794,7 +6997,7 @@ function formationSlots(f,units){
   // each kind of unit gets its own rank(s), front to back, each spread along the whole line
   const tiers=new Map();units.forEach(t=>{const k=FORM_ORDER[t.kind||'troop']??2;if(!tiers.has(k))tiers.set(k,[]);tiers.get(k).push(t)});
   let r=0;
-  [...tiers.keys()].sort((a,b)=>a-b).forEach(k=>{const grp=tiers.get(k),per=Math.min(grp.length,cap);
+  [...tiers.keys()].sort((a,b)=>a-b).forEach(k=>{const grp=tiers.get(k).slice().sort((a,b)=>(b.x*fx+b.y*fy)-(a.x*fx+a.y*fy)),per=Math.min(grp.length,cap);
     for(let i=0;i<grp.length;i+=per,r++){
       const rank=grp.slice(i,i+per),m=rank.length,gap=per>1?L/(per-1):0,cx=(f.x0+f.x1)/2-fx*FORM_RANK_GAP*r,cy=(f.y0+f.y1)/2-fy*FORM_RANK_GAP*r;
       const pts=[];for(let q=0;q<m;q++){const o=(q-(m-1)/2)*gap;pts.push({x:cx+ux*o,y:cy+uy*o})}
@@ -6813,7 +7016,7 @@ function orderFormation(f,manLine){
   });
   // the whole formation keeps to its slowest unit, so it arrives together
   const sp=units.map(troopBaseSpeed),lo=Math.min(...sp);if(units.length>1&&lo<Math.max(...sp))units.forEach(t=>{t.pace=lo});
-  S.formFx={slots:slots.map(s=>({x:s.t.dest.x,y:s.t.dest.y})),face,t:S.t};
+  S.formFx={slots:slots.map(s=>({x:s.t.dest.x,y:s.t.dest.y})),face,t:S.t};S.formDragged=true;
   sfx.click();
 }
 // the wall line under a point (any standing slat within MAN_PICK_R)
@@ -6945,18 +7148,25 @@ function rightClick(w){
   // (a selected unit clicked on itself just stays put; the rest of the group guards it)
   const friend=!en&&selT.length?friendlyAt(w):null;
   const guards=friend?selT.filter(t=>t!==friend):[];
-  // v4: Paladins sent to a spot line up on arrival in a shield wall across the way they were heading,
-  // everyone else in the group taking up positions behind it
+  // v4: a group sent to a spot keeps a formation: it lines up there across the way it is heading, as wide
+  // as it stands now (so a formation you laid out repeats itself), Paladins in a shield wall at the
+  // front, then Mechs, Troopers and the long-range units in ranks behind (see formationSlots)
   const wallSlot=new Map();let wallFace=0;
-  {const br=selT.filter(t=>t.kind==='brawler');
-   if(!en&&!friend&&br.length){
-     const cx=br.reduce((a,t)=>a+t.x,0)/br.length, cy=br.reduce((a,t)=>a+t.y,0)/br.length;
-     wallFace=Math.atan2(w.y-cy,w.x-cx);
-     if(Math.hypot(w.x-cx,w.y-cy)<20)wallFace=br[0].ang||0;
-     const px=-Math.sin(wallFace),py=Math.cos(wallFace);
-     // ordered along the line by where each already stands, so nobody has to cross anyone
-     const ord=[...br].sort((a,b)=>(a.x*px+a.y*py)-(b.x*px+b.y*py));
-     ord.forEach((t,k)=>{const o=(k-(ord.length-1)/2)*BRAWL_WALL_GAP;wallSlot.set(t,{x:w.x+px*o,y:w.y+py*o})})}}
+  if(!en&&!friend&&selT.length){
+    const cx=selT.reduce((a,t)=>a+t.x,0)/selT.length, cy=selT.reduce((a,t)=>a+t.y,0)/selT.length;
+    wallFace=Math.atan2(w.y-cy,w.x-cx);
+    if(Math.hypot(w.x-cx,w.y-cy)<20)wallFace=selT[0].formAng??selT[0].ang??0;
+    const px=-Math.sin(wallFace),py=Math.cos(wallFace);
+    if(selT.length===1)wallSlot.set(selT[0],{x:w.x,y:w.y});
+    else{
+      let lo=Infinity,hi=-Infinity;selT.forEach(t=>{const q=t.x*px+t.y*py;lo=Math.min(lo,q);hi=Math.max(hi,q)});
+      const big=Math.max(...[...new Set(selT.map(t=>FORM_ORDER[t.kind||'troop']??2))].map(k=>selT.filter(t=>(FORM_ORDER[t.kind||'troop']??2)===k).length));
+      const half=Math.min(FORM_MOVE_MAXW,Math.max(hi-lo,FORM_MIN_GAP*1.3*(Math.min(big,FORM_MOVE_ROW)-1)))/2;
+      // the drag that would lay this line out (formationSlots faces a line to the right of its drag direction)
+      const {slots}=formationSlots({x0:w.x-px*half,y0:w.y-py*half,x1:w.x+px*half,y1:w.y+py*half},selT);
+      slots.forEach(({t,x,y})=>{let d={x,y};if(terrainAt(d.x,d.y)===2)d=nearestPlain(d.x,d.y);wallSlot.set(t,{x:Math.max(10,Math.min(W-10,d.x)),y:Math.max(10,Math.min(H-10,d.y))})});
+      S.formFx={slots:slots.map(q=>wallSlot.get(q.t)),face:wallFace,t:S.t};
+    }}
   selT.forEach((t,i)=>{
     let off=selT.length>1?{x:Math.cos(i*2.1)*14,y:Math.sin(i*2.1)*14}:{x:0,y:0};
     if(wallSlot.size&&!wallSlot.has(t)){off={x:off.x-Math.cos(wallFace)*42,y:off.y-Math.sin(wallFace)*42}}
@@ -6971,7 +7181,7 @@ function rightClick(w){
       t.guardAng=(k/guards.length)*Math.PI*2+rnd(-0.2,0.2);
       t.guardDist=rnd(22,48);
     }
-    else if(wallSlot.has(t)){t.state='move';t.dest=wallSlot.get(t);t.target=null;t.wall=true;t.wallAng=wallFace}
+    else if(wallSlot.has(t)){t.state='move';t.dest=wallSlot.get(t);t.target=null;t.wall=t.kind==='brawler';t.wallAng=wallFace;if(selT.length>1)t.formAng=wallFace}
     else{t.state='move';t.dest={x:w.x+off.x,y:w.y+off.y};t.target=null}
   });
   // pace the group: everyone moving keeps to the slowest of them (unless this is the double click)
@@ -7295,7 +7505,8 @@ function drawWallLines(){
       const vi=(sl.vi??idx)%3,half=sl.half,cv=half*W.cover,rs=sl.up<1?0.4+0.6*sl.up:1,slam=T==='heavy'&&sl.up<1?1+0.15*(1-sl.up):1,th=WS_SH[T];
       ctx.save();ctx.translate(sl.x+2.4,sl.y+3);ctx.rotate(L.ang);ctx.fillStyle='rgba(0,0,0,0.35)';ctx.fillRect(-cv,-th*rs/2,cv*2,th*rs);ctx.restore();
       ctx.save();ctx.translate(sl.x,sl.y);ctx.rotate(L.ang);ctx.scale(slam,rs*slam);
-      ctx.drawImage(wallSprite(T,wsDb(sl,T),vi,ai,sc,half),-WS_E,-WS_E,WS_E*2,WS_E*2);
+      if(L.powered===false)ctx.globalAlpha=0.55; // cut off from the network: derelict, enemies walk past it
+      ctx.drawImage(wallSprite(T,wsDb(sl,T),vi,ai,sc,half),-WS_E,-WS_E,WS_E*2,WS_E*2);ctx.globalAlpha=1;
       if(sl.flashT>0){ctx.globalAlpha=0.5;ctx.fillStyle='#fff';ctx.fillRect(-cv,-th/2,cv*2,th);ctx.globalAlpha=1}
       if(D.fx)D.fx({t:S.t,i:idx,d:sl.maxHp?1-sl.hp/sl.maxHp:0,seg:half*2,up:sl.up,powered:L.powered,down:sl.downT>0,hit:Math.max(0,1-(S.t-(sl.hitT??-9))/0.35),grow:sl.growT0!=null?Math.min(1,(S.t-sl.growT0)/1.2):null});
       ctx.restore()});
@@ -7310,7 +7521,13 @@ function drawWallLines(){
 function drawWallPreview(){
   if(buildMode!=='wall')return;
   const d=mouse.wallDraw;
-  if(!d){const p=wallSnap({x:mouse.wx,y:mouse.wy});ctx.save();ctx.strokeStyle=p.snapped?C.accent:'#8d9aa8';ctx.lineWidth=1.5/cam.z;ctx.globalAlpha=0.8;ctx.beginPath();ctx.arc(p.x,p.y,p.snapped?9:5,0,Math.PI*2);ctx.stroke();ctx.restore();return}
+  if(!d){const p=wallSnap({x:mouse.wx,y:mouse.wy}),ok=inBuildRange(p),z=cam.z;ctx.save();
+    // a ghost wall slat under the cursor, a pulsing ring and a WALL tag, so the mode can't be missed
+    const pu=0.5+0.5*Math.sin(S.t*6);ctx.globalAlpha=0.5;ctx.fillStyle=ok?'#8d9aa8':C.enemy;ctx.fillRect(p.x-12,p.y-WALL_THICK/2,24,WALL_THICK);
+    ctx.strokeStyle=ok?C.accent:C.enemy;ctx.lineWidth=2/z;ctx.globalAlpha=0.6+0.4*pu;ctx.beginPath();ctx.arc(p.x,p.y,(p.snapped?11:8)+pu*3/z,0,Math.PI*2);ctx.stroke();
+    const f=12/z;ctx.font=`700 ${f}px ${css('--mono')}`;ctx.textAlign='left';ctx.textBaseline='middle';const txt='▤ WALL',tx=p.x+16/z,ty=p.y-16/z,tw=ctx.measureText(txt).width;
+    ctx.globalAlpha=0.9;ctx.fillStyle='rgba(11,14,18,0.85)';ctx.fillRect(tx-4/z,ty-f*0.75,tw+8/z,f*1.5);ctx.strokeStyle=C.accent;ctx.lineWidth=1/z;ctx.strokeRect(tx-4/z,ty-f*0.75,tw+8/z,f*1.5);
+    ctx.globalAlpha=1;ctx.fillStyle=ok?C.accent:C.enemy;ctx.fillText(txt,tx,ty);ctx.restore();return}
   const P=wallPlan(d),col=P.ok?'#8d9aa8':C.enemy;
   ctx.save();
   if(P.L>=1){const ux=(P.x1-P.x0)/P.L,uy=(P.y1-P.y0)/P.L,seg=P.L/P.n,ang=Math.atan2(uy,ux);ctx.globalAlpha=0.55;ctx.fillStyle=col;
@@ -7419,6 +7636,7 @@ function burst(x,y,col,count,speed,life){
 function spark(x,y,col,count){burst(x,y,col,count||2,50,0.2)}
 function floatText(x,y,text,col){S.floaters.push({x,y,text,col,t:0,life:1.1,vy:-28})}
 function shakeScreen(mag,dur){
+  if(S.tacPause)return; // v4: the view holds still while tactically paused
   const curEffective=S.shake.t>0?S.shake.mag*(S.shake.t/S.shake.dur):0;
   if(mag>=curEffective)S.shake={t:dur,dur,mag};
 }
@@ -7497,11 +7715,13 @@ const sfx={
   surge(){if(!sfxReady('surge',0.2))return;tone(900,0.08,'sine',0.07);tone(1400,0.12,'sine',0.06,0.05,1800)},
 };
 // Only a FINISHED wall is a solid obstacle — a queued/under-construction site is just a ghost preview.
-function wallAt(x,y){
+// v4: foe=true is the enemies' view: a wall line cut off from the network (out of reach of the Bastion
+// and every live Relay, like the ring left at an old vein) is derelict to them — they walk past it.
+function wallAt(x,y,foe){
   if(!S.wallLines||!S.wallLines.length)return undefined;
   if(S.wallDirty||!S.wallGrid)rebuildWallGrid();
   const b=S.wallGrid.get(key(Math.floor(x/WALL_GRID),Math.floor(y/WALL_GRID)));if(!b)return undefined;
-  for(const sl of b){if(sl.dead||sl.up<0.6||sl.downT>0)continue;const L=sl.line;if(L.type==='shield'&&!L.powered)continue;const rx=x-sl.x,ry=y-sl.y,al=rx*L.ux+ry*L.uy,pp=rx*-L.uy+ry*L.ux;
+  for(const sl of b){if(sl.dead||sl.up<0.6||sl.downT>0)continue;const L=sl.line;if(L.type==='shield'&&!L.powered)continue;if(foe&&L.powered===false)continue;const rx=x-sl.x,ry=y-sl.y,al=rx*L.ux+ry*L.uy,pp=rx*-L.uy+ry*L.ux;
     if(Math.abs(al)<=sl.half+2&&Math.abs(pp)<=WALL_THICK/2+(L.type==='heavy'?5:3))return sl}
   return undefined;
 }
@@ -7527,8 +7747,8 @@ function cornerSealed(x,y){
   if(c&&d&&!a&&!b)return c;
   return undefined;
 }
-function wallBetween(a,b){if(!S.wallLines||!S.wallLines.length)return false;const d=dist(a,b);const steps=Math.max(1,Math.ceil(d/8));
-  for(let s=0;s<=steps;s++){const t=s/steps;if(wallAt(a.x+(b.x-a.x)*t,a.y+(b.y-a.y)*t))return true}
+function wallBetween(a,b,foe){if(!S.wallLines||!S.wallLines.length)return false;const d=dist(a,b);const steps=Math.max(1,Math.ceil(d/8));
+  for(let s=0;s<=steps;s++){const t=s/steps;if(wallAt(a.x+(b.x-a.x)*t,a.y+(b.y-a.y)*t,foe))return true}
   return false}
 // A wall/turret/relay site can be destroyed by enemies mid-build; confirm it's still the live
 // object before a builder keeps working it.
@@ -7764,7 +7984,7 @@ function hordeStep(e,tgt,dt){
   const f=(d<170||(tgt!==S.base&&d<380))?null:flowDir(e.x,e.y);
   if(f){ux=f.x;uy=f.y}else{ux=(tgt.x-e.x)/(d||1);uy=(tgt.y-e.y)/(d||1)}
   const wv=Math.sin(S.t*2.3+e.seed)*0.4*Math.min(1,d/200),c=Math.cos(wv),s=Math.sin(wv);[ux,uy]=[ux*c-uy*s,ux*s+uy*c];
-  const w=wallAt(e.x+ux*(e.r+6),e.y+uy*(e.r+6));
+  const w=wallAt(e.x+ux*(e.r+6),e.y+uy*(e.r+6),true);
   if(w){if(e.cd<=0){damageWall(w,e.dmg*1.5);spark(w.x,w.y,C.enemy,1);e.cd=0.8;wallTouch(w,e)}return}
   const sp=e.speed*enemyRoughFactor(e.x,e.y)*dt,nx=e.x+ux*sp,ny=e.y+uy*sp;
   if(!hordeBlocked(nx,ny)){e.x=nx;e.y=ny}else if(!hordeBlocked(nx,e.y))e.x=nx;else if(!hordeBlocked(e.x,ny))e.y=ny;
@@ -7864,11 +8084,11 @@ function unitSpriteKey(t){const kk=kitOf(t);const k0=unitSpriteKey0(t);return k0
 function unitSpriteKey0(t){
   if(t.flashT>0)return null;
   const k=t.kind||'troop',since=S.t-(t.shotT??-9),aq=Math.round((t.aimV??RIFLE_READY)*5),TAU=Math.PI*2;
-  if(k==='troop')return since>0.9?'t'+aq:null;
+  if(k==='troop')return since>0.3?'t'+aq:null; // v4: the kick and muzzle flash are over by 0.3s; only then is the pose a cached one
   if(k==='marksman'){if(t.chargeT>0||since<0.9)return null;return 'm'+aq+(t.moving?'w':'')+(((Math.floor((S.t*3+(t.id||0))/TAU*3)%3)+3)%3)}
   if(k==='brawler'){if(t.jabT>0||S.t-(t.atkT??-9)<0.75||S.t-(t.bashT??-9)<0.85)return null;return 'p'}
   if(k==='grenadier'){if(S.t-(t.podShotT??-9)<0.35||S.t-(t.podGrewT??-9)<0.35)return null;return 'g'+(t.pods??GREN_PODS)}
-  if(k==='rocket'){if(t.paintT>0||since<0.9)return null;return 'r'+aq}
+  if(k==='rocket'){if(t.paintT>0||since<0.5)return null;return 'r'+aq}
   if(k==='mech'&&hasKit(t,'breaker'))return S.t-(t.punchT??-9)<0.3||t.moving?null:'B';
   return null}
 // Unit images are cached by pose and facing (USPR_ANG steps): the body in one cache, and the cast
@@ -8257,7 +8477,9 @@ function update(dt){
         sfx.saboteurs();
       }
     }
-    if(v.drillProg>=v.richness){
+    // v4: a tapped vein offers Overdrill first (not the contract vein: it ends the run)
+    if(v.drillProg>=v.richness&&!v.contract&&v.meter){const m=v.meter;v.drillProg=v.richness;if(!m.over){m.over='offer';m.offerT=OVER_OFFER_T;m.seam=null;m.seamDone=true;tone(880,0.1,'sine',0.06);msg('Vein tapped — F to bank it, O to overdrill for a second reward.')}}
+    if(v.drillProg>=v.richness&&(v.contract||!v.meter||v.meter.over==='bank'||v.meter.over==='won')){
       v.done=true; B.locked=false; setBuild(null); S.activeVein=null;
       // reward scales with how fast it was actually drilled (baseline/elapsed ~ average throttle
       // sustained) — stalling out of Dat drags this down, finishing early drives it up. Baseline
@@ -8291,7 +8513,7 @@ function update(dt){
         }
         if(v.hive)tail=` The Mega nest is broken.${salvageFab()}`+tail;
         msg(`${v.hive?'Hive vein':'Vein'} drained at ${tier} tier — +${datEarned} Dat Crystal and +${condensedEarned} Condensed Crystal.${tail}`);
-        shakeScreen(4,0.3);showRewardChoice(rewardTierFor(tier,v.band),v.band);
+        shakeScreen(4,0.3);S.rewardQueue=[];for(let i=0;i<(v.bonus||0);i++)S.rewardQueue.push({tier:rewardTierFor(tier,v.band),band:v.band});showRewardChoice(rewardTierFor(tier,v.band),v.band);
       }
     }
     }
@@ -8694,8 +8916,13 @@ function update(dt){
   const allies=S.troops.concat(S.harvesters).concat(S.builders);
   updateWaveWarn(dt);
   if(S.enemies.some(e=>e.horde))updateFlow();
+  const DT0=dt;
   S.enemies.forEach(e=>{
     if(e.kind==='nest')return;
+    let dt=DT0;
+    // v4 (performance): an idle roamer nobody can see (no target, out of every unit's sight, so nothing
+    // is inside its aggro range either) only thinks IDLE_TICK times a second, taking the time in one step
+    if((e.kind==='roam'||e.kind==='brute')&&!e.target&&!(e.stunT>0)&&e.aggro<=TROOP_VISION&&!visible(e)){e._idt=(e._idt||0)+dt;if(e._idt<IDLE_TICK)return;dt=e._idt;e._idt=0}else e._idt=0;
     if(e.kind==='quaker'){e.cd-=dt;updateQuaker(e,dt);return}
     e.cd-=dt; e._enemy=true; // pathing flag: rift is ordinary ground for enemies (see tcost)
     // Energy Surge stun: frozen in place, can't attack, but still gets shoved by crowd separation
@@ -8706,7 +8933,7 @@ function update(dt){
       e.stunT-=dt;
       if(e.kbx||e.kby){
         const nx=e.x+e.kbx*dt, ny=e.y+e.kby*dt;
-        if(nx>0&&ny>0&&nx<W&&ny<H&&!wallAt(nx,ny)&&terrainAt(nx,ny)!==2){e.x=nx;e.y=ny}else{const hw=wallAt(nx,ny);e.kbx=0;e.kby=0;if((e.thrownT||0)>S.t&&(hw||terrainAt(nx,ny)===2))breakerImpact(e,hw)}
+        if(nx>0&&ny>0&&nx<W&&ny<H&&!wallAt(nx,ny,true)&&terrainAt(nx,ny)!==2){e.x=nx;e.y=ny}else{const hw=wallAt(nx,ny,true);e.kbx=0;e.kby=0;if((e.thrownT||0)>S.t&&(hw||terrainAt(nx,ny)===2))breakerImpact(e,hw)}
         const k=Math.exp(-ENERGY_SURGE_KB_DECAY*dt); e.kbx*=k; e.kby*=k;
         if(e.stunT<=0||Math.hypot(e.kbx,e.kby)<5){e.kbx=0;e.kby=0}
       }
@@ -8735,8 +8962,9 @@ function update(dt){
       if(!tgt&&dist(e,B)<e.aggro+120)tgt=B;
     } else if(e.kind!=='saboteur'){
       if(!tgt||bd>220){let bt=B,btd=dist(e,B);
-        S.turrets.forEach(tu=>{if(!tu.built)return;const d=dist(e,tu);if(d<btd*0.6){bt=tu;btd=d}});
-        S.relays.forEach(r=>{if(!r.built||r.hp<=0)return;const d=dist(e,r);if(d<btd*0.6){bt=r;btd=d}});
+        // v4: only live infrastructure draws them: a dark Turret or a cut-off Relay left at an old vein is ignored
+        S.turrets.forEach(tu=>{if(!tu.built||tu.powered===false)return;const d=dist(e,tu);if(d<btd*0.6){bt=tu;btd=d}});
+        S.relays.forEach(r=>{if(!r.built||r.hp<=0||r.tetherOk===false)return;const d=dist(e,r);if(d<btd*0.6){bt=r;btd=d}});
         S.depots.forEach(de=>{if(!de.built||de.hp<=0)return;const d=dist(e,de);if(d<btd*0.6){bt=de;btd=d}});
         S.stabs.forEach(st=>{if(!st.built||st.hp<=0)return;const d=dist(e,st);if(d<btd*0.8){bt=st;btd=d}});
         tgt=bt;}
@@ -8771,7 +8999,7 @@ function update(dt){
       return;
     }
     const reach=e.r+(tgt.r||12)+4;
-    if(dist(e,tgt)<=reach&&!wallBetween(e,tgt)){
+    if(dist(e,tgt)<=reach&&!wallBetween(e,tgt,true)){
       if(e.cd<=0){
         tgt.hp-=allyHit(tgt,e.dmg,e); tgt.lastHitBy='enemy'; hitFlash(tgt); spark(tgt.x,tgt.y,C.enemy,2); e.cd=0.8; e.atkT=S.t;
         if(tgt===B){shakeScreen(3,0.15);sfx.damage()}
@@ -8781,7 +9009,7 @@ function update(dt){
     const aim=enemyApproachPoint(e,tgt);
     const dx=aim.x-e.x,dy=aim.y-e.y,L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L,look=e.r+6,perp=e.r*0.6;
     const probes=[{x:e.x+ux*look,y:e.y+uy*look},{x:e.x+ux*look-uy*perp,y:e.y+uy*look+ux*perp},{x:e.x+ux*look+uy*perp,y:e.y+uy*look-ux*perp}];
-    let w=null; for(const pt of probes){w=wallAt(pt.x,pt.y); if(w)break}
+    let w=null; for(const pt of probes){w=wallAt(pt.x,pt.y,true); if(w)break}
     if(w){if(e.cd<=0){damageWall(w,e.dmg*1.5);spark(w.x,w.y,C.enemy,2);e.cd=0.8;wallTouch(w,e)}return}
     const factor=enemyRoughFactor(e.x,e.y);
     moveToward(e,aim,e.speed*factor,dt);
@@ -8793,8 +9021,8 @@ function update(dt){
     if(d<m&&d>0.5){const an=a.kind==='nest',bn=b.kind==='nest';if(an&&bn)continue;
       const p=(m-d)/2*(an||bn?2:1),dx=(b.x-a.x)/d,dy=(b.y-a.y)/d;
       const anx=an?a.x:a.x-dx*p,any=an?a.y:a.y-dy*p,bnx=bn?b.x:b.x+dx*p,bny=bn?b.y:b.y+dy*p;
-      if(!wallAt(anx,any)){a.x=anx;a.y=any}
-      if(!wallAt(bnx,bny)){b.x=bnx;b.y=bny}
+      if(!wallAt(anx,any,true)){a.x=anx;a.y=any}
+      if(!wallAt(bnx,bny,true)){b.x=bnx;b.y=bny}
     }}}
 
   cableLenPass(allies);
@@ -9025,20 +9253,19 @@ function showRewardChoice(tier,band){
   });
   const cost=rerollCost();
   const rb=document.getElementById('rerollBtn');
-  rb._tc=`Reroll (${cost} ⬢)`;
-  rb._ds=S.condensed<cost;rb._hd=false;
+  rb._tc=`Reroll (◆${cost})`;
+  rb._ds=S.dat<cost;rb._hd=false;
   document.getElementById('rewardOverlay')._hd=false;
   sfx.veinDone();
 }
-// Spends escalating Condensed Crystal — the same currency banked into meta-progression at run's
-// end — to reroll the current choice at the same tier. S.rerollCount never resets mid-run, so the
+// Spends escalating Dat to reroll the current choice at the same tier. S.rerollCount never resets mid-run, so the
 // price keeps climbing no matter how many different veins' choices it's spent across.
 function rerollReward(){
   const choice=S.rewardChoice;
   if(!choice)return;
   const cost=rerollCost();
-  if(S.condensed<cost)return;
-  S.condensed-=cost;
+  if(S.dat<cost)return;
+  S.dat-=cost;
   S.rerollCount++;
   sfx.click();
   showRewardChoice(choice.tier,choice.band);
@@ -9057,6 +9284,8 @@ function pickReward(i){
   document.getElementById('rewardOverlay')._hd=true;
   S.rewardChoice=null;
   updateBuildBar();
+  // v4: a seam or an overdrill earned another pick
+  if(S.rewardQueue&&S.rewardQueue.length){const q=S.rewardQueue.shift();showRewardChoice(q.tier,q.band);document.getElementById('rewardTitle')._tc=`Bonus Reward — ${q.tier} Tier`}
 }
 
 // ---------- the Bastion: a quad walker ----------
@@ -9265,6 +9494,16 @@ function drawWalker(B,noTop){
     B.feet.forEach(f=>{ctx.beginPath();ctx.arc(f.x,f.y,9,0,Math.PI*2);ctx.stroke()});ctx.restore()}
   if(!noTop)drawWalkerTop(B);
 }
+// v4: while drilling, the yield tier floats over the Bastion; when the needle drifts off it, an amber
+// warning with the tier it's slipping toward; a seam or an overdrill shows there too
+function drawDrillReadout(B){const v=S.activeVein,m=v&&v.meter;if(!B.locked||!m||m.phase!=='drill')return;
+  const z=cam.z||1,fs=13/z,y=B.y-B.r*2.2-22/z;let txt=m.yieldTier.toUpperCase(),col=CARD_TIER_COLOR[m.yieldTier];
+  if(m.inRed){txt='⚠ RED';col=C.enemy}else if(m.over==='run'){txt=`OVERDRILL ${Math.ceil(OVER_T-m.overT)}`;col=C.enemy}
+  else if(m.drift){txt=`▼ ${m.yieldTier.toUpperCase()} → ${m.hereTier.toUpperCase()}`;col='#ffb33c'}else if(m.seam){txt=`◆ SEAM ${Math.round(100*m.seam.hold/SEAM_HOLD)}%`;col='#6ff0ff'}
+  const pl=m.drift||m.inRed?0.65+0.35*Math.sin(S.t*12):1;
+  ctx.save();ctx.font=`700 ${fs}px ${css('--mono')}`;ctx.textAlign='center';ctx.textBaseline='middle';const w=ctx.measureText(txt).width+10/z;
+  ctx.globalAlpha=0.8*pl;ctx.fillStyle='#0b0f14';ctx.fillRect(B.x-w/2,y-fs*0.75,w,fs*1.5);ctx.globalAlpha=pl;ctx.strokeStyle=col;ctx.lineWidth=1.2/z;ctx.strokeRect(B.x-w/2,y-fs*0.75,w,fs*1.5);
+  ctx.fillStyle=col;ctx.fillText(txt,B.x,y);ctx.restore()}
 function drawWalkerTop(B){ctx.drawImage(WK_TOP_C,B.x-WK_R,B.y-WK_R,WK_R*2,WK_R*2)}
 // ---------- draw ----------
 function drawCable(u,col){
@@ -9766,6 +10005,7 @@ function drawTethers(){
   S.troops.concat(S.harvesters,S.builders).forEach(u=>{if(!u.trail||!u.anchorRef){u.rope=null;return}
     const h=anchorHook(u.anchorRef,u);if(!h){u.rope=null;return}const dx=u.x-h[0],dy=u.y-h[1],L=Math.hypot(dx,dy)||1,td=Math.min(L*0.6,h[2]*0.55+6),ux=dx/L,uy=dy/L,touch=[h[0]+ux*td,h[1]+uy*td];
     if(u.rope&&u.rope.anc!==u.anchorRef){u.rope.reel=2.5;u.rope.sleep=0}if(u.rope)u.rope.anc=u.anchorRef;
+    if(u.rope&&u.anchorRef===S.base&&L<=TETHER_DOCK_R){u.rope.reel=Math.max(u.rope.reel||0,0.3);u.rope.sleep=0} // v4: back at the Bastion, the slack winds straight in
     stepRope(u,touch,dt);if(u.rope.anc!==u.anchorRef)u.rope.anc=u.anchorRef;const hangPts=[];for(let k=0;k<=8;k++){const f=k/8;hangPts.push([h[0]+ux*td*f,h[1]+uy*td*f,h[2]*Math.pow(1-f,2.2)])}
     const pts=hangPts.concat(u.rope.P.slice(1).map(q=>[q.x,q.y,0.2]));drawHoses(pts,1,(u.id||0)%8,u.cableMaxed)});
 }
@@ -9806,7 +10046,7 @@ function drawRiftSmoke(x0,y0,x1,y1){
 function draw(){
   const B=S.base,dpr=gDpr(),vw=cv.width/dpr,vh=cv.height/dpr;
   ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle='#0b0e12';ctx.fillRect(0,0,vw,vh);
-  const shk=S.shake.t>0?S.shake.mag*(S.shake.t/S.shake.dur):0;
+  const shk=S.shake.t>0&&!S.tacPause?S.shake.mag*(S.shake.t/S.shake.dur):0;
   const shkx=shk?rnd(-shk,shk):0, shky=shk?rnd(-shk,shk):0;
   ctx.translate(vw/2+shkx,vh/2+shky);ctx.scale(cam.z,cam.z);ctx.translate(-cam.x,-cam.y);
   const x0=cam.x-vw/2/cam.z,y0=cam.y-vh/2/cam.z,x1=cam.x+vw/2/cam.z,y1=cam.y+vh/2/cam.z;
@@ -9935,7 +10175,7 @@ function draw(){
   // base: the quad walker
   drawPOIs(); // wrecks and beacons lie on the ground, under the Bastion and units
   // cables run under the Bastion's turret, hanging from beneath it
-  drawWalker(B,true);drawTethers();drawBolts();drawWalkerTop(B);hpbar(B.x,B.y-B.r*2.2-8,B.r*2,B.hp/B.maxHp);
+  drawWalker(B,true);drawTethers();drawBolts();drawWalkerTop(B);drawDrillReadout(B);hpbar(B.x,B.y-B.r*2.2-8,B.r*2,B.hp/B.maxHp);
   if(WIRELESS_ENABLED){
     const bwt=0.5+0.5*Math.sin(S.t*2.2);
     ctx.strokeStyle=C.cable;ctx.globalAlpha=0.2*bwt;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(B.x,B.y,WIRELESS_TOL_DENSE*S.mods.relayTolMult,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;
@@ -10090,7 +10330,7 @@ function draw(){
   drawWallPreview();
   // selection box
   if(mouse.drag&&mouse.drag.moved){const d=mouse.drag;ctx.strokeStyle=C.ally;ctx.fillStyle='rgba(94,200,255,0.1)';ctx.lineWidth=1/cam.z;ctx.fillRect(d.x0,d.y0,d.x1-d.x0,d.y1-d.y0);ctx.strokeRect(d.x0,d.y0,d.x1-d.x0,d.y1-d.y0)}
-  ctx.setTransform(dpr,0,0,dpr,0,0);drawWaveWarn(vw,vh);drawTacPause(vw,vh);drawTutorialArrow(vw,vh);
+  ctx.setTransform(dpr,0,0,dpr,0,0);drawWaveWarn(vw,vh);drawTacPause(vw,vh);drawWallMode(vw,vh);drawTutorialArrow(vw,vh);
   drawMini();hud();
 }
 // The wave warning on screen: for each place the wave will come from, red bleeding in from the
