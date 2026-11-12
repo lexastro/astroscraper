@@ -630,7 +630,7 @@ async function run(d){
     <span class="cur living"><span class="ci">❖</span><span class="v" id="hLiving">0</span></span>
     <span class="cur condensed"><span class="ci">⬢</span><span class="v" id="hCondensed">0</span></span>
   </div>
-  <div class="stat"><span class="k">⛨ Bastion</span><span class="v" id="hBase">—</span><div class="bar"><i class="hp" id="hBaseBar" style="width:100%"></i></div></div>
+  <div class="stat"><span class="k">⛨ Rig</span><span class="v" id="hBase">—</span><div class="bar"><i class="hp" id="hBaseBar" style="width:100%"></i></div></div>
   <div class="stat obj"><span class="k" id="hObjK">Veins</span><span class="v" id="hObj">—</span><div class="bar"><i id="hObjBar" style="width:0%"></i></div></div>
 </div>
 <button class="helpToggleBtn" id="helpToggleBtn" aria-label="Show controls">?</button>
@@ -643,12 +643,12 @@ async function run(d){
   <!-- Contextual: only the actions relevant to the currently-selected unit type appear here, above
        the build bar, instead of always sitting in it regardless of what's selected. -->
   <div class="unitActions" id="unitActions">
-    <button id="bFollow" hidden><span class="icon">➤</span><span id="bFollowLabel">Follow Bastion</span><span class="key">V</span></button>
+    <button id="bFollow" hidden><span class="icon">➤</span><span id="bFollowLabel">Follow Rig</span><span class="key">V</span></button>
     <button id="bHold" hidden><span class="icon">⚓</span><span>Hold</span><span class="key">X</span></button>
     <button id="bGroup" hidden title="Save the selected units as a control group (Ctrl+1–9)"><span class="icon">⧉</span><span id="bGroupLabel">Save group</span></button>
     <button id="bDeselect" hidden title="Clear the selection"><span class="icon">✕</span><span>Deselect</span></button>
   </div>
-  <!-- v2: every button is a Bastion fabricator — charges that refill on their own timer, no Dat
+  <!-- v2: every button is a Rig fabricator — charges that refill on their own timer, no Dat
        cost. Structures (data-mode) are aimed and launched; units (data-unit) deploy at once. -->
   <div class="build" id="callBar" style="display:none"></div>
   <div class="build" id="buildBar">
@@ -665,7 +665,7 @@ async function run(d){
     <button id="bFabRocket" data-unit="rocket" hidden><span class="icon">➶</span><span>Rocketeer</span><span class="cost" id="cf_rocket">●●</span></button>
     <button id="bFabMech" data-unit="mech" hidden><span class="icon">◫</span><span>Mech</span><span class="cost" id="cf_mech">●</span></button>
     <button id="bLock"><span class="icon">⛏</span><span id="bLockLabel">Begin Drilling</span><span class="key">F</span></button>
-    <button id="bRig" hidden><span class="icon">⛭</span><span id="bRigLabel">Power the Rig</span><span class="cost" id="cRig"></span><span class="key">Y</span></button>
+    <button id="bRig" hidden><span class="icon">⛭</span><span id="bRigLabel">Power the Derelict Rig</span><span class="cost" id="cRig"></span><span class="key">Y</span></button>
     <button id="bStrand" hidden><span class="icon">⚑</span><span>Take on Squad</span><span class="cost" id="cStrand"></span><span class="key">Y</span></button>
     <button id="bPing"><span class="icon">◬</span><span id="bPingLabel">Probe</span><span class="cost" id="cProbe">●●●</span><span class="key">G</span></button>
     <button id="bCall" style="display:none" title="One-shot strikes and drops, called in anywhere you can see or your network reaches"><span class="icon">⇣</span><span>Call-down</span><span class="cost" id="cCall"></span><span class="key">C</span></button>
@@ -673,7 +673,7 @@ async function run(d){
   </div>
 </div>
 
-<!-- Drill meter: shown while the Bastion is locked onto a vein — previews the bands during the
+<!-- Drill meter: shown while the Rig is locked onto a vein — previews the bands during the
      warm-up, sweeps for the strike, then tracks the drifting needle and settled yield. -->
 <div class="veinSurvey" id="veinSurvey" hidden>
   <div class="vsHead"><span>Vein survey</span><span id="vsTier"></span></div>
@@ -696,22 +696,22 @@ async function run(d){
 <div class="unitSelCtrl" id="unitSelCtrl">
   <button id="cancelBtn" class="warn" aria-label="Cancel" title="Cancel (Esc)" hidden>✕</button>
   <button id="tacBtn" aria-label="Tactical pause" title="Tactical pause (Space)">⏸</button>
-  <button id="camBtn" aria-label="Centre on the Bastion" title="Centre on the Bastion (H)">⌂</button>
+  <button id="camBtn" aria-label="Centre on the Rig" title="Centre on the Rig (H)">⌂</button>
   <div id="grpChips" class="grpChips"></div>
-  <button id="selBaseBtn2" aria-label="Select Bastion">⛨</button>
+  <button id="selBaseBtn2" aria-label="Select Rig">⛨</button>
   <button id="selTroopsBtn2" aria-label="Select all Troopers">▲<span class="cnt" id="cntTroops2">0</span></button>
 </div>
 
 <div class="help" id="help" hidden>
   <button id="helpClose" aria-label="Close">×</button>
-  <b>The run:</b> three stops, one map in each zone, each deeper and tougher than the last — the Rim, the Dense Field, and the Core's heart where the contract vein waits. A barrier (rift on the Rim, a crystal wall deeper in) cuts every map: drain the <b>breach vein</b> in front of it to break through, then walk the Bastion off the far edge — which side that is changes from map to map, and you arrive on the opposite one. Everything you have carries on to the next stop.<br>
-<b>Healing:</b> units inside the Bastion's dashed ring slowly regain health (Relays don't heal anyone). <b>Unit limits:</b> up to 5 Grenadiers, 4 Rocketeers (rockets that hit nests and Quakers 4× as hard) and 3 Mechs at once (the button shows how many you have). <b>Stock &amp; troopers:</b> nothing refills on its own any more — every fabricator, Stabilizer and Probe has a free stock, and once it's empty each use costs Dat (the price shows on the button). You have 6 Trooper slots (3 filled for free at the start — the button shows how many you have against the limit) and 8 Paladin slots (4 free to start); each new Trooper or Paladin costs Dat, and right-clicking any build button buys another charge of it (or switch <b>Auto-buy</b> on to buy automatically when a stock runs out). Salvage from Large nests and Mega nests can raise the limit. <b>Wrecks</b> (derelict scrapers) lie hidden on every map, some beyond the barrier — park the Bastion on one for 8s (or send units to stand on it — slower) to salvage it (it draws an ambush): Dat, refilled stocks, drones, a barracks module (+1 Trooper limit) or a few free units of a kind you haven't unlocked yet (they join you, but only the Unlocks panel lets you build more). <b>Quakers</b> — big stone blocks — lumber in while you drill, keep their distance and slam the ground to jolt the drill needle and shake your Stabilizers: send units out to kill them.<br>
-<b>Goal:</b> the ground is cracked all over: <b>follow the pulses of energy</b> running through the cracks back to their source to find a vein, then park the Bastion on its glowing centre and press <kbd>F</kbd> to lock on. Veins <b>emerge, ripen</b> a tier at a time, then go unstable and <b>collapse</b> — and new ones emerge elsewhere. Glowing <b>stray pockets</b> give a bearing toward the nearest vein when a unit reaches one; two bearings from different angles triangulate it. Locking on starts the <b>strike</b> at once: press <kbd>F</kbd> again to stop the needle on a good band of the strip (the thin sliver is a tier above the vein; red ruptures it) — the meter zooms in on where you hit and the drill starts; the first wave arrives about 20s later. While it drills, the needle drifts; Stabilizers hold it steady, and the tier you're paid is where it spends most of its time. If it drifts into the red, the vein ruptures and damages the Bastion. Drain veins for rewards — after 3, the contract vein stirs: it gives off no pulses, so triangulate it with bearings from stray pockets, then drain it to win.<br>
-  <b>Controls:</b> drag to select · right-click to move/attack · right-click a friendly unit or building with combat units selected to <b>guard</b> it (escort it, fight off anything that comes near, then fall back) · <kbd>Ctrl</kbd>+<kbd>A</kbd> select all your units · <kbd>C</kbd> call-downs · <kbd>F</kbd> lock on to a vein / strike · <kbd>H</kbd> jump the camera to the Bastion · <kbd>WASD</kbd> or middle-drag to pan, scroll to zoom<br>
-  <b>Touch:</b> tap to select · three-finger tap to deselect · tap empty ground/an enemy/a wall to move/attack/man it · drag to pan · pinch to zoom · double-tap a unit to select all of its kind · hold still then drag: box-select (nothing selected) or lay out a formation (units selected) · hold on a friendly unit or building with units selected to guard it · hold a build button to buy another charge · the round buttons by the minimap: ⏸ tactical pause, ⌂ back to the Bastion, ✕ cancel what you're placing, and your control groups (save one with ⧉ while units are selected)<br>
-  <b>Fabricators:</b> Turrets and Relays hold a free stock; once it's empty each use costs Dat (shown on the button). Unit buttons (Trooper, Paladin, Grenadier, Rocketeer, Mech) show how many you can field against how many you have, and the price of the next one — just click to deploy. <kbd>T</kbd> launch a turret · <kbd>Ctrl</kbd>+<kbd>1</kbd>–<kbd>9</kbd> save the selected units as a control group, <kbd>1</kbd>–<kbd>9</kbd> select it (twice to look at it) · <kbd>R</kbd> launch a relay · <kbd>G</kbd> power up a derelict rig ·  <b>Nests</b>: every enemy patrol comes from one, and the nests near a vein send its drilling waves — destroy them (they fight back) for <b>Dat Crystal</b>. <b>Mega nests</b> glow crimson through the fog: hive veins ringed by brood mounds that pour out its waves — break the mounds, then drain the hive for Hive-tier rewards and salvage. When the contract vein stirs, great mounds rise around it too. <b>Dat Crystal</b>: drive the Bastion or a unit over the Dat a nest drops (or an enemy's shard) to scoop it up — your <b>repair drones</b> fly out on their own and spend it patching up Stabilizers, turrets, relays and the Bastion · <kbd>E</kbd> fire a Stabilizer from the Bastion (3 free, then Dat each; aim at a vein's drifting hotspot and lead it — a hit pins it, buys the vein 15s before it collapses, widens the strike bands and steadies the needle; with all 3 pinned, drag the weight on the steering pad to push the needle — the wider their triangle, the further it goes, but the one you lean on draws the enemy) — turrets and relays land anywhere inside the Bastion's ring (or a relay's)<br>
-  <b>Tether:</b> wireless works freely on the Rim; past it, units need a live cable back to the Bastion or a Relay, or they go dark — chain Relays to push your reach further out. A dark unit still takes orders, but its Sanity drains; reconnect in time to recover it, or it defects into a hostile Corrupted enemy<br>
-  <kbd>G</kbd> recon probe: click a direction and it flies straight out on its fiber line, lifting the fog along a narrow strip for 20s and permanently finding veins it passes (3 charges, one back every 20s) · <kbd>V</kbd> follow Bastion (escorts it as it moves, until given another order) · right-drag with units selected: line them up along the drag, facing square to it (drag longer to spread them wider) · <kbd>Q</kbd> wall: click and drag to lay a line of wall, or click the end of a wall or a Turret and click again where it should run to (right-click cancels) · right-click a wall with units selected to man it (one rank behind it, as many as fit; they take 25% less damage and ranged units shoot 15% further) · <kbd>Space</kbd> tactical pause: the action stops but you can still give orders, place walls and call in builds (they go ahead when you resume) · <kbd>X</kbd> hold position (held units side by side fire up to 30% faster) · <kbd>Esc</kbd> cancel, or pause the whole game if nothing's open · <kbd>`</kbd> reveal map (debug)
+  <b>The run:</b> three stops, one map in each zone, each deeper and tougher than the last — the Rim, the Dense Field, and the Core's heart where the contract vein waits. A barrier (rift on the Rim, a crystal wall deeper in) cuts every map: drain the <b>breach vein</b> in front of it to break through, then walk the Rig off the far edge — which side that is changes from map to map, and you arrive on the opposite one. Everything you have carries on to the next stop.<br>
+<b>Healing:</b> units inside the Rig's dashed ring slowly regain health (Relays don't heal anyone). <b>Unit limits:</b> up to 5 Grenadiers, 4 Rocketeers (rockets that hit nests and Quakers 4× as hard) and 3 Mechs at once (the button shows how many you have). <b>Stock &amp; troopers:</b> nothing refills on its own any more — every fabricator, Stabilizer and Probe has a free stock, and once it's empty each use costs Dat (the price shows on the button). You have 6 Trooper slots (3 filled for free at the start — the button shows how many you have against the limit) and 8 Paladin slots (4 free to start); each new Trooper or Paladin costs Dat, and right-clicking any build button buys another charge of it (or switch <b>Auto-buy</b> on to buy automatically when a stock runs out). Salvage from Large nests and Mega nests can raise the limit. <b>Wrecks</b> (derelict scrapers) lie hidden on every map, some beyond the barrier — park the Rig on one for 8s (or send units to stand on it — slower) to salvage it (it draws an ambush): Dat, refilled stocks, drones, a barracks module (+1 Trooper limit) or a few free units of a kind you haven't unlocked yet (they join you, but only the Unlocks panel lets you build more). <b>Quakers</b> — big stone blocks — lumber in while you drill, keep their distance and slam the ground to jolt the drill needle and shake your Stabilizers: send units out to kill them.<br>
+<b>Goal:</b> the ground is cracked all over: <b>follow the pulses of energy</b> running through the cracks back to their source to find a vein, then park the Rig on its glowing centre and press <kbd>F</kbd> to lock on. Veins <b>emerge, ripen</b> a tier at a time, then go unstable and <b>collapse</b> — and new ones emerge elsewhere. Glowing <b>stray pockets</b> give a bearing toward the nearest vein when a unit reaches one; two bearings from different angles triangulate it. Locking on starts the <b>strike</b> at once: press <kbd>F</kbd> again to stop the needle on a good band of the strip (the thin sliver is a tier above the vein; red ruptures it) — the meter zooms in on where you hit and the drill starts; the first wave arrives about 20s later. While it drills, the needle drifts; Stabilizers hold it steady, and the tier you're paid is where it spends most of its time. If it drifts into the red, the vein ruptures and damages the Rig. Drain veins for rewards — after 3, the contract vein stirs: it gives off no pulses, so triangulate it with bearings from stray pockets, then drain it to win.<br>
+  <b>Controls:</b> drag to select · right-click to move/attack · right-click a friendly unit or building with combat units selected to <b>guard</b> it (escort it, fight off anything that comes near, then fall back) · <kbd>Ctrl</kbd>+<kbd>A</kbd> select all your units · <kbd>C</kbd> call-downs · <kbd>F</kbd> lock on to a vein / strike · <kbd>H</kbd> jump the camera to the Rig · <kbd>WASD</kbd> or middle-drag to pan, scroll to zoom<br>
+  <b>Touch:</b> tap to select · three-finger tap to deselect · tap empty ground/an enemy/a wall to move/attack/man it · drag to pan · pinch to zoom · double-tap a unit to select all of its kind · hold still then drag: box-select (nothing selected) or lay out a formation (units selected) · hold on a friendly unit or building with units selected to guard it · hold a build button to buy another charge · the round buttons by the minimap: ⏸ tactical pause, ⌂ back to the Rig, ✕ cancel what you're placing, and your control groups (save one with ⧉ while units are selected)<br>
+  <b>Fabricators:</b> Turrets and Relays hold a free stock; once it's empty each use costs Dat (shown on the button). Unit buttons (Trooper, Paladin, Grenadier, Rocketeer, Mech) show how many you can field against how many you have, and the price of the next one — just click to deploy. <kbd>T</kbd> launch a turret · <kbd>Ctrl</kbd>+<kbd>1</kbd>–<kbd>9</kbd> save the selected units as a control group, <kbd>1</kbd>–<kbd>9</kbd> select it (twice to look at it) · <kbd>R</kbd> launch a relay · <kbd>G</kbd> power up a derelict rig ·  <b>Nests</b>: every enemy patrol comes from one, and the nests near a vein send its drilling waves — destroy them (they fight back) for <b>Dat Crystal</b>. <b>Mega nests</b> glow crimson through the fog: hive veins ringed by brood mounds that pour out its waves — break the mounds, then drain the hive for Hive-tier rewards and salvage. When the contract vein stirs, great mounds rise around it too. <b>Dat Crystal</b>: drive the Rig or a unit over the Dat a nest drops (or an enemy's shard) to scoop it up — your <b>repair drones</b> fly out on their own and spend it patching up Stabilizers, turrets, relays and the Rig · <kbd>E</kbd> fire a Stabilizer from the Rig (3 free, then Dat each; aim at a vein's drifting hotspot and lead it — a hit pins it, buys the vein 15s before it collapses, widens the strike bands and steadies the needle; with all 3 pinned, drag the weight on the steering pad to push the needle — the wider their triangle, the further it goes, but the one you lean on draws the enemy) — turrets and relays land anywhere inside the Rig's ring (or a relay's)<br>
+  <b>Tether:</b> wireless works freely on the Rim; past it, units need a live cable back to the Rig or a Relay, or they go dark — chain Relays to push your reach further out. A dark unit still takes orders, but its Sanity drains; reconnect in time to recover it, or it defects into a hostile Corrupted enemy<br>
+  <kbd>G</kbd> recon probe: click a direction and it flies straight out on its fiber line, lifting the fog along a narrow strip for 20s and permanently finding veins it passes (3 charges, one back every 20s) · <kbd>V</kbd> follow Rig (escorts it as it moves, until given another order) · right-drag with units selected: line them up along the drag, facing square to it (drag longer to spread them wider) · <kbd>Q</kbd> wall: click and drag to lay a line of wall, or click the end of a wall or a Turret and click again where it should run to (right-click cancels) · right-click a wall with units selected to man it (one rank behind it, as many as fit; they take 25% less damage and ranged units shoot 15% further) · <kbd>Space</kbd> tactical pause: the action stops but you can still give orders, place walls and call in builds (they go ahead when you resume) · <kbd>X</kbd> hold position (held units side by side fire up to 30% faster) · <kbd>Esc</kbd> cancel, or pause the whole game if nothing's open · <kbd>`</kbd> reveal map (debug)
 </div>
 
 <!-- Guided tutorial: one instruction at a time, advancing on its own as the player does each thing. -->
@@ -999,10 +999,6 @@ const GREN_PODS=4, GREN_POD_GAP=0.1, GREN_POD_RELOAD=0.75, GREN_POD_DMG=10, GREN
 // v4 Rocketeer = spotter: it paints its target with a laser for ROCKET_PAINT, then fires a Javelin-style
 // missile: it pops out, climbs high, then dives onto the target from above, steering after it on the way.
 const ROCKET_PAINT=0.7;
-// Big Guns (reward card): a Bastion-mounted artillery piece — longer range and a bigger blast
-// than a Grenadier's round, but a much slower fire rate, and it will only ever fire on an enemy
-// the player has actually revealed (visible()), not just anything that wanders into range.
-const BIGGUN_RANGE=460, BIGGUN_CD=2.4, BIGGUN_DMG=22, BIGGUN_SPLASH_R=115, BIGGUN_PROJ_SPEED=260;
 // Artillery: a meta-unlocked squad variant (see META_* below) — its range covers the whole map
 // (it only ever fires on an enemy the player has actually revealed, same restriction as Big
 // Guns, so that range isn't omniscient), but its reload is enormous and it moves at a crawl —
@@ -1059,12 +1055,12 @@ const RELAY_HP=100;
 // v4 relay cards come in two slots — offensive and defensive — one card of each per run; every relay
 // you own carries both, and a new card in a slot replaces the one there (like the wall cards).
 // Offensive: Sonic Deterrent I–III (the old Energy Surge), Electric Surge I–II (chain lightning),
-// Bastion Relay (armour and a full Turret gun). Defensive: Walled Relay (a ring of walls of the run's
+// Fortified Relay (armour and a full Turret gun). Defensive: Walled Relay (a ring of walls of the run's
 // wall type, no tower turrets), Radar Mast (far sight), Repair Cradle (a drone of its own).
 const RELAY_ARMOR_MULT=3, TESLA_R=170, TESLA_JUMP_R=95, TESLA_DMG=24, TESLA_FALLOFF=0.75, TESLA_STUN=0.45;
 const RELAY_RING_R=36, RELAY_RADAR_VISION=420, CRADLE_RANGE=170, CRADLE_SPEED=150, CRADLE_HPS=10;
 const relayMaxHp=()=>Math.round(RELAY_HP*(S.mods.relayOff==='armored'?RELAY_ARMOR_MULT:1));
-const RELAY_CARD_NAMES={sonic:'Sonic Deterrent',tesla:'Electric Surge',armored:'Bastion Relay',walled:'Walled Relay',radar:'Radar Mast',repair:'Repair Cradle'};
+const RELAY_CARD_NAMES={sonic:'Sonic Deterrent',tesla:'Electric Surge',armored:'Fortified Relay',walled:'Walled Relay',radar:'Radar Mast',repair:'Repair Cradle'};
 function relaySlotNote(slot,id){const cur=S&&S.mods?S.mods[slot==='off'?'relayOff':'relayDef']:null;
   return `<span class="rcSwap">${slot==='off'?'⚔ Offensive':'⛨ Defensive'} relay slot${cur&&cur!==id?` · replaces ${RELAY_CARD_NAMES[cur]}`:''}</span>`}
 function setRelaySlot(slot,id){
@@ -1089,23 +1085,22 @@ const RELAY_GUN_RANGE=TURRET_RANGE, RELAY_GUN_DMG=TURRET_DMG/2, RELAY_GUN_CD=TUR
 const MARTYR_R=90, MARTYR_DMG=40;
 // A Depot is a forward drop-off point — no power needed, just has to be standing (hp>0) — so a
 // harvester working a far-flung cluster can dump its load there instead of hauling all the way
-// back to the Bastion. Like a Relay it can be queued any time, locked down or not.
+// back to the Rig. Like a Relay it can be queued any time, locked down or not.
 const DEPOT_HP=150;
-const BASE_GUN_RANGE=260, BASE_GUN_DMG=18, BASE_GUN_CD=0.5;
-// Bastion ability, two steps: press Ping (N), then click a spot within PING_REACH of the Bastion
+// Rig ability, two steps: press Ping (N), then click a spot within PING_REACH of the Rig
 // A sensor pulse lands there and:
 //  - permanently discovers everything in PING_REVEAL_R: Dat Crystal deposits and vein mining
 //    points (never the hidden contract vein — that still has to be triangulated);
 //  - lifts the fog over that circle and shows the enemies in it for PING_ENEMY_T seconds only.
 const PING_REACH=2400, PING_REVEAL_R=450, PING_ENEMY_T=20, PING_CD=60;
 const WALL_HP=220;
-// v4 wall lines: click and drag (B) to lay a line; its two end posts are launched from the Bastion
+// v4 wall lines: click and drag (B) to lay a line; its two end posts are launched from the Rig
 // and, once both land, slats rise one after another from the ends toward the middle. Free of the
 // map grid: a line is any length (WALL_MIN_LEN..WALL_MAX_LEN) at any angle, cut into slats about
 // WALL_SLAT long, each with its own WALL_SLAT_HP. Cost is WALL_DAT_BASE plus WALL_DAT_PER_SLAT a slat.
 // A new line's ends snap to an existing line's end within WALL_SNAP. Only enemies are stopped by
 // walls; your own units pass through them.
-// Man the walls: right-click a wall with units selected and they line up along it on the Bastion's
+// Man the walls: right-click a wall with units selected and they line up along it on the Rig's
 // side in a single rank, MAN_OFFSET behind it, facing out, up to manCap(wall) of them. Once in place, a unit
 // manning a wall that's still standing takes MAN_DMG_RED less damage.
 const MAN_RANGE_BONUS=0.15; // ranged units manning a standing wall shoot 15% further
@@ -1150,10 +1145,10 @@ function wallCardDesc(id){const W=WALL_CARD[id],cur=S&&S.mods&&S.mods.wallType;
     `<span class="rcSwap">⟲ ${cur&&cur!==id?`Replaces ${WALL_TYPES[cur].name} walls`:'Replaces other wall cards'}</span>`}
 const wallCard=(id,name)=>({id:'wall_'+id,name,get desc(){return wallCardDesc(id)},has:()=>S.mods.wallType===id,apply:()=>setWallType(id)});
 const COST={wall:5,turret:75,relay:15,depot:150,stabilizer:20,harvester:75,troop:30,builder:20,grenadier:45,artillery:140,mech:90,rocket:70,brawler:25,marksman:60};
-// v2 fabricators: nothing is bought with Dat any more. Each kind of thing the Bastion can make has
+// v2 fabricators: nothing is bought with Dat any more. Each kind of thing the Rig can make has
 // its own fabricator holding `charges`; a spent charge comes back after `t` seconds (one at a time,
 // like the Stabilizer and Probe). Structures are aimed and launched into the build ring; units
-// deploy straight out of the Bastion. A lost unit or structure is never refunded.
+// deploy straight out of the Rig. A lost unit or structure is never refunded.
 const FABS={
   turret:{name:'Turret',charges:2,t:45,kind:'structure'},
   podturret:{name:'Missile Pod',charges:1,t:90,kind:'structure',unlock:'unlockPodTurret'},
@@ -1209,27 +1204,27 @@ function payDat(cost,what){
   if(S.dat<cost){note(`${what}: need ◆${cost}`);return false}
   S.dat-=cost;floatText(S.base.x,S.base.y-46,`-${cost} Dat`,C.dat);return true;
 }
-// Repair drones (replace Builders): a small flying swarm that lives on the Bastion and launches on
+// Repair drones (replace Builders): a small flying swarm that lives on the Rig and launches on
 // its own to patch up anything damaged within DRONE_RANGE of it — Stabilizers first, then relays,
-// turrets and the Bastion itself. Repairs are free (v4).
+// turrets and the Rig itself. Repairs are free (v4).
 // They fly, so the current (all-melee) enemies can't touch them, and they ignore terrain.
 const DRONE_COUNT=4, DRONE_SPEED=170, DRONE_RANGE=760, DRONE_HPS=9, DRONE_WORK_R=18;
 // v4: Stabilizers are tall towers — drones repairing one each work at their own level up it, circling
 // the column there (heights in the tower's own units, 0 at the ground; most drones hover at DRONE_HOVER)
 const STAB_DRONE_LEVELS=[24,100,62,128,44,84], STAB_TOWER_R=10, DRONE_HOVER=6;
-// Dat Crystal deposits are pickups now: the Bastion or any unit that rolls over one scoops up the lot.
+// Dat Crystal deposits are pickups now: the Rig or any unit that rolls over one scoops up the lot.
 const DAT_PICKUP_R=26;
 // v4: the derelict RIG — a rare find on the Dense Field stops. A mining rig (a long-bodied walker, not a
-// Bastion you can command) sits on a vein stranded on an island in the rift, three Stabilizers already
-// pinned to it. Link it to your Bastion with a Relay (within RIG_LINK_R of it, itself connected back)
+// Rig you can command) sits on a vein stranded on an island in the rift, three Stabilizers already
+// pinned to it. Link it to your Rig with a Relay (within RIG_LINK_R of it, itself connected back)
 // and spend RIG_DAT Dat to bring it online: then 'Begin Drilling' works on its vein from anywhere —
-// the Bastion locks in place while the rig drills. It's guarded by a big crowd and a couple of nests.
-// v4: units inside the Bastion's ring (BUILD_R) regain UNIT_REGEN_PCT of their max HP a second
+// the Rig locks in place while the rig drills. It's guarded by a big crowd and a couple of nests.
+// v4: units inside the Rig's ring (BUILD_R) regain UNIT_REGEN_PCT of their max HP a second
 const UNIT_REGEN_R=BUILD_R, UNIT_REGEN_PCT=0.01;
 const RIG_CHANCE=0.7, RIG_DAT=200, RIG_LINK_R=BUILD_R, RIG_ISLAND_R=190, RIG_GUARDS=[20,26];
 // Stranded squad: a second kind of distress call, on any map in any zone. A random handful of units
-// cut off from their own Bastion huddle somewhere out in the field with a few enemies prowling
-// round them. Get the Bastion or any unit within STRAND_REACH and pay to take them on — the price is
+// cut off from their own Rig huddle somewhere out in the field with a few enemies prowling
+// round them. Get the Rig or any unit within STRAND_REACH and pay to take them on — the price is
 // STRAND_FRAC of what they'd cost to buy one by one (so pricier kinds raise it, but it's always a
 // bargain). It can bring kinds you haven't unlocked; that never unlocks building more of them.
 const STRAND_CHANCE=0.75, STRAND_FRAC=0.25, STRAND_REACH=150, STRAND_GUARDS=[3,6];
@@ -1266,12 +1261,12 @@ function tryRescueStrand(){
 function updateStrand(dt){
   const g=S.strand;if(!g||g.done)return;
   if(!g.seen&&(visible(g)||g.units.some(u=>visible(u)))){g.seen=true;
-    msg(`A stranded squad — ${strandLabel(g.units)}, cut off from their Bastion. Get within reach and pay ${g.cost} Dat to take them on (button, or Y).`);updateBuildBar()}
+    msg(`A stranded squad — ${strandLabel(g.units)}, cut off from their Rig. Get within reach and pay ${g.cost} Dat to take them on (button, or Y).`);updateBuildBar()}
   // slowly turn to watch the dark around them
   g.units.forEach((u,i)=>{u.ang+=Math.sin(S.t*0.4+i*1.7)*dt*0.25;if(u.flashT>0)u.flashT=Math.max(0,u.flashT-dt)});
   if(!g.seen&&S.t>=g.pingT){g.pingT=S.t+rnd(40,55);g.pingFlash=S.t;
     const dir=compassName(Math.atan2(g.y-S.base.y,g.x-S.base.x));
-    msg(`Distress signal — a stranded squad is calling for pickup${dir?`, somewhere ${dir} of the Bastion`:' from close by'}. It's marked on the minimap.`);
+    msg(`Distress signal — a stranded squad is calling for pickup${dir?`, somewhere ${dir} of the Rig`:' from close by'}. It's marked on the minimap.`);
     sfx.distress()}
   g.uiT=(g.uiT||0)-dt;if(g.uiT<=0){g.uiT=0.5;if(g.seen)updateBuildBar()}
 }
@@ -1318,7 +1313,7 @@ function makeRig(site){
 }
 function tryCaptureRig(){
   const r=S.rig;if(!r||r.online||!r.seen||S.over||S.paused)return;
-  if(!rigLinked()){note('The rig needs a Relay link');return}
+  if(!rigLinked()){note('The derelict rig needs a Relay link');return}
   if(S.dat<RIG_DAT){note(`Need ◆${RIG_DAT}`);return}
   S.dat-=RIG_DAT;r.online=true;floatText(r.x,r.y-60,`-${RIG_DAT} Dat`,C.dat);burst(r.x,r.y,C.accent,28,170,0.8);shakeScreen(3,0.2);sfx.build();
   updateBuildBar();
@@ -1328,20 +1323,20 @@ function updateRig(dt){
   const v=r.vein;
   if(!r.seen&&visible(r)){r.seen=true;v.seen=true;v.mine.found=true;msg(`A derelict mining rig, stranded in the rift with its Stabilizers still pinned. Link it with a Relay and spend ${RIG_DAT} Dat to bring it online (button, or G) — then its vein can be drilled.`);updateBuildBar()}
   if(S.activeVein===v){
-    if(!rigLinked()){if(!v.paused){v.paused=true;v.rigCut=true;banner('The rig has lost its Relay link — drilling is paused until it is reconnected.','danger')}}
-    else if(v.rigCut){v.paused=false;v.rigCut=false;msg('Rig link restored — drilling resumes.')}
+    if(!rigLinked()){if(!v.paused){v.paused=true;v.rigCut=true;banner('The derelict rig has lost its Relay link — drilling is paused until it is reconnected.','danger')}}
+    else if(v.rigCut){v.paused=false;v.rigCut=false;msg('Derelict rig link restored — drilling resumes.')}
   }
   // its distress signal: every so often, until someone has found it, a ping and a bearing — and a pulsing
   // ring on the minimap around where it is (give or take a couple of hundred)
   if(!r.seen&&!r.online&&!v.done&&S.t>=r.pingT){
     r.pingT=S.t+rnd(38,52);r.pingFlash=S.t;
     const dir=compassName(Math.atan2(r.y-S.base.y,r.x-S.base.x));
-    msg(`Distress signal — a derelict rig is calling for help${dir?`, somewhere ${dir} of the Bastion`:' from close by'}. It's marked on the minimap.`);
+    msg(`Distress signal — a derelict rig is calling for help${dir?`, somewhere ${dir} of the Rig`:' from close by'}. It's marked on the minimap.`);
     sfx.distress();
   }
   r.uiT-=dt;if(r.uiT<=0){r.uiT=0.5;if(r.seen&&!r.online&&!v.done)updateBuildBar()}
 }
-// a longer, walker-style body than the Bastion's: a hull with a cab at one end, a drill housing, and
+// a longer, walker-style body than the Rig's: a hull with a cab at one end, a drill housing, and
 // three jointed legs down each side
 function drawRig(){
   const r=S.rig;if(!r||!(r.seen||debugNoFog))return;
@@ -1376,14 +1371,14 @@ function drawRig(){
     const linked=rigLinked();
     if(!r.online){ctx.fillStyle=linked&&S.dat>=RIG_DAT?C.accent:'#c9857a';
       ctx.fillText(`DERELICT RIG · ${linked?'linked':'no relay link'} · ${RIG_DAT} Dat`,r.x,r.y+68)}
-    else{ctx.fillStyle=linked?C.ally:'#c9857a';ctx.fillText(linked?'RIG ONLINE':'RIG LINK LOST',r.x,r.y+68)}
+    else{ctx.fillStyle=linked?C.ally:'#c9857a';ctx.fillText(linked?'DERELICT RIG ONLINE':'DERELICT RIG LINK LOST',r.x,r.y+68)}
     ctx.restore();
   }
 }
 // v4: a drone with nothing to repair flies out to scoop up dropped Dat Crystal (shards and nest drops)
-// within DRONE_SCAVENGE_R of the Bastion — 150% of the repair range
+// within DRONE_SCAVENGE_R of the Rig — 150% of the repair range
 const DRONE_SCAVENGE_R=DRONE_RANGE*1.5;
-// v4: no endless loops — a Relay, Turret or the Bastion the swarm has put DRONE_STUCK_T drone-seconds
+// v4: no endless loops — a Relay, Turret or the Rig the swarm has put DRONE_STUCK_T drone-seconds
 // into (a Relay being cut again and again, a turret under constant fire) is left alone for
 // DRONE_SKIP_T seconds so the drones move on to other jobs. Stabilizers are exempt and always first.
 // And none of them, Stabilizers included, flies in to patch something an enemy you can't see is
@@ -1445,9 +1440,9 @@ let meta=loadMeta();
 const ZONE_R=200;
 const TCELL=60, MUD_MULT=0.55; let TGX=Math.ceil(W/TCELL), TGY=Math.ceil(H/TCELL);
 // Terrain values: 0 plain, 1 mud (slow), 2 rock (impassable to everyone), 3 rift (impassable to
-// the Bastion only — troops, harvesters and builders cross it at mud speed). Rift pockets each
+// the Rig only — troops, harvesters and builders cross it at mud speed). Rift pockets each
 // seed one outsized Dat Crystal deposit, so reaching the map's richest nodes means sending units
-// in on their own rather than just parking the Bastion on top of them.
+// in on their own rather than just parking the Rig on top of them.
 const RIFT=3; // rift pocket count and deposits per pocket are per map type (MAP_TYPES)
 // Tether: the Rim always has free wireless range (see wirelessTol below). These Dense/Core
 // tolerances are currently unused — WIRELESS_ENABLED is off, so a unit past the Rim always needs
@@ -1459,7 +1454,7 @@ const CABLE_HP_MAX=40, CABLE_SEG_MIN=24, CABLE_HIT_RANGE=16, CABLE_DMG=6, CABLE_
 // the unit is back in range of a live anchor; if it ever hits 0 the unit snaps and defects,
 // converting into a hostile Corrupted enemy.
 const SANITY_MAX=100, SANITY_DRAIN=100/16, SANITY_REGEN=100/7;
-// How far a unit can pay cable out before an anchor (Bastion or Relay) before it physically
+// How far a unit can pay cable out before an anchor (Rig or Relay) before it physically
 // runs out of line — it just stops there until a closer anchor is built or it walks back in.
 const MAX_CABLE_LEN=400;
 const DRILL_RATE=0.5, THROTTLES=[0.5,1,1.8];
@@ -1473,9 +1468,9 @@ const PREP_TIME=60;
 const BASE_SPAWN_INTERVAL={rim:21,dense:21,core:20}; // v4: Core eased from 10 s — with its bigger waves it was ~10x the Dense Field's pressure // v4: Rim/Dense waves come much sooner (stretched to leave room for the longer wave warning)
 const AMBIENT_INTERVAL={rim:45,dense:22,core:7};
 // Off-zone mining pressure: parking harvesters on an open Dat Crystal cluster instead of locking
-// the Bastion down on a vein skips drilling's wave/saboteur spawns entirely — nothing stops the
+// the Rig down on a vein skips drilling's wave/saboteur spawns entirely — nothing stops the
 // player from just idling there farming forever. If harvesters bring in a lot of Dat Crystal in
-// a short window while the Bastion isn't drilling, send a patrol at wherever that mining is
+// a short window while the Rig isn't drilling, send a patrol at wherever that mining is
 // actually happening, not just a single ambient wanderer.
 const OFFZONE_MINE_WINDOW=18, OFFZONE_MINE_THRESHOLD=60, OFFZONE_PATROL_COOLDOWN=40;
 const OFFZONE_PATROL_DIST=550, OFFZONE_PATROL_N={rim:3,dense:5,core:10};
@@ -1490,7 +1485,7 @@ const STAB_HUNTER_FRAC=0.35; // share of each drilling wave sent after the Stabi
 const WAVE_SPAWN_DIST=820,WAVE_BASE_N={rim:11,dense:13,core:16}; // ~1.4x, in step with the longer gaps between waves
 // v4 horde: every drilling wave brings a flood of swarmlings with it — HORDE_MULT times the wave's
 // own size, each one trivial on its own (a shot or two) but dangerous in a mass. They move as a
-// crowd on one shared flow field toward the Bastion instead of each planning its own path, so they
+// crowd on one shared flow field toward the Rig instead of each planning its own path, so they
 // pour around rock, clog at gaps and pile up against walls. Every HORDE_BIG_EVERY-th wave is a
 // great wave. Each wave is announced WAVE_WARN_T ahead: a rumble, and red markers at the screen
 // edge on the side it's coming from.
@@ -1502,8 +1497,8 @@ const WAVE_SPAWN_DIST=820,WAVE_BASE_N={rim:11,dense:13,core:16}; // ~1.4x, in st
 // SPL_SHARE of each band's drilling-wave enemies come as Splinters.
 const SPL_SHARDS=6, SPL_RANGE=230, SPL_VOLLEY_GAP=0.14, SPL_REGROW=1.1, SPL_SHOT_SPEED=270, SPL_SHOT_DMG=4, SPL_HP=45, SPL_SPEED=62, SPL_SHARE={rim:0.08,dense:0.15,core:0.2};
 const HORDE_MULT={rim:4,dense:4,core:4}, HORDE_CAP=420, HORDE_BIG_EVERY=4, HORDE_BIG_MULT=2.2, HORDE_HP=8, HORDE_SHARD_P=0.06, HORDE_DMG=1, HORDE_STOMP_DPS=14;
-// (a horde swarmer pressed up against the Bastion is trampled by its legs at HORDE_STOMP_DPS — each one
-// gets a bite or two in before it's crushed, so it's the flow of them that wears the Bastion down)
+// (a horde swarmer pressed up against the Rig is trampled by its legs at HORDE_STOMP_DPS — each one
+// gets a bite or two in before it's crushed, so it's the flow of them that wears the Rig down)
 const WAVE_WARN_T=11, WAVE_WARN_BIG_T=16;
 // v2: the vein's tier sets the threat on top of the zone. It follows the drill meter's live yield
 // (the tier the needle has mostly sat in over the last few seconds), so holding a rich band draws
@@ -1629,7 +1624,7 @@ function placeVeins(){
 // lowest first). Reaching the peak makes it unstable, and UNSTABLE_T seconds later it COLLAPSES for
 // good — a new vein emerges at another site in the band a little later (see the exploration
 // block). So waiting pays, but only up to a point, and a vein you haven't found yet is already
-// counting down. Once the Bastion locks onto a vein its ripeness is frozen, and the payout tier is
+// counting down. Once the Rig locks onto a vein its ripeness is frozen, and the payout tier is
 // settled by the drill meter instead. The contract vein ripens to its peak and holds there.
 const TIER_MULT={Common:0.6,Rare:1,Epic:1.5,Legendary:2,Hive:3};
 // v4: the Rim tops out at Rare — its ladder keeps three steps so its veins ripen and collapse on the same clock
@@ -1657,7 +1652,7 @@ function rerollCost(){return REROLL_BASE_COST+S.rerollCount*REROLL_COST_STEP}
 // Spawns n fresh Troopers / Grenadiers with guaranteed-unique ids, for the recruit-style reward
 // cards below.
 function spawnFreeTroops(n,kind){for(let i=0;i<n;i++){const u=mkTroop(Date.now()+Math.floor(Math.random()*1000)+i,kind);S.troops.push(u);guardBastion(u)}}
-// v2: fresh units fall in guarding the Bastion until you give them other orders
+// v2: fresh units fall in guarding the Rig until you give them other orders
 function guardBastion(u){u.following=false;u.state='guard';u.guard=S.base;u.dest=null;u.target=null;u.guardAng=rnd(0,Math.PI*2);u.guardDist=rnd(22,48)}
 // ---------- unit kits ----------
 // v4: each unit type holds one kit at a time (S.kits[kind]); a new kit for that type replaces the old,
@@ -1674,7 +1669,7 @@ const KITS={
   fire:{kind:'grenadier',name:'Incendiary',tier:'Epic',col:'#ff8a4c',solo:'Blasts leave the ground burning for 4 seconds.',pair:'Razor Line walls',pairTxt:'fire that reaches the wire runs along the whole line, which burns red-hot for 4 seconds',on:()=>S.mods.wallType==='razor',wall:'razor'},
   spotter:{kind:'marksman',name:'Spotter',tier:'Rare',col:'#f2b84b',solo:'Its target is marked for 6 seconds and takes +25% damage from everyone.',pair:'Radar Mast relays',pairTxt:'Marksmen near a Radar Mast get +40% range',on:()=>S.mods.relayDef==='radar',relay:'radar'},
   rail:{kind:'marksman',name:'Rail Pierce',tier:'Epic',col:'#dff7ff',solo:'Each shot goes through every enemy in its line.',pair:'Shield Pane walls',pairTxt:'a shot fired through your own Shield Pane comes out charged: +50% damage',on:()=>S.mods.wallType==='shield',wall:'shield'},
-  cluster:{kind:'rocket',name:'Cluster Rockets',tier:'Epic',col:'#ff8a4c',solo:'Each rocket splits into four bomblets over the target.',pair:'Bastion Relays',pairTxt:'relay turrets near the target lob a rocket at it too',on:()=>S.mods.relayOff==='armored',relay:'armored'},
+  cluster:{kind:'rocket',name:'Cluster Rockets',tier:'Epic',col:'#ff8a4c',solo:'Each rocket splits into four bomblets over the target.',pair:'Fortified Relays',pairTxt:'relay turrets near the target lob a rocket at it too',on:()=>S.mods.relayOff==='armored',relay:'armored'},
   flak:{kind:'rocket',name:'Flak',tier:'Rare',col:'#c7d0da',solo:'Rockets burst in the air: a wide cloud of shrapnel that shreds the swarm, but does little to anything big. Rocketeers go for the swarm first.',pair:'Radar Mast relays',pairTxt:'they fire at any swarm a Radar Mast sees, out to twice their range',on:()=>S.mods.relayDef==='radar',relay:'radar'},
   breaker:{kind:'mech',name:'Breaker',tier:'Legendary',col:'#c79a4a',solo:'Your Mechs become Breakers: no gun, two huge fists. Punches splash round the target; it works round a group so a wall is behind them, then a haymaker throws them all, and anything that hits a wall takes heavy damage.',pair:'any wall type',pairTxt:'each wall type adds a twist: Electric Fence stuns, Razor Line bleeds, Glass Ridge throws shards, Heavy Armour doubles the impact, Shield Pane bounces them back',on:()=>!!(S.wallLines&&S.wallLines.length),anyWall:true},
   fieldrelay:{kind:'mech',name:'Field Relay',tier:'Epic',col:'#7bd389',solo:'Your Mechs become Field Relays: no gun, a relay mast. Up to 6 units can tether to one as it walks, and it heals the units round it while they are out of combat.',pair:'Repair Cradle relays',pairTxt:'it heals them in combat too',on:()=>S.mods.relayDef==='repair',relay:'repair'},
@@ -1796,12 +1791,13 @@ const UPGRADES={
     {id:'dmg2',name:'Battle Drills II',desc:'Trooper damage +20%.',apply:()=>{S.mods.troopDmgMult*=1.2}},
     {id:'grenrate2',name:'Lubed Tubes II',desc:'Grenadier fire rate +20%.',apply:()=>{S.mods.grenFireRateMult*=1.2}},
     {id:'grensplash2',name:'Blast Power II',desc:'Explosive blast radius +20%.',apply:()=>{S.mods.grenSplashMult*=1.2}},
-    {id:'tol1',name:'Signal Boost',desc:'Wireless tether range +35% (Bastion & Relays).',apply:()=>{S.mods.relayTolMult*=1.35}},
+    {id:'tol1',name:'Signal Boost',desc:'Wireless tether range +35% (Rig & Relays).',apply:()=>{S.mods.relayTolMult*=1.35}},
     {id:'cable1',name:'Spooled Cable',desc:'Max tether cable length +150.',apply:()=>{S.mods.cableLenAdd+=150}},
     {id:'recruit1',name:'Fresh Recruits',desc:'+3 free Troopers, right now.',apply:()=>{spawnFreeTroops(3,'troop')}},
-    {id:'biggun',name:'Big Guns',desc:"Mounts an artillery piece on the Bastion — slower fire rate than a Grenadier, but longer range and a bigger blast. Only ever fires on enemies you've actually revealed.",apply:()=>{S.mods.bigGuns=true}},
     {id:'energySurge1',name:'Sonic Deterrent I',get desc(){return 'Horn speakers on every Relay: every 10s while drilling they all thump together — enemies reached are shoved back and dazed for 1s.'+relaySlotNote('off','sonic')},has:()=>S.mods.relayOff==='sonic'&&S.mods.energySurgeLevel>=1,apply:()=>{setRelaySlot('off','sonic');S.mods.energySurgeLevel=Math.max(S.mods.energySurgeLevel,1)}},
-    {id:'relayArmored',name:'Bastion Relay',get desc(){return 'Every Relay gets an armoured plinth and a turret head: 3× HP, and while tethered it fires like a full Turret.'+relaySlotNote('off','armored')},has:()=>S.mods.relayOff==='armored',apply:()=>{setRelaySlot('off','armored')}},
+    {id:'relayArmored',name:'Fortified Relay',get desc(){return 'Every Relay gets an armoured plinth and a turret head: 3× HP, and while tethered it fires like a full Turret.'+relaySlotNote('off','armored')},has:()=>S.mods.relayOff==='armored',apply:()=>{setRelaySlot('off','armored')}},
+    {id:'heavyArmour',name:'Heavy Armour',desc:'Thick armour on the Rig and every Stabilizer: 30% less damage from everything, 75% less from melee, and melee attackers are knocked back off it.',has:()=>S.mods.heavyArmour,apply:()=>{S.mods.heavyArmour=true}},
+    {id:'pointDefence',name:'Point Defence',desc:'Small turrets on the Rig (two) and every Stabilizer (one) that shoot down incoming Splinter shards and Lance volleys before they land. They never fire at enemies themselves.',has:()=>S.mods.pointDefence,apply:()=>{S.mods.pointDefence=true}},
     {id:'relayRadar',name:'Radar Mast',get desc(){return 'A turning radar dish on every Relay: a tethered Relay sees far into the fog around it.'+relaySlotNote('def','radar')},has:()=>S.mods.relayDef==='radar',apply:()=>{setRelaySlot('def','radar')}},
     {id:'martyrs',name:'Martyrs',desc:'A unit that would corrupt detonates instead, damaging enemies and friendlies alike nearby.',apply:()=>{S.mods.martyrs=true}},
     {id:'resupply1',name:'Resupply',desc:'Every fabricator, Stabilizer and Probe stock is topped up to full, right now.',apply:()=>{Object.keys(FABS).forEach(k=>{S.fab[k].n=FABS[k].charges});S.stabCharges=STAB_CHARGES;S.probeCharges=PROBE_CHARGES}},
@@ -1824,14 +1820,15 @@ const UPGRADES={
     {id:'hardscopes',name:'Hard Scopes',desc:"Trooper vision and firing range +20% (stacks with Surveyor's Eye).",apply:()=>{S.mods.squadRangeMult*=1.2}},
     {id:'dmg3',name:'Battle Drills III',desc:'Trooper damage +30%.',apply:()=>{S.mods.troopDmgMult*=1.3}},
     {id:'tactical',name:'Tactical Reinforcements',desc:'+5 free Troopers, +3 free Grenadiers, right now.',apply:()=>{spawnFreeTroops(5,'troop');spawnFreeTroops(3,'grenadier')}},
-    {id:'targeting',name:'Targeting Computer',desc:'The Bastion gun keeps firing while drilling instead of going quiet.',apply:()=>{S.mods.bastionShootWhileDrilling=true}},
     {id:'energySurge2',name:'Sonic Deterrent II',get desc(){return 'Relay horns thump every 5s instead of 10s.'+relaySlotNote('off','sonic')},has:()=>S.mods.relayOff==='sonic'&&S.mods.energySurgeLevel>=2,apply:()=>{setRelaySlot('off','sonic');S.mods.energySurgeLevel=Math.max(S.mods.energySurgeLevel,2)}},
     {id:'tesla1',name:'Electric Surge I',get desc(){return `A tesla coil on every Relay: while drilling, every few seconds each one strikes the nearest enemy and the bolt jumps on to 2 more (${TESLA_DMG} damage, less each jump, a short stun).`+relaySlotNote('off','tesla')},has:()=>S.mods.relayOff==='tesla'&&S.mods.teslaLevel>=1,apply:()=>{setRelaySlot('off','tesla');S.mods.teslaLevel=Math.max(S.mods.teslaLevel,1)}},
+    {id:'deflector',name:'Deflector',desc:'A shield dome round the Rig and every Stabilizer: Lantern beams lose 85% of their damage and shots 50%. Melee walks straight through it.',has:()=>S.mods.deflector,apply:()=>{S.mods.deflector=true}},
+    {id:'riftShield',name:'Rift Shielding',desc:'The Rig can hover out over rifts. Time over a rift drains its Sanity, which refills on solid ground; run it dry and the Rig falls back to the nearest bank until it recovers.',has:()=>S.mods.riftShield,apply:()=>{S.mods.riftShield=true;S.base.riftSan=1;S.base.riftOk=true}},
     {id:'relayWalled',name:'Walled Relay',get desc(){return 'Every Relay raises a ring of walls round itself, of your current wall type (no free tower turrets on them).'+relaySlotNote('def','walled')},has:()=>S.mods.relayDef==='walled',apply:()=>{setRelaySlot('def','walled')}},
     {id:'relayRepair',name:'Repair Cradle',get desc(){return 'Every Relay docks its own repair drone, which patches anything hurt nearby — walls, units, turrets, the Relay itself.'+relaySlotNote('def','repair')},has:()=>S.mods.relayDef==='repair',apply:()=>{setRelaySlot('def','repair')}},
     wallCard('elec','Electric Fence Walls'),
     wallCard('razor','Razor Line Walls'),
-    {id:'siegeRing',name:'Siege Ring',desc:'Every time the Bastion starts drilling, a free ring of walls rises around it along its dashed build ring. Where a wall already stands, none is added.',has:()=>S.mods.siegeRing,apply:()=>{S.mods.siegeRing=true}},
+    {id:'siegeRing',name:'Siege Ring',desc:'Every time the Rig starts drilling, a free ring of walls rises around it along its dashed build ring. Where a wall already stands, none is added.',has:()=>S.mods.siegeRing,apply:()=>{S.mods.siegeRing=true}},
     {id:'wallTowers',name:'Bulwark Towers',desc:'Every wall end gets a free Turret — on the walls you have now and every wall you build from here on. A tower that falls is not replaced. Drawback: walls cost twice as much.',has:()=>S.mods.wallTowers||S.mods.podTowers,apply:()=>{S.mods.wallTowers=true;wallTowers();updateBuildBar()}},
   ],
   Legendary:[
@@ -1903,15 +1900,15 @@ function mkCracks(n,stepMin,R,branchP){return crackLines(Math.random,0,0,R,n,ste
 // strike) and hold the needle steady while it drills; damage loosens their grip, and a destroyed
 // one frees its hotspot to drift again.
 const HOTSPOTS_PER_VEIN=3, STAB_HP=140, STAB_BUILD_T=3, STAB_SNAP=32;
-// Stabilizers aren't built — the Bastion FIRES them. It holds STAB_CHARGES; a spent charge comes
+// Stabilizers aren't built — the Rig FIRES them. It holds STAB_CHARGES; a spent charge comes
 // back every STAB_RECHARGE_T seconds. You aim at a spot within STAB_RANGE; the spike arcs out of
-// the Bastion (growing as it rises toward the camera, largest at the top of the arc) and takes a
+// the Rig (growing as it rises toward the camera, largest at the top of the arc) and takes a
 // moment to land — the hotspots keep drifting, so you have to lead them. Land on a free hotspot
 // and it's pinned, and the vein holds together STAB_LIFE_BONUS seconds longer before collapsing
 // (up to one per hotspot). Miss and the charge is spent.
 const STAB_CHARGES=3, STAB_RECHARGE_T=15, STAB_RANGE=650, STAB_FLIGHT_SPEED=420, STAB_LIFE_BONUS=10, STAB_RELAY_R=420;
-// v4: a Stabilizer can be fired from the Bastion (out to STAB_RANGE) or from any live, tethered Relay
-// (out to STAB_RELAY_R), so the relay network carries it out to a vein far from the Bastion
+// v4: a Stabilizer can be fired from the Rig (out to STAB_RANGE) or from any live, tethered Relay
+// (out to STAB_RELAY_R), so the relay network carries it out to a vein far from the Rig
 function stabSources(){return [{o:S.base,r:STAB_RANGE},...S.relays.filter(r=>r.built&&r.hp>0&&r.tetherOk).map(r=>({o:r,r:STAB_RELAY_R}))]}
 function stabSourceFor(w){let best=null,bd=Infinity;stabSources().forEach(s=>{const d=dist(w,s.o);if(d<=s.r&&d<bd){bd=d;best=s.o}});return best}
 function mkHotspots(v){
@@ -2115,7 +2112,7 @@ function updateMeter(v,dt){
     if(sm.hold>=SEAM_HOLD){m.seam=null;m.seamDone=true;v.bonus=(v.bonus||0)+1;banner('Seam tapped! The vein will pay a second reward.','success');sfx.win();burst(v.mine.x,v.mine.y,'#6ff0ff',30,180,0.8)}
     else if(sm.t<=0){m.seam=null;m.seamDone=true;msg('The seam closed.')}}
 }
-// A failed strike or a needle that drifts into the red: the vein blows. The Bastion takes a hit
+// A failed strike or a needle that drifts into the red: the vein blows. The Rig takes a hit
 // that grows with how ambitious the meter was, everything nearby is caught in the blast, the
 // vein's Stabilizers are destroyed, and the vein collapses — another will emerge elsewhere.
 // (The contract vein can rupture too, but it holds together — it just has to be struck again.)
@@ -2132,7 +2129,7 @@ function ruptureVein(v,why){
   if(v.contract){v.drillProg=0;v.crackedT=CRACKED_T}else collapseVein(v,true);
   burst(v.x,v.y,C.enemy,46,260,1.0); burst(v.x,v.y,'#ffb36b',24,200,0.7);
   sfx.explode(); shakeScreen(12,0.7);
-  banner(`${why} The Bastion took ${dmg} damage, and ${v.contract?`the contract vein needs ${CRACKED_T}s to settle before it can be struck again`:'the vein has collapsed'}.`,'danger');
+  banner(`${why} The Rig took ${dmg} damage, and ${v.contract?`the contract vein needs ${CRACKED_T}s to settle before it can be struck again`:'the vein has collapsed'}.`,'danger');
   updateMeterUI(true); updateBuildBar();
 }
 // Draws the drill meter panel (called every frame from hud()). The view is a window onto the
@@ -2145,7 +2142,7 @@ function meterView(m){
 }
 // v4: the vein survey panel — the vein you're drilling, else the last one you surveyed if it's
 // still alive. Tier, a bar per rung of its ladder, and how long until it ripens a tier, goes
-// unstable or collapses (frozen while the Bastion is locked onto it).
+// unstable or collapses (frozen while the Rig is locked onto it).
 function fmtT(t){t=Math.max(0,Math.ceil(t));return t>=60?`${Math.floor(t/60)}:${String(t%60).padStart(2,'0')}`:`${t}s`}
 function updateSurveyUI(){
   const el=document.getElementById('veinSurvey');
@@ -2428,9 +2425,9 @@ function emergeVein(site,o){
   }
   return v;
 }
-// A free site in the band for a new vein: never one the Bastion is within VEIN_WAKE_CLEAR of or any
+// A free site in the band for a new vein: never one the Rig is within VEIN_WAKE_CLEAR of or any
 // of your units within VEIN_WAKE_UNIT_CLEAR of (a vein and its guards mustn't spring up underfoot);
-// far from the Bastion and clear of other live veins where possible. v4: never a site you've drained
+// far from the Rig and clear of other live veins where possible. v4: never a site you've drained
 // (st.spent) — a mined vein stays dead for the rest of the map. Nothing allowed: null, and the
 // respawn waits and tries again.
 const VEIN_WAKE_CLEAR=480, VEIN_WAKE_UNIT_CLEAR=260;
@@ -2474,7 +2471,7 @@ function updateVeinLife(dt){
 
 // ---- strays & bearings ----
 // Stray energy pockets sit out in the open, glowing under the surface and giving off faint pulses
-// of their own. When any of your units (or the Bastion) reaches one — or a Ping lands on it — it
+// of their own. When any of your units (or the Rig) reaches one — or a Ping lands on it — it
 // gives a BEARING: a beam pointing, a little imprecisely, toward the nearest live vein. Two bearings
 // on the same vein from far enough apart (their beams crossing at a real angle) TRIANGULATE it:
 // it's revealed on the map, mining point and all. For ordinary veins that's just a shortcut — you
@@ -2662,11 +2659,11 @@ let S, cam, mouse={x:0,y:0,wx:0,wy:0,down:false,drag:null,panning:false,touchSta
 // touch input state: multi-touch pinch-zoom, long-press-then-drag box select, tap-to-command, manual double-tap
 let touchPts=new Map(), pinch=null, longPressTimer=null, lastTap=null;
 // ---------- main menu / spawn ----------
-// Mission launch: the player picks where the Bastion sets down before the run starts. Confined to
-// the Rim (never Dense/Core) and inset from the map edge so the Bastion's own build/clear radius
+// Mission launch: the player picks where the Rig sets down before the run starts. Confined to
+// the Rim (never Dense/Core) and inset from the map edge so the Rig's own build/clear radius
 // never pokes off the world or into the Dense band.
 let menuOpen=true;
-// The Bastion's spawn: always on the Rim, at least LANDING_MARGIN out past the Dense Field's edge
+// The Rig's spawn: always on the Rim, at least LANDING_MARGIN out past the Dense Field's edge
 // and inside the map margin.
 const LANDING_MARGIN=260;
 // Haze offsets are no longer shown anywhere, but are still rolled so every map seed (the
@@ -2675,7 +2672,7 @@ const VEIN_HAZE_OFF=320, LANDING_SITE_CLEAR=450;
 const rollHaze=()=>{const a=rnd(0,Math.PI*2),d=VEIN_HAZE_OFF*Math.sqrt(rnd(0,1));return{x:Math.cos(a)*d,y:Math.sin(a)*d}};
 function canLandAt(x,y){return inMap(x,y,LANDING_MARGIN)&&epiDist(x,y)>=DENSE_R+LANDING_MARGIN}
 // Semi-random spawn, tuned for time to first engagement: a random open Rim spot whose nearest
-// live Rim vein is SPAWN_VEIN_NEAR..SPAWN_VEIN_FAR away (about 18-26s of Bastion travel), and no
+// live Rim vein is SPAWN_VEIN_NEAR..SPAWN_VEIN_FAR away (about 18-26s of Rig travel), and no
 // live vein of any kind is closer than SPAWN_VEIN_NEAR. Needs the map already built (reset()).
 // If no live vein allows that, the same distance from an empty Rim site works too: with no live
 // vein within 1100, the opening vein (see reset) emerges at the nearest Rim site. Last resort: any
@@ -2820,15 +2817,15 @@ function setMapSize(f){
 }
 function reset(landing){
   setMapSize(STOP_BAND?(STOP_SPLIT?(MAP_SIZE_BY_BAND.rim+MAP_SIZE_BY_BAND.dense)/2:MAP_SIZE_BY_BAND[STOP_BAND]):1);
-  // Map layout comes first, entirely from the map seed and independent of where the Bastion lands:
+  // Map layout comes first, entirely from the map seed and independent of where the Rig lands:
   // epicenter + map type, terrain, veins, clusters, and where every deposit gets rolled. That way
   // picking a different landing spot on the same seed only changes things right around the
-  // Bastion, not the whole map.
+  // Rig, not the whole map.
   rand=seededRng(mapSeed);
   rollLayout();
   const land=landing||defaultLanding();
   S={t:0,surveyVein:null,wrecks:[],beacons:[],squadCap:SQUAD_CAP_START,quakes:[],quakeMsg:false,barrier:null,breachSite:null,breachVein:null,rigSite:null,rig:null,glass:null,glassShards:[],glassB:null,glassCov:null,dat:tutorialMap?TUTORIAL_START_DAT:pressureOn('lean')?20:60,living:0,condensed:0,over:null,rerollCount:0,
-    base:{x:land.x,y:land.y,hp:450+bastionHpBonus(),maxHp:450+bastionHpBonus(),r:BASE_R,dest:null,locked:false,gunCd:0,bigGunCd:0,pingCd:0},
+    base:{x:land.x,y:land.y,hp:450+bastionHpBonus(),maxHp:450+bastionHpBonus(),r:BASE_R,dest:null,locked:false,pingCd:0,riftSan:1,riftOk:true},
     troops:[],harvesters:[],builders:[],relays:[],depots:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],shards:[],nades:[],shardShots:[],lances:[],smears:[],calls:{},callUnlock:{},capAdd:{},kits:{},fires:[],callsIn:[],callFx:[],decoys:[],mines:[],fields:[],
     veins:[],activeVein:null,throttleMul:1,ambientT:30,
     minedWindowAmt:0,minedWindowT:0,offZonePatrolCd:OFFZONE_MINE_WINDOW,
@@ -2837,7 +2834,7 @@ function reset(landing){
     // reset back to baseline (1 / 0 / false) by a fresh reset(), never persisted between runs.
     mods:{carryMult:1,troopDmgMult:1,moveSpeedMult:1,visionMult:1,relayTolMult:1,drillBurnMult:1,
       cableLenAdd:0,cableHpMult:1,condensedMult:1,livingMult:1,fastBonus:0,drillRateMult:1,freeRelayCharges:0,
-      grenFireRateMult:1,grenSplashMult:1,squadRangeMult:1,bigGuns:false,bastionShootWhileDrilling:false,wallTowers:false,podTowers:false,siegeRing:false,wallType:null,
+      grenFireRateMult:1,grenSplashMult:1,squadRangeMult:1,heavyArmour:false,pointDefence:false,deflector:false,riftShield:false,wallTowers:false,podTowers:false,siegeRing:false,wallType:null,
       energySurgeLevel:0,armedRelays:false,relayOff:null,relayDef:null,teslaLevel:0,martyrs:false,fabRateMult:1},
     rewardChoice:null,pingRing:null,pings:[],reanim:[],stabs:[],stabShots:[],stabCharges:3,stabRechargeT:0,probes:[],probeCharges:3,probeRechargeT:0,paused:false,
     sel:{base:false,troops:new Set(),harv:new Set(),bu:new Set()},
@@ -2954,7 +2951,7 @@ function reset(landing){
   // v4: the last stop — the contract vein is awake from the start, ringed by its great mounds
   placePOIs(); // v4: wrecks (ported from v3)
   {const maze=STOP_BAND==='dense'&&S.barrier;if(maze)denseMaze();
-   if(S.barrier&&!tutorialMap){S.routeFixes=ensureBastionRoutes();if(S.routeFixes)console.info('map',mapSeed,': carved',S.routeFixes,'missing Bastion route(s)')}
+   if(S.barrier&&!tutorialMap){S.routeFixes=ensureBastionRoutes();if(S.routeFixes)console.info('map',mapSeed,': carved',S.routeFixes,'missing Rig route(s)')}
    const glass=STOP_BAND&&!tutorialMap?placeGlass():false; // v4: purple glass formations in the rift
    if(maze||glass){const keep=rand;rand=seededRng(mapSeed*131+17);terrainCv=buildTerrainCanvas();rand=keep;buildTerrainBlur()}}
   startTerrainPaint(true); // the ground paints in the background; a loading screen covers it until the area round the landing is done
@@ -2972,11 +2969,11 @@ function reset(landing){
 // v4: a run is RUN_STOPS maps in a row, each set wholly in one zone and getting deeper (and tougher)
 // as you go: Rim, Rim, Dense Field, Dense Field, Core, and the Core map holding the contract vein.
 // Every stop but the last is split by a barrier about BARRIER_X of the way across — a band of rift
-// on the Rim (troopers can wade it, the Bastion can't) or a wall of crystal deeper in (nothing gets
+// on the Rim (troopers can wade it, the Rig can't) or a wall of crystal deeper in (nothing gets
 // through). The BREACH VEIN sits on the near side of it, ringed by nests; draining it bridges the
-// rift or shatters the wall, and walking the Bastion off the far (east) edge moves on to the next
+// rift or shatters the wall, and walking the Rig off the far (east) edge moves on to the next
 // stop. Everything you have carries over: Dat and crystal, reward cards, fabricators and their
-// charges, the Bastion's damage, every unit and drone.
+// charges, the Rig's damage, every unit and drone.
 function stopInfo(){return RUN?RUN_STOPS[RUN.stop]:null}
 function stopName(band){return band==='rim'?'the Rim':band==='dense'?'the Dense Field':'the Core'}
 function stopTitle(st){return st&&st.split?'the edge of the Dense Field: Rim ground giving way to the Dense Field':stopName(st?st.band:STOP_BAND)}
@@ -3005,13 +3002,13 @@ function paintBarrier(breach){
 }
 // Each side of the barrier must hang together on its own: everything west reachable from the
 // landing, everything east reachable from where the breach comes out, both on foot and for the
-// Bastion — the routes carved earlier may have looped across where the barrier now stands.
+// Rig — the routes carved earlier may have looped across where the barrier now stands.
 function bastionAccessFrom(src,points){
   const b={x:S.base.x,y:S.base.y};S.base.x=src.x;S.base.y=src.y;ensureBastionAccess(points);S.base.x=b.x;S.base.y=b.y;
 }
 function knitBarrierSides(breach,west,east){
   const bx=S.barrier.centre, bb=S.barrier.y, out=frameXY(bx+BARRIER_HALF+160,bb), exitPt=frameXY(W-300,Math.max(300,Math.min(H-300,bb+rnd(-600,600))));
-  // both mouths of the breach get open ground the Bastion can reach, and the stretch of the breach
+  // both mouths of the breach get open ground the Rig can reach, and the stretch of the breach
   // line between them is cleared of rift and rock on each side (not the barrier itself)
   const inn=frameXY(bx-BARRIER_HALF-160,bb);
   clearDisk(out.x,out.y,120);clearDisk(exitPt.x,exitPt.y,160);clearDisk(inn.x,inn.y,120);
@@ -3034,8 +3031,8 @@ function openBreach(v){
   const cx=B.centre, cols=B.type===RIFT?['#b28cff','#8fe3ff']:['#9fe8ff','#e8fbff'];
   for(let i=0;i<14;i++){const q=frameXY(cx+rnd(-BARRIER_HALF,BARRIER_HALF),B.y+rnd(-BREACH_GAP,BREACH_GAP));burst(q.x,q.y,cols[i%2],18,220,0.9)}
   shakeScreen(9,0.7);sfx.win();
-  msg(B.type===RIFT?`The breach vein poured into the rift and hardened a crossing — the way ${EDGE_WORD[EXIT_DIR]} is open. Walk the Bastion off the ${EDGE_WORD[EXIT_DIR]} edge to move on.`:
-    `The breach vein shattered the crystal wall — the way ${EDGE_WORD[EXIT_DIR]} is open. Walk the Bastion off the ${EDGE_WORD[EXIT_DIR]} edge to move on.`);
+  msg(B.type===RIFT?`The breach vein poured into the rift and hardened a crossing — the way ${EDGE_WORD[EXIT_DIR]} is open. Walk the Rig off the ${EDGE_WORD[EXIT_DIR]} edge to move on.`:
+    `The breach vein shattered the crystal wall — the way ${EDGE_WORD[EXIT_DIR]} is open. Walk the Rig off the ${EDGE_WORD[EXIT_DIR]} edge to move on.`);
 }
 // what carries from one stop to the next
 function captureCarry(){
@@ -3081,7 +3078,7 @@ function advanceStop(){
 }
 document.getElementById('stopBtn').onclick=advanceStop;
 // debug: a row of buttons shown only while debug mode is on (` switches it, and the fog, on and off):
-// skip to the next map; God mode (Dat never runs out, every unit unlocked, the Bastion can't be
+// skip to the next map; God mode (Dat never runs out, every unit unlocked, the Rig can't be
 // hurt); Invincible units (your units never lose health or sanity). Leaving debug mode turns both off.
 const DBG_DAT=99999;let dbgGod=false,dbgInvuln=false,dbgDatSave=null;
 const dbgBar=document.createElement('div');dbgBar.hidden=true;
@@ -3148,7 +3145,7 @@ function drawExit(){
   ctx.globalAlpha=1;ctx.restore();
 }
 // ---------- starting a run ----------
-// Play rolls a fresh map and drops the Bastion at a semi-random Rim spot (pickSpawn) — no landing
+// Play rolls a fresh map and drops the Rig at a semi-random Rim spot (pickSpawn) — no landing
 // picker, so every run opens at a similar distance from its first vein.
 const pressureOn=id=>!!(RUN&&RUN.pressure&&RUN.pressure.ids.includes(id));
 function pressureBonus(ids){return ids.reduce((a,id)=>a+(PRESSURE.find(p=>p.id===id)||{bonus:0}).bonus,0)}
@@ -3163,7 +3160,7 @@ function pressureCost(ids){return ids.reduce((a,id)=>a+(PRESSURE.find(p=>p.id===
 // Music is generative, in D minor (Dm, B♭, F, C, two bars each at 84 bpm), with three layers that
 // fade in by intensity: calm (a slow pad and a few bell notes), drilling (a bass pulse and a steady
 // arpeggio), combat (drums and a quicker arpeggio). Intensity comes from what's happening: drilling,
-// and how many enemies are close to the Bastion and your units.
+// and how many enemies are close to the Rig and your units.
 const AUDIO_KEY='astroscraper.audio';let AUD={music:0.55,amb:0.7,sfx:1};try{Object.assign(AUD,JSON.parse(localStorage.getItem(AUDIO_KEY)||'{}'))}catch(e){}
 function saveAud(){try{localStorage.setItem(AUDIO_KEY,JSON.stringify(AUD))}catch(e){}}
 let BUS=null;
@@ -3270,12 +3267,12 @@ const UNLOCKS=[
 // Permanent, tiered upgrades bought with Condensed Crystal — unlike UNLOCKS these aren't one-shot:
 // meta.upgrades[key] holds how many tiers are already bought (0..max). costs[i] is the price of
 // buying tier i+1 (so costs[tier] is always "price of the next tier"). stacking:true means each
-// tier's effect ADDS on top of the ones before it (Bastion plating); stacking:false means a tier
+// tier's effect ADDS on top of the ones before it (Rig plating); stacking:false means a tier
 // REPLACES the previous bonus rather than piling on (pct[tier-1] is the current total, not a delta)
 // — matches the "does not stack, percentage is of initial" spec for those two.
 const META_UPGRADES=[
-  {key:'bastionHp',name:'Bastion Armor Plating',icon:'⛨',max:3,costs:[10,20,30],stacking:true,perTier:250,unit:'Bastion HP',
-   desc:'Reinforces the Bastion\'s hull. +250 HP per purchase.'},
+  {key:'bastionHp',name:'Rig Armor Plating',icon:'⛨',max:3,costs:[10,20,30],stacking:true,perTier:250,unit:'Rig HP',
+   desc:'Reinforces the Rig\'s hull. +250 HP per purchase.'},
   {key:'unitHp',name:'Kinetic Dampers',icon:'✚',max:3,costs:[10,15,20],stacking:false,pct:[10,20,30],unit:'combat unit HP',
    desc:'Dampens incoming impacts. +10% Trooper/Grenadier/Artillery/Mech HP per purchase.'},
   {key:'pingRange',name:'Deep Scan Antenna',icon:'◉',max:2,costs:[15,20],stacking:false,pct:[25,50],unit:'probe sweep width',
@@ -3508,9 +3505,9 @@ function compass(dx,dy){
 function tutVein(){return tutorial?tutorial.vein:null}
 const TUTORIAL_STEPS=[
   {topic:'The basics',title:'Welcome to Astroscraper',
-   text:()=>`You command the <b>Bastion</b> — a mobile drilling rig — and its crew. The goal of every run: drill crystal veins across the zone, growing stronger with each one, until you can crack the hidden contract vein near the Black Flame at the map's heart. This tutorial walks you through your first vein.`},
+   text:()=>`You command the <b>Rig</b> — a mobile mining laser — and its crew. The goal of every run: drill crystal veins across the zone, growing stronger with each one, until you can crack the hidden contract vein near the Black Flame at the map's heart. This tutorial walks you through your first vein.`},
   {title:'Look around',
-   text:()=>`Pan the camera with <kbd>WASD</kbd> or the arrow keys (or middle-mouse drag), and scroll to zoom. Press <kbd>H</kbd> any time to snap back to the Bastion.`,
+   text:()=>`Pan the camera with <kbd>WASD</kbd> or the arrow keys (or middle-mouse drag), and scroll to zoom. Press <kbd>H</kbd> any time to snap back to the Rig.`,
    done:()=>Math.hypot(cam.x-tutorial.cam0.x,cam.y-tutorial.cam0.y)>250||Math.abs(cam.z-tutorial.cam0.z)>0.15},
   {title:'Select your Troopers',
    text:()=>`The blue riflemen are your <b>Troopers</b> — your fighters and scouts. Drag a box around them to select them, or press <kbd>Ctrl</kbd>+<kbd>A</kbd> to select every unit at once.`,
@@ -3520,27 +3517,27 @@ const TUTORIAL_STEPS=[
    target:()=>{const v=tutVein();return{x:v.x,y:v.y,r:v.r+20}},
    done:()=>tutVein().mine.found},
   {title:'Dat Crystal',
-   text:()=>`Found it! <b>Dat Crystal</b> (◆, top left) drops from enemies and from destroyed nests — the Bastion or any unit scoops it up just by passing over it. Your little teal <b>repair drones</b> spend Dat to patch up whatever gets damaged near the Bastion.`},
+   text:()=>`Found it! <b>Dat Crystal</b> (◆, top left) drops from enemies and from destroyed nests — the Rig or any unit scoops it up just by passing over it. Your little teal <b>repair drones</b> spend Dat to patch up whatever gets damaged near the Rig.`},
   {topic:'Drilling a vein',title:'Survey it with a Stabilizer',
    text:()=>`Before you commit, read the vein. Press <kbd>E</kbd> and click one of the <b>glowing hotspots</b> drifting inside it to fire a <b>Stabilizer</b> — lead it, the hotspots move, and the aiming ring shows how far it reaches. The first Stabilizer you pin on a vein <b>surveys</b> it: a panel shows its tier and how long until it ripens or collapses.`,
    target:()=>{const v=tutVein();return{x:v.x,y:v.y,r:v.r+20}},
    done:()=>!!tutVein().surveyed},
-  {title:'Move the Bastion',
-   text:()=>`Now bring the rig over. Click the Bastion to select it, then <b>right-click the glowing mining point</b> inside the vein. It's slow, so give it a moment to roll over.`,
+  {title:'Move the Rig',
+   text:()=>`Now bring the Rig over. Click the Rig to select it, then <b>right-click the glowing mining point</b> inside the vein. It's slow, so give it a moment to roll over.`,
    target:()=>{const v=tutVein();return{x:v.mine.x,y:v.mine.y,r:40}},
    done:()=>!!canLockdown()||S.base.locked},
   {title:'Start drilling',
-   text:()=>`The Bastion is in position. Press <kbd>F</kbd> (or <b>Begin Drilling</b> in the bottom bar) to lock on. A needle sweeps the drill meter — press <kbd>F</kbd> again to stop it on a good band. The meter zooms in on where you hit, and the drill starts.`,
+   text:()=>`The Rig is in position. Press <kbd>F</kbd> (or <b>Begin Drilling</b> in the bottom bar) to lock on. A needle sweeps the drill meter — press <kbd>F</kbd> again to stop it on a good band. The meter zooms in on where you hit, and the drill starts.`,
    done:()=>S.base.locked},
   {title:'Tactical pause',
    text:()=>`The first wave is on its way. Press <kbd>Space</kbd> to <b>pause</b> the action. While it's paused you can still select units, give orders and call in builds — they all go ahead when you press <kbd>Space</kbd> again. Use it any time you need a moment to plan. Pause now.`,
    done:()=>S.tacPause||S.tacUsed},
   {title:'Build a Turret',
-   text:()=>`Dig in — you can do all of this while paused. Press <kbd>T</kbd> and click inside the Bastion's ring to launch a <b>Turret</b>. The Bastion's fabricators hold a small free stock of each thing it can make; once a stock runs out, each one costs Dat Crystal.`,
+   text:()=>`Dig in — you can do all of this while paused. Press <kbd>T</kbd> and click inside the Rig's ring to launch a <b>Turret</b>. The Rig's fabricators hold a small free stock of each thing it can make; once a stock runs out, each one costs Dat Crystal.`,
    target:()=>({x:S.base.x,y:S.base.y,r:BUILD_R}),
    done:()=>S.turrets.some(t=>t.built)||S.fabShots.some(sh=>sh.k==='turret')},
   {title:'Lay a wall',
-   text:()=>`<b>Walls</b> stop enemies (your own units walk straight through). Press <kbd>Q</kbd>, then <b>click and drag</b> inside the Bastion's ring to draw a wall across the way the enemy will come — the price shows by your cursor. Its two end posts fly out from the Bastion and slats rise between them.`,
+   text:()=>`<b>Walls</b> stop enemies (your own units walk straight through). Press <kbd>Q</kbd>, then <b>click and drag</b> inside the Rig's ring to draw a wall across the way the enemy will come — the price shows by your cursor. Its two end posts fly out from the Rig and slats rise between them.`,
    target:()=>({x:S.base.x,y:S.base.y,r:BUILD_R}),
    done:()=>(S.wallLines||[]).length>=1},
   {title:'Chain it',
@@ -3577,7 +3574,7 @@ const TUTORIAL_STEPS=[
    target:()=>{const d=tutorial.demo;return d?{x:d.x,y:d.y,r:d.r+20}:null},
    done:()=>{tutCheckDemo();const d=tutorial.demo;return !!d&&veinStabs(d).length>0}},
   {title:'Mine it in time',
-   text:()=>`Bought some time! Now bring the Bastion onto its mining point and lock on (<kbd>F</kbd>) before the countdown runs out — locking on freezes its ripening, so it can't collapse under you. Pin more Stabilizers if you need longer.`,
+   text:()=>`Bought some time! Now bring the Rig onto its mining point and lock on (<kbd>F</kbd>) before the countdown runs out — locking on freezes its ripening, so it can't collapse under you. Pin more Stabilizers if you need longer.`,
    target:()=>{const d=tutorial.demo;return d?{x:d.mine.x,y:d.mine.y,r:40}:null},
    done:()=>{tutCheckDemo();const d=tutorial.demo;return !!d&&S.activeVein===d&&S.base.locked}},
   {title:'Drain it',
@@ -3585,9 +3582,9 @@ const TUTORIAL_STEPS=[
    done:()=>{const d=tutorial.demo;return !d||d.done||d.collapsed}},
   {topic:'The deep zone',title:'Into the Dense Field',
    enter:()=>tutDeepSetup(),
-   text:()=>`We've moved the Bastion to the edge of the <b>Dense Field</b> — the rift-choked ring closer to the Black Flame. Two things change out here. The violet <b>rift</b> is everywhere: Troopers can wade through it (slowly), but the Bastion can only walk the grey corridors. And the Rim's free wireless link is gone — <b>every unit needs a cable</b> back to the Bastion.`},
+   text:()=>`We've moved the Rig to the edge of the <b>Dense Field</b> — the rift-choked ring closer to the Black Flame. Two things change out here. The violet <b>rift</b> is everywhere: Troopers can wade through it (slowly), but the Rig can only walk the grey corridors. And the Rim's free wireless link is gone — <b>every unit needs a cable</b> back to the Rig.`},
   {title:'Every unit runs a cable',
-   text:()=>`Select your Troopers (<kbd>C</kbd>) and <b>right-click the marked spot</b> out in the rift. Watch the line they trail behind them — that's their cable, paid out from the Bastion as they go.`,
+   text:()=>`Select your Troopers (<kbd>C</kbd>) and <b>right-click the marked spot</b> out in the rift. Watch the line they trail behind them — that's their cable, paid out from the Rig as they go.`,
    target:()=>{const d=tutorial.deep;return d?{x:d.near.x,y:d.near.y,r:50}:null},
    done:()=>S.troops.some(t=>t.trail&&(t.cableLen||0)>150)},
   {title:'The end of the line',
@@ -3595,23 +3592,23 @@ const TUTORIAL_STEPS=[
    target:()=>{const d=tutorial.deep;return d?{x:d.wreck.x,y:d.wreck.y,r:60}:null},
    done:()=>S.troops.some(t=>t.cableMaxed)||(tutorial.deep&&tutorial.deep.wreck.done)},
   {title:'Relays carry the line',
-   text:()=>`A <b>Relay</b> is a new anchor out in the field. Press <kbd>R</kbd> and launch one <b>toward the wreck, near the edge of the Bastion's ring</b>. It runs its own cable back to the Bastion, and every unit re-runs its cable from whichever anchor is nearest — so your Troopers can push on from there.`,
+   text:()=>`A <b>Relay</b> is a new anchor out in the field. Press <kbd>R</kbd> and launch one <b>toward the wreck, near the edge of the Rig's ring</b>. It runs its own cable back to the Rig, and every unit re-runs its cable from whichever anchor is nearest — so your Troopers can push on from there.`,
    target:()=>({x:S.base.x,y:S.base.y,r:BUILD_R}),
    done:()=>S.relays.some(r=>r.built&&r.tetherOk&&dist(r,S.base)>140)||(tutorial.deep&&tutorial.deep.wreck.done)},
   {title:'Chain them out',
-   text:()=>`Still short? A Relay has a <b>launch ring</b> of its own, so you can lob the next one from it — Relays link to each other up to ${MAX_CABLE_LEN} apart, as long as the chain leads back to the Bastion. String another out toward the wreck, then send your Troopers onto it to <b>salvage</b> it.`,
+   text:()=>`Still short? A Relay has a <b>launch ring</b> of its own, so you can lob the next one from it — Relays link to each other up to ${MAX_CABLE_LEN} apart, as long as the chain leads back to the Rig. String another out toward the wreck, then send your Troopers onto it to <b>salvage</b> it.`,
    target:()=>{const d=tutorial.deep;return d?{x:d.wreck.x,y:d.wreck.y,r:60}:null},
    done:()=>!!tutorial.deep&&tutorial.deep.wreck.done},
   {title:'Guard your lines',
    enter:()=>tutDeepRaid(),
-   text:()=>`Cables can be <b>cut</b> — enemies chew through any line they wander across. A unit whose cable is cut keeps fighting, but its <b>Sanity</b> (the violet bar) drains, and at zero it turns on you; bring it back near the Bastion or a live Relay and it reconnects. A Relay that's cut goes dark, and so does any Turret it was powering. Raiders are heading for your line now — <b>fight them off</b>.`,
+   text:()=>`Cables can be <b>cut</b> — enemies chew through any line they wander across. A unit whose cable is cut keeps fighting, but its <b>Sanity</b> (the violet bar) drains, and at zero it turns on you; bring it back near the Rig or a live Relay and it reconnects. A Relay that's cut goes dark, and so does any Turret it was powering. Raiders are heading for your line now — <b>fight them off</b>.`,
    target:()=>{const f=(tutorial.deep&&tutorial.deep.foes||[]).find(e=>e.hp>0&&S.enemies.includes(e));return f?{x:f.x,y:f.y,r:40}:null},
    done:()=>{const d=tutorial.deep;return !!d&&!!d.foes&&(d.foes.every(e=>e.hp<=0||!S.enemies.includes(e))||S.t-d.raidT>60)}},
   {title:"That's the loop",
    text:()=>`Scout a vein, drill it, defend it, take an upgrade, push deeper. Veins nearer the Black Flame pay far more but are guarded far harder. Drain three and the hidden <b>contract vein</b> reveals itself — drain that to win the run. Crystal you bring home buys permanent upgrades between runs.`,
    finish:true},
 ];
-// The collapse-rescue lesson: a vein that's already unstable, near the Bastion, with just enough time
+// The collapse-rescue lesson: a vein that's already unstable, near the Rig, with just enough time
 // on its clock to reach it (plus a margin). If it collapses before you lock on, another takes its place.
 function tutSpawnDemo(again){
   const B=S.base, used=new Set(S.veins.filter(v=>veinAlive(v)).map(v=>v.site));
@@ -3624,7 +3621,7 @@ function tutSpawnDemo(again){
   tutorial.demo=v;
   if(again)banner('It collapsed — another vein nearby has just gone unstable. Be quicker this time!','danger');
 }
-// The deep-zone lessons: the Bastion and its Troopers are set down on a corridor just inside the
+// The deep-zone lessons: the Rig and its Troopers are set down on a corridor just inside the
 // Dense Field, with a wreck out in the rift far enough away that it takes two Relays to reach.
 function tutDeepSetup(){
   const B=S.base, seen=bfsReachableBastion(B.x,B.y);
@@ -3674,7 +3671,7 @@ function startTutorial(){
   tutorialMap=true; mapSeed=TUTORIAL_SEED;
   reset(); // first pass just to learn where this seed puts its Rim vein sites
   // Land a short walk from the Rim site nearest the default spot: on open ground, on the outer
-  // side of it (away from the epicenter) so the Bastion starts in the safest part of the map. A
+  // side of it (away from the epicenter) so the Rig starts in the safest part of the map. A
   // fresh vein always emerges at the Rim site nearest the landing, so that's the tutorial's vein.
   const d0=defaultLanding();
   const v=S.sites.filter(st=>st.band==='rim').reduce((a,b)=>dist(b,d0)<dist(a,d0)?b:a), out=Math.atan2(v.y-EPI.y,v.x-EPI.x);
@@ -3818,7 +3815,7 @@ function updateShardShots(dt){
         // a Paladin holding a shield wall turns shards that come at its face
         if(gatShielded(u,{x:sh.x-sh.vx,y:sh.y-sh.vy})){spark(sh.x,sh.y,'#9fb6d0',4);if(sfxReady('block',0.08))tone(1300,0.04,'square',0.03);return false}
         if(u.kind==='brawler'&&u.wall&&!u.dest){let da=Math.atan2(sh.y-u.y,sh.x-u.x)-u.ang;da=Math.atan2(Math.sin(da),Math.cos(da));if(Math.abs(da)<1.1){spark(sh.x,sh.y,BRAWL_COLOR,4);if(sfxReady('block',0.08))tone(1400,0.04,'square',0.03);if(hasKit(u,'warden'))wardenReflect(sh,u);return false}}
-        u.hp-=u.kind?allyHit(u,sh.dmg):sh.dmg;u.lastHitBy='enemy';hitFlash(u);spark(sh.x,sh.y,C.enemy,2);if(u===B&&sfxReady('damage',0.3))sfx.damage();return false}
+        u.hp-=structHit(u,u.kind?allyHit(u,sh.dmg):sh.dmg,'shot',sh.src);u.lastHitBy='enemy';hitFlash(u);spark(sh.x,sh.y,C.enemy,2);if(u===B&&sfxReady('damage',0.3))sfx.damage();return false}
     }
     sh.ang+=sh.spin*dt;return (sh.life-=dt)>0;
   });
@@ -4055,7 +4052,7 @@ function spawnShard(x,y,k,kind){const D=SHARD[k],hp=Math.round(D.hp*(RUN?stopHpM
   S.enemies.push({x,y,r:D.r,hp,maxHp:hp,speed:D.speed*(RUN&&pressureOn('frenzy')?1.15:1),dmg:D.dmg,cd:0,kind,shard:k,core:true,target:null,aggro:kind==='roam'?260:1e9,home:{x,y},
     ang:rnd(0,Math.PI*2),faceT:rnd(1,3),stunT:0,seed:Math.floor(rnd(1,9999)),blinkT:rnd(0.3,0.9),cores:3,scd:0,chg:0,lungeT:0,slamT:0});
   return S.enemies[S.enemies.length-1]}
-function shardHit(u,dmg,src){u.hp-=allyHit(u,dmg,src);u.lastHitBy='enemy';hitFlash(u);spark(u.x,u.y,C.enemy,2);if(u===S.base&&sfxReady('damage',0.3)){shakeScreen(3,0.15);sfx.damage()}}
+function shardHit(u,dmg,src){u.hp-=structHit(u,allyHit(u,dmg,src),src&&src.shard==='lantern'?'beam':src&&src.shard==='colossus'?'blast':'melee',src);u.lastHitBy='enemy';hitFlash(u);spark(u.x,u.y,C.enemy,2);if(u===S.base&&sfxReady('damage',0.3)){shakeScreen(3,0.15);sfx.damage()}}
 // One of them with a target: returns true when it has done its own thing this frame, false to walk
 // up (and chew through walls) the ordinary way.
 function shardStep(e,tgt,dt){const k=e.shard;if(k==='husk')return false;
@@ -4134,7 +4131,7 @@ function drawShard(e){const k=e.shard||'huskcore',t=S.t+e.seed%50,fl=e.flashT>0,
 // ---------- Lance Splinters ----------
 // v4: the Dense Field's artillery, the Splinter's big sibling. One comes with each drilling wave in
 // the Dense Field and the Core (up to LANCE_MAX at once), from where the wave comes. It ignores your
-// units and walks to within LANCE_RANGE of one of the drilling vein's Stabilizers (the Bastion if
+// units and walks to within LANCE_RANGE of one of the drilling vein's Stabilizers (the Rig if
 // there are none), then charges: its six shards rise and spin round its core faster and faster,
 // and at the top of the spin they all let go at once, flung out of the spin and lobbed high over
 // walls onto the Stabilizer. Then the shards regrow one by one, and until they have it can't fire.
@@ -4171,8 +4168,8 @@ function lanceRelease(e,tg){const z=lanceZ(1),R=lanceRing(1);
 function lancePos(l,f){const u=1-f;return [u*u*l.x0+2*u*f*l.cx+f*f*l.x1,u*u*l.y0+2*u*f*l.cy+f*f*l.y1,l.z0*u+Math.sin(f*Math.PI)*LANCE_ARC]}
 function updateLances(dt){if(!S.lances.length)return;
   S.lances=S.lances.filter(l=>{l.t+=dt;if(l.t<l.T)return true;const x=l.x1,y=l.y1,B=S.base;
-    S.stabs.forEach(st=>{if(st.built&&st.hp>0&&Math.hypot(st.x-x,st.y-y)<STAB_TOWER_R+LANCE_SPLASH){st.hp-=l.dmg;st.lastHitBy='enemy';hitFlash(st)}});
-    if(B.hp>0&&Math.hypot(B.x-x,B.y-y)<BASE_R+4){B.hp-=l.dmg;B.lastHitBy='enemy';hitFlash(B)}
+    S.stabs.forEach(st=>{if(st.built&&st.hp>0&&Math.hypot(st.x-x,st.y-y)<STAB_TOWER_R+LANCE_SPLASH){st.hp-=structHit(st,l.dmg,'shot');st.lastHitBy='enemy';hitFlash(st)}});
+    if(B.hp>0&&Math.hypot(B.x-x,B.y-y)<BASE_R+4){B.hp-=structHit(B,l.dmg,'shot');B.lastHitBy='enemy';hitFlash(B)}
     S.troops.forEach(u=>{if(u.hp>0&&Math.hypot(u.x-x,u.y-y)<(u.r||8)+6){u.hp-=allyHit(u,l.dmg*0.5);u.lastHitBy='enemy';hitFlash(u)}});
     burst(x,y,'#ff8a70',5,80,0.35);if(sfxReady('lancehit',0.05))tone(700+Math.random()*300,0.06,'square',0.03,0,200);return false});
 }
@@ -4196,7 +4193,7 @@ function drawLancer(e){glUse();
 // ---------- Quakers ----------
 // v4: a big stone block whose whole job is to wreck a drilling operation. One lumbers in now and
 // then while you drill and parks at a standoff (QUAKER_STANDOFF from the vein — out past the
-// Bastion gun), then every few seconds leaps high and crashes down. Each landing sends a quake to
+// Rig), then every few seconds leaps high and crashes down. Each landing sends a quake to
 // the vein: it jolts the drill needle (QUAKER_KICK, fading with distance out to QUAKER_REACH) and
 // shakes the vein's Stabilizers, and anything right where it lands takes a hit. Get close with units
 // and it bounds away to a new spot instead. You have to go out and kill it.
@@ -4217,13 +4214,13 @@ function quakerLeap(e,to){e.air=QUAKER_AIR_T;e.airT=QUAKER_AIR_T;e.from={x:e.x,y
 function quakeAt(e){
   const v=e.vein;
   burst(e.x,e.y,'#c9a46b',22,170,0.6);S.quakes.push({x:e.x,y:e.y,r:0,t:0});
-  [S.base,...S.troops,...S.turrets,...S.relays,...S.stabs].forEach(o=>{if(o.hp>0&&dist(o,e)<QUAKER_SPLASH_R+(o.r||10)){o.hp-=QUAKER_SPLASH_DMG;o.lastHitBy='enemy';hitFlash(o)}});
+  [S.base,...S.troops,...S.turrets,...S.relays,...S.stabs].forEach(o=>{if(o.hp>0&&dist(o,e)<QUAKER_SPLASH_R+(o.r||10)){o.hp-=structHit(o,QUAKER_SPLASH_DMG,'blast');o.lastHitBy='enemy';hitFlash(o)}});
   const f=v?Math.max(0,1-dist(e,v)/QUAKER_REACH):0;
   shakeScreen(2+5*f,0.35);sfx.explode();
   if(!v||!veinAlive(v)||S.activeVein!==v||f<=0)return;
   const m=v.meter;
   if(m&&m.phase==='drill'){const sv=steerState(v), away=m.x-sv.target;m.x+=(away?Math.sign(away):(Math.random()<0.5?-1:1))*QUAKER_KICK*f}
-  veinStabs(v).forEach(st=>{st.hp-=QUAKER_STAB_DMG*f;st.lastHitBy='enemy';hitFlash(st)});
+  veinStabs(v).forEach(st=>{st.hp-=structHit(st,QUAKER_STAB_DMG*f,'blast');st.lastHitBy='enemy';hitFlash(st)});
   S.quakes.push({x:v.x,y:v.y,r:0,t:0,soft:true});
   if(!S.quakeMsg){S.quakeMsg=true;banner('A Quaker\'s landing jolted the drill needle and shook the Stabilizers — kill it before it throws the drill into the red.','danger')}
 }
@@ -4276,7 +4273,7 @@ const NEST_FEED_R=1600, NEST_STRAGGLERS=0.75, NEST_GAP=550*MS, NEST_BASE_CLEAR=9
 const NEST_SPROUT_T=140, NEST_CAP=22, NEST_DEFEND_CD=7, NEST_GROW_QUIET=15, NEST_PATROL_REACH=[450,900];
 // v4: the Dense Field's nests sit out in the rift, far from the corridors — so there they patrol more
 // often and further, and most of their patrols go looking for you: they head for somewhere near the
-// Bastion or one of your units (if it's within NEST_HUNT_RANGE) instead of a random point. A nest whose
+// Rig or one of your units (if it's within NEST_HUNT_RANGE) instead of a random point. A nest whose
 // brood is already all out sends one of its idle packs off on a new patrol instead of standing pat.
 const PATROL_TUNE={dense:{every:0.5,reach:[700,1500],hunt:0.6,range:2600,aggro:340}};
 const nestScaled=(n,k)=>Math.max(1,Math.round(k*NEST_BAND_MULT[n.band]));
@@ -4301,7 +4298,7 @@ function makeNest(x,y,size){
   nestSpawn(n,nestScaled(n,N.guards),'roam').forEach(e=>e.nest=n);
   return n;
 }
-// A spot in the band clear of the Bastion, vein sites and other nests (and, for one sprouting
+// A spot in the band clear of the Rig, vein sites and other nests (and, for one sprouting
 // mid-run, out of everyone's sight). null if nothing fits.
 const NEST_DENSE_EDGE=520, NEST_DENSE_SITE_GAP=520;
 function placeNest(size,band,hidden){
@@ -4321,7 +4318,7 @@ function placeNest(size,band,hidden){
   }
   return null;
 }
-// where a patrol walks to: usually (in a tuned band) somewhere near the Bastion or one of your units,
+// where a patrol walks to: usually (in a tuned band) somewhere near the Rig or one of your units,
 // otherwise a random point out to the band's patrol reach
 function patrolPoint(n,PT){
   const reach=PT?PT.reach:NEST_PATROL_REACH;
@@ -4525,10 +4522,10 @@ function drawMotes(x0,y0,x1,y1){
 }
 // ---------- places of interest: wrecks & beacons ----------
 // WRECKS are derelict scrapers lying out in the zone, hidden in the fog like everything else. Park
-// the Bastion on one and hold there WRECK_T seconds to salvage it — the noise draws a small ambush
+// the Rig on one and hold there WRECK_T seconds to salvage it — the noise draws a small ambush
 // the moment you start. Pay-out is rolled by depth (WRECK_LOOT): a Dat cache, every fabricator
 // refilled, spare drones, or free units of a kind you haven't unlocked.
-// BEACONS are old survey masts. Any unit (or the Bastion) standing at one for BEACON_T seconds
+// BEACONS are old survey masts. Any unit (or the Rig) standing at one for BEACON_T seconds
 // powers it up once: it sweeps BEACON_R around itself and marks every live vein and nest in that
 // radius on your map for good.
 const WRECK_UNIT_RATE=0.6, WRECK_T=8, WRECK_R=44, WRECK_REACH=80, WRECK_N={rim:2,dense:2,core:2}, WRECK_STOP_N=4, WRECK_AMBUSH={rim:3,dense:5,core:8}, WRECK_AMBUSH_D=480;
@@ -4536,7 +4533,7 @@ const WRECK_DAT={rim:45,dense:75,core:120};
 const WRECK_LOOT={rim:{dat:0.25,refill:0.2,drones:0.1,squad:0.2,fab:0.1,call:0.15},dense:{dat:0.15,refill:0.2,drones:0.1,squad:0.2,fab:0.15,call:0.2},core:{dat:0.1,refill:0.15,drones:0.1,squad:0.2,fab:0.2,call:0.25}};
 const BEACON_T=3, BEACON_REACH=60, BEACON_R=1500, BEACON_N={rim:0,dense:0,core:0}; // v4: wrecks only for now
 const POI_GAP=700*MS;
-// a spot in the band the Bastion can actually walk to, clear of the landing, vein sites, nests and
+// a spot in the band the Rig can actually walk to, clear of the landing, vein sites, nests and
 // other places of interest
 function placePOI(band,reachable){
   const sites=[...S.sites,S.contractSite,...(S.hiveSites||[]),S.rigSite].filter(Boolean), others=[...S.wrecks,...S.beacons];
@@ -4548,7 +4545,7 @@ function placePOI(band,reachable){
     if(tcost(Math.floor(p.x/TCELL),Math.floor(p.y/TCELL),true)===Infinity)continue;
     if(dist(p,S.base)<800||sites.some(st=>dist(st,p)<ZONE_R+150)||others.some(o=>dist(o,p)<POI_GAP))continue;
     if(S.enemies.some(e=>e.kind==='nest'&&dist(e,p)<300))continue;
-    // reachable by the Bastion — from the landing, or (on a stop map) from where the breach comes out
+    // reachable by the Rig — from the landing, or (on a stop map) from where the breach comes out
     if(reachable&&!astar(S.base.x,S.base.y,p.x,p.y,true,false)&&!(S.barrier&&S.barrier.out&&astar(S.barrier.out.x,S.barrier.out.y,p.x,p.y,true,false)))continue;
     return p;
   }
@@ -4582,15 +4579,15 @@ function updatePOIs(dt){
   if(!S.wrecks)return;
   const B=S.base;
   S.wrecks.forEach(w=>{
-    if(!w.seen&&visible(w)){w.seen=true;msg('A derelict scraper wreck — park the Bastion on it, or send units to stand on it, to salvage it.')}
+    if(!w.seen&&visible(w)){w.seen=true;msg('A derelict scraper wreck — park the Rig on it, or send units to stand on it, to salvage it.')}
     if(w.done)return;
-    // v4: the Bastion parked on it salvages at full speed; units on their own at WRECK_UNIT_RATE
+    // v4: the Rig parked on it salvages at full speed; units on their own at WRECK_UNIT_RATE
     const bOn=!B.locked&&dist(B,w)<WRECK_REACH, uOn=S.troops.some(t=>t.hp>0&&dist(t,w)<WRECK_REACH*0.85);
     if(!bOn&&!uOn)return;
     if(!w.ambushed){w.ambushed=true;
       const n=WRECK_AMBUSH[w.band], a=rnd(0,Math.PI*2);
       for(let i=0;i<n;i++){const p=nearestPlain(Math.max(40,Math.min(W-40,w.x+Math.cos(a)*WRECK_AMBUSH_D+rnd(-80,80))),Math.max(40,Math.min(H-40,w.y+Math.sin(a)*WRECK_AMBUSH_D+rnd(-80,80))));spawnEnemy(p.x,p.y,'wave')}
-      msg(`Salvaging — hold position${bOn?` ${WRECK_T}s`:` (units salvage slower than the Bastion)`}. The racket is drawing something in from the ${compassName(a)||'dark'}…`);sfx.wave();
+      msg(`Salvaging — hold position${bOn?` ${WRECK_T}s`:` (units salvage slower than the Rig)`}. The racket is drawing something in from the ${compassName(a)||'dark'}…`);sfx.wave();
     }
     w.prog=Math.min(1,w.prog+dt/WRECK_T*(bOn?1:WRECK_UNIT_RATE));
     if(w.prog>=1)salvageWreck(w);
@@ -4914,8 +4911,8 @@ function drawNest(n){
   if(n.hp<n.maxHp)hpbar(n.x,n.y-n.r-10,n.r*2+8,n.hp/n.maxHp);
 }
 // Where the player's actual mining is happening right now — the average position of harvesters
-// currently working a node (falling back to all harvesters, then the Bastion) — rather than just
-// always converging on the Bastion itself, which might be sitting well away from the cluster.
+// currently working a node (falling back to all harvesters, then the Rig) — rather than just
+// always converging on the Rig itself, which might be sitting well away from the cluster.
 function miningActivityCenter(){
   const active=S.harvesters.filter(h=>h.state==='harvest'||h.carry>0);
   const pool=active.length?active:S.harvesters;
@@ -4924,7 +4921,7 @@ function miningActivityCenter(){
   return {x:sx/pool.length,y:sy/pool.length};
 }
 // 0 right at the Rim's outer edge, 1 at the epicenter — a continuous read on how deep the
-// Bastion currently sits, for scaling threat pressure smoothly rather than only in band steps.
+// Rig currently sits, for scaling threat pressure smoothly rather than only in band steps.
 function depthFactor(x,y){if(RUN)return STOP_DEPTH[RUN.stop];return Math.max(0,Math.min(1,1-epiDist(x,y)/EPI_REACH))}
 // How flush the bank is, capped so a maxed-out Depot stockpile doesn't spiral pressure forever.
 function bankFactor(){return Math.min(1.5,S.dat/400)}
@@ -5036,7 +5033,7 @@ function genTerrain(){
   placeRifts();
   fillDenseRift();
   // Ridges go down last: painted any earlier, the Dense Field's rift fill paints straight over
-  // them across that whole ring. (Bastion routes through anything they cut off are carved back
+  // them across that whole ring. (Rig routes through anything they cut off are carved back
   // in later by ensureConnectivity/ensureBastionAccess.)
   for(let i=0;i<Math.round(T.ridges*MS);i++)paintRidge();
 }
@@ -5103,11 +5100,11 @@ function placeRifts(){
     }
   });
 }
-// The Dense Field is blanketed in rift — driving the Bastion straight in from the Rim isn't an
+// The Dense Field is blanketed in rift — driving the Rig straight in from the Rim isn't an
 // option in there. A handful of winding corridors (each a chain of jittered carveLine segments,
 // not a straight cut) are guaranteed clear all the way through, from just inside the Rim inward
 // to just inside the Core, so there's always a real — if narrow and indirect — route in.
-// Everything else in the band stays open to troops/harvesters/builders, just not the Bastion.
+// Everything else in the band stays open to troops/harvesters/builders, just not the Rig.
 const DENSE_RIFT_PROB=0.82, DENSE_CORRIDORS=3, DENSE_CORRIDOR_W=1, DENSE_CORRIDOR_STEPS=7, DENSE_CORRIDOR_JITTER=150;
 function fillDenseRift(){
   if(STOP_BAND)return; // stop maps get extra rift pockets instead (see placeRifts)
@@ -5128,11 +5125,11 @@ function fillDenseRift(){
     }
   }
 }
-// v4: Dense Field stops are a sea of rift crossed by thin, winding corridors the Bastion can walk.
+// v4: Dense Field stops are a sea of rift crossed by thin, winding corridors the Rig can walk.
 // The corridors join the landing, every vein site, the breach and the way out (each side of the
 // crystal wall on its own) as a branching network with a loop or two — and they steer well clear
 // of the nests and wrecks, which sit out in the rift: troopers can wade out to them, but the
-// Bastion's reach only gets there by chaining Relays across.
+// Rig's reach only gets there by chaining Relays across.
 const MAZE_W=1, MAZE_ROOM=ZONE_R+40, MAZE_AVOID=720, MAZE_LOOPS=2;
 function denseMaze(){
   const N=TGX*TGY, B=S.barrier, cc=(x,y)=>Math.max(0,Math.min(TGY-1,Math.floor(y/TCELL)))*TGX+Math.max(0,Math.min(TGX-1,Math.floor(x/TCELL)));
@@ -5211,7 +5208,7 @@ function denseMaze(){
   if(S.rigSite)clearDisk(S.rigSite.x,S.rigSite.y,RIG_ISLAND_R); // the derelict rig's island
 }
 
-// v4: a safety net after the maze and terrain are final: the Bastion must be able to walk from where it
+// v4: a safety net after the maze and terrain are final: the Rig must be able to walk from where it
 // lands to the breach and every vein site on its side of the wall, and from the far mouth of the
 // breach to the way out and the sites beyond. Anything it can't reach gets a corridor carved to the
 // nearest ground it can (two tiles wide, through rift first and rock only if it must; never through
@@ -5223,7 +5220,7 @@ function ensureBastionRoutes(dry){const B=S.barrier;if(!B||!S.breachSite)return 
     for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){const nx=x+dx,ny=y+dy;if(nx<0||ny<0||nx>=TGX||ny>=TGY)continue;const n=ny*TGX+nx;if(!r[n]&&pass(n)){r[n]=1;q.push(n)}}}return r};
   let fixed=0;
   const fix=(start,targets)=>{const s=cc(start.x,start.y);targets.forEach(t=>{const reach=flood(s),tid=cc(t.x,t.y);if(reach[tid])return;fixed++;if(dry)return;
-    // cheapest way from the target to ground the Bastion can already reach
+    // cheapest way from the target to ground the Rig can already reach
     const gC=new Float32Array(N).fill(Infinity),came=new Int32Array(N).fill(-1),h=new MinHeap();gC[tid]=0;h.push(tid,0);let hit=-1;
     while(!h.empty()){const id=h.pop();if(reach[id]){hit=id;break}const x=id%TGX,y=(id-x)/TGX;
       for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){const nx=x+dx,ny=y+dy;if(nx<1||ny<1||nx>=TGX-1||ny>=TGY-1)continue;const n=ny*TGX+nx;if(B.mask[n])continue;
@@ -5271,8 +5268,8 @@ function ensureConnectivity(points){
     }
   }
 }
-// Same flood-fill as bfsReachable, but Bastion-aware: rift tiles block it too, same as rock.
-// v4: where a Bastion move order actually goes: the spot itself if it can walk there, else the nearest
+// Same flood-fill as bfsReachable, but Rig-aware: rift tiles block it too, same as rock.
+// v4: where a Rig move order actually goes: the spot itself if it can walk there, else the nearest
 // ground it can reach (instead of silently standing still)
 function bastionDest(w){const B=S.base;if(lineClear(B.x,B.y,w.x,w.y,true)||astar(B.x,B.y,w.x,w.y,true))return {x:w.x,y:w.y,ok:true};
   const seen=bfsReachableBastion(B.x,B.y);let best=null,bd=Infinity;
@@ -5289,16 +5286,16 @@ function bfsReachableBastion(sx,sy){
     const dirs=[[1,0],[-1,0],[0,1],[0,-1]];
     for(const [dx,dy] of dirs){
       const nx=cx+dx,ny=cy+dy; if(nx<0||ny<0||nx>=TGX||ny>=TGY)continue;
-      const nid=ny*TGX+nx; if(seen[nid]||terrain[nid]===2||terrain[nid]===RIFT)continue;
+      const nid=ny*TGX+nx; if(seen[nid]||terrain[nid]===2||(terrain[nid]===RIFT&&!riftOpen()))continue;
       seen[nid]=1; q.push(nid);
     }
   }
   return seen;
 }
 // A mining zone fully ringed by rift lobes would be reachable by harvesters/troops but never by
-// the Bastion itself — not a route the player can actually drill from. For any such point, carve
-// the shortest possible corridor in from whichever Bastion-reachable cell sits nearest, so there's
-// always at least a thin trail letting the Bastion through, even if rift wraps most of the way
+// the Rig itself — not a route the player can actually drill from. For any such point, carve
+// the shortest possible corridor in from whichever Rig-reachable cell sits nearest, so there's
+// always at least a thin trail letting the Rig through, even if rift wraps most of the way
 // around it.
 function ensureBastionAccess(points){
   const seen=bfsReachableBastion(S.base.x,S.base.y);
@@ -5572,7 +5569,7 @@ function terrainAt(x,y){
   if(cx<0||cy<0||cx>=TGX||cy>=TGY)return 0;
   return terrain[cy*TGX+cx];
 }
-// Movement slowdown for anything that isn't the Bastion — mud and rift both count as rough ground.
+// Movement slowdown for anything that isn't the Rig — mud and rift both count as rough ground.
 function roughFactor(x,y){const v=terrainAt(x,y),f=(v===1||v===RIFT)?MUD_MULT:1;return S.smears&&S.smears.length&&inSmear(x,y)?f*SMEAR_SLOW:f}
 // Enemies are native to the rift — only mud slows them down, so they can't be kited into a rift
 // lobe to buy free time the way a player unit's own mud penalty would.
@@ -5583,7 +5580,7 @@ function enemyRoughFactor(x,y){return terrainAt(x,y)===1?MUD_MULT:1}
 function tcost(cx,cy,forBastion,forEnemy){
   if(cx<0||cy<0||cx>=TGX||cy>=TGY)return Infinity;
   const v=terrain[cy*TGX+cx];
-  if(v===2||(forBastion&&v===RIFT))return Infinity;
+  if(v===2||(forBastion&&v===RIFT&&!riftOpen()))return Infinity;
   if(S.glassCov){const c=S.glassCov[cy*TGX+cx];if(c>=GLASS_BLOCK)return Infinity;if(c>0)return (v===1||(v===RIFT&&!forEnemy)?2.4:1)*(1+c*2)}
   return (v===1||(v===RIFT&&!forEnemy))?2.4:1;
 }
@@ -5756,7 +5753,7 @@ function coarseWaypoint(u,tx,ty){
 
 // ---------- tether ----------
 // Only a relay that's itself tethered back to the network counts as an anchor for others —
-// a relay cut off from the Bastion (or a chain back to it) is just dead weight until it
+// a relay cut off from the Rig (or a chain back to it) is just dead weight until it
 // reconnects.
 function anchorsList(){return [S.base,...S.relays.filter(r=>r.built&&r.tetherOk),...fieldRelays()]}
 // Wireless is disabled in the Dense Field and Core for now — a unit/relay there always needs a
@@ -5776,7 +5773,7 @@ function pointSegDist(p,a,b){
 // of a live anchor (wireless tolerance, or close enough to re-run a cable) on its own, at which
 // point it reconnects and Sanity starts regenerating again. Call once per unit array, before its
 // own state-machine loop runs.
-const TETHER_DOCK_R=150; // v4: a unit this close to the Bastion has its cable reset
+const TETHER_DOCK_R=150; // v4: a unit this close to the Rig has its cable reset
 function tetherPass(units,speed,dt){
   const anchors=anchorsList();
   units.forEach(u=>{
@@ -5794,24 +5791,24 @@ function tetherPass(units,speed,dt){
     if(u.sanity<SANITY_MAX)u.sanity=Math.min(SANITY_MAX,u.sanity+SANITY_REGEN*dt);
     if(nd<=tol){u.tetherOk=true;u.trail=null;u.cableLen=0;u.cableMaxed=false;return}
     if(!u.trail){u.trail=[{x:bestA.x,y:bestA.y}];u.cableHp=CABLE_HP_MAX*S.mods.cableHpMult}
-    // v4: back at the Bastion (or newly hooked onto it) the cable reels in to a straight run
+    // v4: back at the Rig (or newly hooked onto it) the cable reels in to a straight run
     else if(bestA===S.base&&(nd<=TETHER_DOCK_R||u.anchorRef!==S.base)){u.trail=[{x:bestA.x,y:bestA.y}];u.cableMaxed=false}
     spoolTrail(u,bestA);u.anchorRef=bestA;
     u.tetherOk=true;
   });
 }
 // Relays need their own live line back to the network — either direct wireless range of the
-// Bastion/another tethered relay, or a physical cable to one, same as any other unit. Unlike a
+// Rig/another tethered relay, or a physical cable to one, same as any other unit. Unlike a
 // troop, a relay can't walk itself back into range once cut, so it just sits dark until the
 // network comes back to it (another anchor moves/gets built close enough) or its cable regrows
 // because something upstream reeled in and shortened the run back below MAX_CABLE_LEN.
 //
-// Reachability is recomputed from scratch each tick as a flood-fill out from the Bastion, rather
+// Reachability is recomputed from scratch each tick as a flood-fill out from the Rig, rather
 // than each relay just checking its nearest neighbor's tetherOk flag — the latter lets a relay
-// cut off from the Bastion stay lit forever by mutually re-validating with an equally orphaned
+// cut off from the Rig stay lit forever by mutually re-validating with an equally orphaned
 // neighbor (each one's stale/same-tick "true" propping up the other's), since neither ever gets
 // re-checked against the actual root. A fresh graph search from Base has no such blind spot: a
-// relay is only ever tetherOk if something in the search actually traced back to the Bastion.
+// relay is only ever tetherOk if something in the search actually traced back to the Rig.
 const RELAY_RECABLE_T=3; // seconds a cut Relay waits before re-running its own cable (drones can splice it sooner: RELAY_RECONNECT_T)
 function relayTetherPass(){
   const hops=S.relays.filter(r=>r.built&&r.hp>0&&r.state!=='cut');
@@ -5828,7 +5825,7 @@ function relayTetherPass(){
     if(!r.built||r.hp<=0)return; // destroyed — can't anchor anything until repaired back above 0
     if(r.state==='cut'){
       // back on the network: at once within wireless range, or — after RELAY_RECABLE_T — by running
-      // a fresh cable to the Bastion or a live Relay within cable reach (wireless is off in the Dense
+      // a fresh cable to the Rig or a live Relay within cable reach (wireless is off in the Dense
       // Field and Core, so without this a cut Relay stayed dark for good, and so did everything
       // chained through it). The fresh cable starts at full HP on the next tick.
       const tol=wirelessTol(bandAt(r.x,r.y)),reach=MAX_CABLE_LEN+S.mods.cableLenAdd;
@@ -5850,13 +5847,13 @@ function relayTetherPass(){
 }
 function trailLen(trail){let L=0;for(let i=0;i+1<trail.length;i++)L+=dist(trail[i],trail[i+1]);return L}
 // Models the trail as real cable paid out between two moving ends: the anchor (trail[0], which
-// tracks the Bastion/Relay live — so it follows the Bastion as it drives around) and the unit's
+// tracks the Rig/Relay live — so it follows the Rig as it drives around) and the unit's
 // current position (the implicit tip past trail[last]). Either end walking back over ground
 // already covered reels that length back in instead of piling up more; either end pushing into
 // new ground pays more out. u.cableLen is always the live total, recomputed off the trail array.
 function spoolTrail(u,anchor){
   // the anchor end can jump straight to whichever recorded point lets it reel in the most
-  // slack right now, not just the next link in line — so driving the Bastion near the line
+  // slack right now, not just the next link in line — so driving the Rig near the line
   // anywhere along its length (not only back to its very start) hands that slack back.
   if(u.trail.length>=2){
     const suf=new Array(u.trail.length).fill(0);
@@ -5882,7 +5879,7 @@ function cableLenPass(units){
   const maxCableLen=MAX_CABLE_LEN+S.mods.cableLenAdd;
   units.forEach(u=>{
     if(!u.trail||u.trail.length===0){u.cableMaxed=false;return}
-    // The anchor itself (Bastion/Relay) walking away pays out trail length every tick regardless
+    // The anchor itself (Rig/Relay) walking away pays out trail length every tick regardless
     // of what the unit does — if that alone already blew the budget, clamping the unit's own
     // live movement can't fix it (there's nothing left to clamp: `last` already sits right on
     // top of the unit), and used to just freeze it in place forever, unable to move in ANY
@@ -6198,7 +6195,7 @@ function positionPoiBtns(){
     if(sx<R.left-40||sx>R.right+40||sy<R.top-20||sy>R.bottom-20){el._hd=true;return}
     el._hd=false;el.style.left=sx+'px';el.style.top=sy+'px';if(el._html!==html){el._html=html;el.innerHTML=html}el.classList.toggle('dry',dry)};
   const r=S.rig;
-  if(r&&r.seen&&!r.online&&!r.vein.done){const ln=rigLinked();place(rb,r.x,r.y+56,`⛭ Power the Rig<span class="c">◆${RIG_DAT}</span>${ln?'':'<span class="n">needs a Relay link</span>'}`,!ln||S.dat<RIG_DAT)}else rb._hd=true;
+  if(r&&r.seen&&!r.online&&!r.vein.done){const ln=rigLinked();place(rb,r.x,r.y+56,`⛭ Power the Derelict Rig<span class="c">◆${RIG_DAT}</span>${ln?'':'<span class="n">needs a Relay link</span>'}`,!ln||S.dat<RIG_DAT)}else rb._hd=true;
   const g=S.strand;
   if(g&&g.seen&&!g.done){const reach=strandInReach();place(sb,g.x,g.y+38,`⚑ Take on Squad<span class="c">◆${g.cost}</span>${reach?'':'<span class="n">get closer</span>'}`,!reach||S.dat<g.cost)}else sb._hd=true;
 }
@@ -6307,7 +6304,7 @@ function useFab(k){
   st.n--;updateBuildBar();return true;
 }
 function updateFabs(dt){} // v4: no timed refills (see FAB_DAT)
-// Units walk straight out of the Bastion.
+// Units walk straight out of the Rig.
 function fabUnit(k){
   if(!S||S.over||menuOpen)return;
   if(!fabUnlocked(k))return;
@@ -6328,7 +6325,7 @@ function fabUnit(k){
   burst(u.x,u.y,C.ally,8,90,0.35);sfx.build();
   updateBuildBar();
 }
-// Structures are lobbed from the Bastion and stand up the moment they land.
+// Structures are lobbed from the Rig and stand up the moment they land.
 function landFabShot(sh){
   const w={x:sh.tx,y:sh.ty};
   if(sh.k==='wallpost'){const L=sh.line;L.posts[sh.end]=true;burst(w.x,w.y,'#8d9aa8',8,100,0.35);shakeScreen(1.5,0.1);sfx.build();
@@ -6358,7 +6355,7 @@ function resumeAutoLoop(){
   S.harvesters.forEach(h=>{if(S.sel.harv.has(h.id)){h.autoLoop=true;h.following=false}});
   sfx.click();
 }
-// Keeps the selected units orbiting the Bastion at a fixed personal offset as it drives around,
+// Keeps the selected units orbiting the Rig at a fixed personal offset as it drives around,
 // instead of chasing its exact (moving) position — each unit gets its own angle/radius so a
 // group spreads into a loose ring rather than piling on top of one another. Lasts until the
 // player gives that unit any other order (rightClick clears `following` on every order it issues).
@@ -6386,7 +6383,7 @@ function holdSelected(){
   sel.forEach(t=>{t.hold=!release;t.wallHome=null;t.following=false;t.guard=null;t.dest=null;t.target=null;t.pace=null;t.state='idle';t.post={x:t.x,y:t.y}});
   sfx.click();updateBuildBar();
 }
-// Moves a following unit toward its personal orbit point around the (possibly moving) Bastion.
+// Moves a following unit toward its personal orbit point around the (possibly moving) Rig.
 function followMove(u,speed,dt){
   const fx=S.base.x+Math.cos(u.followAng)*u.followDist, fy=S.base.y+Math.sin(u.followAng)*u.followDist;
   if(dist(u,{x:fx,y:fy})>8){
@@ -6435,7 +6432,7 @@ function updateBuildBar(){
   const lb=document.getElementById('bLock');
   if(lb){
     const preppingNow=S.base.locked&&S.activeVein&&S.activeVein.prepT>0;
-    document.getElementById('bLockLabel')._tc=preppingNow?`Warming Up… (${Math.ceil(S.activeVein.prepT)}s)`:S.base.locked?'Drilling…':(canLockdown()||{}).rig?'Drill the Rig':'Begin Drilling';
+    document.getElementById('bLockLabel')._tc=preppingNow?`Warming Up… (${Math.ceil(S.activeVein.prepT)}s)`:S.base.locked?'Drilling…':(canLockdown()||{}).rig?'Drill the Derelict Rig':'Begin Drilling';
     lb._ds=S.base.locked?true:!canLockdown();
   }
   {const rb=document.getElementById('bRig'),r=S.rig;
@@ -6470,7 +6467,7 @@ function canLockdown(){
   if(S.base.locked)return null;
   const near=S.veins.find(v=>veinAlive(v)&&!(v.crackedT>0)&&(!v.contract||v.mine.found)&&dist(S.base,v.mine)<BASE_R+18);
   if(near)return near;
-  // v4: an online, linked rig lets you drill its vein from wherever the Bastion is
+  // v4: an online, linked rig lets you drill its vein from wherever the Rig is
   const r=S.rig;if(r&&r.online&&veinAlive(r.vein)&&!(r.vein.crackedT>0)&&rigLinked())return r.vein;
   return null;
 }
@@ -6525,7 +6522,7 @@ function renderDrillCards(v){
 // No warm-up and no speed to pick: locking on starts the strike at once and the drill bites in
 // the moment it's set. The breathing room moves to the first wave instead — it's sent at lock-on
 // and takes about FIRST_WAVE_DELAY plus its walk in (~20s in all) to arrive. Ripeness freezes the
-// moment the Bastion locks on; the strike strip is built from it.
+// moment the Rig locks on; the strike strip is built from it.
 const FIRST_WAVE_DELAY=17;
 function tryLockdown(){
   if(S.over||S.rewardChoice||S.paused)return;
@@ -6548,7 +6545,7 @@ function tryLockdown(){
 }
 // Pausing freezes the drill entirely — no progress, no Dat burn, no wave/saboteur clocks
 // ticking — so a stockpile can build up (or a player can step away) without the drill eating
-// through it or the fight escalating in the meantime. The Bastion stays locked down either way.
+// through it or the fight escalating in the meantime. The Rig stays locked down either way.
 function toggleDrillPause(){
   if(!S.base.locked||!S.activeVein){note('Not drilling');return}
   const v=S.activeVein;
@@ -6631,7 +6628,7 @@ function inActivePing(p){return S.pings.some(pg=>dist(p,pg)<pg.r)}
 // ---------- recon probe ----------
 // Wireless doesn't work out here, so the probe trails a long fiber-optic line back to where it was
 // launched. It's fire-and-forget: press N (or the Probe button), click a direction, and it flies
-// dead straight from the Bastion until it reaches PROBE_RANGE or
+// dead straight from the Rig until it reaches PROBE_RANGE or
 // the map edge — it can't turn. Along the way it lifts the fog over a narrow strip under it
 // (PROBE_R either side, widened by Deep Scan Antenna), which stays lifted for PROBE_REVEAL_T seconds so you can see enemies there,
 // just like a Ping did, and permanently discovers the deposits and veins it passes. Flying over a
@@ -6644,7 +6641,7 @@ const PROBE_DOME=new Path2D('M114.79,84.77c-3.48,2.42-8.92,4.03-14.79,4.03s-11.3
 
 
 // ---------- call-downs ----------
-// v4: one-shot strikes and drops called onto any spot your network reaches: the Bastion's ring or a
+// v4: one-shot strikes and drops called onto any spot your network reaches: the Rig's ring or a
 // live, tethered Relay's (the same BUILD_R a Turret is placed in) — a cut Relay can't call anything
 // in until it's spliced. Each kind in
 // CALLDOWNS has a Dat price and a stock you can be gifted (S.calls[id] — wrecks, nests and cards
@@ -6660,7 +6657,7 @@ const callIds=()=>Object.keys(CALLDOWNS).filter(id=>!CALLDOWNS[id].unlocked||CAL
 function callPrice(id){return Math.round(CALLDOWNS[id].dat*(S.mods.callPriceMult||1))}
 function callR(id){return CALLDOWNS[id].r*(S.mods.callRadiusMult||1)}
 function callDelay(id){return CALLDOWNS[id].delay*(S.mods.callDelayMult||1)}
-// the points calls can be made round: the Bastion and every live tethered Relay
+// the points calls can be made round: the Rig and every live tethered Relay
 function callAnchors(){const A=[S.base];S.relays.forEach(r=>{if(r.built&&r.hp>0&&r.tetherOk)A.push(r)});return A}
 // v4: a call-down can land near the network, or anywhere you can see right now (units, probes, pings)
 function inCallRange(w){return callAnchors().some(a=>dist(a,w)<=BUILD_R)||debugNoFog||visibleNow(w)}
@@ -6673,8 +6670,8 @@ function tryCall(id){
 // a line call-down's end: clamped to CARPET_LEN from its start
 function callLineEnd(s,w){const dx=w.x-s.x,dy=w.y-s.y,L=Math.hypot(dx,dy)||1,l=Math.max(CARPET_LEN[0],Math.min(CARPET_LEN[1],L));return {x:s.x+dx/L*l,y:s.y+dy/L*l}}
 function fireCall(w){const id=callMode,K=CALLDOWNS[id];if(!K){setCallMode(null);return}
-  if(K.line&&!S.callStart){if(!inCallRange(w)){note('Out of sight: start it somewhere you can see, or near the Bastion or a live Relay');return}S.callStart={x:w.x,y:w.y};note('Now click where the line ends');sfx.click();return}
-  if(!K.line&&!inCallRange(w)){note('Out of sight: call it somewhere you can see, or near the Bastion or a live Relay');return}
+  if(K.line&&!S.callStart){if(!inCallRange(w)){note('Out of sight: start it somewhere you can see, or near the Rig or a live Relay');return}S.callStart={x:w.x,y:w.y};note('Now click where the line ends');sfx.click();return}
+  if(!K.line&&!inCallRange(w)){note('Out of sight: call it somewhere you can see, or near the Rig or a live Relay');return}
   if((S.calls[id]||0)>0)S.calls[id]--;else{const p=callPrice(id);if(S.dat<p){note(`${K.name} costs ◆${p}`);setCallMode(null);return}S.dat-=p}
   if(K.line){const s=S.callStart,e=callLineEnd(s,w),T=callDelay(id),r=callR(id),echo=rand()<(S.mods.callEcho||0);
     for(let k=0;k<(echo?2:1);k++)for(let i=0;i<CARPET_N;i++){const f=i/(CARPET_N-1),o=k?r*0.8:0,nx=-(e.y-s.y),ny=e.x-s.x,nl=Math.hypot(nx,ny)||1;
@@ -6914,14 +6911,14 @@ function cancelPendingBuild(w){
 }
 // ---------- guard order ----------
 // Right-clicking a friendly unit or building with combat units selected sets them to guard it:
-// they escort it at a personal offset (like following the Bastion), break off to fight any
+// they escort it at a personal offset (like following the Rig), break off to fight any
 // revealed enemy that comes within GUARD_ENGAGE_R of it, never stray more than GUARD_LEASH from
 // it while doing so, and fall back to it once the threat's gone. Lasts until another order is
 // given or the guarded thing is destroyed.
 const GUARD_ENGAGE_R=280, GUARD_LEASH=340;
 const GUARD_UNIT_NAMES={marksman:'Marksman',troop:'Trooper',grenadier:'Grenadier',artillery:'Artillery Piece',mech:'Mech',rocket:'Rocketeer',brawler:'Paladin'};
 // The friendly thing under the cursor, if any — whichever the click is most squarely on (distance
-// relative to its own size), so clicking the Bastion's body picks the Bastion even with a Builder
+// relative to its own size), so clicking the Rig's body picks the Rig even with a Builder
 // parked on it, while clicking right on that Builder still picks the Builder.
 function friendlyAt(w){
   let best=null,bs=1;
@@ -6932,7 +6929,7 @@ function friendlyAt(w){
   return best;
 }
 function guardName(g){
-  if(g===S.base)return 'the Bastion';
+  if(g===S.base)return 'the Rig';
   if(S.troops.includes(g))return 'the '+(GUARD_UNIT_NAMES[g.kind]||'Trooper');
   if(S.harvesters.includes(g))return 'the Harvester';
   if(S.builders.includes(g))return 'the Builder';
@@ -6945,7 +6942,7 @@ function guardAlive(g){
   return g.hp>0&&[S.troops,S.harvesters,S.builders,S.turrets,S.relays,S.depots].some(a=>a.includes(g));
 }
 // v2: the walker's legs and turret reach well past its collision radius, so units keep clear of
-// that whole footprint (BASE_FOOTPRINT) when guarding, following or resting at the Bastion
+// that whole footprint (BASE_FOOTPRINT) when guarding, following or resting at the Rig
 const BASE_FOOTPRINT=80;
 function guardRadius(g){return g===S.base?BASE_FOOTPRINT:(g.r||12)}
 // Per-frame guard behaviour for one combat unit (state 'guard'). Firing itself is left to the
@@ -7029,7 +7026,7 @@ function wallLineAt(w){
 // how many units a wall holds: one rank, MAN_GAP apart, clear of MAN_END_PAD at each end
 function manCap(L){const len=Math.hypot(L.x1-L.x0,L.y1-L.y0)-2*MAN_END_PAD;return len<0?1:Math.floor(len/MAN_GAP)+1}
 function manners(L){return S.troops.filter(t=>t.manning===L)}
-// The selected units join the wall's single rank on the Bastion's side, facing out over it. Those
+// The selected units join the wall's single rank on the Rig's side, facing out over it. Those
 // already on it keep their place in the line; if it's full, the rest stay where they are.
 // Manning a Walled Relay's ring: the units take cover inside it, spread evenly round the relay at
 // RING_MAN_R and facing straight out, up to RING_MAN_CAP of them. Each counts as manning the ring wall
@@ -7052,7 +7049,7 @@ function manRing(r,units){
 function manWall(L,units){
   if(L.relayRing&&L.relay)return manRing(L.relay,units);
   const mx=(L.x0+L.x1)/2,my=(L.y0+L.y1)/2;let nx=-L.uy,ny=L.ux;
-  if((S.base.x-mx)*nx+(S.base.y-my)*ny<0){nx=-nx;ny=-ny} // n: toward the Bastion's side
+  if((S.base.x-mx)*nx+(S.base.y-my)*ny<0){nx=-nx;ny=-ny} // n: toward the Rig's side
   const face=Math.atan2(-ny,-nx),cap=manCap(L);
   const keep=manners(L).filter(t=>!units.includes(t)),room=Math.max(0,cap-keep.length);
   const mid={x:mx,y:my},join=units.slice().sort((a,b)=>dist(a,mid)-dist(b,mid)).slice(0,room);
@@ -7072,6 +7069,157 @@ function manWall(L,units){
 // damage an enemy deals to one of your units: less if it's manning a standing wall
 function allyHit(t,d,src){if(src&&gatShielded(t,src)){d*=GAT_SHIELD_MELEE;if(sfxReady('gatBlock',0.1))tone(1100,0.04,'square',0.025);spark(t.x+Math.cos(t.ang)*12,t.y+Math.sin(t.ang)*12,'#9fb6d0',3)}
   if(!(t.manning&&!t.dest&&S.wallLines&&S.wallLines.includes(t.manning)))return d;return d*(1-MAN_DMG_RED)*(hasKit(t,'lmg')&&t.manning.type==='heavy'?0.5:1)}
+// ---- the Rig & Stabilizer kit (reward cards): Heavy Armour, Point Defence, Deflector, Rift Shielding ----
+// Every hit an enemy lands on the Rig or a Stabilizer runs through structHit with the kind of hit it
+// is: 'melee' (bites, lunges, blinks), 'shot' (Splinter shards, Lance volleys), 'beam' (a Lantern's
+// laser) or 'blast' (Quaker landings, a Colossus slam).
+const HA_ALL=0.7,HA_MELEE=0.25,HA_KB=230;            // Heavy Armour: −30% from everything, −75% from melee, melee knocked back
+const DEF_BEAM=0.15,DEF_SHOT=0.5;                    // Deflector: beams lose 85%, shots 50%; melee walks through
+const PD_RANGE=170,PD_CD=0.35;                       // Point Defence: per turret
+const RIFT_DRAIN=1/30,RIFT_FILL=1/12,RIFT_REARM=0.4; // Rift Shielding: 30s of Sanity over a rift, 12s to refill
+function isRigKit(u){return !!u&&(u===S.base||u.kind==='stabilizer')}
+function structHit(u,d,type,src){if(!isRigKit(u))return d;
+  if(S.mods.deflector&&(type==='beam'||type==='shot')){d*=type==='beam'?DEF_BEAM:DEF_SHOT;(S.domeHits||(S.domeHits=[])).push({o:u,a:src&&src.x!=null?Math.atan2(src.y-u.y,src.x-u.x):Math.random()*Math.PI*2,t:S.t})}
+  if(S.mods.heavyArmour){d*=type==='melee'?HA_MELEE:HA_ALL;
+    if(type==='melee'&&src&&src.hp>0&&src.shard!=='colossus'){const a=Math.atan2(src.y-u.y,src.x-u.x),k=src.kind==='brute'?0.4:1;src.kbx=Math.cos(a)*HA_KB*k;src.kby=Math.sin(a)*HA_KB*k;src.stunT=Math.max(src.stunT||0,0.35);spark(src.x,src.y,'#c9d1d9',4)}}
+  return d}
+// Point Defence: two turrets on the Rig, one on each Stabilizer. They never shoot enemies, only
+// the shots coming in: each picks the nearest Splinter shard or Lance in reach and bursts it.
+const STAB_PD=[-19,2,104.5];
+function pdMounts(){const out=[],B=S.base;if(!S.mods.pointDefence)return out;
+  ((B._m&&B._m.pd)||[[-19,-5,130],[19,-5,130]]).forEach((m,j)=>out.push({o:B,j,x:B.x+m[0],y:B.y+m[1],z:m[2]}));
+  S.stabs.forEach(st=>{if(st.built&&st.hp>0)out.push({o:st,j:0,x:st.x+STAB_PD[0],y:st.y+STAB_PD[1],z:STAB_PD[2]})});return out}
+function updatePointDefence(dt){if(!S.mods.pointDefence)return;const ms=pdMounts();if(!ms.length)return;if(!S.pdFx)S.pdFx=[];
+  ms.forEach(m=>{const o=m.o;o.pdCd=o.pdCd||[0,0];o.pdYaw=o.pdYaw||[-Math.PI/2,-Math.PI/2];o.pdCd[m.j]-=dt;
+    let best=null,bd=PD_RANGE,bp=null;
+    S.shardShots.forEach(sh=>{if(sh.pdDead)return;const d=Math.hypot(sh.x-m.x,sh.y-m.y);if(d<bd){bd=d;best=sh;bp=[sh.x,sh.y,8]}});
+    S.lances.forEach(l=>{if(l.pdDead)return;const q=lancePos(l,Math.min(1,l.t/l.T)),d=Math.hypot(q[0]-m.x,q[1]-m.y);if(d<bd){bd=d;best=l;bp=q}});
+    if(!best)return;o.pdYaw[m.j]=Math.atan2(bp[1]-m.y,bp[0]-m.x);
+    if(o.pdCd[m.j]>0)return;o.pdCd[m.j]=PD_CD;best.pdDead=true;
+    S.pdFx.push({x0:m.x,y0:m.y,z0:m.z,x1:bp[0],y1:bp[1],z1:bp[2],t:S.t});if(sfxReady('pd',0.05))tone(1700,0.03,'square',0.02,0,900)});
+  if(S.shardShots.some(sh=>sh.pdDead))S.shardShots=S.shardShots.filter(sh=>!sh.pdDead);if(S.lances.some(l=>l.pdDead))S.lances=S.lances.filter(l=>!l.pdDead)}
+// Rift Shielding: the Rig may hover out over rifts. Time over one drains its Sanity; on solid ground
+// it refills. Run it dry and the Rig falls back to the nearest bank, and rifts stay shut to it until
+// it has recovered to RIFT_REARM.
+function riftOpen(){const B=S.base;return !!(S.mods.riftShield&&B&&B.riftOk)}
+function nearestBank(x,y){for(let r=1;r<=80;r++)for(let a=0;a<16;a++){const an=a/16*Math.PI*2,nx=x+Math.cos(an)*r*TCELL*0.5,ny=y+Math.sin(an)*r*TCELL*0.5,t=terrainAt(nx,ny);
+  if(t!==RIFT&&t!==2&&nx>40&&ny>40&&nx<W-40&&ny<H-40)return {x:nx,y:ny}}return {x,y}}
+function updateRiftShield(dt){const B=S.base;if(!S.mods.riftShield)return;if(B.riftSan==null){B.riftSan=1;B.riftOk=true}
+  if(terrainAt(B.x,B.y)===RIFT){B.riftSan=Math.max(0,B.riftSan-RIFT_DRAIN*dt);
+    if(B.riftSan<=0&&!B.riftShove){B.riftShove=true;B.riftOk=false;const g=nearestBank(B.x,B.y);B.dest={x:g.x,y:g.y};B._path=null;B._pg=null;B.locked=false;
+      banner("The Rig's Sanity ran dry over the rift — it is falling back to solid ground to recover.",'danger')}}
+  else{B.riftShove=false;B.riftSan=Math.min(1,B.riftSan+RIFT_FILL*dt);if(!B.riftOk&&B.riftSan>=RIFT_REARM){B.riftOk=true;msg('Rift Shielding has recovered — the Rig can cross rifts again.')}}}
+
+// ---------- the Rig: the Needle, a laser mining tower ----------
+// Drawn with the Stabilizer's 3D renderer (sk*) at full world scale: a thin sealed column over an
+// open bay, a window slit down each face, radiator fins and a power head on top, a cable drum on its
+// side (the tether hook). It hovers on four thrusters while it travels or over a rift, stands on four
+// legs when it stops, and when locked down on a vein it braces wider and fires its laser straight down.
+const RIG_R=11.7,RIG_H=215,RIG_BAY=34,RIG_TOP=108,RIG_HOV=9;
+const RC={G:'#999',DK:'#4a4f57',M1:'#5d6670',M2:'#8d9aa8',TOP:'#a9b6c4',SL:'#6f7c89',W:'#e6e6e6',WT:'#f2f2f2',ANT:'#c9ced4',LASER:'#ffd27a',AMB:'#e8a43a',ARM:'#7a848f',ARM2:'#a8b2bc',ARM3:'#5c656f',PDC:'#d9dee4'};
+const skEach=S0=>{S0.grp='each';return S0};
+function skLift(P,dz){if(!dz)return P;const T=q=>[q[0],q[1],q[2]+dz];return P.map(S0=>({...S0,F:S0.F.map(f=>({...f,pts:f.pts.map(T)})),pts:S0.pts.map(T)}))}
+function rigPieces(o){const c=RC,P=[],R=RIG_R,bay=RIG_BAY,R8=Math.PI/8,hipZ=bay+4,w=2.8,dep=o.dep,z0=bay+6,z1=RIG_H*0.7,span=z1-z0,rAt=zz=>R-R*0.1*(zz-z0)/span,feet=[];
+  // legs: tucked up under the bay in flight, splayed onto the ground when it stands
+  for(let i=0;i<4;i++){const a=Math.PI/4+i*Math.PI/2,cs=Math.cos(a),sn=Math.sin(a),hr=R*0.92,fr=hr+2+(R*2.3+3*o.plant-hr-2)*dep,fz=(hipZ-5)*(1-dep),L=f=>[cs*(hr+(fr-hr)*f),sn*(hr+(fr-hr)*f),hipZ+(fz+1.5-hipZ)*f];
+    P.push(skEach(skBeam([cs*hr,sn*hr,hipZ],[cs*fr,sn*fr,fz+1.5],w,c.G)));
+    P.push(skEach(skBeam([cs*(hr-1),sn*(hr-1),hipZ-8],L(0.62),w*0.5,c.SL)));
+    if(o.armor)P.push(skEach(skBeam(L(0.12),L(0.62),w*2,c.ARM)));
+    P.push(skEach(skBox(cs*fr,sn*fr,fz,fz+1.8,o.armor?9:6.4,o.armor?7.4:5,a,o.armor?c.ARM:c.SL,{top:o.armor?c.ARM2:c.M2})));feet.push([cs*fr,sn*fr])}
+  // the bay: thruster nozzles round its rim, the laser emitter hanging in the middle
+  for(let i=0;i<4;i++){const a=Math.PI/4+i*Math.PI/2;P.push(skPrism(Math.cos(a)*R*0.74,Math.sin(a)*R*0.74,bay-1.5,bay+1,1.6,2.4,8,0,c.DK))}
+  P.push(skPrism(0,0,bay-7,bay-5.8,3.4,4.8,8,0,c.M2));P.push(skPrism(0,0,bay-5.8,bay,4.8,7,8,0,c.DK));
+  P.push(skPrism(0,0,bay,bay+6,R*1.06,R*1.12,8,R8,c.DK,{top:c.M1}));
+  if(o.armor){P.push(skPrism(0,0,bay-4,bay+14,R*1.95,R*1.35,8,R8,c.ARM,{top:c.ARM2}));P.push(skPrism(0,0,bay+14,bay+16,R*1.38,R*1.2,8,R8,c.ARM2));
+    for(let i=0;i<4;i++){const a=Math.PI/4+(i+0.5)/4*Math.PI*2,cs=Math.cos(a),sn=Math.sin(a),rr=R*1.75,wd=2*Math.PI*rr/4*0.66;
+      P.push(skEach(skBox(cs*rr,sn*rr,4,bay+2,wd,3.2,a+Math.PI/2,i%2?c.ARM:c.ARM3,{top:c.ARM2})));
+      [-0.33,0,0.33].forEach(d=>{const b=a+d*wd/rr;P.push(skEach(skBeam([Math.cos(b)*(rr+1.5),Math.sin(b)*(rr+1.5),8],[Math.cos(b)*(rr+12),Math.sin(b)*(rr+12),5],1.9,c.ARM2)))})}}
+  // the column: a hatch at its foot, one window slit down each face
+  P.push(skBox(0,R*0.97,z0+1,z0+13,5.2,0.5,0,c.SL,{top:c.M2}));
+  P.push(skPrism(0,0,z0,z1,R,R*0.9,8,R8,c.M1,{top:c.SL}));
+  const za=z0+4,zb=z1-36;for(let i=0;i<8;i++){if(o.dmg>0.6&&i===1)continue;P.push(skPanel(rAt(za)-0.1,8,R8,i,za,zb,0.3,c.LASER,{emit:(0.2+0.8*o.charge)*(0.8+0.2*Math.sin(S.t*3+i))}))}
+  if(o.armor){const zt=za+(zb-za)*0.55;for(let i=0;i<8;i++){const am=R8+(i+0.5)*Math.PI/4,r=rAt(za),rr=r*Math.cos(Math.PI/8)+2.2,wd=2*r*Math.sin(Math.PI/8)*1.12;
+      P.push(skBox(Math.cos(am)*rr,Math.sin(am)*rr,z0,zt,wd,4.2,am+Math.PI/2,i%2?c.ARM:c.ARM3,{top:c.ARM2}))}P.push(skPrism(0,0,zt-1,zt+1,rAt(zt)+3.4,rAt(zt)+3.4,8,R8,c.ARM2))}
+  // a service pod, the cable drum with its amber hook, radiator fins round the top
+  {const zm=z0+span*2/3,a=Math.PI*0.8,r=rAt(zm)+1.4;P.push(skBox(Math.cos(a)*r,Math.sin(a)*r,zm-7,zm+7,3.2,4.6,a,c.W,{top:c.WT}))}
+  const zc=z0+span*0.36;P.push(skBox(R+1.4,2.5,zc-6,zc+6,3.4,7,0.2,c.W,{top:c.WT}));P.push(skBox(R+3.2,2.9,zc-3,zc+3,0.6,5.2,0.2,c.AMB));
+  for(let i=0;i<8;i++){const a=R8+i*Math.PI/4,fd=3.6,zf0=z1-30,r=rAt(zf0)+fd/2-0.4;P.push(skBox(Math.cos(a)*r,Math.sin(a)*r,zf0,z1-2,fd,0.8,a,c.M2,{top:c.TOP}))}
+  // shoulder and power head: a dark core with hot slits between heat-sink plates, two exhaust stacks, an aerial
+  P.push(skPrism(0,0,z1,z1+5,R*0.9,R*0.62,8,R8,c.M2,{top:c.TOP}));if(o.armor)P.push(skPrism(0,0,z1-1,z1+4,R*1.02,R*0.86,8,R8,c.ARM,{top:c.ARM2}));
+  const z2=z1+5;P.push(skPrism(0,0,z2,z2+16,R*0.42,R*0.42,8,R8,c.DK));
+  for(let i=0;i<8;i++)P.push(skPanel(R*0.42,8,R8,i,z2+1,z2+15,0.22,c.LASER,{emit:0.15+0.45*o.charge}));
+  [2.5,7.5,12.5].forEach(d=>P.push(skPrism(0,0,z2+d,z2+d+1.6,R*0.8,R*0.8,8,R8,c.M2,{top:c.TOP})));
+  P.push(skPrism(0,0,z2+16,z2+19,R*0.6,R*0.4,8,R8,c.M2,{top:c.TOP}));
+  [[R*0.28,-R*0.12,24],[-R*0.22,R*0.16,21.5]].forEach(([x,y,h])=>P.push(skPrism(x,y,z2+19,z2+h,1.4,1.2,8,0,c.DK,{top:'#2a2f35'})));
+  const top=z2+19,ax=Math.cos(0.6)*R*0.22,ay=Math.sin(0.6)*R*0.22;P.push(skPrism(ax,ay,top-1,top+20,0.55,0.38,6,0,c.ANT));
+  // Point Defence turrets on brackets either side of the upper column
+  const pd=[];
+  if(o.pd){[[Math.PI+0.25,R+8],[-0.25,R+8]].forEach(([a,r],j)=>{const x=Math.cos(a)*r,y=Math.sin(a)*r,zb=z0+span*0.74,yaw=o.pd[j]??-Math.PI/2,cy=Math.cos(yaw),sy=Math.sin(yaw),k=1.9;
+    P.push(skBeam([Math.cos(a)*R*0.9,Math.sin(a)*R*0.9,zb+1.5],[x,y,zb+1.5],2.4,c.ARM3));P.push(skBeam([Math.cos(a)*R*0.9,Math.sin(a)*R*0.9,zb-7],[x,y,zb],1.2,c.ARM3));
+    P.push(skPrism(x,y,zb,zb+3*k,2.8*k,2.4*k,8,0,c.ARM3,{top:c.M1}));P.push(skPrism(x,y,zb+3*k,zb+6*k,2.6*k,1.4*k,8,yaw,c.PDC,{top:c.WT}));
+    [-0.8,0.8].forEach(d=>{const ox=-sy*d*k,oy=cy*d*k;P.push(skBeam([x+ox,y+oy,zb+4.6*k],[x+ox+cy*7*k,y+oy+sy*7*k,zb+5*k],0.55*k,c.DK))});
+    P.push(skBeam([x,y,zb+6*k],[x,y,zb+9*k],0.3*k,c.ANT));P.push(skPrism(x,y,zb+9*k,zb+9.6*k,1.6*k,1.8*k,8,S.t*3,c.PDC));
+    pd.push([x+cy*8*k,y+sy*8*k,zb+5*k+o.hov])})}
+  return {P:skLift(P,o.hov),hook:[R+3.6,2.9,zc+o.hov],lens:[0,0,bay-7.4+o.hov],beacon:[ax,ay,top+20.5+o.hov],head:[0,0,z2+8+o.hov],nozz:[0,1,2,3].map(i=>{const a=Math.PI/4+i*Math.PI/2;return [Math.cos(a)*R*0.74,Math.sin(a)*R*0.74,bay-2+o.hov]}),feet,pd}}
+// the same kit on a Stabilizer (pieces added to the game's own model, popping in last)
+function stabKitPieces(st){const c=RC,P=[],R8=Math.PI/8;
+  if(S.mods.heavyArmour){P.push(skPrism(0,0,3,26,17,13.5,8,R8,c.ARM,{top:c.ARM2}));
+    for(let i=0;i<4;i++){const a=i*Math.PI/2+0.2,cs=Math.cos(a),sn=Math.sin(a),L=f=>[cs*(8+13*f),sn*(8+13*f),30-28*f];P.push(skEach(skBeam(L(0.15),L(0.6),5.6,c.ARM)));
+      const b=a+Math.PI/4;[-0.25,0.25].forEach(d=>{const e=b+d;P.push(skEach(skBeam([Math.cos(e)*16,Math.sin(e)*16,8],[Math.cos(e)*24,Math.sin(e)*24,4],1.5,c.ARM2)))})}
+    for(let i=0;i<8;i++){const am=R8+(i+0.5)*Math.PI/4,r=9.1,rr=r*Math.cos(Math.PI/8)+1.4,wd=2*r*Math.sin(Math.PI/8)*1.02;P.push(skBox(Math.cos(am)*rr,Math.sin(am)*rr,38,78,wd,2.8,am+Math.PI/2,i%2?c.ARM:c.ARM3,{top:c.ARM2}))}}
+  if(S.mods.pointDefence){const x=STAB_PD[0],y=STAB_PD[1],zb=96.5,yaw=(st.pdYaw&&st.pdYaw[0])??-Math.PI/2,cy=Math.cos(yaw),sy=Math.sin(yaw);
+    P.push(skBeam([-8.5,2,98],[x,y,98],3,c.ARM3));P.push(skBeam([-8.5,2,90],[x,y,zb],1.4,c.ARM3));
+    P.push(skPrism(x,y,zb,zb+5,5,4.4,8,0,c.ARM3,{top:c.M1}));P.push(skPrism(x,y,zb+5,zb+10,4.8,2.6,8,yaw,c.PDC,{top:c.WT}));
+    [-1.4,1.4].forEach(d=>{const ox=-sy*d,oy=cy*d;P.push(skBeam([x+ox,y+oy,zb+7.6],[x+ox+cy*12,y+oy+sy*12,zb+8],1,c.DK))});P.push(skBeam([x,y,zb+10],[x,y,zb+15],0.5,c.ANT));P.push(skPrism(x,y,zb+15,zb+16,2.8,3.1,8,S.t*3,c.PDC))}
+  P.forEach(S0=>{S0.k=13});return P}
+function drawRigTower(B){const dt=Math.max(0,Math.min(0.1,S.t-(B._rt??S.t)));B._rt=S.t;
+  const mv=B._px!=null?Math.hypot(B.x-B._px,B.y-B._py):0;B._px=B.x;B._py=B.y;
+  B._mov=(B._mov||0)+(((mv>0.01&&mv<60)?1:0)-(B._mov||0))*Math.min(1,dt*5);
+  const onRift=terrainAt(B.x,B.y)===RIFT,want=onRift?0:B.locked?1:B._mov>0.5?0:1,app=(k,v,r)=>{B[k]=(B[k]??v)+Math.sign(v-(B[k]??v))*Math.min(Math.abs(v-(B[k]??v)),dt*r)};
+  app('_dep',want,1.3);app('_plant',B.locked?1:0,1.2);app('_charge',B.locked?1:0,0.9);
+  const v=S.activeVein,drilling=!!(B.locked&&v&&v.meter&&v.meter.phase==='drill'&&!v.paused&&dist(B,v.mine||v)<BASE_R+40);app('_laser',drilling?1:0,2.5);
+  const dep=B._dep*B._dep*(3-2*B._dep),hov=(1-dep)*(RIG_HOV+Math.sin(S.t*2.2)*1.4);B._hov=hov;
+  SKO.x=B.x;SKO.y=B.y;SKO.s=1;SKO.lean=[0,0];SKO.shk=[0,0];
+  if(B._laser>0.02){const col=v?veinEnergy(v).col:'#be64ff',P=skPJ([0,0,0]);ctx.save();ctx.globalCompositeOperation='lighter';
+    const g=ctx.createRadialGradient(P[0],P[1],0,P[0],P[1],30);g.addColorStop(0,col);g.addColorStop(1,'rgba(0,0,0,0)');ctx.globalAlpha=0.3*B._laser;ctx.fillStyle=g;ctx.beginPath();ctx.ellipse(P[0],P[1],30,27,0,0,Math.PI*2);ctx.fill();
+    ctx.globalAlpha=0.4*B._laser;ctx.strokeStyle='#ffc878';ctx.lineWidth=1;for(let k=0;k<2;k++){const f=(S.t*0.6+k/2)%1;ctx.globalAlpha=0.4*B._laser*(1-f);ctx.beginPath();ctx.ellipse(P[0],P[1],4+f*20,(4+f*20)*0.9,0,0,Math.PI*2);ctx.stroke()}ctx.restore()}
+  if(hov>0.5)skGlow([0,0,0.4],34,'#8fe3ff',0.16*(1-dep));
+  if(S.mods.riftShield&&onRift){const P=skPJ([0,0,0]),low=(B.riftSan??1)<0.25;ctx.save();ctx.globalCompositeOperation='lighter';ctx.lineWidth=1.4;
+    for(let i=0;i<3;i++){const rr=40*(0.55+i*0.22);ctx.setLineDash([6,5]);ctx.lineDashOffset=S.t*(i%2?-16:16);ctx.strokeStyle=`rgba(${i%2?'190,100,255':'143,227,255'},${(0.5-i*0.1)*(low&&Math.random()<0.5?0.15:1)})`;ctx.beginPath();ctx.ellipse(P[0],P[1],rr,rr*0.9,0,0,Math.PI*2);ctx.stroke()}ctx.restore()}
+  const m=rigPieces({dep,hov,plant:B._plant,charge:B._charge,armor:!!S.mods.heavyArmour,pd:S.mods.pointDefence?(B.pdYaw||[-Math.PI/2,-Math.PI/2]):null,dmg:1-B.hp/B.maxHp});B._m=m;
+  if((B.riftSan??1)<0.25&&onRift&&Math.random()<0.4)SKO.shk=[(Math.random()-0.5)*4,(Math.random()-0.5)*2];
+  skRender(m.P,B.flashT>0);SKO.shk=[0,0];
+  if(B._plant>0.05&&dep>0.9){ctx.save();ctx.globalAlpha=B._plant;ctx.strokeStyle=C.accent;ctx.lineWidth=1.5;m.feet.forEach(f=>{ctx.beginPath();ctx.arc(B.x+f[0],B.y+f[1],9,0,Math.PI*2);ctx.stroke()});ctx.restore()}
+  SKO.x=0;SKO.y=0;SKO.s=SK_SCALE}
+// over the cables: the laser, the thrusters, the lamps; then the kit's shields and intercepts
+function drawRigTop(B){const m=B._m;if(m){SKO.x=B.x;SKO.y=B.y;SKO.s=1;SKO.lean=[0,0];SKO.shk=[0,0];
+  const on=B._laser||0;if(on>0.02){const a=skPJ(m.lens),b=skPJ([m.lens[0],m.lens[1],0]),fl=0.85+0.15*Math.sin(S.t*41);ctx.save();ctx.globalCompositeOperation='lighter';ctx.lineCap='round';
+    [[9,`rgba(255,170,70,${0.18*on*fl})`],[4.2,`rgba(255,210,122,${0.55*on*fl})`],[1.6,`rgba(255,255,240,${0.95*on})`]].forEach(([lw,c])=>{ctx.strokeStyle=c;ctx.lineWidth=lw;ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke()});
+    for(let i=0;i<9;i++){const f=((S.t*1.7+i/9)%1),an=i*2.39+Math.floor(S.t*1.7+i/9)*1.3,d=4+f*16,q=skPJ([Math.cos(an)*d,Math.sin(an)*d,Math.sin(Math.PI*f)*7]);ctx.fillStyle=`rgba(255,${180+60*(1-f)|0},90,${(1-f)*on})`;ctx.fillRect(q[0]-0.7,q[1]-0.7,1.4,1.4)}
+    ctx.restore();skGlow([0,0,0.5],16,RC.LASER,0.45*on*fl)}
+  skGlow(m.lens,7,RC.LASER,0.2+0.75*on);
+  const thr=1-(B._dep??1);if(thr>0.02)m.nozz.forEach((q,i)=>{skGlow(q,9,'#8fe3ff',0.7*thr*(0.85+0.15*Math.sin(S.t*37+i)));skGlow([q[0],q[1],0.3],14,'#8fe3ff',0.22*thr)});
+  skGlow(m.head,7,RC.LASER,0.1+0.2*(B._charge||0));skGlow(m.beacon,4,'#ff3a24',Math.sin(S.t*3.2)>0.2?0.75:0.1);
+  SKO.x=0;SKO.y=0;SKO.s=SK_SCALE}
+  drawDomes();drawPdFx()}
+function domeAt(cx,cy,rs,hs,hits){const c=[cx,cy],topY=cy-hs*SK_TILT;ctx.save();ctx.globalCompositeOperation='lighter';
+  const shape=()=>{ctx.beginPath();ctx.ellipse(c[0],c[1],rs,rs*0.9,0,0,Math.PI);ctx.ellipse(c[0],c[1],rs,c[1]-topY,0,Math.PI,0)};
+  const g=ctx.createRadialGradient(c[0],(c[1]+topY)/2,4,c[0],(c[1]+topY)/2,Math.max(rs,c[1]-topY));g.addColorStop(0,'rgba(94,200,255,0.02)');g.addColorStop(0.75,'rgba(94,200,255,0.06)');g.addColorStop(1,'rgba(94,200,255,0.22)');ctx.fillStyle=g;shape();ctx.fill();
+  ctx.strokeStyle='rgba(143,227,255,0.5)';ctx.lineWidth=1;ctx.beginPath();ctx.ellipse(c[0],c[1],rs,c[1]-topY,0,Math.PI,0);ctx.stroke();ctx.strokeStyle='rgba(143,227,255,0.25)';ctx.beginPath();ctx.ellipse(c[0],c[1],rs,rs*0.9,0,0,Math.PI*2);ctx.stroke();
+  hits.forEach(h=>{const f=(S.t-h.t)/0.5,el=0.55,x=cx+Math.cos(h.a)*rs*Math.cos(el),y=cy+Math.sin(h.a)*rs*Math.cos(el)*0.9-hs*Math.sin(el)*SK_TILT,r=4+f*16;
+    ctx.strokeStyle=`rgba(191,239,255,${(1-f)*0.9})`;ctx.lineWidth=1.6;ctx.beginPath();ctx.ellipse(x,y,r,r*0.7,0,0,Math.PI*2);ctx.stroke()});ctx.restore()}
+function drawDomes(){if(!S.mods.deflector)return;const hs=(S.domeHits||(S.domeHits=[])).filter(h=>S.t-h.t<0.5);S.domeHits=hs;const B=S.base;
+  domeAt(B.x,B.y,42,(RIG_H+20)+(B._hov||0)*2,hs.filter(h=>h.o===B));
+  S.stabs.forEach(st=>{if(st.built&&st.hp>0)domeAt(st.x,st.y,30,170,hs.filter(h=>h.o===st))})}
+function drawPdFx(){if(!S.pdFx||!S.pdFx.length)return;S.pdFx=S.pdFx.filter(f=>S.t-f.t<0.35);SKO.x=0;SKO.y=0;SKO.s=1;
+  S.pdFx.forEach(f=>{const e=(S.t-f.t)/0.35,a=skPJ([f.x0,f.y0,f.z0]),b=skPJ([f.x1,f.y1,f.z1]);ctx.save();ctx.globalCompositeOperation='lighter';
+    if(e<0.4){ctx.strokeStyle='rgba(255,230,150,0.85)';ctx.lineWidth=0.9;ctx.setLineDash([3,4]);ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke();ctx.setLineDash([])}ctx.restore();
+    skGlow([f.x1,f.y1,f.z1],12*(0.5+e),'#ffb36b',0.9*(1-e))});SKO.s=SK_SCALE}
+// the Sanity bar over the Rig while it's out on a rift (or still refilling)
+function drawRiftMeter(B){if(!S.mods.riftShield)return;const s=B.riftSan??1;if(s>=1&&terrainAt(B.x,B.y)!==RIFT)return;
+  const w=40,h=4,n=10,x=B.x-w/2,y=B.y-RIG_TOP-(B._hov||0)*0.5-22,low=s<0.25,blink=low&&Math.sin(S.t*14)>0;
+  ctx.save();ctx.fillStyle='rgba(11,14,18,0.8)';ctx.fillRect(x-2,y-8,w+4,h+10);ctx.font=`600 5px ${css('--mono')}`;ctx.textAlign='left';ctx.fillStyle='#bfc8d2';ctx.fillText(B.riftOk===false?'SANITY · RECOVERING':'SANITY',x,y-2.5);
+  for(let i=0;i<n;i++){const on=i<Math.round(s*n);ctx.fillStyle=on?(low?(blink?'#ff6a3d':'#be64ff'):'#8fe3ff'):'rgba(255,255,255,0.08)';ctx.fillRect(x+i*(w/n)+0.4,y,w/n-0.8,h)}ctx.restore()}
 function drawManHover(){
   if(buildMode||mouse.form||!S.sel.troops.size)return;
   const L=wallLineAt({x:mouse.wx,y:mouse.wy});if(!L)return;
@@ -7132,9 +7280,9 @@ function rightClick(w){
   const rawH=[...S.sel.harv].map(id=>S.harvesters.find(h=>h.id===id)).filter(Boolean);
   const rawBu=[...S.sel.bu].map(id=>S.builders.find(b=>b.id===id)).filter(Boolean);
   if(S.sel.base&&rawT.length===0&&rawH.length===0&&rawBu.length===0){
-    if(S.base.locked){note('The Bastion is locked while drilling');return}
-    const d=bastionDest(w);if(!d){note('The Bastion has no way to walk there');return}
-    S.base.dest={x:d.x,y:d.y};if(!d.ok)note('The Bastion can’t walk out onto the rift — heading as close as it can. Look for the corridor round.');return;
+    if(S.base.locked){note('The Rig is locked while drilling');return}
+    const d=bastionDest(w);if(!d){note('The Rig has no way to walk there');return}
+    S.base.dest={x:d.x,y:d.y};if(!d.ok)note('The Rig can’t walk out onto the rift — heading as close as it can. Look for the corridor round.');return;
   }
   if(rawT.length===0&&rawH.length===0&&rawBu.length===0)return;
   // a severed unit still takes orders — losing power doesn't lose the player control of it,
@@ -7220,14 +7368,14 @@ function inBuildRange(w){
   if(dist(w,S.base)<=BUILD_R)return true;
   return S.relays.some(r=>r.built&&dist(w,r)<=BUILD_R);
 }
-// A Turret needs power from the Bastion or a live Relay within the same range you were allowed
+// A Turret needs power from the Rig or a live Relay within the same range you were allowed
 // to build it in — sever or destroy the Relay it was leaning on and it goes dark along with it.
 function turretPowered(tu){
   if(dist(tu,S.base)<=BUILD_R)return true;
   return S.relays.some(r=>r.built&&r.tetherOk&&dist(tu,r)<=BUILD_R);
 }
 // Same boundary as turretPowered: a harvester's auto-gather only chases deposits within the
-// Bastion's own build range, or a live (tethered) Relay's — not the looser wireless/cable reach
+// Rig's own build range, or a live (tethered) Relay's — not the looser wireless/cable reach
 // units use just to stay connected. Keeps auto-gather from beelining out past the active network.
 // The Rim is the exception — wireless works freely there (same fiction as the tether rules), so
 // any scouted deposit in the Rim band is fair game regardless of how far it is from the network.
@@ -7238,7 +7386,7 @@ function inHarvestRange(p){
 }
 function fireStabilizer(w){
   const src=stabSourceFor(w);
-  if(!src){note('Too far — get the Bastion or a live Relay closer');return}
+  if(!src){note('Too far — get the Rig or a live Relay closer');return}
   const d=dist(w,src);
   if(S.stabCharges<=0&&!takeStock(STAB_DAT,'Stabilizer'))return;
   S.stabShots.push({x0:src.x,y0:src.y,tx:w.x,ty:w.y,t:0,dur:Math.max(0.45,d/STAB_FLIGHT_SPEED),spin:rnd(2,4)*(rnd(0,1)<0.5?-1:1)});
@@ -7297,7 +7445,7 @@ function finishWallDraw(){
   [[P.x0,P.y0],[P.x1,P.y1]].forEach(([tx,ty],i)=>{if(anch[i])return;const dd=Math.hypot(tx-S.base.x,ty-S.base.y);S.fabShots.push({k:'wallpost',line,end:i,x0:S.base.x,y0:S.base.y,tx,ty,t:0,dur:Math.max(0.4,dd/FAB_FLIGHT_SPEED)})});
   tone(200,0.12,'square',0.06,0,420);
 }
-// A free wall between a and b, built exactly as a drawn one is — posts lobbed from the Bastion, slats
+// A free wall between a and b, built exactly as a drawn one is — posts lobbed from the Rig, slats
 // rising between them once both land, none on rock. auto marks the Siege Ring's.
 function addWallLine(a,b,auto){
   const L=Math.hypot(b.x-a.x,b.y-a.y);if(L<WALL_MIN_LEN)return null;
@@ -7309,7 +7457,7 @@ function addWallLine(a,b,auto){
   (S.wallLines||(S.wallLines=[])).push(line);S.wallDirty=true;
   [[a.x,a.y],[b.x,b.y]].forEach(([tx,ty],i)=>{const dd=Math.hypot(tx-S.base.x,ty-S.base.y);S.fabShots.push({k:'wallpost',line,end:i,x0:S.base.x,y0:S.base.y,tx,ty,t:0,dur:Math.max(0.4,dd/FAB_FLIGHT_SPEED)})});
   return line}
-// Siege Ring (reward card): when the Bastion locks on to drill, SIEGE_RING_N wall sections go up along
+// Siege Ring (reward card): when the Rig locks on to drill, SIEGE_RING_N wall sections go up along
 // its build ring, just inside it. A section is skipped where a wall already stands at its middle, where
 // both its ends would be on rock, or where it would run off the map.
 const SIEGE_RING_N=6,SIEGE_RING_IN=18; // a hexagon: its corners take Bulwark Towers / Missile Battery Walls like any wall's
@@ -7324,7 +7472,7 @@ function buildSiegeRing(){
     if(addWallLine(p,q,true))made++}
   if(made){tone(200,0.12,'square',0.06,0,420);tone(260,0.12,'square',0.05,0.08,520)}
   return made}
-// Bulwark Towers: every landed wall end gets a free Turret lobbed from the Bastion, once per end
+// Bulwark Towers: every landed wall end gets a free Turret lobbed from the Rig, once per end
 // (L.tower marks it, so a tower that's destroyed isn't rebuilt). Ends shared by two walls, or
 // already anchored on a Turret, get only the one.
 function wallTowers(){
@@ -7560,7 +7708,7 @@ function tryBuild(w){
 }
 
 // ---------- helpers ----------
-// A harvester deposits at whichever is nearer right now: the Bastion, or any built, standing
+// A harvester deposits at whichever is nearer right now: the Rig, or any built, standing
 // (hp>0) Depot — so a forward Depot near a cluster actually shortens the haul instead of just
 // being a second place deposits could theoretically happen.
 function dropoffPoint(h){
@@ -7716,7 +7864,7 @@ const sfx={
   surge(){if(!sfxReady('surge',0.2))return;tone(900,0.08,'sine',0.07);tone(1400,0.12,'sine',0.06,0.05,1800)},
 };
 // Only a FINISHED wall is a solid obstacle — a queued/under-construction site is just a ghost preview.
-// v4: foe=true is the enemies' view: a wall line cut off from the network (out of reach of the Bastion
+// v4: foe=true is the enemies' view: a wall line cut off from the network (out of reach of the Rig
 // and every live Relay, like the ring left at an old vein) is derelict to them — they walk past it.
 function wallAt(x,y,foe){
   if(!S.wallLines||!S.wallLines.length)return undefined;
@@ -7768,8 +7916,8 @@ function needsRepair(site){return site.hp<site.maxHp||(site.kind==='relay'&&site
 // than one battered wall or turret, so it's worth a builder walking past those to reach it.
 // Hard cap for auto-repair specifically: a site can be "in the network" via a long chain of
 // Relays (each link just needs to be within BUILD_R of the last) and still be very far from the
-// Bastion itself — auto-repair never chases that far. 100% of a single Relay's own range (BUILD_R),
-// measured straight from the Bastion, not through the chain. A manual repair order can still send
+// Rig itself — auto-repair never chases that far. 100% of a single Relay's own range (BUILD_R),
+// measured straight from the Rig, not through the chain. A manual repair order can still send
 // a builder anywhere.
 function withinAutoRepairRange(site){return dist(S.base,site)<=BUILD_R}
 function findRepairTarget(bu){
@@ -7786,7 +7934,7 @@ function findRepairTarget(bu){
 
 // ---------- repair drones (v2) ----------
 // Everything the swarm will fly out to fix, best first: Stabilizers (they hold the drill needle),
-// then Relays (network reach — a cut Relay counts even at full HP), Turrets, and the Bastion.
+// then Relays (network reach — a cut Relay counts even at full HP), Turrets, and the Rig.
 function droneJobs(){
   const B=S.base, jobs=[];
   const add=(o,pri)=>{if(dist(o,B)>DRONE_RANGE||(pri>0&&(o.droneSkipUntil||0)>S.t))return;if(unseenAttacker(o))return;jobs.push({o,pri})};
@@ -7940,8 +8088,8 @@ function updateWaveWarn(dt){
   const f=Math.min(1,(S.t-w.t0)/Math.max(0.1,w.end-w.t0));
   if(S.t<w.end){shakeScreen((0.5+1.6*f)*(w.big?1.7:1),0.12);if(sfxReady('rumble',1.15))sfx.rumble(f)}
 }
-// Flow field: one Dijkstra over the terrain grid out from the Bastion's cell, re-run when the
-// Bastion changes cell (or every FLOW_REFRESH s), giving every cell a direction toward it. Every
+// Flow field: one Dijkstra over the terrain grid out from the Rig's cell, re-run when the
+// Rig changes cell (or every FLOW_REFRESH s), giving every cell a direction toward it. Every
 // horde enemy just reads the direction where it stands, blended between the four nearest cells.
 const FLOW_REFRESH=1.5;
 const FLOW={n:0,gx:-1,gy:-1,t:-99,dist:null,dx:null,dy:null};
@@ -7980,7 +8128,7 @@ function hordeStep(e,tgt,dt){
   if(db<BASE_R+e.r+6){e.hp-=HORDE_STOMP_DPS*dt;if(e.hp<=0)return}
   if(tgt.hold&&dist(e,tgt)<(tgt.r||8)+e.r+6){e.hp-=HOLD_CRUSH_DPS*dt;if(e.hp<=0)return}
   const reach=e.r+(tgt.r||12)+4,d=tgt===B?db:dist(e,tgt);
-  if(d<=reach){if(e.cd<=0){tgt.hp-=allyHit(tgt,e.dmg,e);tgt.lastHitBy='enemy';hitFlash(tgt);spark(tgt.x,tgt.y,C.enemy,1);e.cd=0.8;if(tgt===S.base){shakeScreen(2,0.12);sfx.damage()}}e.ang=Math.atan2(tgt.y-e.y,tgt.x-e.x);return}
+  if(d<=reach){if(e.cd<=0){tgt.hp-=structHit(tgt,allyHit(tgt,e.dmg,e),'melee',e);tgt.lastHitBy='enemy';hitFlash(tgt);spark(tgt.x,tgt.y,C.enemy,1);e.cd=0.8;if(tgt===S.base){shakeScreen(2,0.12);sfx.damage()}}e.ang=Math.atan2(tgt.y-e.y,tgt.x-e.x);return}
   let ux,uy;
   const f=(d<170||(tgt!==S.base&&d<380))?null:flowDir(e.x,e.y);
   if(f){ux=f.x;uy=f.y}else{ux=(tgt.x-e.x)/(d||1);uy=(tgt.y-e.y)/(d||1)}
@@ -8210,8 +8358,8 @@ function drawPodTurret(t){
   if(!t.powered)drawCutGlyph(t.x,t.y);
   hpbar(t.x,t.y-19,24,t.hp/t.maxHp);
 }
-// ---- turret art: "Anchored" — a hex plate in the Bastion's greys with a blue armoured head, bolted down
-// on three of the Bastion's foot plates (four under a Pod Turret), their amber anchor rings glowing.
+// ---- turret art: "Anchored" — a hex plate in the Rig's greys with a blue armoured head, bolted down
+// on three of the Rig's foot plates (four under a Pod Turret), their amber anchor rings glowing.
 // On a wall end the plates turn into the gaps between the walls it caps (fitAnchors), so the tower
 // looks bolted to the wall. Drawn into a buffer so it casts one shadow down-right, like the units.
 const twPoly=(n,r,off)=>{const P=[];for(let i=0;i<n;i++){const a=off+i/n*Math.PI*2;P.push([Math.cos(a)*r,Math.sin(a)*r])}return P};
@@ -8724,7 +8872,7 @@ function update(dt){
   const ps=520/cam.z*dt; if(keys['w']||keys['arrowup'])cam.y-=ps; if(keys['s']||keys['arrowdown'])cam.y+=ps; if(keys['a']||keys['arrowleft'])cam.x-=ps; if(keys['d']||keys['arrowright'])cam.x+=ps; clampCam();
 
   // drill meter: the strike sweep, then the needle drifting while it drills (may rupture the vein,
-  // which unlocks the Bastion — so it runs before the drilling block below, which then skips)
+  // which unlocks the Rig — so it runs before the drilling block below, which then skips)
   S.stabs.forEach(st=>st.strain=0); // only the vein being drilled (below) strains its Stabilizers
   if(B.locked&&S.activeVein&&!S.activeVein.done&&S.activeVein.prepT<=0)updateMeter(S.activeVein,dt);
   // drilling
@@ -8842,20 +8990,18 @@ function update(dt){
 
   // base movement
   if(B.dest&&!B.locked){
-    const aim=waypointFor(B,B.dest.x,B.dest.y);
+    const aim=B.riftShove?B.dest:waypointFor(B,B.dest.x,B.dest.y);
     const factor=terrainAt(B.x,B.y)===1?MUD_MULT:1;
     moveToward(B,aim,BASE_SPEED*factor,dt);
     if(dist(B,B.dest)<3)B.dest=null;
   }
   B.x=Math.max(40,Math.min(W-40,B.x));B.y=Math.max(40,Math.min(H-40,B.y));
+  updateRiftShield(dt);
   // v4: walking off the east edge once the barrier is open moves on to the next stop
   if(S.breachVein&&!S.breachVein.introduced&&S.breachVein.seen){S.breachVein.introduced=true;
     msg('The breach vein — drain it to break through the barrier. Its nests will answer the drill.')}
   if(RUN&&S.barrier&&S.barrier.open&&frameAB(B.x,B.y).a>W-250&&!S.over){finishStop();return}
   if(!S.enemies.some(e=>dist(e,B)<400))B.hp=Math.min(B.maxHp,B.hp+2*dt);
-  // bastion gun — only while mobile by default; it goes quiet once locked down and leans on built
-  // defenses instead, unless the Targeting Computer upgrade keeps it live through drilling too
-  B.gunCd-=dt;
   if(B.pingCd>0)B.pingCd=Math.max(0,B.pingCd-dt);
   if(S.pingRing){S.pingRing.t+=dt;if(S.pingRing.t>=S.pingRing.dur)S.pingRing=null}
   if(S.pings.length)S.pings=S.pings.filter(pg=>(pg.t-=dt)>0);
@@ -8871,27 +9017,6 @@ function update(dt){
   {const sig=['troop','brawler','grenadier','rocket','mech','marksman'].map(unitHave).join(',');if(sig!==S.unitSig){S.unitSig=sig;updateBuildBar()}} // the Trooper / Paladin counts on their buttons follow deaths and deployments
   updateFabShots(dt);
   updateDrones(dt);
-  if(!B.locked||S.mods.bastionShootWhileDrilling){
-    let best=null,bd=BASE_GUN_RANGE;S.enemies.forEach(e=>{const d=dist(e,B);if(d<bd){bd=d;best=e}});
-    if(best){B.aim=Math.atan2(best.y-B.y,best.x-B.x);B.aimT=S.t}
-    if(best&&B.gunCd<=0){damageEnemy(best,BASE_GUN_DMG);tracer(B,best,C.accent);B.gunCd=BASE_GUN_CD}
-  }
-  // Big Guns (reward card): a slow, long-range, big-blast artillery piece bolted onto the
-  // Bastion — it goes quiet while drilling same as the gun above, unless the Targeting Computer
-  // upgrade keeps weapons live through drilling too; it will only ever fire on an enemy the
-  // player has actually revealed, not anything merely in range.
-  if(S.mods.bigGuns&&(!B.locked||S.mods.bastionShootWhileDrilling)){
-    B.bigGunCd-=dt;
-    if(B.bigGunCd<=0){
-      let best=null,bd=BIGGUN_RANGE;
-      S.enemies.forEach(e=>{if(!visible(e))return;const d=dist(e,B);if(d<bd){bd=d;best=e}});
-      if(best){
-        launchProjectile(B,best,{speed:BIGGUN_PROJ_SPEED,dmg:BIGGUN_DMG,splashR:BIGGUN_SPLASH_R,color:C.accent,big:true});
-        B.bigGunCd=BIGGUN_CD;
-      }
-    }
-  }
-
   // relays first — mobile units' anchor list depends on which relays are currently tethered
   relayTetherPass();
   // tether + Sanity maintenance, ahead of each type's own loop — severed units keep acting
@@ -9032,11 +9157,11 @@ function update(dt){
     if(h.following){followMove(h,HARV_SPEED*S.mods.moveSpeedMult,dt);h.x=Math.max(10,Math.min(W-10,h.x));h.y=Math.max(10,Math.min(H-10,h.y));S.nodes.forEach(n=>{if(!n.found&&dist(n,h)<HARV_VISION*S.mods.visionMult)n.found=true});return}
     if(h.autoLoop&&h.state==='idle'){
       // only chase deposits the player has actually scouted — never beeline for one still
-      // hidden under fog. Also skip anything outside the Bastion's own build range and its
+      // hidden under fog. Also skip anything outside the Rig's own build range and its
       // active (tethered) Relay network — same boundary a Turret needs power from — so
       // auto-gather shouldn't strand a harvester out past it on its own; a manually-ordered
       // harvester can still go wherever. With nothing eligible, head back and wait near the
-      // Bastion instead of idling wherever it happens to be, ready to move the moment one turns up.
+      // Rig instead of idling wherever it happens to be, ready to move the moment one turns up.
       let best=null,bd=Infinity;
       S.nodes.forEach(n=>{if(n.amt<=0||!n.found||!inHarvestRange(n))return;const d=dist(h,n);if(d<bd){bd=d;best=n}});
       if(best){h.node=best;h.state='harvest'}
@@ -9069,17 +9194,17 @@ function update(dt){
 
   // builders — unarmed; always auto-build queued sites regardless of the auto-repair toggle, and
   // (when that toggle is on) auto-heal damaged ones once there's nothing left to build; dock at
-  // the Bastion when idle either way. 'cut' builders skip auto-seek entirely (handled by
+  // the Rig when idle either way. 'cut' builders skip auto-seek entirely (handled by
   // tetherPass above).
   S.builders.forEach(bu=>{
     const factor=roughFactor(bu.x,bu.y);
     if(bu.following){followMove(bu,BUILDER_SPEED*S.mods.moveSpeedMult,dt);bu.x=Math.max(10,Math.min(W-10,bu.x));bu.y=Math.max(10,Math.min(H-10,bu.y));return}
     if(bu.state==='idle'||bu.state==='dock'){
       let found=null,bd=Infinity;
-      // auto-seek only ever picks a site inside the current network — the Bastion's own immediate
-      // build radius, or an active Relay's — not wherever the Bastion used to be. Otherwise a
+      // auto-seek only ever picks a site inside the current network — the Rig's own immediate
+      // build radius, or an active Relay's — not wherever the Rig used to be. Otherwise a
       // builder would happily trek back to a half-built wall or a damaged turret from a vein the
-      // Bastion drilled out and moved on from ages ago. A manual order can still send a builder
+      // Rig drilled out and moved on from ages ago. A manual order can still send a builder
       // anywhere; this only scopes the automatic idle/dock seek.
       // no (site.builder&&site.builder!==bu) exclusion here on purpose — several builders can
       // pile onto the same unfinished site and each still adds their own dt to its buildT every
@@ -9161,7 +9286,7 @@ function update(dt){
     }}}
 
   // turrets (only once finished — an unbuilt site is just a ghost). Needs power from the
-  // Bastion or a live Relay in range — no power, no targeting, no firing.
+  // Rig or a live Relay in range — no power, no targeting, no firing.
   S.turrets.forEach(tu=>{
     if(!tu.built)return;
     tu.cd-=dt;
@@ -9311,7 +9436,7 @@ function update(dt){
     const reach=e.r+(tgt.r||12)+4;
     if(dist(e,tgt)<=reach&&!wallBetween(e,tgt,true)){
       if(e.cd<=0){
-        tgt.hp-=allyHit(tgt,e.dmg,e); tgt.lastHitBy='enemy'; hitFlash(tgt); spark(tgt.x,tgt.y,C.enemy,2); e.cd=0.8; e.atkT=S.t;
+        tgt.hp-=structHit(tgt,allyHit(tgt,e.dmg,e),'melee',e); tgt.lastHitBy='enemy'; hitFlash(tgt); spark(tgt.x,tgt.y,C.enemy,2); e.cd=0.8; e.atkT=S.t;
         if(tgt===B){shakeScreen(3,0.15);sfx.damage()}
       }
       return;
@@ -9394,10 +9519,10 @@ function update(dt){
   S.harvesters=S.harvesters.filter(h=>h.hp>0); S.harvesters.forEach(h=>{if(dist(h,B)<BASE_FOOTPRINT+60&&!S.enemies.some(e=>dist(e,h)<200))h.hp=Math.min(h.maxHp,h.hp+6*dt)});
   S.builders.forEach(bu=>{if(bu.hp<=0)releaseBuilderClaim(bu)});
   S.builders=S.builders.filter(bu=>bu.hp>0); S.builders.forEach(bu=>{if(dist(bu,B)<BASE_FOOTPRINT+60&&!S.enemies.some(e=>dist(e,bu)<200))bu.hp=Math.min(bu.maxHp,bu.hp+6*dt)});
-  // v4: units within the Bastion's ring slowly mend (the Bastion only — Relays don't do this)
+  // v4: units within the Rig's ring slowly mend (the Rig only — Relays don't do this)
   S.troops.concat(S.harvesters).forEach(u=>{if(u.hp>0&&u.hp<u.maxHp&&dist(u,B)<=UNIT_REGEN_R)u.hp=Math.min(u.maxHp,u.hp+u.maxHp*UNIT_REGEN_PCT*dt)});
   // Dat Crystal shards dropped by dead enemies — any unit walking over one scoops it up straight
-  // into the stockpile, no trip back to the Bastion needed.
+  // into the stockpile, no trip back to the Rig needed.
   if(S.shards.length){
     const looters=S.troops.concat(S.harvesters).concat(S.builders);
     S.shards=S.shards.filter(sh=>{
@@ -9411,14 +9536,14 @@ function update(dt){
     S.enemies.forEach(e=>{if(e.kind!=='nest'&&!(e.air>0))glassPush(e,(e.r||8)*0.8)})}
   S.tracers=S.tracers.filter(t=>(t.t-=dt)>0);
   if(!S.shardShots)S.shardShots=[];updateShardShots(dt);
-  if(!S.lances)S.lances=[];updateLances(dt);
+  if(!S.lances)S.lances=[];updateLances(dt);updatePointDefence(dt);
   if(!S.fires)S.fires=[];if(!S.kits)S.kits={};updateKitEffects(dt);updateFieldRelays(dt);
   if(!S.smears)S.smears=[];updateSmears();
   S._nadeBirth=[]; // projectiles launched by an explosion (cluster bomblets) join after this pass
   S.nades=S.nades.filter(n=>{n.t+=dt;if(n.track&&n.track.hp>0&&S.enemies.includes(n.track)){n.tx=n.track.x;n.ty=n.track.y}const pt=Math.min(1,n.t/n.dur);n.x=n.x0+(n.tx-n.x0)*pt;n.y=n.y0+(n.ty-n.y0)*pt;if(pt>=1){explodeNade(n);return false}return true});
   S.nades.push(...S._nadeBirth);S._nadeBirth=null;
   debugPass();
-  if(B.hp<=0){S.over='lose';sfx.lose();shakeScreen(10,0.6);burst(B.x,B.y,C.enemy,30,160,0.9);showOverlay('Bastion destroyed','The crew and the crystal are lost to the zone. Try fortifying before you push deeper.',0.5)}
+  if(B.hp<=0){S.over='lose';sfx.lose();shakeScreen(10,0.6);burst(B.x,B.y,C.enemy,30,160,0.9);showOverlay('Rig destroyed','The crew and the crystal are lost to the zone. Try fortifying before you push deeper.',0.5)}
 
   // juice: particles drift and fade, floating text rises and fades, screen shake decays, hit
   // flashes fade out on everything that can take damage.
@@ -9598,7 +9723,7 @@ function pickReward(i){
   if(S.rewardQueue&&S.rewardQueue.length){const q=S.rewardQueue.shift();showRewardChoice(q.tier,q.band);document.getElementById('rewardTitle')._tc=`Bonus Reward — ${q.tier} Tier`}
 }
 
-// ---------- the Bastion: a quad walker ----------
+// ---------- the old quad walker (no longer drawn: the Rig is the Needle, see drawRigTower) ----------
 // Art from icons/bastionWalker.svg, in that file's coordinates around its pivot (WK_P). The lower
 // layer is four legs (the NW one is drawn and rotated 90° for each of the others), which turns to
 // face where the walker is going; the top layer is the turret, which turns on its own to aim. Up
@@ -9804,10 +9929,10 @@ function drawWalker(B,noTop){
     B.feet.forEach(f=>{ctx.beginPath();ctx.arc(f.x,f.y,9,0,Math.PI*2);ctx.stroke()});ctx.restore()}
   if(!noTop)drawWalkerTop(B);
 }
-// v4: while drilling, the yield tier floats over the Bastion; when the needle drifts off it, an amber
+// v4: while drilling, the yield tier floats over the Rig; when the needle drifts off it, an amber
 // warning with the tier it's slipping toward; a seam or an overdrill shows there too
 function drawDrillReadout(B){const v=S.activeVein,m=v&&v.meter;if(!B.locked||!m||m.phase!=='drill')return;
-  const z=cam.z||1,fs=13/z,y=B.y-B.r*2.2-22/z;let txt=m.yieldTier.toUpperCase(),col=CARD_TIER_COLOR[m.yieldTier];
+  const z=cam.z||1,fs=13/z,y=B.y-RIG_TOP-(B._hov||0)*0.5-(S.mods.riftShield?36:20)/z;let txt=m.yieldTier.toUpperCase(),col=CARD_TIER_COLOR[m.yieldTier];
   if(m.inRed){txt='⚠ RED';col=C.enemy}else if(m.over==='run'){txt=`OVERDRILL ${Math.ceil(OVER_T-m.overT)}`;col=C.enemy}
   else if(m.drift){txt=`▼ ${m.yieldTier.toUpperCase()} → ${m.hereTier.toUpperCase()}`;col='#ffb33c'}else if(m.seam){txt=`◆ SEAM ${Math.round(100*m.seam.hold/SEAM_HOLD)}%`;col='#6ff0ff'}
   const pl=m.drift||m.inRed?0.65+0.35*Math.sin(S.t*12):1;
@@ -9830,7 +9955,7 @@ function drawCutGlyph(x,y){
   ctx.strokeStyle=C.enemy;ctx.lineWidth=2;
   ctx.beginPath();ctx.moveTo(x-7,y-16);ctx.lineTo(x-1,y-11);ctx.moveTo(x+1,y-11);ctx.lineTo(x+7,y-16);ctx.stroke();
 }
-// Small chevron above a unit escorting the Bastion — a quiet "following" indicator.
+// Small chevron above a unit escorting the Rig — a quiet "following" indicator.
 function drawFollowGlyph(x,y){
   ctx.strokeStyle=C.accent;ctx.lineWidth=2;
   ctx.beginPath();ctx.moveTo(x-6,y-18);ctx.lineTo(x,y-13);ctx.lineTo(x+6,y-18);ctx.stroke();
@@ -10060,7 +10185,7 @@ const STAB_TRIS=[
   {p:new Path2D('M4.18 64.83 H39.53 V100.17 Z'),dx:12.75,dy:-12.55},
 ];
 const STAB_BRACKETS=new Path2D('M39.53 3.61 V38.95 H4.18 Z M65.4 100.17 V64.83 H100.74 Z M4.18 64.83 H39.53 V100.17 Z M100.74 38.95 H65.4 V3.61 Z');
-// A Stabilizer spike in flight: it travels in a straight line over the ground from the Bastion to
+// A Stabilizer spike in flight: it travels in a straight line over the ground from the Rig to
 // its target, but scales up toward the middle of the flight (rising toward the camera) and back
 // down as it lands, spinning, with its shadow on the ground beneath it. It launches folded — its
 // triangles closed into a square over the core — and unfolds around the top of the arc.
@@ -10165,8 +10290,10 @@ function skPop(S0,u){if(u>=1)return S0;const e=u<0.6?(1-Math.pow(1-u/0.6,3))*1.1
   let cx=0,cy=0,z0=1e9;S0.pts.forEach(q=>{cx+=q[0];cy+=q[1];z0=Math.min(z0,q[2])});cx/=S0.pts.length;cy/=S0.pts.length;
   const T=q=>[cx+(q[0]-cx)*e,cy+(q[1]-cy)*e,z0+(q[2]-z0)*e+drop*2];return {F:S0.F.map(f=>({...f,pts:f.pts.map(T)})),pts:S0.pts.map(T),bias:S0.bias}}
 function skRender(solids,flash){
-  const sh=[];solids.forEach(S0=>S0.pts.forEach(q=>{sh.push(skGJ(q));if(q[2]<0.6)sh.push(skPJ(q))}));
-  if(sh.length>2){const h=skHull(sh);ctx.fillStyle='rgba(0,0,0,0.38)';ctx.beginPath();h.forEach((q,i)=>i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]));ctx.closePath();ctx.fill()}
+  // one shadow for the solid body; open pieces (legs, struts: grp 'each') cast their own, so a frame
+  // of legs doesn't throw one big blob
+  const sh=[],own=[];solids.forEach(S0=>{const L=S0.grp==='each'?(own.push([]),own[own.length-1]):sh;S0.pts.forEach(q=>{L.push(skGJ(q));if(q[2]<0.6)L.push(skPJ(q))})});
+  ctx.fillStyle='rgba(0,0,0,0.38)';ctx.beginPath();[sh,...own].forEach(L=>{if(L.length<3)return;const h=skHull(L);h.forEach((q,i)=>i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]));ctx.closePath()});ctx.fill('nonzero');
   const key=S0=>{let y=0,z=0;S0.pts.forEach(q=>{y+=q[1];z+=q[2]});return (y+z*0.5)/S0.pts.length+(S0.bias||0)};
   ctx.lineJoin='round';ctx.lineWidth=0.3;ctx.strokeStyle='rgba(16,19,23,0.75)';
   solids.slice().sort((a,b)=>key(a)-key(b)).forEach(S0=>S0.F.forEach(f=>{if(skDot(f.n,SK_VIEW)<=0.02)return;
@@ -10196,7 +10323,7 @@ const SK_PIECES=14,SK_GAP=0.07;
 function drawCoreColumn(st,col,dmg,sn){
   const since=st.landT!=null?S.t-st.landT:99,flick=dmg>0.6&&Math.random()<0.25?0.25:1;
   SKO.x=st.x;SKO.y=st.y;SKO.s=1;SKO.lean=dmg>0.6?[0.05*dmg,0.03*dmg]:[0,0];SKO.shk=sn>0.3?[(Math.random()-0.5)*sn*1.6,(Math.random()-0.5)*sn*1.6]:[0,0];
-  let solids=coreColumnPieces(col,S.t,sn,dmg,flick);
+  let solids=coreColumnPieces(col,S.t,sn,dmg,flick).concat(stabKitPieces(st));
   if(since<SK_PIECES*SK_GAP+SK_POP_T+0.1)solids=solids.map(S0=>{const u=(since-S0.k*SK_GAP)/SK_POP_T;return u<=0?null:skPop(S0,Math.min(1,u))}).filter(Boolean);
   if(!solids.length){SKO.s=SK_SCALE;return}
   skRender(solids,st.flashT>0);
@@ -10209,7 +10336,7 @@ function drawCoreColumn(st,col,dmg,sn){
 }
 // ---- Relays: the Insulator mast. Three short legs, a slim pole, amber ceramic insulators, a crossarm
 // ring of six hooks, a status lamp. Its reward cards add to it: horns (Sonic Deterrent), a coil and
-// toroid (Electric Surge), an armoured plinth with a turret head (Bastion Relay), a radar dish, a
+// toroid (Electric Surge), an armoured plinth with a turret head (Fortified Relay), a radar dish, a
 // repair cradle. Cables hang from the hook facing whatever they run to.
 function skFrustum(p0,p1,r0,r1,n,col,o={}){const d=[p1[0]-p0[0],p1[1]-p0[1],p1[2]-p0[2]],L=Math.hypot(d[0],d[1],d[2])||1,ax=d.map(x=>x/L),up=Math.abs(ax[2])<0.9?[0,0,1]:[1,0,0];
   let u=[ax[1]*up[2]-ax[2]*up[1],ax[2]*up[0]-ax[0]*up[2],ax[0]*up[1]-ax[1]*up[0]];const ul=Math.hypot(u[0],u[1],u[2])||1;u=u.map(x=>x/ul);const v=[ax[1]*u[2]-ax[2]*u[1],ax[2]*u[0]-ax[0]*u[2],ax[0]*u[1]-ax[1]*u[0]];
@@ -10275,8 +10402,8 @@ function drawHoses(pts3,n,seed,hot){if(pts3.length<2)return;SKO.x=0;SKO.y=0;SKO.
   if(strands>1){[0.15,0.45,0.75].forEach((f,k)=>{const i=Math.round(f*N),[nx,ny]=nrm(i),q=P[i],a=P[Math.max(0,i-1)],b=P[Math.min(P.length-1,i+1)],dx=b[0]-a[0],dy=b[1]-a[1],l=Math.hypot(dx,dy)||1,ux=dx/l*0.9,uy=dy/l*0.9,hw=Rb+sw*0.62;
     ctx.beginPath();ctx.moveTo(q[0]+nx*hw-ux,q[1]+ny*hw-uy);ctx.lineTo(q[0]+nx*hw+ux,q[1]+ny*hw+uy);ctx.lineTo(q[0]-nx*hw+ux,q[1]-ny*hw+uy);ctx.lineTo(q[0]-nx*hw-ux,q[1]-ny*hw-uy);ctx.closePath();ctx.fillStyle=k===1?'#c99a3a':'#25282c';ctx.fill()})}
   SKO.s=SK_SCALE}
-// where a cable leaves its anchor: a Relay's hook facing the far end, or the Bastion's back
-function anchorHook(a,to){if(!a)return null;if(a.kind==='mech')return [a.x,a.y,12];if(a===S.base){const an=Math.atan2(to.y-a.y,to.x-a.x);return [a.x+Math.cos(an)*14,a.y+Math.sin(an)*14,20]}return relayHookFor(a,to)}
+// where a cable leaves its anchor: a Relay's hook facing the far end, or the Rig's back
+function anchorHook(a,to){if(!a)return null;if(a.kind==='mech')return [a.x,a.y,12];if(a===S.base){const h=a._m?a._m.hook:[RIG_R+3.6,2.9,80];return [a.x+h[0],a.y+h[1],h[2]]}return relayHookFor(a,to)}
 // ---- the pooling rope (visual only; the trail still decides length, snapping and what enemies cut).
 // Links ROPE_SEG apart, pinned at the touchdown under the hook and at the unit; 8 relaxation passes;
 // links only pull, so slack bunches on the floor; the winch feeds out when pulled and winds in toward
@@ -10315,7 +10442,7 @@ function drawTethers(){
   S.troops.concat(S.harvesters,S.builders).forEach(u=>{if(!u.trail||!u.anchorRef){u.rope=null;return}
     const h=anchorHook(u.anchorRef,u);if(!h){u.rope=null;return}const dx=u.x-h[0],dy=u.y-h[1],L=Math.hypot(dx,dy)||1,td=Math.min(L*0.6,h[2]*0.55+6),ux=dx/L,uy=dy/L,touch=[h[0]+ux*td,h[1]+uy*td];
     if(u.rope&&u.rope.anc!==u.anchorRef){u.rope.reel=2.5;u.rope.sleep=0}if(u.rope)u.rope.anc=u.anchorRef;
-    if(u.rope&&u.anchorRef===S.base&&L<=TETHER_DOCK_R){u.rope.reel=Math.max(u.rope.reel||0,0.3);u.rope.sleep=0} // v4: back at the Bastion, the slack winds straight in
+    if(u.rope&&u.anchorRef===S.base&&L<=TETHER_DOCK_R){u.rope.reel=Math.max(u.rope.reel||0,0.3);u.rope.sleep=0} // v4: back at the Rig, the slack winds straight in
     stepRope(u,touch,dt);if(u.rope.anc!==u.anchorRef)u.rope.anc=u.anchorRef;const hangPts=[];for(let k=0;k<=8;k++){const f=k/8;hangPts.push([h[0]+ux*td*f,h[1]+uy*td*f,h[2]*Math.pow(1-f,2.2)])}
     const pts=hangPts.concat(u.rope.P.slice(1).map(q=>[q.x,q.y,0.2]));drawHoses(pts,1,(u.id||0)%8,u.cableMaxed)});
 }
@@ -10482,10 +10609,10 @@ function draw(){
     if(!alive)drawCutGlyph(de.x,de.y);
     if(de.hp<de.maxHp)hpbar(de.x,de.y-20,22,de.hp/de.maxHp);
   });
-  // base: the quad walker
-  drawPOIs(); // wrecks and beacons lie on the ground, under the Bastion and units
-  // cables run under the Bastion's turret, hanging from beneath it
-  drawWalker(B,true);drawTethers();drawBolts();drawWalkerTop(B);drawDrillReadout(B);hpbar(B.x,B.y-B.r*2.2-8,B.r*2,B.hp/B.maxHp);
+  // the Rig: the Needle tower
+  drawPOIs(); // wrecks and beacons lie on the ground, under the Rig and units
+  // cables run under the Rig's turret, hanging from beneath it
+  drawRigTower(B);drawTethers();drawBolts();drawRigTop(B);drawDrillReadout(B);hpbar(B.x,B.y-RIG_TOP-(B._hov||0)*0.5-8,B.r*2,B.hp/B.maxHp);drawRiftMeter(B);
   if(WIRELESS_ENABLED){
     const bwt=0.5+0.5*Math.sin(S.t*2.2);
     ctx.strokeStyle=C.cable;ctx.globalAlpha=0.2*bwt;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(B.x,B.y,WIRELESS_TOL_DENSE*S.mods.relayTolMult,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;
@@ -10617,14 +10744,14 @@ function draw(){
   drawTutorialTarget();
   // map edge
   ctx.strokeStyle=C.line;ctx.lineWidth=3/cam.z;ctx.strokeRect(0,0,W,H);
-  // ping targeting preview: the reach ring around the Bastion, and the scan circle under the cursor
+  // ping targeting preview: the reach ring around the Rig, and the scan circle under the cursor
   if(pingMode){const reach=pingReach(),ok=dist({x:mouse.wx,y:mouse.wy},B)<=reach,col=ok?C.dat:C.enemy;
     ctx.strokeStyle=C.dat;ctx.globalAlpha=0.45;ctx.lineWidth=1.5/cam.z;ctx.setLineDash([10/cam.z,8/cam.z]);
     ctx.beginPath();ctx.arc(B.x,B.y,reach,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
     ctx.globalAlpha=0.12;ctx.fillStyle=col;ctx.beginPath();ctx.arc(mouse.wx,mouse.wy,PING_REVEAL_R,0,Math.PI*2);ctx.fill();
     ctx.globalAlpha=0.8;ctx.strokeStyle=col;ctx.lineWidth=2/cam.z;ctx.beginPath();ctx.arc(mouse.wx,mouse.wy,PING_REVEAL_R,0,Math.PI*2);ctx.stroke();
     ctx.beginPath();ctx.arc(mouse.wx,mouse.wy,6/cam.z,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1}
-  // Stabilizer aiming: the Bastion's firing range, a line out to the cursor, and the landing spot
+  // Stabilizer aiming: the Rig's firing range, a line out to the cursor, and the landing spot
   // with the flight time — hotspots keep drifting while it's in the air, so lead them
   if(buildMode==='stabilizer'){const m={x:mouse.wx,y:mouse.wy},src=stabSourceFor(m)||B,d=dist(m,src),ok=!!stabSourceFor(m),col=ok?'#8fe3ff':C.enemy;
     ctx.save();ctx.strokeStyle='#8fe3ff';ctx.globalAlpha=0.35;ctx.lineWidth=1.5/cam.z;ctx.setLineDash([10/cam.z,8/cam.z]);
@@ -10758,7 +10885,7 @@ function frame(ts){requestAnimationFrame(frame); // asked for first, so one bad 
   if(TPAINT.loading&&performance.now()-TPAINT.loadT0>25000)showLoading(false);
   const a=performance.now();if(!TPAINT.loading){update(dt);tutTick()}const b=performance.now();if(cv.width>0&&cv.height>0)draw();perfTick(ts,gap||0,b-a,performance.now()-b)}
 // ---------- voice announcer: VESPER (prototype, off by default) ----------
-// The Bastion's onboard operations intelligence. Her voice is pre-rendered clips (ElevenLabs voice
+// The Rig's onboard operations intelligence. Her voice is pre-rendered clips (ElevenLabs voice
 // "Astrotana", Eleven v4: tools/vox_render.py writes the script from the lines below and packs the
 // takes into vox/vesper.json, tools/vox_align.py cuts long takes into lines), fetched only
 // once the announcer is switched on and played clean through Web Audio. A line with no clip (or no
@@ -10799,7 +10926,7 @@ const VOX_EV={
   hullHalf:{p:1,cd:0,l:["Hull at half. I'd rather we didn't make a habit of this.","Fifty percent hull. Let's be careful."]},
   hullLow:{p:1,cd:0,l:["Hull critical! Get us out of there.","We're breaking up. I need repairs, now."]},
   noDat:{p:4,cd:40,l:["We're short on Dat for that.","Can't afford it yet. Collect more Dat."]},
-  cap:{p:4,cd:40,l:["We're at the unit limit.","That's all the crew the Bastion can carry right now."]},
+  cap:{p:4,cd:40,l:["We're at the unit limit.","That's all the crew the Rig can carry right now."]},
   win:{p:1,cd:0,l:["Contract vein drained. Mission complete. It's been a pleasure, Commander."]},
   lose:{p:1,cd:0,l:["Hull failure. I'm sorry, Commander."]},
   // drilling (the meter): the slip calls are loud on purpose, they're easy to miss in a fight
@@ -10823,7 +10950,7 @@ const VOX_HEAR=[
   [/^Stop \d+ of \d+ — the heart of the Core/,'stopFinal'],[/^Stop \d+ of \d+/,'stop'],
   [/the way \w+ is open/,'breach'],[/gone unstable/,'unstable'],[/^A vein has collapsed/,'collapse'],
   [/STRIKE!/,'ready'],[/^JACKPOT/,'jackpot'],[/^Struck at/,'struck'],[/drill needle is in the red/,'red'],
-  [/The Bastion took \d+ damage/,'rupture'],[/drained at \w+ tier/,'drained'],
+  [/The Rig took \d+ damage/,'rupture'],[/drained at \w+ tier/,'drained'],
   [/ground is shaking/,'greatWave'],[/pouring out of|incoming from/,'wave'],[/patrol has spotted/,'patrol'],
   [/A Colossus is coming/,'colossus'],[/A Quaker is lumbering/,'quaker'],[/destroyed — drive over its Dat/,'nest'],
   [/cable .*(snapped|severed)/,'cable'],[/A Relay was destroyed/,'lostRelay'],[/A Stabilizer was destroyed/,'lostStab'],
@@ -10832,13 +10959,13 @@ const VOX_HEAR=[
 ];
 // spoken guidance for each tutorial step, by its title
 const VOX_TUT={
-  'Welcome to Astroscraper':"Hello, Commander. I'm Vesper. I run the Bastion. Let's drill your first vein together.",
+  'Welcome to Astroscraper':"Hello, Commander. I'm Vesper. I run the Rig. Let's drill your first vein together.",
   'Look around':"Pan with W, A, S, D, and scroll to zoom. H brings you home.",
   'Select your Troopers':"Those blue riflemen are your Troopers. Drag a box around them.",
   'Scout the vein':"See the pulses running through the cracks? Follow them upstream to the vein.",
   'Dat Crystal':"Found it. Dat Crystal is what we spend. Scoop it up as you go.",
   'Survey it with a Stabilizer':"Press E, and fire a Stabilizer into a glowing hotspot. Lead it. They drift.",
-  'Move the Bastion':"Select me, then right-click the mining point. I'm not fast, but I get there.",
+  'Move the Rig':"Select me, then right-click the mining point. I'm not fast, but I get there.",
   'Start drilling':"In position. Press F to lock on, then F again to stop the needle on a good band.",
   'Tactical pause':"A wave's on its way. Space pauses the action, and you can still give orders.",
   'Build a Turret':"Press T, and drop a Turret inside my ring.",
