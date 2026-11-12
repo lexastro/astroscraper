@@ -7503,6 +7503,7 @@ function burst(x,y,col,count,speed,life){
 function spark(x,y,col,count){burst(x,y,col,count||2,50,0.2)}
 function floatText(x,y,text,col){S.floaters.push({x,y,text,col,t:0,life:1.1,vy:-28})}
 function shakeScreen(mag,dur){
+  if(S.tacPause)return; // v4: the view holds still while tactically paused
   const curEffective=S.shake.t>0?S.shake.mag*(S.shake.t/S.shake.dur):0;
   if(mag>=curEffective)S.shake={t:dur,dur,mag};
 }
@@ -9893,7 +9894,7 @@ function drawRiftSmoke(x0,y0,x1,y1){
 function draw(){
   const B=S.base,dpr=gDpr(),vw=cv.width/dpr,vh=cv.height/dpr;
   ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle='#0b0e12';ctx.fillRect(0,0,vw,vh);
-  const shk=S.shake.t>0?S.shake.mag*(S.shake.t/S.shake.dur):0;
+  const shk=S.shake.t>0&&!S.tacPause?S.shake.mag*(S.shake.t/S.shake.dur):0;
   const shkx=shk?rnd(-shk,shk):0, shky=shk?rnd(-shk,shk):0;
   ctx.translate(vw/2+shkx,vh/2+shky);ctx.scale(cam.z,cam.z);ctx.translate(-cam.x,-cam.y);
   const x0=cam.x-vw/2/cam.z,y0=cam.y-vh/2/cam.z,x1=cam.x+vw/2/cam.z,y1=cam.y+vh/2/cam.z;
