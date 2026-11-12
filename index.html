@@ -7123,6 +7123,9 @@ function updateRiftShield(dt){const B=S.base;if(!S.mods.riftShield)return;if(B.r
 // side (the tether hook). It hovers on four thrusters while it travels or over a rift, stands on four
 // legs when it stops, and when locked down on a vein it braces wider and fires its laser straight down.
 const RIG_R=11.7,RIG_H=215,RIG_BAY=34,RIG_TOP=108,RIG_HOV=9;
+// v4: legs fold up at RIG_LEG_FOLD and come down at RIG_LEG_UNFOLD (per second, 0..1), and stay up
+// RIG_LEG_HOLD seconds after the Rig stops moving
+const RIG_LEG_FOLD=1.8, RIG_LEG_UNFOLD=1.3, RIG_LEG_HOLD=3;
 const RC={G:'#999',DK:'#4a4f57',M1:'#5d6670',M2:'#8d9aa8',TOP:'#a9b6c4',SL:'#6f7c89',W:'#e6e6e6',WT:'#f2f2f2',ANT:'#c9ced4',LASER:'#ffd27a',AMB:'#e8a43a',ARM:'#7a848f',ARM2:'#a8b2bc',ARM3:'#5c656f',PDC:'#d9dee4'};
 const skEach=S0=>{S0.grp='each';return S0};
 function skLift(P,dz){if(!dz)return P;const T=q=>[q[0],q[1],q[2]+dz];return P.map(S0=>({...S0,F:S0.F.map(f=>({...f,pts:f.pts.map(T)})),pts:S0.pts.map(T)}))}
@@ -7182,8 +7185,9 @@ function stabKitPieces(st){const c=RC,P=[],R8=Math.PI/8;
 function drawRigTower(B){const dt=Math.max(0,Math.min(0.1,S.t-(B._rt??S.t)));B._rt=S.t;
   const mv=B._px!=null?Math.hypot(B.x-B._px,B.y-B._py):0;B._px=B.x;B._py=B.y;
   B._mov=(B._mov||0)+(((mv>0.01&&mv<60)?1:0)-(B._mov||0))*Math.min(1,dt*5);
-  const onRift=terrainAt(B.x,B.y)===RIFT,want=onRift?0:B.locked?1:B._mov>0.5?0:1,app=(k,v,r)=>{B[k]=(B[k]??v)+Math.sign(v-(B[k]??v))*Math.min(Math.abs(v-(B[k]??v)),dt*r)};
-  app('_dep',want,1.3);app('_plant',B.locked?1:0,1.2);app('_charge',B.locked?1:0,0.9);
+  const app=(k,v,r)=>{B[k]=(B[k]??v)+Math.sign(v-(B[k]??v))*Math.min(Math.abs(v-(B[k]??v)),dt*r)};
+  const onRift=terrainAt(B.x,B.y)===RIFT;
+  B._dep=B.legDep??1; // the legs are driven by the game (update), not by the drawingapp('_plant',B.locked?1:0,1.2);app('_charge',B.locked?1:0,0.9);
   const v=S.activeVein,drilling=!!(B.locked&&v&&v.meter&&v.meter.phase==='drill'&&!v.paused&&dist(B,v.mine||v)<BASE_R+40);app('_laser',drilling?1:0,2.5);
   const dep=B._dep*B._dep*(3-2*B._dep),hov=(1-dep)*(RIG_HOV+Math.sin(S.t*2.2)*1.4);B._hov=hov;
   SKO.x=B.x;SKO.y=B.y;SKO.s=1;SKO.lean=[0,0];SKO.shk=[0,0];
@@ -8996,10 +9000,15 @@ function update(dt){
   }
 
   // base movement
-  if(B.dest&&!B.locked){
+  // v4: the Rig folds its legs up before it lifts off (it waits on the spot until they're up), and
+  // keeps them up for RIG_LEG_HOLD after it stops in case it's sent on again; locked onto a vein it
+  // plants them at once, over a rift they stay up
+  {const onRift=terrainAt(B.x,B.y)===RIFT,want=onRift?0:B.locked?1:(B.dest||S.t<(B.legHoldT||0))?0:1,cur=B.legDep??1;
+   B.legDep=want<cur?Math.max(want,cur-dt*RIG_LEG_FOLD):Math.min(want,cur+dt*RIG_LEG_UNFOLD)}
+  if(B.dest&&!B.locked&&(B.legDep<=0.02||B.riftShove)){
     const aim=B.riftShove?B.dest:waypointFor(B,B.dest.x,B.dest.y);
     const factor=terrainAt(B.x,B.y)===1?MUD_MULT:1;
-    moveToward(B,aim,BASE_SPEED*factor,dt);
+    moveToward(B,aim,BASE_SPEED*factor,dt);B.legHoldT=S.t+RIG_LEG_HOLD;
     if(dist(B,B.dest)<3)B.dest=null;
   }
   B.x=Math.max(40,Math.min(W-40,B.x));B.y=Math.max(40,Math.min(H-40,B.y));
