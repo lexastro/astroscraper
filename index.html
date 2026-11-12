@@ -7148,7 +7148,7 @@ function landingTick(dt){const L=S.landing,B=S.base;if(!L.snd)L.snd=landSound();
   L.t+=dt;const u=Math.min(1,L.t/LAND_T);B._alt=landAlt(u);
   if(!L.lit&&u>=LAND_BURN){L.lit=true;landBurnIgnite()}
   if(B._alt<LAND_LEGS_ALT){const was=B.legDep;B.legDep=Math.min(1,B.legDep+dt*LAND_LEGS_RATE);if(was===0)legSound(1)}
-  landSoundTick(L.snd,u,L.lit);
+  landSoundTick(L.snd,u,L.lit);rebuildFog();
   if(u>=1){L.touch=true;B._alt=0;B._touchT=performance.now();B.legDep=1;B.legHoldT=0;landSoundEnd(L.snd);L.snd=null;
     shakeScreen(8,0.6);burst(B.x,B.y,'#b9a48a',46,230,1.1);burst(B.x,B.y,'#8fe3ff',14,120,0.5)}}
 // after touchdown (the game running again): the crew walk out, then the landing is over
@@ -9675,6 +9675,10 @@ function update(dt){
   updateWallLines(dt);
   S.troops.forEach(t=>{if(t.manning&&!S.wallLines.includes(t.manning))t.manning=null});
 
+  rebuildFog();
+}
+// v4: its own function so the fog is up while the Rig is still coming down (the game itself is held)
+function rebuildFog(){const B=S.base;
   // dim veil, rebuilt fresh every frame: dark over everything, then punched fully clear around
   // current vision sources. v4: with a permanent "explored" memory again (fogC) — ground you've
   // seen stays at a lighter veil once nothing is watching it.
