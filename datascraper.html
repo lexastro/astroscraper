@@ -2430,11 +2430,12 @@ function emergeVein(site,o){
 }
 // A free site in the band for a new vein: never one the Bastion is within VEIN_WAKE_CLEAR of or any
 // of your units within VEIN_WAKE_UNIT_CLEAR of (a vein and its guards mustn't spring up underfoot);
-// far from the Bastion and clear of other live veins where possible. Nothing allowed: null, and the
+// far from the Bastion and clear of other live veins where possible. v4: never a site you've drained
+// (st.spent) — a mined vein stays dead for the rest of the map. Nothing allowed: null, and the
 // respawn waits and tries again.
 const VEIN_WAKE_CLEAR=480, VEIN_WAKE_UNIT_CLEAR=260;
 function pickSite(band){
-  const free=S.sites.filter(st=>st.band===band&&!st.vein&&dist(st,S.base)>VEIN_WAKE_CLEAR&&!S.troops.some(t=>dist(t,st)<VEIN_WAKE_UNIT_CLEAR)&&!S.harvesters.some(h=>dist(h,st)<VEIN_WAKE_UNIT_CLEAR)&&!S.builders.some(b=>dist(b,st)<VEIN_WAKE_UNIT_CLEAR));
+  const free=S.sites.filter(st=>st.band===band&&!st.vein&&!st.spent&&dist(st,S.base)>VEIN_WAKE_CLEAR&&!S.troops.some(t=>dist(t,st)<VEIN_WAKE_UNIT_CLEAR)&&!S.harvesters.some(h=>dist(h,st)<VEIN_WAKE_UNIT_CLEAR)&&!S.builders.some(b=>dist(b,st)<VEIN_WAKE_UNIT_CLEAR));
   if(!free.length)return null;
   const good=free.filter(st=>dist(st,S.base)>700&&!S.veins.some(v=>veinAlive(v)&&dist(v,st)<700));
   const pool=good.length?good:free;
@@ -8480,7 +8481,7 @@ function update(dt){
     // v4: a tapped vein offers Overdrill first (not the contract vein: it ends the run)
     if(v.drillProg>=v.richness&&!v.contract&&v.meter){const m=v.meter;v.drillProg=v.richness;if(!m.over){m.over='offer';m.offerT=OVER_OFFER_T;m.seam=null;m.seamDone=true;tone(880,0.1,'sine',0.06);msg('Vein tapped — F to bank it, O to overdrill for a second reward.')}}
     if(v.drillProg>=v.richness&&(v.contract||!v.meter||v.meter.over==='bank'||v.meter.over==='won')){
-      v.done=true; B.locked=false; setBuild(null); S.activeVein=null;
+      v.done=true; v.site.spent=true; B.locked=false; setBuild(null); S.activeVein=null;
       // reward scales with how fast it was actually drilled (baseline/elapsed ~ average throttle
       // sustained) — stalling out of Dat drags this down, finishing early drives it up. Baseline
       // is normalized to throttle 1 regardless of DRILL_RATE, so tuning drill speed doesn't by
