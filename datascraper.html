@@ -657,7 +657,7 @@ async function run(d){
     <button id="bRig" hidden><span class="icon">⛭</span><span id="bRigLabel">Power the Rig</span><span class="cost" id="cRig"></span><span class="key">Y</span></button>
     <button id="bStrand" hidden><span class="icon">⚑</span><span>Take on Squad</span><span class="cost" id="cStrand"></span><span class="key">Y</span></button>
     <button id="bPing"><span class="icon">◬</span><span id="bPingLabel">Probe</span><span class="cost" id="cProbe">●●●</span><span class="key">G</span></button>
-    <button id="bCall" style="display:none" title="One-shot strikes and drops, called in anywhere your network reaches"><span class="icon">⇣</span><span>Call-down</span><span class="cost" id="cCall"></span><span class="key">C</span></button>
+    <button id="bCall" style="display:none" title="One-shot strikes and drops, called in anywhere you can see or your network reaches"><span class="icon">⇣</span><span>Call-down</span><span class="cost" id="cCall"></span><span class="key">C</span></button>
     <button id="bAutoBuy" title="When on, using an empty stock buys the charge with Dat automatically"><span class="icon">⟳</span><span id="bAutoBuyLabel">Auto-buy: off</span></button>
   </div>
 </div>
@@ -6469,7 +6469,8 @@ function callR(id){return CALLDOWNS[id].r*(S.mods.callRadiusMult||1)}
 function callDelay(id){return CALLDOWNS[id].delay*(S.mods.callDelayMult||1)}
 // the points calls can be made round: the Bastion and every live tethered Relay
 function callAnchors(){const A=[S.base];S.relays.forEach(r=>{if(r.built&&r.hp>0&&r.tetherOk)A.push(r)});return A}
-function inCallRange(w){return callAnchors().some(a=>dist(a,w)<=BUILD_R)}
+// v4: a call-down can land near the network, or anywhere you can see right now (units, probes, pings)
+function inCallRange(w){return callAnchors().some(a=>dist(a,w)<=BUILD_R)||debugNoFog||visibleNow(w)}
 function grantCall(id,n){if(!CALLDOWNS[id])return;S.calls[id]=(S.calls[id]||0)+(n||1);updateBuildBar()}
 function setCallMode(id){callMode=id;S.callStart=null;updateBuildBar()}
 function tryCall(id){
@@ -6479,8 +6480,8 @@ function tryCall(id){
 // a line call-down's end: clamped to CARPET_LEN from its start
 function callLineEnd(s,w){const dx=w.x-s.x,dy=w.y-s.y,L=Math.hypot(dx,dy)||1,l=Math.max(CARPET_LEN[0],Math.min(CARPET_LEN[1],L));return {x:s.x+dx/L*l,y:s.y+dy/L*l}}
 function fireCall(w){const id=callMode,K=CALLDOWNS[id];if(!K){setCallMode(null);return}
-  if(K.line&&!S.callStart){if(!inCallRange(w)){note('Outside your network: start it near the Bastion or a live Relay');return}S.callStart={x:w.x,y:w.y};note('Now click where the line ends');sfx.click();return}
-  if(!K.line&&!inCallRange(w)){note('Outside your network: call it near the Bastion or a live Relay');return}
+  if(K.line&&!S.callStart){if(!inCallRange(w)){note('Out of sight: start it somewhere you can see, or near the Bastion or a live Relay');return}S.callStart={x:w.x,y:w.y};note('Now click where the line ends');sfx.click();return}
+  if(!K.line&&!inCallRange(w)){note('Out of sight: call it somewhere you can see, or near the Bastion or a live Relay');return}
   if((S.calls[id]||0)>0)S.calls[id]--;else{const p=callPrice(id);if(S.dat<p){note(`${K.name} costs ◆${p}`);setCallMode(null);return}S.dat-=p}
   if(K.line){const s=S.callStart,e=callLineEnd(s,w),T=callDelay(id),r=callR(id),echo=rand()<(S.mods.callEcho||0);
     for(let k=0;k<(echo?2:1);k++)for(let i=0;i<CARPET_N;i++){const f=i/(CARPET_N-1),o=k?r*0.8:0,nx=-(e.y-s.y),ny=e.x-s.x,nl=Math.hypot(nx,ny)||1;
