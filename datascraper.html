@@ -3446,7 +3446,7 @@ const TUTORIAL_STEPS=[
    done:()=>(S.wallLines||[]).length>=2},
   {title:'Formations',
    text:()=>`Now your units. Select some (<kbd>Ctrl</kbd>+<kbd>A</kbd> for all of them) and <b>right-click and drag</b>: the drag is their front line. They spread out along it facing square to it — the longer the drag, the wider apart. In a mixed group, <b>Paladins</b> take the front rank and lock their shields into one band of light, with Troopers behind.`,
-   done:()=>S.troops.some(t=>t.formAng!=null&&!t.manning)},
+   done:()=>!!S.formDragged},
   {title:'Man the wall',
    text:()=>`Unpause (<kbd>Space</kbd>) so your walls finish rising. Then select some Troopers and <b>right-click a wall</b>: they line up behind it in one rank, taking 25% less damage and shooting 15% further. Hover a wall with units selected to see how many it holds.`,
    done:()=>S.troops.some(t=>t.manning)},
@@ -5910,7 +5910,7 @@ cv.addEventListener('pointerdown',e=>{
   if(e.button===2){
     // with combat units selected, a right-drag lays out a formation (see formationSlots); a plain
     // right-click (no drag) is still an ordinary order, issued on release
-    if(S.sel.troops.size&&!buildMode&&!probeMode&&!pingMode&&!callMode){mouse.form={x0:w.x,y0:w.y,x1:w.x,y1:w.y,sx:e.clientX,sy:e.clientY,moved:false};return}
+    if(S.sel.troops.size&&!buildMode&&!probeMode&&!pingMode&&!callMode){mouse.form={x0:w.x,y0:w.y,x1:w.x,y1:w.y,sx:e.clientX,sy:e.clientY,moved:false};try{cv.setPointerCapture(e.pointerId)}catch(_){};return}
     rightClick(w);return}
   if(e.button===0){
     if(callMode){fireCall(w);return}
@@ -5921,6 +5921,8 @@ cv.addEventListener('pointerdown',e=>{
     mouse.down=true;mouse.drag={x0:w.x,y0:w.y,x1:w.x,y1:w.y,moved:false};
   }
 });
+// v4: a formation drag can't get stuck following the cursor: losing the pointer (alt-tab, a cancelled touch) drops it
+cv.addEventListener('pointercancel',()=>{mouse.form=null});cv.addEventListener('lostpointercapture',()=>{if(mouse.form&&!mouse.form.touch){const f=mouse.form;mouse.form=null;if(f.moved)orderFormation(f)}});
 cv.addEventListener('pointermove',e=>{
   const w=toWorld(e.clientX,e.clientY);mouse.wx=w.x;mouse.wy=w.y;
   // click-and-drag wall building: each new grid cell the pointer crosses while held down gets its
@@ -6880,6 +6882,8 @@ function troopBaseSpeed(t){const k=t.kind;return k==='artillery'?ARTY_SPEED:k===
 // FORM_RANK_GAP behind it. Each kind of unit gets its own rank(s): Paladins in front, then Mechs,
 // then Troopers, with the long-range units at the back.
 const FORM_DRAG_PX=14, FORM_MIN_GAP=18, FORM_RANK_GAP=32;
+// a one-click move: the line is as wide as the group stands now, but at least wide enough for FORM_MOVE_ROW of its biggest kind, and at most FORM_MOVE_MAXW
+const FORM_MOVE_ROW=8, FORM_MOVE_MAXW=520;
 const FORM_ORDER={brawler:0,mech:1,troop:2,grenadier:3,rocket:3,marksman:4,artillery:4};
 function formationUnits(){return [...S.sel.troops].map(id=>S.troops.find(t=>t.id===id)).filter(Boolean)}
 function formationSlots(f,units){
@@ -6889,7 +6893,7 @@ function formationSlots(f,units){
   // each kind of unit gets its own rank(s), front to back, each spread along the whole line
   const tiers=new Map();units.forEach(t=>{const k=FORM_ORDER[t.kind||'troop']??2;if(!tiers.has(k))tiers.set(k,[]);tiers.get(k).push(t)});
   let r=0;
-  [...tiers.keys()].sort((a,b)=>a-b).forEach(k=>{const grp=tiers.get(k),per=Math.min(grp.length,cap);
+  [...tiers.keys()].sort((a,b)=>a-b).forEach(k=>{const grp=tiers.get(k).slice().sort((a,b)=>(b.x*fx+b.y*fy)-(a.x*fx+a.y*fy)),per=Math.min(grp.length,cap);
     for(let i=0;i<grp.length;i+=per,r++){
       const rank=grp.slice(i,i+per),m=rank.length,gap=per>1?L/(per-1):0,cx=(f.x0+f.x1)/2-fx*FORM_RANK_GAP*r,cy=(f.y0+f.y1)/2-fy*FORM_RANK_GAP*r;
       const pts=[];for(let q=0;q<m;q++){const o=(q-(m-1)/2)*gap;pts.push({x:cx+ux*o,y:cy+uy*o})}
@@ -6908,7 +6912,7 @@ function orderFormation(f,manLine){
   });
   // the whole formation keeps to its slowest unit, so it arrives together
   const sp=units.map(troopBaseSpeed),lo=Math.min(...sp);if(units.length>1&&lo<Math.max(...sp))units.forEach(t=>{t.pace=lo});
-  S.formFx={slots:slots.map(s=>({x:s.t.dest.x,y:s.t.dest.y})),face,t:S.t};
+  S.formFx={slots:slots.map(s=>({x:s.t.dest.x,y:s.t.dest.y})),face,t:S.t};S.formDragged=true;
   sfx.click();
 }
 // the wall line under a point (any standing slat within MAN_PICK_R)
@@ -7040,18 +7044,25 @@ function rightClick(w){
   // (a selected unit clicked on itself just stays put; the rest of the group guards it)
   const friend=!en&&selT.length?friendlyAt(w):null;
   const guards=friend?selT.filter(t=>t!==friend):[];
-  // v4: Paladins sent to a spot line up on arrival in a shield wall across the way they were heading,
-  // everyone else in the group taking up positions behind it
+  // v4: a group sent to a spot keeps a formation: it lines up there across the way it is heading, as wide
+  // as it stands now (so a formation you laid out repeats itself), Paladins in a shield wall at the
+  // front, then Mechs, Troopers and the long-range units in ranks behind (see formationSlots)
   const wallSlot=new Map();let wallFace=0;
-  {const br=selT.filter(t=>t.kind==='brawler');
-   if(!en&&!friend&&br.length){
-     const cx=br.reduce((a,t)=>a+t.x,0)/br.length, cy=br.reduce((a,t)=>a+t.y,0)/br.length;
-     wallFace=Math.atan2(w.y-cy,w.x-cx);
-     if(Math.hypot(w.x-cx,w.y-cy)<20)wallFace=br[0].ang||0;
-     const px=-Math.sin(wallFace),py=Math.cos(wallFace);
-     // ordered along the line by where each already stands, so nobody has to cross anyone
-     const ord=[...br].sort((a,b)=>(a.x*px+a.y*py)-(b.x*px+b.y*py));
-     ord.forEach((t,k)=>{const o=(k-(ord.length-1)/2)*BRAWL_WALL_GAP;wallSlot.set(t,{x:w.x+px*o,y:w.y+py*o})})}}
+  if(!en&&!friend&&selT.length){
+    const cx=selT.reduce((a,t)=>a+t.x,0)/selT.length, cy=selT.reduce((a,t)=>a+t.y,0)/selT.length;
+    wallFace=Math.atan2(w.y-cy,w.x-cx);
+    if(Math.hypot(w.x-cx,w.y-cy)<20)wallFace=selT[0].formAng??selT[0].ang??0;
+    const px=-Math.sin(wallFace),py=Math.cos(wallFace);
+    if(selT.length===1)wallSlot.set(selT[0],{x:w.x,y:w.y});
+    else{
+      let lo=Infinity,hi=-Infinity;selT.forEach(t=>{const q=t.x*px+t.y*py;lo=Math.min(lo,q);hi=Math.max(hi,q)});
+      const big=Math.max(...[...new Set(selT.map(t=>FORM_ORDER[t.kind||'troop']??2))].map(k=>selT.filter(t=>(FORM_ORDER[t.kind||'troop']??2)===k).length));
+      const half=Math.min(FORM_MOVE_MAXW,Math.max(hi-lo,FORM_MIN_GAP*1.3*(Math.min(big,FORM_MOVE_ROW)-1)))/2;
+      // the drag that would lay this line out (formationSlots faces a line to the right of its drag direction)
+      const {slots}=formationSlots({x0:w.x-px*half,y0:w.y-py*half,x1:w.x+px*half,y1:w.y+py*half},selT);
+      slots.forEach(({t,x,y})=>{let d={x,y};if(terrainAt(d.x,d.y)===2)d=nearestPlain(d.x,d.y);wallSlot.set(t,{x:Math.max(10,Math.min(W-10,d.x)),y:Math.max(10,Math.min(H-10,d.y))})});
+      S.formFx={slots:slots.map(q=>wallSlot.get(q.t)),face:wallFace,t:S.t};
+    }}
   selT.forEach((t,i)=>{
     let off=selT.length>1?{x:Math.cos(i*2.1)*14,y:Math.sin(i*2.1)*14}:{x:0,y:0};
     if(wallSlot.size&&!wallSlot.has(t)){off={x:off.x-Math.cos(wallFace)*42,y:off.y-Math.sin(wallFace)*42}}
@@ -7066,7 +7077,7 @@ function rightClick(w){
       t.guardAng=(k/guards.length)*Math.PI*2+rnd(-0.2,0.2);
       t.guardDist=rnd(22,48);
     }
-    else if(wallSlot.has(t)){t.state='move';t.dest=wallSlot.get(t);t.target=null;t.wall=true;t.wallAng=wallFace}
+    else if(wallSlot.has(t)){t.state='move';t.dest=wallSlot.get(t);t.target=null;t.wall=t.kind==='brawler';t.wallAng=wallFace;if(selT.length>1)t.formAng=wallFace}
     else{t.state='move';t.dest={x:w.x+off.x,y:w.y+off.y};t.target=null}
   });
   // pace the group: everyone moving keeps to the slowest of them (unless this is the double click)
