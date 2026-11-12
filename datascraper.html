@@ -10206,13 +10206,14 @@ function frame(ts){requestAnimationFrame(frame); // asked for first, so one bad 
   if(TPAINT.loading&&performance.now()-TPAINT.loadT0>25000)showLoading(false);
   const a=performance.now();if(!TPAINT.loading){update(dt);tutTick()}const b=performance.now();if(cv.width>0&&cv.height>0)draw();perfTick(ts,gap||0,b-a,performance.now()-b)}
 // ---------- voice announcer: VESPER (prototype, off by default) ----------
-// The Bastion's onboard operations intelligence, speaking through the browser's own speech engine
-// (speechSynthesis: no files, no network of ours). Web Audio adds the radio around the voice — a
-// squelch chirp in and out, a faint band-passed hiss under each line — and ducks music and ambience
-// while she talks. (The voice itself can't be filtered: browsers don't route speechSynthesis into
-// Web Audio.) She hears the game through the existing msg()/banner()/note() text and the tutorial
-// (the four calls marked VOX), and polls hull and run state twice a second. To remove it: delete
-// this block and those four calls.
+// The Bastion's onboard operations intelligence. Her voice is pre-rendered clips (Kokoro, a local
+// Apache-2.0 TTS: tools/vox_render.py reads the lines below and writes vox/vesper.json), fetched only
+// once the announcer is switched on and played through a light radio chain in Web Audio. A line
+// with no clip (or no pack, e.g. the page opened from disk) falls back to the browser's own speech
+// engine, which can't be filtered. Around every line: a squelch chirp in and out, a faint hiss, and
+// music and ambience ducked. She hears the game through the existing msg()/banner()/note() text and
+// the tutorial (the four calls marked VOX), and polls hull and run state twice a second.
+// To remove it: delete this block, those four calls, vox/ and tools/vox_render.py.
 const VOX_KEY='astroscraper.vox';
 let VOX={on:false,vol:0.8,voice:'',chat:2};try{Object.assign(VOX,JSON.parse(localStorage.getItem(VOX_KEY)||'{}'))}catch(e){}
 function voxSave(){try{localStorage.setItem(VOX_KEY,JSON.stringify(VOX))}catch(e){}}
@@ -10220,6 +10221,7 @@ const voxSynth=window.speechSynthesis||null;
 // p: priority (1 critical … 4 chatter); cd: seconds before the same event may speak again.
 // Chattiness 1 speaks p1–2, 2 speaks p1–3, 3 speaks everything. {dir} is filled from the text.
 const VOX_EV={
+  online:{p:1,cd:0,l:["Vesper online. I'll keep you posted."]},
   stop:{p:2,cd:0,l:["Touchdown. New ground, same job: find the breach vein and drain it.","We're down. There's a wall between us and the way on. The breach vein is our key.","Landed. I'll keep the lights on. You find us a breach."]},
   stopFinal:{p:1,cd:0,l:["This is the heart of the Core. The contract vein is close. I can feel it humming.","Final stop. Take bearings on the stray energy, and we'll find the contract vein together."]},
   breach:{p:2,cd:0,l:["That's the breach. The way is open. Walk us off the edge when you're ready.","Barrier's down. Whenever you like, Commander."]},
@@ -10295,37 +10297,69 @@ const VOX_TUT={
   "That's the loop":"Scout, drill, defend, upgrade, push deeper. You're ready, Commander.",
 };
 const VOXQ={q:[],cur:null,last:{},lastLine:{},gapT:0,hull:0,sRef:null,over:null,tutStep:-1,hiss:null};
+const VOX_DIRS=['north','south','east','west','northeast','northwest','southeast','southwest'];
+// VOX.voice: '' = Vesper's recorded clips; 'sys:' = the best browser voice; 'sys:<name>' = that one
+const voxRec=()=>!VOX.voice;
+// the recorded pack: base64 MP3 per line id, fetched once the announcer is on, decoded on first use
+const VOXP={state:'none',clips:null,bufs:{},chain:null};
+function voxLoadPack(){if(VOXP.state!=='none'||!voxRec())return;VOXP.state='loading';
+  fetch('vox/vesper.json').then(r=>r.ok?r.json():Promise.reject(r.status)).then(j=>{VOXP.clips=j.clips;VOXP.state='ready'}).catch(e=>{VOXP.state='failed';console.info('announcer: no voice pack, using the browser voice',e)})}
 function voxVoices(){return voxSynth?voxSynth.getVoices().filter(v=>/^en/i.test(v.lang)):[]}
 // best guess at a calm, clear voice when none is chosen: neural/natural voices first, then the
 // usual good desktop ones (Edge's online voices, Google UK, macOS Samantha/Serena, Windows Zira/Hazel)
 function voxPickVoice(){const vs=voxVoices();if(!vs.length)return null;
-  const chosen=vs.find(v=>v.name===VOX.voice);if(chosen)return chosen;
+  const chosen=vs.find(v=>'sys:'+v.name===VOX.voice);if(chosen)return chosen;
   const pref=[/Ava.*(Natural|Online)/i,/Aria.*(Natural|Online)/i,/Sonia.*(Natural|Online)/i,/Jenny.*(Natural|Online)/i,/Libby|Natasha|Emma.*(Natural|Online)/i,/(Natural|Online)/i,/Google UK English Female/i,/Samantha|Serena|Karen|Moira/i,/Hazel|Zira|Susan/i,/Google US English/i,/female/i];
   for(const re of pref){const v=vs.find(x=>re.test(x.name));if(v)return v}return vs[0]}
-function voxHear(s){if(!VOX.on||!voxSynth||menuOpen)return;s=String(s);
-  for(const [re,key] of VOX_HEAR)if(re.test(s)){const d=s.match(/\bfrom the (north|south|east|west)\w*|to the (north|south|east|west)\w*/);
-    voxSay(key,d?d[0].replace(/^(from|to) the /,''):null);return}}
-function voxSay(key,dir){const E=VOX_EV[key];if(!E||!VOX.on)return;
-  const maxP=VOX.chat===1?2:VOX.chat===2?3:4;if(E.p>maxP)return;
-  const now=performance.now()/1000;if(E.cd&&now-(VOXQ.last[key]??-999)<E.cd)return;
+function voxHear(s){if(!VOX.on||menuOpen)return;s=String(s);
+  for(const [re,key] of VOX_HEAR)if(re.test(s)){const d=s.match(/\b(?:from|to) the ((?:north|south|east|west)\w*)/);
+    voxSay(key,d&&VOX_DIRS.includes(d[1])?d[1]:null);return}}
+function voxSay(key,dir,force){const E=VOX_EV[key];if(!E||!VOX.on)return;
+  const maxP=VOX.chat===1?2:VOX.chat===2?3:4;if(E.p>maxP&&!force)return;
+  const now=performance.now()/1000;if(E.cd&&!force&&now-(VOXQ.last[key]??-999)<E.cd)return;
   if(VOXQ.q.some(x=>x.key===key)||(VOXQ.cur&&VOXQ.cur.key===key))return;
   VOXQ.last[key]=now;
-  let pool=dir||!E.nd?E.l:E.nd;let i=Math.floor(Math.random()*pool.length);if(pool.length>1&&i===VOXQ.lastLine[key])i=(i+1)%pool.length;VOXQ.lastLine[key]=i;
-  voxQueue({key,p:E.p,text:pool[i].replace('{dir}',dir||'near side'),t:now})}
+  const nd=!dir&&!!E.nd,pool=nd?E.nd:E.l;let i=Math.floor(Math.random()*pool.length);if(pool.length>1&&i===VOXQ.lastLine[key])i=(i+1)%pool.length;VOXQ.lastLine[key]=i;
+  const hasDir=pool[i].includes('{dir}'),d=dir||'near side';
+  voxQueue({key,p:force?1:E.p,id:`${key}${nd?':nd':''}:${i}${hasDir?':'+d:''}`,text:pool[i].replace('{dir}',d),t:now})}
+// cut off whatever is being said right now (its end handler then tidies up)
+function voxHalt(){if(voxSynth)voxSynth.cancel();const c=VOXQ.cur;if(c&&c.src)try{c.src.stop()}catch(e){}}
 function voxQueue(it){
   // critical lines cut off anything less urgent that's playing; the queue holds two at most, by priority
-  if(VOXQ.cur&&it.p===1&&VOXQ.cur.p>=3){VOXQ.q=VOXQ.q.filter(x=>x.p<=2);voxSynth.cancel()}
+  if(VOXQ.cur&&it.p===1&&VOXQ.cur.p>=3){VOXQ.q=VOXQ.q.filter(x=>x.p<=2);voxHalt()}
   VOXQ.q.push(it);VOXQ.q.sort((a,b)=>a.p-b.p||a.t-b.t);if(VOXQ.q.length>2)VOXQ.q.length=2;voxPump()}
 function voxPump(){if(!VOX.on||VOXQ.cur||!VOXQ.q.length)return;const now=performance.now()/1000;
   VOXQ.q=VOXQ.q.filter(x=>now-x.t<(x.p<=2?8:4)); // stale news isn't worth saying
   if(!VOXQ.q.length)return;if(now<VOXQ.gapT){setTimeout(voxPump,(VOXQ.gapT-now)*1000+20);return}
+  // first lines after switching on can arrive before the pack has: give it a moment
+  if(VOXP.state==='loading'&&now-VOXQ.q[0].t<1.5){setTimeout(voxPump,150);return}
   const it=VOXQ.q.shift();VOXQ.cur=it;
+  let ended=false;const end=()=>{if(ended)return;ended=true;if(VOXQ.cur===it)VOXQ.cur=null;voxRadio(false);VOXQ.gapT=performance.now()/1000+0.6;setTimeout(voxPump,650)};
+  voxRadio(true);
+  if(voxPlayClip(it,end))return;
+  if(!voxSynth){end();return}
   const u=new SpeechSynthesisUtterance(it.text),v=voxPickVoice();if(v){u.voice=v;u.lang=v.lang}
   u.rate=1.02;u.pitch=1.08;u.volume=VOX.vol;
-  let ended=false;const end=()=>{if(ended)return;ended=true;if(VOXQ.cur===it)VOXQ.cur=null;voxRadio(false);VOXQ.gapT=performance.now()/1000+0.6;setTimeout(voxPump,650)};
   u.onend=end;u.onerror=end;it.u=u; // (kept on the item: Chrome can drop an utterance it's still speaking if nothing holds it)
   setTimeout(end,Math.max(4000,it.text.length*110)); // some engines never fire onend
-  voxRadio(true);setTimeout(()=>{if(VOXQ.cur===it)voxSynth.speak(u)},110)}
+  setTimeout(()=>{if(VOXQ.cur===it)voxSynth.speak(u)},110)}
+// the radio chain for recorded lines: a gentle band limit with a presence lift, soft saturation and
+// a faint chorus — a synthetic sheen, not a walkie-talkie
+function voxChain(b){if(VOXP.chain&&VOXP.chain.ac===b.ac)return VOXP.chain;const ac=b.ac;
+  const inp=ac.createGain(),hp=ac.createBiquadFilter(),pk=ac.createBiquadFilter(),lp=ac.createBiquadFilter(),ws=ac.createWaveShaper(),out=ac.createGain();
+  hp.type='highpass';hp.frequency.value=190;pk.type='peaking';pk.frequency.value=2700;pk.Q.value=0.9;pk.gain.value=4;lp.type='lowpass';lp.frequency.value=6800;
+  const n=1024,curve=new Float32Array(n);for(let i=0;i<n;i++){const x=i/(n-1)*2-1;curve[i]=Math.tanh(1.6*x)/Math.tanh(1.6)}ws.curve=curve;ws.oversample='2x';
+  const dl=ac.createDelay(0.05),lfo=ac.createOscillator(),lg=ac.createGain(),wet=ac.createGain();dl.delayTime.value=0.013;lfo.frequency.value=0.35;lg.gain.value=0.0018;wet.gain.value=0.22;
+  lfo.connect(lg);lg.connect(dl.delayTime);lfo.start();
+  inp.connect(hp);inp.connect(dl);dl.connect(wet);wet.connect(hp);hp.connect(pk);pk.connect(lp);lp.connect(ws);ws.connect(out);out.gain.value=VOX.vol*0.9;out.connect(b.master);
+  VOXP.chain={ac,inp,out};return VOXP.chain}
+function voxPlayClip(it,end){const b64=VOXP.state==='ready'&&voxRec()&&it.id&&VOXP.clips[it.id];if(!b64)return false;const b=audioBus();if(!b)return false;
+  const go=buf=>{if(VOXQ.cur!==it){end();return}const ch=voxChain(b),src=b.ac.createBufferSource();src.buffer=buf;src.connect(ch.inp);src.onended=end;it.src=src;
+    ch.out.gain.setValueAtTime(VOX.vol*0.9,b.ac.currentTime);src.start(b.ac.currentTime+0.1);setTimeout(end,buf.duration*1000+1500)};
+  if(VOXP.bufs[it.id]){go(VOXP.bufs[it.id]);return true}
+  try{const bin=atob(b64),u8=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);
+    b.ac.decodeAudioData(u8.buffer).then(buf=>{VOXP.bufs[it.id]=buf;go(buf)},()=>{VOXP.clips[it.id]=null;end()})}catch(e){return false}
+  return true}
 // the radio around the voice: chirp + hiss on its own path to the master, and the duck
 function voxRadio(open){const b=open?audioBus():BUS;if(!b)return;const ac=b.ac,t=ac.currentTime,g=VOX.vol;
   const chirp=(f1,f2)=>{const o=ac.createOscillator(),e=ac.createGain(),bp=ac.createBiquadFilter();bp.type='bandpass';bp.frequency.value=1800;bp.Q.value=2;
@@ -10339,38 +10373,43 @@ function voxRadio(open){const b=open?audioBus():BUS;if(!b)return;const ac=b.ac,t
   else{if(VOX.on)chirp(1500,900);
     if(VOXQ.hiss){const h=VOXQ.hiss;VOXQ.hiss=null;h.hg.gain.setTargetAtTime(0.0001,t,0.04);h.src.stop(t+0.3)}
     b.music.gain.setTargetAtTime(AUD.music*0.5*b.duck,t+0.2,0.35);b.amb.gain.setTargetAtTime(AUD.amb*0.55,t+0.2,0.35)}}
-function voxStopAll(){VOXQ.q=[];const c=VOXQ.cur;VOXQ.cur=null;if(voxSynth)voxSynth.cancel();if(c||VOXQ.hiss)voxRadio(false)}
+function voxStopAll(){VOXQ.q=[];voxHalt();const c=VOXQ.cur;VOXQ.cur=null;if(c||VOXQ.hiss)voxRadio(false)}
 // tutorial steps speak as they open (replacing any step line still waiting)
 function voxTut(st){if(!VOX.on||!tutorial||tutorial.step===VOXQ.tutStep)return;VOXQ.tutStep=tutorial.step;const line=VOX_TUT[st.title];if(!line)return;
-  VOXQ.q=VOXQ.q.filter(x=>x.key!=='tut');if(VOXQ.cur&&VOXQ.cur.key==='tut'){VOXQ.cur=null;voxSynth.cancel();voxRadio(false)}
-  voxQueue({key:'tut',p:2,text:line,t:performance.now()/1000})}
+  VOXQ.q=VOXQ.q.filter(x=>x.key!=='tut');if(VOXQ.cur&&VOXQ.cur.key==='tut')voxHalt();
+  voxQueue({key:'tut',p:2,id:'tut:'+st.title,text:line,t:performance.now()/1000})}
 // state she watches rather than hears: hull thresholds and the end of a run
 setInterval(()=>{if(!VOX.on||typeof S==='undefined'||!S||!S.base)return;
   if(S!==VOXQ.sRef){VOXQ.sRef=S;VOXQ.over=S.over;VOXQ.hull=0;if(!tutorial)VOXQ.tutStep=-1}
-  if(S.over!==VOXQ.over){VOXQ.over=S.over;if(S.over==='win'||S.over==='lose'){VOXQ.q=[];if(VOXQ.cur){VOXQ.cur=null;voxSynth.cancel()}voxSay(S.over)}return}
+  if(S.over!==VOXQ.over){VOXQ.over=S.over;if(S.over==='win'||S.over==='lose'){VOXQ.q=[];voxHalt();voxSay(S.over)}return}
   if(menuOpen||S.over)return;const f=S.base.hp/S.base.maxHp;
   if(f>0.7)VOXQ.hull=0;else if(f<=0.25&&VOXQ.hull<2){VOXQ.hull=2;voxSay('hullLow')}else if(f<=0.5&&VOXQ.hull<1){VOXQ.hull=1;voxSay('hullHalf')}},500);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)voxStopAll()});
+if(VOX.on)voxLoadPack();
 // Settings rows, built here so the page's HTML stays untouched
 (function voxSettings(){const rows=document.querySelector('#settingsOverlay .volRows');if(!rows)return;
   const box=document.createElement('div');box.className='volRows';box.id='voxSettings';
+  const selCss='flex:1;min-width:0;background:#10161d;color:inherit;border:1px solid #2a3540;font:inherit;padding:3px';
   box.innerHTML='<label class="volRow"><span>Announcer</span><button id="voxOn" class="secondary" style="flex:1;padding:4px 8px"></button></label>'+
     '<label class="volRow"><span>Voice vol</span><input type="range" id="voxVol" min="0" max="100"></label>'+
-    '<label class="volRow"><span>Voice</span><select id="voxVoice" style="flex:1;min-width:0;background:#10161d;color:inherit;border:1px solid #2a3540;font:inherit;padding:3px"></select></label>'+
-    '<label class="volRow"><span>Chattiness</span><select id="voxChat" style="flex:1;background:#10161d;color:inherit;border:1px solid #2a3540;font:inherit;padding:3px"><option value="1">Essential (alerts only)</option><option value="2">Standard</option><option value="3">Chatty (all chatter)</option></select></label>'+
+    `<label class="volRow"><span>Voice</span><select id="voxVoice" style="${selCss}"></select></label>`+
+    `<label class="volRow"><span>Chattiness</span><select id="voxChat" style="${selCss}"><option value="1">Essential (alerts only)</option><option value="2">Standard</option><option value="3">Chatty (all chatter)</option></select></label>`+
     '<label class="volRow"><span></span><button id="voxTest" class="secondary" style="flex:1;padding:4px 8px">Test voice</button></label>';
   rows.after(box);
   const on=box.querySelector('#voxOn'),vol=box.querySelector('#voxVol'),sel=box.querySelector('#voxVoice'),chat=box.querySelector('#voxChat'),test=box.querySelector('#voxTest');
-  const paint=()=>{on._tc=!voxSynth?'Not supported in this browser':VOX.on?'On — Vesper':'Off';[vol,sel,chat,test].forEach(e=>e.disabled=!VOX.on)};
-  const fill=()=>{const vs=voxVoices(),auto=voxPickVoice();sel.innerHTML='';const o0=document.createElement('option');o0.value='';o0.textContent=vs.length?`Auto (${auto?auto.name:'—'})`:'No English voices found';sel.appendChild(o0);
-    vs.forEach(v=>{const o=document.createElement('option');o.value=v.name;o.textContent=v.name+(v.localService?'':' · online');sel.appendChild(o)});sel.value=vs.some(v=>v.name===VOX.voice)?VOX.voice:''};
+  const paint=()=>{on._tc=VOX.on?'On — Vesper':'Off';[vol,sel,chat,test].forEach(e=>e.disabled=!VOX.on)};
+  const opt=(v,t)=>{const o=document.createElement('option');o.value=v;o.textContent=t;sel.appendChild(o)};
+  const fill=()=>{const vs=voxVoices(),auto=voxPickVoice();sel.innerHTML='';opt('','Vesper (recorded)');
+    if(vs.length){opt('sys:',`Browser voice: auto (${auto?auto.name:'—'})`);vs.forEach(v=>opt('sys:'+v.name,'Browser: '+v.name+(v.localService?'':' · online')))}
+    sel.value=[...sel.options].some(o=>o.value===VOX.voice)?VOX.voice:''};
   vol.value=Math.round(VOX.vol*100);chat.value=String(VOX.chat);fill();paint();
   if(voxSynth&&'onvoiceschanged' in voxSynth)voxSynth.addEventListener('voiceschanged',fill);
-  on.onclick=()=>{if(!voxSynth)return;VOX.on=!VOX.on;voxSave();paint();if(VOX.on){startAudioEngine();voxQueue({key:'test',p:1,text:"Vesper online. I'll keep you posted.",t:performance.now()/1000})}else voxStopAll()};
+  on.onclick=()=>{VOX.on=!VOX.on;voxSave();paint();if(VOX.on){startAudioEngine();voxLoadPack();voxSay('online',null,true)}else voxStopAll()};
   vol.oninput=()=>{VOX.vol=vol.value/100;voxSave()};
-  sel.onchange=()=>{VOX.voice=sel.value;voxSave()};
+  sel.onchange=()=>{VOX.voice=sel.value;voxSave();voxLoadPack()};
   chat.onchange=()=>{VOX.chat=+chat.value;voxSave()};
-  test.onclick=()=>{voxStopAll();VOXQ.gapT=0;voxQueue({key:'test',p:1,text:['Contacts inbound from the northeast.','Drill\'s warm. Strike when ready.','Hull at half. I\'d rather we didn\'t make a habit of this.'][Math.floor(Math.random()*3)],t:performance.now()/1000})};
+  test.onclick=()=>{voxStopAll();VOXQ.gapT=0;const k=['wave','ready','hullHalf','jackpot','drained'][Math.floor(Math.random()*5)];VOXQ.last[k]=-999;
+    voxSay(k,k==='wave'?VOX_DIRS[Math.floor(Math.random()*8)]:null,true)};
 })();
 // ---------- end voice announcer ----------
 reset();refreshMenuMeta();requestAnimationFrame(frame);
