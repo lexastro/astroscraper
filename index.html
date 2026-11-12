@@ -988,7 +988,7 @@ const ARTY_R=10, ARTY_HP=90, ARTY_SPEED=55, ARTY_RANGE=7000, ARTY_CD=14, ARTY_DM
 // radius of their own — scattered around the target so a cluster of enemies can each eat one,
 // alternating out of its left and right side cannons.
 // MECH_CD: 1.8s baseline, fire rate +10%.
-const MECH_R=11, MECH_HP=160, MECH_SPEED=85, MECH_RANGE=140, MECH_DMG=5, MECH_CD=1.8/1.1,
+const MECH_R=15, MECH_SC=1.5, MECH_HP=160, MECH_SPEED=85, MECH_RANGE=140, MECH_DMG=5, MECH_CD=1.8/1.1,
   MECH_PROJ_SPEED=460, MECH_PELLETS=4, MECH_PELLET_SPREAD=26, MECH_PELLET_HIT_R=30, MECH_SANITY_RESIST=0.15;
 // Mech short-range engage: its shotgun range is short, so an idle Mech that sees an enemy within
 // MECH_ENGAGE_R steps forward until it's in range — but it's leashed to its post (where it was last
@@ -1715,7 +1715,7 @@ function drawKitEffects(){const t=S.t;
 // pointing ahead, heavy shoulder pads, long segmented arms with huge blocky fists held low at its
 // sides, short thick legs that stomp. A punch drives one fist straight out ahead.
 function drawBreaker(t){const HULL='#d6cfc3',JOINT='#858b95',DARKJ='#5d636c',st=t.moving?Math.sin(S.t*7):0,ps=S.t-(t.punchT??-9),pk=ps<0.26?Math.sin(ps/0.26*Math.PI)*(t.hay?1.15:1):0,pl=t.punchSide?0:pk,pr=t.punchSide?pk:0;
-  ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2);
+  ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2);ctx.scale(MECH_SC,MECH_SC);
   [-1,1].forEach(sd=>{const k=st*sd*2.6;rLimb([[sd*4.2,2],[sd*5.6,6+k]],3.4,JOINT);rP([[sd*5.6-3,5.4+k],[sd*5.6+3,5.4+k],[sd*5.6+3.4,10.4+k],[sd*5.6-3.4,10.4+k]],HULL);rP([[sd*5.6-2.6,9.2+k],[sd*5.6+2.6,9.2+k],[sd*5.6+3.4,10.4+k],[sd*5.6-3.4,10.4+k]],DARKJ)});
   [[-1,pl],[1,pr]].forEach(([sd,e])=>{const sh=[sd*8.6,-0.6],el=[sd*(12.6-e*2.4),0.6-e*9],fi=[sd*(12.4-e*7.4),-3.6-e*17];
     rLimb([sh,el],3.6,JOINT);rLimb([el,fi],4.4,HULL);rO(el[0],el[1],2,DARKJ);
@@ -1731,7 +1731,7 @@ function drawBreaker(t){const HULL='#d6cfc3',JOINT='#858b95',DARKJ='#5d636c',st=
 // a rotary cannon on the right arm whose six barrels turn faster as it spins up, an ammo drum on its
 // back feeding it by a belt.
 function drawGatMech(t){const HULL='#c9cfd6',JOINT='#7d8591',DARKJ='#535a64',GUN='#3a4048',st=t.moving?Math.sin(S.t*7):0,sp=t.spin||0,firing=S.t-(t.gatShotT??-9)<0.12;
-  ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2);
+  ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2);ctx.scale(MECH_SC,MECH_SC);
   [-1,1].forEach(sd=>{const k=st*sd*2.6;rLimb([[sd*4.2,2],[sd*5.6,6+k]],3.4,JOINT);rP([[sd*5.6-3,5.4+k],[sd*5.6+3,5.4+k],[sd*5.6+3.4,10.4+k],[sd*5.6-3.4,10.4+k]],HULL);rP([[sd*5.6-2.6,9.2+k],[sd*5.6+2.6,9.2+k],[sd*5.6+3.4,10.4+k],[sd*5.6-3.4,10.4+k]],DARKJ)});
   rP([[1.5,1.5],[6,1.5],[6,7.5],[1.5,7.5]],'#6f7b6a');rLimb([[3.8,1.5],[8,-2],[10.6,-5]],1,'#2a2f36'); // ammo drum and feed belt
   const arm=(sd,e)=>{const sh=[sd*8.6,-0.6],el=[sd*(12.6-e*1.6),0.6-e*4],fi=[sd*(12.4-e*3),-3.6-e*7];rLimb([sh,el],3.6,JOINT);rLimb([el,fi],4.4,HULL);rO(el[0],el[1],2,DARKJ);return fi};
@@ -1747,7 +1747,7 @@ function drawGatMech(t){const HULL='#c9cfd6',JOINT='#7d8591',DARKJ='#535a64',GUN
   rO(0,-5,2.3,'#f2f2ee');ctx.fillStyle='#f2a63c';ctx.beginPath();ctx.arc(0,-5,1.5,0,Math.PI*2);ctx.fill();ctx.fillStyle='#ffe9a8';ctx.beginPath();ctx.arc(-0.4,-5.4,0.6,0,Math.PI*2);ctx.fill();
   ctx.restore()}
 // The Field Relay: a squat hull on two legs carrying a relay mast and crossarm, a green lamp up front
-function drawFieldRelay(t){const st=t.moving?Math.sin(S.t*6):0;ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2);
+function drawFieldRelay(t){const st=t.moving?Math.sin(S.t*6):0;ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2);ctx.scale(MECH_SC,MECH_SC);
   [[-1,1],[1,-1]].forEach(([sd,ph])=>{const k=st*ph*2.5;rLimb([[sd*6,2],[sd*9,6+k],[sd*8,11+k]],2.4,'#7f93a8');rLimb([[sd*6,-2],[sd*9,-6-k],[sd*8,-10-k]],2.4,'#7f93a8')});
   rP([[-7,-7],[7,-7],[8,6],[-8,6]],'#9fb6d0');rLimb([[0,2],[0,10]],1.6,'#8d9aa8');rO(0,10,3,'#c3ccd6');rP([[-5,8.6],[5,8.6],[5,10],[-5,10]],'#6f7b88');rO(0,-2,3,'#7bd389');
   ctx.restore()}
@@ -2678,7 +2678,7 @@ const CORRUPT_STATS={
   artillery:{r:ARTY_R+1,hp:60,speed:ARTY_SPEED,dmg:14},
   harvester:{r:HARV_R+1,hp:35,speed:HARV_SPEED,dmg:4},
   builder:{r:BUILDER_R+1,hp:30,speed:BUILDER_SPEED,dmg:4},
-  mech:{r:MECH_R+1,hp:95,speed:MECH_SPEED,dmg:16},
+  mech:{r:12,hp:95,speed:MECH_SPEED,dmg:16},
   rocket:{r:ROCKET_R+1,hp:55,speed:ROCKET_SPEED,dmg:9},
   brawler:{r:BRAWL_R+1,hp:150,speed:BRAWL_SPEED,dmg:9},
   marksman:{r:MARK_R+1,hp:50,speed:MARK_SPEED,dmg:10},
@@ -8467,7 +8467,7 @@ function update(dt){
         else if(mech){
           // the rotary cannon: spins up while it has something to shoot; every hit slows what it hits
           t.ang=Math.atan2(best.y-t.y,best.x-t.x);t.spin=Math.min(1,(t.spin||0)+(S.t-(t.gatShotT??-9)<0.6?Math.min(0.6,S.t-t.gatShotT):0.05)/GAT_SPINUP);t.gatShotT=S.t;
-          const m={x:t.x+Math.cos(t.ang)*15-Math.sin(t.ang)*5,y:t.y+Math.sin(t.ang)*15+Math.cos(t.ang)*5},j=12*(1-t.spin*0.5);
+          const m={x:t.x+(Math.cos(t.ang)*15-Math.sin(t.ang)*5)*MECH_SC,y:t.y+(Math.sin(t.ang)*15+Math.cos(t.ang)*5)*MECH_SC},j=12*(1-t.spin*0.5);
           damageEnemy(best,GAT_DMG*S.mods.troopDmgMult);if(best.kind!=='nest')best.supT=GAT_SLOW_T;tracer(m,{x:best.x+rnd(-j,j)*0.3,y:best.y+rnd(-j,j)*0.3},'#f2b84b',1.1);
           if(sfxReady('gat',0.045))tone(180+t.spin*120,0.04,'square',0.025,0,90);
           t.cd=GAT_CD_SLOW+(GAT_CD_FAST-GAT_CD_SLOW)*t.spin;
