@@ -3026,11 +3026,44 @@ function setInvuln(on){dbgInvuln=on;dbgInvBtn.textContent='Invincible units: '+(
 function debugPass(){if(!S)return;
   if(dbgGod){if(S.dat<DBG_DAT)S.dat=DBG_DAT;S.base.hp=S.base.maxHp}
   if(dbgInvuln)for(const a of [S.troops,S.harvesters,S.builders])for(const u of a){u.hp=u.maxHp;if(u.sanity!=null)u.sanity=SANITY_MAX}}
-function setDebugMode(on){debugNoFog=on;dbgBar.hidden=!on;if(!on){if(dbgGod)setGod(false);if(dbgInvuln)setInvuln(false)}msg(on?'Debug on: fog of war off, debug buttons at the top':'Debug off: fog of war back on')}
+function setDebugMode(on){debugNoFog=on;dbgBar.hidden=!on;if(!on){if(dbgGod)setGod(false);if(dbgInvuln)setInvuln(false);if(!dbgCards.hidden)dbgCardsShow(false)}msg(on?'Debug on: fog of war off, debug buttons at the top':'Debug off: fog of war back on')}
 const dbgSkip=dbgButton('Next map',()=>{
   if(!RUN||!S||S.over||tutorialMap||stopInfo().final){msg('Debug: no next map to skip to');return}
   if(dbgGod&&dbgDatSave)dbgDatSave.S=null;RUN.carry=captureCarry();advanceStop()});
 const dbgGodBtn=dbgButton('God mode: off',()=>setGod(!dbgGod)),dbgInvBtn=dbgButton('Invincible units: off',()=>setInvuln(!dbgInvuln));
+// v4: Give card — a searchable list of every reward card in every tier; click one to apply it right
+// away (the game pauses while the list is open). Cards you already hold, or that can't apply yet, are
+// greyed out but can still be forced with shift-click.
+let dbgCardsPaused=null;
+const dbgCards=document.createElement('div');dbgCards.hidden=true;
+dbgCards.style.cssText='position:fixed;top:48px;left:50%;transform:translateX(-50%);z-index:51;width:min(760px,calc(100vw - 32px));max-height:calc(100vh - 80px);display:flex;flex-direction:column;gap:8px;padding:12px;background:rgba(20,14,10,0.97);border:1px solid #ff9a5a;border-radius:6px;font:12px var(--mono,monospace);color:#eef1f4';
+dbgCards.innerHTML='<div style="display:flex;gap:8px;align-items:center"><input id="dbgCardQ" placeholder="Search cards (name, text or tier)" style="flex:1;padding:6px 8px;background:#120c08;color:#eef1f4;border:1px solid #6a4a32;border-radius:4px;font:inherit"><span id="dbgCardN" style="color:#9aa3ad"></span><button id="dbgCardX" style="'+dbgBtnCss+'">Close</button></div>'+
+  '<div style="color:#9aa3ad">Click to give yourself the card. Grey = already held or not usable yet; shift-click to force it.</div><div id="dbgCardList" style="overflow:auto;display:flex;flex-direction:column;gap:4px"></div>';
+document.body.appendChild(dbgCards);
+['pointerdown','click','wheel','contextmenu'].forEach(ev=>dbgCards.addEventListener(ev,e=>e.stopPropagation()));
+function dbgCardsShow(on){if(!S){msg('Debug: start a run first');return}
+  if(on===dbgCards.hidden){dbgCards.hidden=!on;
+    if(on){dbgCardsPaused=S.paused;S.paused=true;const q=document.getElementById('dbgCardQ');q.value='';renderDbgCards();q.focus()}
+    else if(dbgCardsPaused!==null){S.paused=dbgCardsPaused;dbgCardsPaused=null}}
+  dbgCardsBtn.style.background=on?'#5a2a12':'#2a1a12'}
+function renderDbgCards(){
+  const q=document.getElementById('dbgCardQ').value.trim().toLowerCase(),host=document.getElementById('dbgCardList');host.innerHTML='';let n=0;
+  Object.keys(UPGRADES).forEach(tier=>UPGRADES[tier].forEach(u=>{
+    const plain=String(u.desc||'').replace(/<[^>]+>/g,' ');
+    if(q&&!(u.name+' '+plain+' '+tier).toLowerCase().includes(q))return;n++;
+    let held=false;try{held=!!(u.has&&u.has())}catch(_){}
+    const b=document.createElement('button'),col=CARD_TIER_COLOR[tier]||'#ccc';
+    b.style.cssText='text-align:left;padding:6px 8px;background:#1c140e;color:#eef1f4;border:1px solid #3a2a1e;border-left:3px solid '+col+';border-radius:4px;font:inherit;cursor:pointer;opacity:'+(held?0.45:1);
+    b.innerHTML='<b style="color:'+col+'">'+tier+'</b> · <b>'+u.name+'</b>'+(held?' <i style="color:#9aa3ad">(held)</i>':'')+'<div style="color:#9aa3ad;margin-top:2px">'+plain+'</div>';
+    b.onclick=e=>{let h=false;try{h=!!(u.has&&u.has())}catch(_){}if(h&&!e.shiftKey){msg('Debug: already held — shift-click to force it');return}
+      u.apply();updateBuildBar();sfx.click();msg('Debug: gave '+tier+' card "'+u.name+'"');renderDbgCards()};
+    host.appendChild(b)}));
+  document.getElementById('dbgCardN').textContent=n+' cards';
+}
+document.getElementById('dbgCardQ').addEventListener('input',renderDbgCards);
+document.getElementById('dbgCardQ').addEventListener('keydown',e=>{if(e.key==='Escape'){e.stopPropagation();dbgCardsShow(false)}});
+document.getElementById('dbgCardX').onclick=()=>dbgCardsShow(false);
+const dbgCardsBtn=dbgButton('Give card',()=>dbgCardsShow(dbgCards.hidden));
 document.body.appendChild(dbgBar);
 // the way out: a band of gold chevrons along the east edge once the breach is open
 function drawExit(){
