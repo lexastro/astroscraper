@@ -3861,22 +3861,37 @@ function shCore(x,y,s,ang,glow,open){const c=shx;c.save();c.translate(x,y);c.rot
   c.restore()}
 let SH_BUF=null,SH_SHB=null,SH_BX=null,SH_SX=null;
 // Draws drawFn (a figure of half-size ext, turned to ang) at world X,Y: shadow, torn bands, core glow.
-function shFigure(X,Y,ang,ext,seed,t,drawFn,tear,alpha,flash){
+// v4 (performance): each enemy keeps its finished picture (shadow, torn bands, flash) in its own small
+// canvas and only redraws it SH_RE times a second (the same rate its jitter re-rolls) or when it turns
+// or flashes; every other frame it is one image copy plus its core glows from a pre-made glow sprite.
+const SH_RE=0.1, SH_PAD=14;
+let SH_GLOW=null;
+function shGlowSprite(){if(SH_GLOW)return SH_GLOW;const c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d'),g=x.createRadialGradient(32,32,0,32,32,32);
+  g.addColorStop(0,'rgba(255,70,40,1)');g.addColorStop(1,'rgba(255,40,20,0)');x.fillStyle=g;x.fillRect(0,0,64,64);return SH_GLOW=c}
+function shFigure(X,Y,ang,ext,seed,t,drawFn,tear,alpha,flash,cc){
   if(!SH_BUF){SH_BUF=document.createElement('canvas');SH_SHB=document.createElement('canvas');SH_BUF.width=SH_BUF.height=SH_SHB.width=SH_SHB.height=SH_BS;SH_BX=SH_BUF.getContext('2d');SH_SX=SH_SHB.getContext('2d')}
-  const k=SH_SC*SH_Q,Sz=Math.min(SH_BS,Math.ceil(ext*2*k)),Wd=Sz/SH_Q,b=SH_BX,s=SH_SX;shSeed=seed;shQ=Math.floor(t*10+seed*0.37);shRi=0;shSi=0;shGlows=[];
-  b.setTransform(1,0,0,1,0,0);b.clearRect(0,0,Sz,Sz);b.setTransform(k,0,0,k,Sz/2,Sz/2);b.rotate(ang);shx=b;drawFn();
-  s.setTransform(1,0,0,1,0,0);s.globalCompositeOperation='source-over';s.clearRect(0,0,Sz,Sz);s.drawImage(SH_BUF,0,0,Sz,Sz,0,0,Sz,Sz);s.globalCompositeOperation='source-in';s.fillStyle='rgba(0,0,0,0.4)';s.fillRect(0,0,Sz,Sz);
-  const off=SH_SC*2.2,L=X-Wd/2,T=Y-Wd/2;ctx.save();ctx.globalAlpha=alpha;ctx.drawImage(SH_SHB,0,0,Sz,Sz,L+off,T+off,Wd,Wd);
-  // bands: untorn runs go down in one piece, a torn band is drawn slipped, with a faint copy slipped the other way
-  let y=0,bi=0,run=0;const flush=to=>{if(to>run)ctx.drawImage(SH_BUF,0,run,Sz,to-run,L,T+run/SH_Q,Wd,(to-run)/SH_Q);run=to};
-  while(y<Sz){const h=Math.min(Sz-y,Math.max(2,Math.round((1.5+glHash(seed,shQ,900+bi)*6)*k*0.5)));
-    if(glHash(seed,shQ,500+bi)<tear){const dx=(glHash(seed,shQ,700+bi)-0.5)*SH_SC*7*(0.4+tear);flush(y);
-      ctx.globalAlpha=alpha*0.35;ctx.drawImage(SH_BUF,0,y,Sz,h,L-dx*0.8,T+y/SH_Q,Wd,h/SH_Q);ctx.globalAlpha=alpha;ctx.drawImage(SH_BUF,0,y,Sz,h,L+dx,T+y/SH_Q,Wd,h/SH_Q);run=y+h}
-    y+=h;bi++}
-  flush(Sz);
-  if(flash){s.fillStyle='#fff';s.fillRect(0,0,Sz,Sz);ctx.globalAlpha=0.75*alpha;ctx.drawImage(SH_SHB,0,0,Sz,Sz,L,T,Wd,Wd)}
-  ctx.globalAlpha=1;ctx.globalCompositeOperation='lighter';
-  shGlows.forEach(g=>{const gx=L+g.x/SH_Q,gy=T+g.y/SH_Q,R=g.r/SH_Q,gr=ctx.createRadialGradient(gx,gy,0,gx,gy,R);gr.addColorStop(0,`rgba(255,70,40,${g.a*alpha})`);gr.addColorStop(1,'rgba(255,40,20,0)');ctx.fillStyle=gr;ctx.fillRect(gx-R,gy-R,2*R,2*R)});
+  const k=SH_SC*SH_Q,Sz=Math.min(SH_BS,Math.ceil(ext*2*k)),Wd=Sz/SH_Q,P=SH_PAD*SH_Q,Cs=Sz+2*P;
+  if(!cc)cc={};
+  const fl=!!flash,da=Math.abs(Math.atan2(Math.sin(ang-(cc._sha??ang+9)),Math.cos(ang-(cc._sha??ang+9))));
+  if(!cc._shc||cc._shSz!==Cs||S.t>=cc._shT||S.t<cc._shT-1||da>0.1||cc._shF!==fl){
+    if(!cc._shc||cc._shSz!==Cs){cc._shc=document.createElement('canvas');cc._shc.width=cc._shc.height=Cs;cc._shSz=Cs}
+    cc._sha=ang;cc._shF=fl;cc._shT=S.t+SH_RE*(0.85+0.3*Math.random());
+    const b=SH_BX,s=SH_SX,o=cc._shc.getContext('2d');shSeed=seed;shQ=Math.floor(t*10+seed*0.37);shRi=0;shSi=0;shGlows=[];
+    b.setTransform(1,0,0,1,0,0);b.clearRect(0,0,Sz,Sz);b.setTransform(k,0,0,k,Sz/2,Sz/2);b.rotate(ang);shx=b;drawFn();
+    s.setTransform(1,0,0,1,0,0);s.globalCompositeOperation='source-over';s.clearRect(0,0,Sz,Sz);s.drawImage(SH_BUF,0,0,Sz,Sz,0,0,Sz,Sz);s.globalCompositeOperation='source-in';s.fillStyle='rgba(0,0,0,0.4)';s.fillRect(0,0,Sz,Sz);
+    o.setTransform(1,0,0,1,0,0);o.globalAlpha=1;o.clearRect(0,0,Cs,Cs);const off=SH_SC*2.2*SH_Q;o.drawImage(SH_SHB,0,0,Sz,Sz,P+off,P+off,Sz,Sz);
+    // bands: untorn runs go down in one piece, a torn band is drawn slipped, with a faint copy slipped the other way
+    let y=0,bi=0,run=0;const flush=to=>{if(to>run)o.drawImage(SH_BUF,0,run,Sz,to-run,P,P+run,Sz,to-run);run=to};
+    while(y<Sz){const h=Math.min(Sz-y,Math.max(2,Math.round((1.5+glHash(seed,shQ,900+bi)*6)*k*0.5)));
+      if(glHash(seed,shQ,500+bi)<tear){const dx=(glHash(seed,shQ,700+bi)-0.5)*SH_SC*7*(0.4+tear)*SH_Q;flush(y);
+        o.globalAlpha=0.35;o.drawImage(SH_BUF,0,y,Sz,h,P-dx*0.8,P+y,Sz,h);o.globalAlpha=1;o.drawImage(SH_BUF,0,y,Sz,h,P+dx,P+y,Sz,h);run=y+h}
+      y+=h;bi++}
+    flush(Sz);
+    if(fl){s.fillStyle='#fff';s.fillRect(0,0,Sz,Sz);o.globalAlpha=0.75;o.drawImage(SH_SHB,0,0,Sz,Sz,P,P,Sz,Sz);o.globalAlpha=1}
+    cc._shg=shGlows.map(g=>({x:g.x/SH_Q,y:g.y/SH_Q,r:g.r/SH_Q,a:g.a}))}
+  const L=X-Wd/2,T=Y-Wd/2;ctx.save();ctx.globalAlpha=alpha;ctx.drawImage(cc._shc,L-SH_PAD,T-SH_PAD,Wd+2*SH_PAD,Wd+2*SH_PAD);
+  ctx.globalCompositeOperation='lighter';const gs=shGlowSprite();
+  for(const g of cc._shg){ctx.globalAlpha=Math.min(1,g.a*alpha);ctx.drawImage(gs,L+g.x-g.r,T+g.y-g.r,2*g.r,2*g.r)}
   ctx.restore()}
 // splinters flying out and fading, u 0..1
 function shSlivers(X,Y,u,seed,n){ctx.save();ctx.globalAlpha=Math.max(0,1-u);shx=ctx;const sc=SH_SC;
@@ -3995,22 +4010,22 @@ function huskCoreStep(e,dt){e._enemy=true;e.life+=dt;let n=null,nd=Infinity;live
 function drawShard(e){const k=e.shard||'huskcore',t=S.t+e.seed%50,fl=e.flashT>0,sm=x=>x<=0?0:x>=1?1:x*x*(3-2*x);
   const mv=Math.hypot(e.x-(e._lx==null?e.x:e._lx),e.y-(e._ly==null?e.y:e._ly));e._lx=e.x;e._ly=e.y;e.wk=(e.wk||0)+((mv>0.03?1:0)-(e.wk||0))*0.15;
   if(e.da==null)e.da=e.ang;e.da+=Math.atan2(Math.sin(e.ang-e.da),Math.cos(e.ang-e.da))*0.2;const a=e.da,wk=e.wk;let top=e.r+12;
-  if(k==='stalker'){const atk=e.lungeT>0?Math.sin(Math.PI*(1-e.lungeT/STALK_LUNGE)):0;shFigure(e.x,e.y,a,36,e.seed,t,()=>shStalker(t,wk,atk),0.07,1,fl);top=22}
+  if(k==='stalker'){const atk=e.lungeT>0?Math.sin(Math.PI*(1-e.lungeT/STALK_LUNGE)):0;shFigure(e.x,e.y,a,36,e.seed,t,()=>shStalker(t,wk,atk),0.07,1,fl,e);top=22}
   else if(k==='static'){const since=e.bt!=null?S.t-e.bt:9,as=e.atkT!=null?S.t-e.atkT:9,atk=as<0.3?Math.sin(as/0.3*Math.PI):0;
     if(since<0.25){shSlivers(e.bx,e.by,since/0.25,e.seed,8);shSlivers(e.x,e.y,1-since/0.25,e.seed+1,8)}
-    shFigure(e.x+(Math.random()<0.05?2.4:0),e.y,e.ang,16,e.seed,t,()=>shStatic(t,1,atk),e.blinkT<0.15?0.9:0.28,since<0.12?since/0.12:1,fl);
+    shFigure(e.x+(Math.random()<0.05?2.4:0),e.y,e.ang,16,e.seed,t,()=>shStatic(t,1,atk),e.blinkT<0.15?0.9:0.28,since<0.12?since/0.12:1,fl,e);
     if(atk>0.05){ctx.save();ctx.globalAlpha=atk;ctx.strokeStyle=SH_HOT;ctx.lineWidth=1.1;ctx.beginPath();ctx.arc(e.x+Math.cos(e.ang)*5,e.y+Math.sin(e.ang)*5,15,e.ang-0.9*atk,e.ang+0.9*atk);ctx.stroke();ctx.restore()}}
-  else if(k==='husk')shFigure(e.x,e.y,a,22,e.seed,t,()=>shHusk(t,wk),0.05,1,fl);
-  else if(k==='huskcore'){shFigure(e.x,e.y,e.ang,8,e.seed,t,()=>shHuskCore(t),0.25,1,fl);top=12}
+  else if(k==='husk')shFigure(e.x,e.y,a,22,e.seed,t,()=>shHusk(t,wk),0.05,1,fl,e);
+  else if(k==='huskcore'){shFigure(e.x,e.y,e.ang,8,e.seed,t,()=>shHuskCore(t),0.25,1,fl,e);top=12}
   else if(k==='lantern'){const c=e.chg>0?Math.min(1,e.chg/LANT_CHARGE):0,bs=e.beamAt!=null?S.t-e.beamAt:9,beam=bs<0.4?1-bs/0.4:0,open=beam?1:c>0?sm(c)*0.8:bs<1?Math.max(0,1-(bs-0.4)/0.6):0,fa=c>0||beam?e.ang:a;
     if(c>0&&!beam){const lock=e.chg>=LANT_CHARGE-LANT_LOCK,hx=e.x+Math.cos(e.ang)*5.4,hy=e.y+Math.sin(e.ang)*5.4;ctx.save();ctx.globalAlpha=lock?0.85:0.15+0.35*c;ctx.strokeStyle=SH_HOT;ctx.lineWidth=lock?1.4:0.9;if(!lock)ctx.setLineDash([5,5]);
       ctx.beginPath();ctx.moveTo(hx,hy);ctx.lineTo(hx+Math.cos(e.ang)*LANT_LEN,hy+Math.sin(e.ang)*LANT_LEN);ctx.stroke();ctx.restore()}
-    shFigure(e.x,e.y,fa,22,e.seed,t,()=>shLantern(t,c,open),0.05+c*0.3,1,fl);
+    shFigure(e.x,e.y,fa,22,e.seed,t,()=>shLantern(t,c,open),0.05+c*0.3,1,fl,e);
     if(beam){ctx.save();ctx.globalCompositeOperation='lighter';ctx.lineCap='round';ctx.globalAlpha=beam;ctx.strokeStyle='rgba(255,60,35,0.55)';ctx.lineWidth=8;ctx.beginPath();ctx.moveTo(e.bhx,e.bhy);ctx.lineTo(e.bex,e.bey);ctx.stroke();
       ctx.strokeStyle=SH_HOT2;ctx.lineWidth=2;ctx.stroke();ctx.restore()}}
   else{const p=e.slamT>0?1-e.slamT/COL_SLAM:0,slam=e.slamT>0?(p<0.6?sm(p/0.6):1-sm((p-0.6)/0.4)):0,rs=e.ringAt!=null?(S.t-e.ringAt)/0.9:9;
     if(rs<1){ctx.save();ctx.globalAlpha=1-rs;ctx.strokeStyle=SH_HOT;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(e.rx,e.ry,12+rs*(COL_SLAM_R-12),0,Math.PI*2);ctx.stroke();ctx.restore();shSlivers(e.rx,e.ry,rs,e.seed+3,18)}
-    shFigure(e.x,e.y,a,46,e.seed,t,()=>shColossus(t,wk,slam,e.cores),0.06,1,fl);top=40}
+    shFigure(e.x,e.y,a,46,e.seed,t,()=>shColossus(t,wk,slam,e.cores),0.06,1,fl,e);top=40}
   if(e.hp<e.maxHp)hpbar(e.x,e.y-top,e.r*2+6,e.hp/e.maxHp)}
 // ---------- Lance Splinters ----------
 // v4: the Dense Field's artillery, the Splinter's big sibling. One comes with each drilling wave in
@@ -5801,19 +5816,22 @@ function severUnit(u){
 }
 // Enemies opportunistically chew through any cable they wander near, independent of whatever
 // else they're doing in combat. A cable that runs out of HP severs its owner.
+const CSG=64; // cable-cut lookup grid cell size
+const IDLE_TICK=0.2; // how often an unseen, idle roamer updates (see the enemy loop)
 function cableSeverPass(allUnits,dt){
+  let grid=null;
   S.enemies.forEach(e=>{
     if(e.kind==='nest')return;
     e.cableCd=(e.cableCd||0)-dt;
     if(e.cableCd>0)return;
+    // v4 (performance): only the cable segments bucketed into this enemy's grid cell are checked
+    if(!grid){grid=new Map();const R=CABLE_HIT_RANGE;
+      allUnits.forEach(u=>{if(!u.trail)return;for(let i=0;i<u.trail.length-1;i++){const p=u.trail[i],q=u.trail[i+1];
+        for(let gx=Math.floor((Math.min(p.x,q.x)-R)/CSG);gx<=Math.floor((Math.max(p.x,q.x)+R)/CSG);gx++)for(let gy=Math.floor((Math.min(p.y,q.y)-R)/CSG);gy<=Math.floor((Math.max(p.y,q.y)+R)/CSG);gy++){
+          const k=gx*65536+gy;let L=grid.get(k);if(!L)grid.set(k,L=[]);L.push(u,p,q)}}})}
+    const L=grid.get(Math.floor(e.x/CSG)*65536+Math.floor(e.y/CSG));if(!L)return;
     let best=null,bd=CABLE_HIT_RANGE;
-    allUnits.forEach(u=>{
-      if(!u.trail)return;
-      for(let i=0;i<u.trail.length-1;i++){
-        const d=pointSegDist(e,u.trail[i],u.trail[i+1]);
-        if(d<bd){bd=d;best=u}
-      }
-    });
+    for(let i=0;i<L.length;i+=3){const d=pointSegDist(e,L[i+1],L[i+2]);if(d<bd){bd=d;best=L[i]}}
     if(best){best.cableHp-=CABLE_DMG;e.cableCd=CABLE_CD}
   });
   let anySevered=false;
@@ -7951,11 +7969,11 @@ function unitSpriteKey(t){const kk=kitOf(t);const k0=unitSpriteKey0(t);return k0
 function unitSpriteKey0(t){
   if(t.flashT>0)return null;
   const k=t.kind||'troop',since=S.t-(t.shotT??-9),aq=Math.round((t.aimV??RIFLE_READY)*5),TAU=Math.PI*2;
-  if(k==='troop')return since>0.9?'t'+aq:null;
+  if(k==='troop')return since>0.3?'t'+aq:null; // v4: the kick and muzzle flash are over by 0.3s; only then is the pose a cached one
   if(k==='marksman'){if(t.chargeT>0||since<0.9)return null;return 'm'+aq+(t.moving?'w':'')+(((Math.floor((S.t*3+(t.id||0))/TAU*3)%3)+3)%3)}
   if(k==='brawler'){if(t.jabT>0||S.t-(t.atkT??-9)<0.75||S.t-(t.bashT??-9)<0.85)return null;return 'p'}
   if(k==='grenadier'){if(S.t-(t.podShotT??-9)<0.35||S.t-(t.podGrewT??-9)<0.35)return null;return 'g'+(t.pods??GREN_PODS)}
-  if(k==='rocket'){if(t.paintT>0||since<0.9)return null;return 'r'+aq}
+  if(k==='rocket'){if(t.paintT>0||since<0.5)return null;return 'r'+aq}
   if(k==='mech'&&hasKit(t,'breaker'))return S.t-(t.punchT??-9)<0.3||t.moving?null:'B';
   return null}
 // Unit images are cached by pose and facing (USPR_ANG steps): the body in one cache, and the cast
@@ -8781,8 +8799,13 @@ function update(dt){
   const allies=S.troops.concat(S.harvesters).concat(S.builders);
   updateWaveWarn(dt);
   if(S.enemies.some(e=>e.horde))updateFlow();
+  const DT0=dt;
   S.enemies.forEach(e=>{
     if(e.kind==='nest')return;
+    let dt=DT0;
+    // v4 (performance): an idle roamer nobody can see (no target, out of every unit's sight, so nothing
+    // is inside its aggro range either) only thinks IDLE_TICK times a second, taking the time in one step
+    if((e.kind==='roam'||e.kind==='brute')&&!e.target&&!(e.stunT>0)&&e.aggro<=TROOP_VISION&&!visible(e)){e._idt=(e._idt||0)+dt;if(e._idt<IDLE_TICK)return;dt=e._idt;e._idt=0}else e._idt=0;
     if(e.kind==='quaker'){e.cd-=dt;updateQuaker(e,dt);return}
     e.cd-=dt; e._enemy=true; // pathing flag: rift is ordinary ground for enemies (see tcost)
     // Energy Surge stun: frozen in place, can't attack, but still gets shoved by crowd separation
