@@ -937,6 +937,8 @@ let mapType=MAP_TYPES[0], mapLayout=LAYOUTS[0];
 // place to learn the loop. Cleared again as soon as the tutorial ends.
 let tutorialMap=false;
 const TUTORIAL_SEED=4242, TUTORIAL_START_DAT=200, TUTORIAL_PREP_TIME=20;
+// v4: Dat a run starts with (was 60; the 'lean' Pressure keeps about a third of it, as before)
+const RUN_START_DAT=200, RUN_START_DAT_LEAN=70;
 function epiDist(x,y){return Math.hypot(x-EPI.x,y-EPI.y)}
 function inMap(x,y,m){return x>=m&&y>=m&&x<=W-m&&y<=H-m}
 // A random in-bounds point whose distance from the epicenter falls in [d0,d1]. Polar sampling
@@ -1411,7 +1413,7 @@ const PRESSURE=[
   {id:'tide',name:'Swarm Tide',icon:'≋',cost:6,bonus:0.15,desc:'Drilling waves are 30% bigger.'},
   {id:'frenzy',name:'Frenzied Brood',icon:'⇶',cost:6,bonus:0.15,desc:'Every enemy moves 15% faster.'},
   {id:'frail',name:'Brittle Units',icon:'✚',cost:8,bonus:0.2,desc:'Troopers, Paladins and the rest have 25% less health.'},
-  {id:'lean',name:'Lean Start',icon:'◇',cost:4,bonus:0.1,desc:'Start with 20 Dat, 4 Troopers and no Paladins (instead of 60 Dat, 6 Troopers and 8 Paladins).'},
+  {id:'lean',name:'Lean Start',icon:'◇',cost:4,bonus:0.1,get desc(){return `Start with ${RUN_START_DAT_LEAN} Dat, 4 Troopers and no Paladins (instead of ${RUN_START_DAT} Dat, 6 Troopers and 8 Paladins).`}},
 ];
 const ARTY_UNLOCK_COST=2, GREN_UNLOCK_COST=1, MECH_UNLOCK_COST=1, ROCKET_UNLOCK_COST=1, PODT_UNLOCK_COST=3;
 function loadMeta(){
@@ -2834,7 +2836,7 @@ function reset(landing){
   rand=seededRng(mapSeed);
   rollLayout();
   const land=landing||defaultLanding();
-  S={t:0,surveyVein:null,wrecks:[],beacons:[],squadCap:SQUAD_CAP_START,quakes:[],quakeMsg:false,barrier:null,breachSite:null,breachVein:null,rigSite:null,rig:null,glass:null,glassShards:[],glassB:null,glassCov:null,dat:tutorialMap?TUTORIAL_START_DAT:pressureOn('lean')?20:60,living:0,condensed:0,over:null,rerollCount:0,
+  S={t:0,surveyVein:null,wrecks:[],beacons:[],squadCap:SQUAD_CAP_START,quakes:[],quakeMsg:false,barrier:null,breachSite:null,breachVein:null,rigSite:null,rig:null,glass:null,glassShards:[],glassB:null,glassCov:null,dat:tutorialMap?TUTORIAL_START_DAT:pressureOn('lean')?RUN_START_DAT_LEAN:RUN_START_DAT,living:0,condensed:0,over:null,rerollCount:0,
     base:{x:land.x,y:land.y,hp:450+bastionHpBonus(),maxHp:450+bastionHpBonus(),r:BASE_R,dest:null,locked:false,pingCd:0,riftSan:1,riftOk:true},
     troops:[],harvesters:[],builders:[],relays:[],depots:[],enemies:[],nodes:[],walls:new Map(),turrets:[],tracers:[],shards:[],nades:[],shardShots:[],lances:[],smears:[],calls:{},callUnlock:{},capAdd:{},kits:{},fires:[],callsIn:[],callFx:[],decoys:[],mines:[],fields:[],
     veins:[],activeVein:null,throttleMul:1,ambientT:30,
@@ -3068,6 +3070,7 @@ function buildStop(carry){
   const spawn=pickSpawn();
   reset(spawn);
   applyCarry(carry);
+  if(!carry)runCallStart().forEach(id=>grantCall(id,CALL_LOADOUT_CHARGES)); // a fresh run: the loadout comes charged
   beginLanding();
   const st=stopInfo();
   if(RUN.stop===0&&pressureNote())setTimeout(()=>msg(pressureNote().trim()),50);
@@ -6810,6 +6813,8 @@ function drawMinesFields(){
 // call-down is unlocked for the run by its card (or picked from a wreck's call-down cache), which
 // also comes with CALL_CARD_N free charges
 const CALL_START=['orbital','stasis'], CALL_CARD_N=2;
+// v4: each of the two loadout call-downs comes with this many free charges at the start of a run
+const CALL_LOADOUT_CHARGES=2;
 // shop prices in Condensed Crystal (the two starters are free)
 const CALL_SHOP={emp:7,droppod:10,bulwark:9,carpet:10,minefield:8,overclock:9,gravity:8,decoy:6};
 function callOwned(id){return !!CALLDOWNS[id]&&(CALL_START.includes(id)||meta.calls.includes(id))}
