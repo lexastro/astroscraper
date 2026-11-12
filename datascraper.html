@@ -11070,6 +11070,12 @@ const VOX_EV={
   tapped:{p:2,cd:0,l:["Vein tapped. Bank it, or overdrill?","That's the vein tapped. Bank, or push our luck?"]},
   overdrill:{p:1,cd:0,l:["Overdrilling. Keep out of the red.","Here we go. Hold it steady."]},
   overWon:{p:2,cd:0,l:["Overdrill held. Beautiful.","We held it. The second reward's ours."]},
+  // chasing a seam (voxSeamTick): steering off the band for it is the point, so she cheers it on
+  // instead of warning about the yield, then reminds you to come back to the band you left
+  seamGo:{p:2,cd:0,l:["Going for the seam? Good call.","Heading for the seam. I like it.","Off the band and into the seam. Bold."]},
+  seamIn:{p:2,cd:0,l:["You're in. Hold it there.","That's it. Keep it steady in the seam."]},
+  seamReturn:{p:2,cd:0,l:["Now bring it back to {tier}.","Good. Now back onto {tier} before the drill's done."],nd:["Now bring it back to the band."]},
+  seamLate:{p:1,cd:0,l:["Drill's nearly done. Get back to {tier}!","We're almost through. Back to {tier}, now!"],nd:["Drill's nearly done. Back onto the band!"]},
 };
 // fill-ins for {dir}/{tier}/{side}: each one is its own recorded clip
 const VOX_VARS={tier:['common','rare','epic','legendary','hive'],side:['left','right']};
@@ -11127,7 +11133,7 @@ const VOX_DIRS=['north','south','east','west','northeast','northwest','southeast
 const voxRec=()=>!VOX.voice;
 // the recorded pack: base64 MP3 per line id, fetched once the announcer is on, decoded on first use
 const VOXP={state:'none',clips:null,bufs:{},chain:null};
-const VOX_PACK_V=4; // bump whenever vox/vesper.json is re-packed, so browsers don't keep the old one cached
+const VOX_PACK_V=6; // bump whenever vox/vesper.json is re-packed, so browsers don't keep the old one cached
 function voxLoadPack(){if(VOXP.state!=='none'||!voxRec())return;VOXP.state='loading';
   fetch('vox/vesper.json?v='+VOX_PACK_V).then(r=>r.ok?r.json():Promise.reject(r.status)).then(j=>{VOXP.clips=j.clips;VOXP.state='ready'}).catch(e=>{VOXP.state='failed';console.info('announcer: no voice pack, using the browser voice',e)})}
 function voxVoices(){return voxSynth?voxSynth.getVoices().filter(v=>/^en/i.test(v.lang)):[]}
@@ -11146,6 +11152,8 @@ function voxHear(s){if(!VOX.on||menuOpen)return;s=String(s);
     voxSay(key,d&&VOX_DIRS.includes(d[1])?d[1]:null);return}}
 // dir: the fill-in for the line's {dir}, {tier} or {side} (lower case), or null
 function voxSay(key,dir,force){const E=VOX_EV[key];if(!E||!VOX.on)return;
+  // the yield dipping while you chase a seam (and until you're back on your band) is expected
+  if(!force&&(key==='drift'||key==='slip'||(key==='climb'&&voxSeamChase()))&&voxSeamBusy())return;
   const slot=(E.l[0].match(/\{(tier|side)\}/)||[])[1];if(slot&&dir&&!VOX_VARS[slot].includes(dir))dir=null;
   const maxP=VOX.chat===1?2:VOX.chat===2?3:4;if(E.p>maxP&&!force)return;
   const now=performance.now()/1000;if(E.cd&&!force&&now-(VOXQ.last[key]??-999)<E.cd)return;
@@ -11197,10 +11205,31 @@ function voxTut(st){if(!VOX.on||!tutorial||tutorial.step===VOXQ.tutStep)return;V
   VOXQ.q=VOXQ.q.filter(x=>x.key!=='tut');if(VOXQ.cur&&VOXQ.cur.key==='tut')voxHalt();
   voxQueue({key:'tut',p:2,id:'tut:'+st.title,text:line,t:performance.now()/1000})}
 // state she watches rather than hears: hull thresholds and the end of a run
+// seams: VOXQ.sx follows the active drill meter — the band you were paid on when the seam opened
+// (tier), and whether she's already said go / in / come back / hurry for this one
+function voxMeter(){const v=S&&S.activeVein,m=v&&v.meter;return m&&m.phase==='drill'?m:null}
+// the needle is out on the seam's side of the band, heading for it (or in it)
+function voxSeamChase(){const m=voxMeter(),sm=m&&m.seam;return !!sm&&Math.sign(m.x)===Math.sign(sm.x)&&Math.abs(m.x)>Math.abs(sm.x)*0.3}
+// chasing now, or the seam's over and the yield hasn't yet climbed back to where it was
+function voxSeamBusy(){const m=voxMeter(),X=VOXQ.sx;if(!m)return false;if(voxSeamChase())return true;
+  return !!(X&&X.m===m&&(X.go||X.inn)&&m.seamDone&&!m.seam&&!X.back)}
+function voxSeamTick(){const m=voxMeter(),v=S.activeVein;if(!m)return;
+  let X=VOXQ.sx;if(!X||X.m!==m)X=VOXQ.sx={m,tier:null,go:0,inn:0,ret:0,late:0,back:0};
+  const sm=m.seam;
+  if(sm){if(!X.tier)X.tier=m.yieldTier;
+    if(!X.go&&voxSeamChase()){X.go=1;voxSay('seamGo')}
+    if(!X.inn&&sm.hold>0.3){X.inn=1;X.go=1;voxSay('seamIn')}
+    return}
+  if(!X.tier||!(X.go||X.inn)||X.back||!m.seamDone)return;
+  if(tierRank(m.yieldTier)>=tierRank(X.tier)){X.back=1;return} // back on the band: the usual calls resume
+  const t=X.tier.toLowerCase();
+  // after the "seam tapped / closed" line has had its turn
+  if(!X.ret){X.ret=1;setTimeout(()=>{if(VOXQ.sx===X&&!X.back)voxSay('seamReturn',t)},2500)}
+  if(!X.late&&v.drillProg>=0.85*v.richness){X.late=1;voxSay('seamLate',t)}}
 setInterval(()=>{if(!VOX.on||typeof S==='undefined'||!S||!S.base)return;
   if(S!==VOXQ.sRef){VOXQ.sRef=S;VOXQ.over=S.over;VOXQ.hull=0;if(!tutorial)VOXQ.tutStep=-1}
   if(S.over!==VOXQ.over){VOXQ.over=S.over;if(S.over==='win'||S.over==='lose'){VOXQ.q=[];voxHalt();voxSay(S.over)}return}
-  if(menuOpen||S.over)return;const f=S.base.hp/S.base.maxHp;
+  if(menuOpen||S.over)return;voxSeamTick();const f=S.base.hp/S.base.maxHp;
   if(f>0.7)VOXQ.hull=0;else if(f<=0.25&&VOXQ.hull<2){VOXQ.hull=2;voxSay('hullLow')}else if(f<=0.5&&VOXQ.hull<1){VOXQ.hull=1;voxSay('hullHalf')}},500);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)voxStopAll()});
 if(VOX.on)voxLoadPack();

@@ -122,6 +122,12 @@ EL_TAGS = {
     'tapped': '[focused, wry]',
     'overdrill': '[tense, focused]',
     'overWon': '[relieved, excited]',
+    'seamGo': '[pleased, wry]',
+    'seamIn': '[focused, encouraging]',
+    'seamReturn': '[focused, brisk]',
+    'seamReturn:nd': '[focused, brisk]',
+    'seamLate': '[urgent, raised voice]',
+    'seamLate:nd': '[urgent, raised voice]',
 }
 
 
