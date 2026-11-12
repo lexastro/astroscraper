@@ -41,32 +41,33 @@ def read_lines():
     return clips
 
 
-def to16k(samples, sr):
-    """Kokoro renders at 24 kHz; the in-game radio chain cuts above ~6.8 kHz anyway, so 16 kHz
-    loses nothing audible and roughly halves the pack. Windowed-sinc low-pass, then resample."""
+PACK_SR = 24000  # speech keeps its air up to 12 kHz; the voice plays clean, so this is audible
+
+
+def resample(samples, sr, to=PACK_SR):
+    """Windowed-sinc low-pass just under the new Nyquist, then resample (no-op if already there)."""
     import numpy as np
-    if sr == 16000:
+    if sr == to:
         return samples, sr
-    n = np.arange(-64, 65)
-    fc = 7600 / sr
-    h = np.sinc(2 * fc * n) * np.hamming(len(n))
-    h /= h.sum()
-    y = np.convolve(samples, h, mode='same')
-    t = np.arange(0, len(y) / sr, 1 / 16000)
-    return np.interp(t, np.arange(len(y)) / sr, y).astype('float32'), 16000
+    if to < sr:
+        n = np.arange(-64, 65)
+        h = np.sinc(2 * (0.47 * to / sr) * n) * np.hamming(len(n))
+        samples = np.convolve(samples, h / h.sum(), mode='same')
+    t = np.arange(0, len(samples) / sr, 1 / to)
+    return np.interp(t, np.arange(len(samples)) / sr, samples).astype('float32'), to
 
 
 def encode(samples, sr):
     import soundfile as sf
     import numpy as np
-    samples, sr = to16k(samples, sr)
+    samples, sr = resample(samples, sr)
     loud = np.nonzero(np.abs(samples) > 0.01)[0]  # trim the silence round each line
     if len(loud):
         samples = samples[max(0, loud[0] - sr // 40):loud[-1] + sr // 12]
     buf = io.BytesIO()
     # MP3 decodes in every browser's Web Audio (Ogg Opus doesn't in older Safari); speech at
-    # 16 kHz mono at ~20 kbps is small, and the radio chain hides what little it loses
-    sf.write(buf, samples, sr, format='MP3', bitrate_mode='CONSTANT', compression_level=0.93)
+    # 24 kHz mono at ~48 kbps: clean voice, still a small pack
+    sf.write(buf, samples, sr, format='MP3', bitrate_mode='CONSTANT', compression_level=0.75)
     return buf.getvalue()
 
 

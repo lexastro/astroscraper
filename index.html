@@ -10206,14 +10206,14 @@ function frame(ts){requestAnimationFrame(frame); // asked for first, so one bad 
   if(TPAINT.loading&&performance.now()-TPAINT.loadT0>25000)showLoading(false);
   const a=performance.now();if(!TPAINT.loading){update(dt);tutTick()}const b=performance.now();if(cv.width>0&&cv.height>0)draw();perfTick(ts,gap||0,b-a,performance.now()-b)}
 // ---------- voice announcer: VESPER (prototype, off by default) ----------
-// The Bastion's onboard operations intelligence. Her voice is pre-rendered clips (Kokoro, a local
-// Apache-2.0 TTS: tools/vox_render.py reads the lines below and writes vox/vesper.json), fetched only
-// once the announcer is switched on and played through a light radio chain in Web Audio. A line
-// with no clip (or no pack, e.g. the page opened from disk) falls back to the browser's own speech
-// engine, which can't be filtered. Around every line: a squelch chirp in and out, a faint hiss, and
-// music and ambience ducked. She hears the game through the existing msg()/banner()/note() text and
+// The Bastion's onboard operations intelligence. Her voice is pre-rendered clips (ElevenLabs voice
+// "Astrotana", Eleven v4: tools/vox_render.py writes the script from the lines below and packs the
+// takes into vox/vesper.json, tools/vox_align.py cuts long takes into lines), fetched only
+// once the announcer is switched on and played clean through Web Audio. A line with no clip (or no
+// pack, e.g. the page opened from disk) falls back to the browser's own speech engine. While she
+// speaks, music and ambience dip. She hears the game through the existing msg()/banner()/note() text and
 // the tutorial (the four calls marked VOX), and polls hull and run state twice a second.
-// To remove it: delete this block, those four calls, vox/ and tools/vox_render.py.
+// To remove it: delete this block, those four calls, vox/, tools/vox_render.py and tools/vox_align.py.
 const VOX_KEY='astroscraper.vox';
 let VOX={on:false,vol:0.8,voice:'',chat:2};try{Object.assign(VOX,JSON.parse(localStorage.getItem(VOX_KEY)||'{}'))}catch(e){}
 function voxSave(){try{localStorage.setItem(VOX_KEY,JSON.stringify(VOX))}catch(e){}}
@@ -10296,7 +10296,7 @@ const VOX_TUT={
   'Guard your lines':"They're going for the cables. Cut units lose their nerve. Protect the lines.",
   "That's the loop":"Scout, drill, defend, upgrade, push deeper. You're ready, Commander.",
 };
-const VOXQ={q:[],cur:null,last:{},lastLine:{},gapT:0,hull:0,sRef:null,over:null,tutStep:-1,hiss:null};
+const VOXQ={q:[],cur:null,last:{},lastLine:{},gapT:0,hull:0,sRef:null,over:null,tutStep:-1};
 const VOX_DIRS=['north','south','east','west','northeast','northwest','southeast','southwest'];
 // VOX.voice: '' = Vesper's recorded clips; 'sys:' = the best browser voice; 'sys:<name>' = that one
 const voxRec=()=>!VOX.voice;
@@ -10334,8 +10334,8 @@ function voxPump(){if(!VOX.on||VOXQ.cur||!VOXQ.q.length)return;const now=perform
   // first lines after switching on can arrive before the pack has: give it a moment
   if(VOXP.state==='loading'&&now-VOXQ.q[0].t<1.5){setTimeout(voxPump,150);return}
   const it=VOXQ.q.shift();VOXQ.cur=it;
-  let ended=false;const end=()=>{if(ended)return;ended=true;if(VOXQ.cur===it)VOXQ.cur=null;voxRadio(false);VOXQ.gapT=performance.now()/1000+0.6;setTimeout(voxPump,650)};
-  voxRadio(true);
+  let ended=false;const end=()=>{if(ended)return;ended=true;if(VOXQ.cur===it)VOXQ.cur=null;voxDuck(false);VOXQ.gapT=performance.now()/1000+0.6;setTimeout(voxPump,650)};
+  voxDuck(true);
   if(voxPlayClip(it,end))return;
   if(!voxSynth){end();return}
   const u=new SpeechSynthesisUtterance(it.text),v=voxPickVoice();if(v){u.voice=v;u.lang=v.lang}
@@ -10343,37 +10343,21 @@ function voxPump(){if(!VOX.on||VOXQ.cur||!VOXQ.q.length)return;const now=perform
   u.onend=end;u.onerror=end;it.u=u; // (kept on the item: Chrome can drop an utterance it's still speaking if nothing holds it)
   setTimeout(end,Math.max(4000,it.text.length*110)); // some engines never fire onend
   setTimeout(()=>{if(VOXQ.cur===it)voxSynth.speak(u)},110)}
-// the radio chain for recorded lines: a gentle band limit with a presence lift, soft saturation and
-// a faint chorus — a synthetic sheen, not a walkie-talkie
-function voxChain(b){if(VOXP.chain&&VOXP.chain.ac===b.ac)return VOXP.chain;const ac=b.ac;
-  const inp=ac.createGain(),hp=ac.createBiquadFilter(),pk=ac.createBiquadFilter(),lp=ac.createBiquadFilter(),ws=ac.createWaveShaper(),out=ac.createGain();
-  hp.type='highpass';hp.frequency.value=190;pk.type='peaking';pk.frequency.value=2700;pk.Q.value=0.9;pk.gain.value=4;lp.type='lowpass';lp.frequency.value=6800;
-  const n=1024,curve=new Float32Array(n);for(let i=0;i<n;i++){const x=i/(n-1)*2-1;curve[i]=Math.tanh(1.6*x)/Math.tanh(1.6)}ws.curve=curve;ws.oversample='2x';
-  const dl=ac.createDelay(0.05),lfo=ac.createOscillator(),lg=ac.createGain(),wet=ac.createGain();dl.delayTime.value=0.013;lfo.frequency.value=0.35;lg.gain.value=0.0018;wet.gain.value=0.22;
-  lfo.connect(lg);lg.connect(dl.delayTime);lfo.start();
-  inp.connect(hp);inp.connect(dl);dl.connect(wet);wet.connect(hp);hp.connect(pk);pk.connect(lp);lp.connect(ws);ws.connect(out);out.gain.value=VOX.vol*0.9;out.connect(b.master);
-  VOXP.chain={ac,inp,out};return VOXP.chain}
+// recorded lines play clean: one gain (the voice volume) into the master
+function voxChain(b){if(VOXP.chain&&VOXP.chain.ac===b.ac)return VOXP.chain;const out=b.ac.createGain();out.gain.value=VOX.vol;out.connect(b.master);
+  VOXP.chain={ac:b.ac,inp:out,out};return VOXP.chain}
 function voxPlayClip(it,end){const b64=VOXP.state==='ready'&&voxRec()&&it.id&&VOXP.clips[it.id];if(!b64)return false;const b=audioBus();if(!b)return false;
   const go=buf=>{if(VOXQ.cur!==it){end();return}const ch=voxChain(b),src=b.ac.createBufferSource();src.buffer=buf;src.connect(ch.inp);src.onended=end;it.src=src;
-    ch.out.gain.setValueAtTime(VOX.vol*0.9,b.ac.currentTime);src.start(b.ac.currentTime+0.1);setTimeout(end,buf.duration*1000+1500)};
+    ch.out.gain.setValueAtTime(VOX.vol,b.ac.currentTime);src.start(b.ac.currentTime+0.1);setTimeout(end,buf.duration*1000+1500)};
   if(VOXP.bufs[it.id]){go(VOXP.bufs[it.id]);return true}
   try{const bin=atob(b64),u8=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);
     b.ac.decodeAudioData(u8.buffer).then(buf=>{VOXP.bufs[it.id]=buf;go(buf)},()=>{VOXP.clips[it.id]=null;end()})}catch(e){return false}
   return true}
-// the radio around the voice: chirp + hiss on its own path to the master, and the duck
-function voxRadio(open){const b=open?audioBus():BUS;if(!b)return;const ac=b.ac,t=ac.currentTime,g=VOX.vol;
-  const chirp=(f1,f2)=>{const o=ac.createOscillator(),e=ac.createGain(),bp=ac.createBiquadFilter();bp.type='bandpass';bp.frequency.value=1800;bp.Q.value=2;
-    o.type='square';o.frequency.setValueAtTime(f1,t);o.frequency.exponentialRampToValueAtTime(f2,t+0.06);e.gain.setValueAtTime(0.0001,t);e.gain.linearRampToValueAtTime(0.05*g,t+0.005);e.gain.exponentialRampToValueAtTime(0.0001,t+0.08);
-    o.connect(bp);bp.connect(e);e.connect(b.master);o.start(t);o.stop(t+0.1)};
-  if(open){chirp(2400,1500);
-    if(!VOXQ.hiss){if(!noiseBuf){noiseBuf=ac.createBuffer(1,ac.sampleRate,ac.sampleRate);const d=noiseBuf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1}
-      const src=ac.createBufferSource();src.buffer=noiseBuf;src.loop=true;const bp=ac.createBiquadFilter();bp.type='bandpass';bp.frequency.value=2600;bp.Q.value=0.9;const hg=ac.createGain();hg.gain.setValueAtTime(0.0001,t);hg.gain.linearRampToValueAtTime(0.012*g,t+0.08);
-      src.connect(bp);bp.connect(hg);hg.connect(b.master);src.start(t,Math.random()*0.5);VOXQ.hiss={src,hg}}
-    b.music.gain.setTargetAtTime(AUD.music*0.5*b.duck*0.4,t,0.08);b.amb.gain.setTargetAtTime(AUD.amb*0.55*0.5,t,0.08)}
-  else{if(VOX.on)chirp(1500,900);
-    if(VOXQ.hiss){const h=VOXQ.hiss;VOXQ.hiss=null;h.hg.gain.setTargetAtTime(0.0001,t,0.04);h.src.stop(t+0.3)}
-    b.music.gain.setTargetAtTime(AUD.music*0.5*b.duck,t+0.2,0.35);b.amb.gain.setTargetAtTime(AUD.amb*0.55,t+0.2,0.35)}}
-function voxStopAll(){VOXQ.q=[];voxHalt();const c=VOXQ.cur;VOXQ.cur=null;if(c||VOXQ.hiss)voxRadio(false)}
+// music and ambience dip while she speaks
+function voxDuck(on){const b=on?audioBus():BUS;if(!b)return;const t=b.ac.currentTime;
+  if(on){b.music.gain.setTargetAtTime(AUD.music*0.5*b.duck*0.4,t,0.08);b.amb.gain.setTargetAtTime(AUD.amb*0.55*0.5,t,0.08)}
+  else{b.music.gain.setTargetAtTime(AUD.music*0.5*b.duck,t+0.2,0.35);b.amb.gain.setTargetAtTime(AUD.amb*0.55,t+0.2,0.35)}}
+function voxStopAll(){VOXQ.q=[];voxHalt();const c=VOXQ.cur;VOXQ.cur=null;if(c)voxDuck(false)}
 // tutorial steps speak as they open (replacing any step line still waiting)
 function voxTut(st){if(!VOX.on||!tutorial||tutorial.step===VOXQ.tutStep)return;VOXQ.tutStep=tutorial.step;const line=VOX_TUT[st.title];if(!line)return;
   VOXQ.q=VOXQ.q.filter(x=>x.key!=='tut');if(VOXQ.cur&&VOXQ.cur.key==='tut')voxHalt();
