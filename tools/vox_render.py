@@ -101,6 +101,7 @@ EL_TAGS = {
     'lostRelay': '[concerned, brisk]',
     'lostStab': '[urgent, rushed]',
     'turned': '[frustrated, urgent, raised voice]',
+    'turnedSad': '[quiet, regretful]',
     'distress': '[curious, attentive]',
     'hullHalf': '[tense, controlled, dry]',
     'hullLow': '[shouting, urgent, alarmed]',

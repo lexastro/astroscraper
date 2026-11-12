@@ -11051,6 +11051,8 @@ const VOX_EV={
   lostRelay:{p:2,cd:15,l:["We lost a Relay.","Relay down. Our network just got shorter."]},
   lostStab:{p:1,cd:12,l:["Stabilizer down. The needle's slipping.","We lost a Stabilizer. Watch the needle."]},
   turned:{p:1,cd:20,l:["Oh, come on! One of ours just turned!","No, no, no! We've lost one. Watch yourselves!","Damn it! The dark took one of ours!"]},
+  // the same news when nothing much else is happening (see voxHear): quiet and sorry, not angry
+  turnedSad:{p:1,cd:20,l:["One of ours has turned. I'm sorry.","A unit's lost it. It's hostile now."]},
   distress:{p:3,cd:30,l:["Picking up a distress call. I've marked it on the minimap.","Someone out there is calling for help."]},
   hullHalf:{p:1,cd:0,l:["Hull at half. I'd rather we didn't make a habit of this.","Fifty percent hull. Let's be careful."]},
   hullLow:{p:1,cd:0,l:["Hull critical! Get us out of there.","We're breaking up. I need repairs, now."]},
@@ -11125,7 +11127,7 @@ const VOX_DIRS=['north','south','east','west','northeast','northwest','southeast
 const voxRec=()=>!VOX.voice;
 // the recorded pack: base64 MP3 per line id, fetched once the announcer is on, decoded on first use
 const VOXP={state:'none',clips:null,bufs:{},chain:null};
-const VOX_PACK_V=3; // bump whenever vox/vesper.json is re-packed, so browsers don't keep the old one cached
+const VOX_PACK_V=4; // bump whenever vox/vesper.json is re-packed, so browsers don't keep the old one cached
 function voxLoadPack(){if(VOXP.state!=='none'||!voxRec())return;VOXP.state='loading';
   fetch('vox/vesper.json?v='+VOX_PACK_V).then(r=>r.ok?r.json():Promise.reject(r.status)).then(j=>{VOXP.clips=j.clips;VOXP.state='ready'}).catch(e=>{VOXP.state='failed';console.info('announcer: no voice pack, using the browser voice',e)})}
 function voxVoices(){return voxSynth?voxSynth.getVoices().filter(v=>/^en/i.test(v.lang)):[]}
@@ -11136,7 +11138,9 @@ function voxPickVoice(){const vs=voxVoices();if(!vs.length)return null;
   const pref=[/Ava.*(Natural|Online)/i,/Aria.*(Natural|Online)/i,/Sonia.*(Natural|Online)/i,/Jenny.*(Natural|Online)/i,/Libby|Natasha|Emma.*(Natural|Online)/i,/(Natural|Online)/i,/Google UK English Female/i,/Samantha|Serena|Karen|Moira/i,/Hazel|Zira|Susan/i,/Google US English/i,/female/i];
   for(const re of pref){const v=vs.find(x=>re.test(x.name));if(v)return v}return vs[0]}
 function voxHear(s){if(!VOX.on||menuOpen)return;s=String(s);
-  for(const [re,key] of VOX_HEAR){const m=s.match(re);if(!m)continue;
+  for(let [re,key] of VOX_HEAR){const m=s.match(re);if(!m)continue;
+    // a unit turning: angry in the thick of it, sad when it's quiet (no drilling, few enemies near)
+    if(key==='turned'&&typeof musicIntensity==='function'&&musicIntensity()===0)key='turnedSad';
     if(m[1]){voxSay(key,m[1].toLowerCase());return}
     const d=s.match(/\b(?:from|to) the ((?:north|south|east|west)\w*)/);
     voxSay(key,d&&VOX_DIRS.includes(d[1])?d[1]:null);return}}
