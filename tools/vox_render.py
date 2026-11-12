@@ -136,7 +136,61 @@ def write_script():
     path = os.path.join(ROOT, 'vox', 'elevenlabs-script.md')
     os.makedirs(os.path.dirname(path), exist_ok=True)
     open(path, 'w', encoding='utf-8').write('\n'.join(out))
-    print('wrote', path, len(clips), 'lines')
+    # the same lines as one block, in order, a long pause between each, for a single long take
+    # (ElevenLabs Studio). --from-long cuts that take back into the clips.
+    allp = os.path.join(ROOT, 'vox', 'elevenlabs-all.txt')
+    open(allp, 'w', encoding='utf-8').write('\n'.join(f'{el_tags(c)} {t} [long pause]'.strip() for c, t in clips.items()) + '\n')
+    print('wrote', path, 'and', allp, len(clips), 'lines')
+
+
+def split_long(files, out_dir):
+    """Cut one or more long takes of elevenlabs-all.txt (in order) into one file per line, named by
+    slug(), at the N-1 longest silences, so pauses inside a line don't split it."""
+    import numpy as np, soundfile as sf
+    clips = list(read_lines())
+    parts, sr = [], None
+    for f in files:
+        s, r = sf.read(f, dtype='float32', always_2d=True)
+        s = s.mean(axis=1)
+        if sr is None:
+            sr = r
+        elif r != sr:
+            s = np.interp(np.arange(0, len(s) / r, 1 / sr), np.arange(len(s)) / r, s).astype('float32')
+        parts.append(s)
+        parts.append(np.zeros(sr, dtype='float32'))  # a guaranteed gap between files
+    a = np.concatenate(parts)
+    hop = sr // 50  # 20 ms frames
+    rms = np.sqrt(np.convolve(a ** 2, np.ones(hop) / hop, mode='same'))[::hop]
+    quiet = rms < max(rms.max() * 0.02, 1e-4)  # about -34 dB under the loudest frame
+    runs, i = [], 0
+    while i < len(quiet):
+        if quiet[i]:
+            j = i
+            while j < len(quiet) and quiet[j]:
+                j += 1
+            runs.append((j - i, i, j))
+            i = j
+        else:
+            i += 1
+    inner = [r for r in runs if r[1] > 0 and r[2] < len(quiet)]  # not the lead-in or the tail
+    need = len(clips) - 1
+    if len(inner) < need:
+        sys.exit(f'found {len(inner) + 1} spoken lines but the script has {len(clips)}: check for skipped lines')
+    cuts = sorted((s + e) // 2 * hop for _, s, e in sorted(inner, reverse=True)[:need])
+    edges = [0] + cuts + [len(a)]
+    os.makedirs(out_dir, exist_ok=True)
+    shortest = None
+    for cid, s, e in zip(clips, edges, edges[1:]):
+        seg = a[s:e]
+        loud = np.nonzero(np.abs(seg) > 0.01)[0]
+        if len(loud):
+            seg = seg[max(0, loud[0] - sr // 40):loud[-1] + sr // 12]
+        sf.write(os.path.join(out_dir, slug(cid) + '.wav'), seg, sr)
+        if shortest is None or len(seg) < shortest[0]:
+            shortest = (len(seg), slug(cid))
+    print(f'cut {len(clips)} clips into {out_dir} (shortest: {shortest[1]}, {shortest[0] / sr:.2f}s).')
+    print('Listen to a few across the set (they should match their names), replace any bad take with a file of')
+    print('the same name, then pack them:  python tools/vox_render.py --from-dir', out_dir)
 
 
 def pack_from_dir(folder):
@@ -167,9 +221,13 @@ def main():
     ap.add_argument('--samples', action='store_true')
     ap.add_argument('--script', action='store_true', help='write vox/elevenlabs-script.md')
     ap.add_argument('--from-dir', help='pack ElevenLabs takes from this folder')
+    ap.add_argument('--from-long', nargs='+', help='cut long takes of elevenlabs-all.txt (in order) into clips')
+    ap.add_argument('--out', default=os.path.join(ROOT, 'vox', 'takes'), help='where --from-long writes the clips')
     a = ap.parse_args()
     if a.script:
         return write_script()
+    if a.from_long:
+        return split_long(a.from_long, a.out)
     if a.from_dir:
         return pack_from_dir(a.from_dir)
     if not a.models:
