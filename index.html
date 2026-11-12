@@ -11045,7 +11045,7 @@ const VOX_EV={
   cable:{p:2,cd:15,l:["We've lost a cable. Someone's gone dark.","Line's cut. Get them back in range before they lose their nerve."]},
   lostRelay:{p:2,cd:15,l:["We lost a Relay.","Relay down. Our network just got shorter."]},
   lostStab:{p:1,cd:12,l:["Stabilizer down. The needle's slipping.","We lost a Stabilizer. Watch the needle."]},
-  turned:{p:1,cd:20,l:["One of ours has turned. I'm sorry.","A unit's lost it. It's hostile now."]},
+  turned:{p:1,cd:20,l:["Oh, come on! One of ours just turned!","No, no, no! We've lost one. Watch yourselves!","Damn it! The dark took one of ours!"]},
   distress:{p:3,cd:30,l:["Picking up a distress call. I've marked it on the minimap.","Someone out there is calling for help."]},
   hullHalf:{p:1,cd:0,l:["Hull at half. I'd rather we didn't make a habit of this.","Fifty percent hull. Let's be careful."]},
   hullLow:{p:1,cd:0,l:["Hull critical! Get us out of there.","We're breaking up. I need repairs, now."]},
@@ -11120,7 +11120,7 @@ const VOX_DIRS=['north','south','east','west','northeast','northwest','southeast
 const voxRec=()=>!VOX.voice;
 // the recorded pack: base64 MP3 per line id, fetched once the announcer is on, decoded on first use
 const VOXP={state:'none',clips:null,bufs:{},chain:null};
-const VOX_PACK_V=2; // bump whenever vox/vesper.json is re-packed, so browsers don't keep the old one cached
+const VOX_PACK_V=3; // bump whenever vox/vesper.json is re-packed, so browsers don't keep the old one cached
 function voxLoadPack(){if(VOXP.state!=='none'||!voxRec())return;VOXP.state='loading';
   fetch('vox/vesper.json?v='+VOX_PACK_V).then(r=>r.ok?r.json():Promise.reject(r.status)).then(j=>{VOXP.clips=j.clips;VOXP.state='ready'}).catch(e=>{VOXP.state='failed';console.info('announcer: no voice pack, using the browser voice',e)})}
 function voxVoices(){return voxSynth?voxSynth.getVoices().filter(v=>/^en/i.test(v.lang)):[]}
