@@ -846,12 +846,12 @@ let CORE_R=1080*MS, DENSE_R=2700*MS;
 let EPI_REACH=5000;
 // v4: a run of stops (see "the run" section). STOP_BAND, while set, makes every point of the map
 // read as that one zone; RUN holds which stop the run is on and what carries over.
-const RUN_STOPS=[{band:'rim'},{band:'dense'},{band:'core',final:true}]; // v4: one stop per zone (was two)
-const STOP_HP=[1,1,1.25];          // enemy toughness per stop, on top of the zone's own
-const STOP_DEPTH=[0,0.4,1];          // how deep each stop counts as, for depth-scaled pressure
+const RUN_STOPS=[{band:'rim'},{band:'dense',split:true},{band:'dense'},{band:'core',final:true}]; // v4: a half-Rim, half-Dense stop between the Rim and the Dense Field // v4: one stop per zone (was two)
+const STOP_HP=[1,1,1.1,1.25];          // enemy toughness per stop, on top of the zone's own
+const STOP_DEPTH=[0,0.25,0.5,1];          // how deep each stop counts as, for depth-scaled pressure
 const RIM_VEINS=4; // v4: a Rim stop has 4 ordinary veins (it had about 7), so it plays shorter
 const STOP_NESTS={rim:Math.round(10*MS*1.1),dense:Math.round(11*MS*1.1),core:Math.round(10*MS*1.1*0.64)}, STOP_RICH={rim:[20,30],dense:[40,58],core:[75,95]};
-const STOP_GUARDS=[['small','medium','small'],['medium','medium','small']];
+const STOP_GUARDS=[['small','medium','small'],['small','medium','small'],['medium','medium','small']];
 const BARRIER_X=0.64, BARRIER_HALF=150, BREACH_GAP=170, LAND_X=420, BREACH_LAND_MIN=0.45; let EXIT_X=W-200;
 // v4: which way a stop runs. Every stop is laid out as if you entered at the back and left across the far
 // side (a runs toward the exit, b runs across); EXIT_DIR (N/E/S/W) says which real edge the exit is on,
@@ -868,7 +868,12 @@ function pickStopDirs(){
   const opp=EDGE_OPP[ENTRY_EDGE], turns=['N','E','S','W'].filter(d=>d!==ENTRY_EDGE&&d!==opp), r=Math.random();
   EXIT_DIR=r<0.5?opp:turns[r<0.75?0:1];RUN.exit=EXIT_DIR;
 }
-let RUN=null, STOP_BAND=null;
+let RUN=null, STOP_BAND=null, STOP_SPLIT=false;
+// v4: the split stop. Its entry side (up to SPLIT_A of the way along, in the stop's own frame) is Rim
+// ground; the rest, with the crystal wall and the way out, is the Dense Field. Its map is sized between
+// the two, and its Rim veins can ripen as far as Epic.
+const SPLIT_A=0.42, SPLIT_LADDER=['Common','Rare','Epic'];
+function splitRim(x,y){return frameAB(x,y).a<W*SPLIT_A}
 // Epicenter layouts. `pos` places the epicenter for a given roll; `core`/`dense` are the band
 // radii. A centred epicenter gets tighter bands so a Rim ring still fits in the corners.
 const LAYOUTS=[
@@ -929,6 +934,7 @@ function rollLayout(){
   EPI=mapLayout.pos(); CORE_R=mapLayout.core; DENSE_R=mapLayout.dense;
   EPI_REACH=Math.max(...[[0,0],[W,0],[0,H],[W,H]].map(([x,y])=>epiDist(x,y)));
   if(STOP_BAND){EPI={x:-60000,y:H/2};CORE_R=0;DENSE_R=0;EPI_REACH=W} // a stop map has no epicenter rings
+  if(STOP_SPLIT){const e=frameXY(W+60000,H/2);EPI={x:e.x,y:e.y};DENSE_R=60000+W*(1-SPLIT_A)} // ...except the split stop's, far beyond its exit, so the Dense ring ends at the split
 }
 // Core enemies are a visibly tougher tier — black body, red outline — rather than just a palette
 // swap of the same stats.
@@ -1590,7 +1596,7 @@ const TIER_MULT={Common:0.6,Rare:1,Epic:1.5,Legendary:2,Hive:3};
 // v4: the Rim tops out at Rare — its ladder keeps three steps so its veins ripen and collapse on the same clock
 const TIER_LADDER={rim:['Common','Rare','Rare'],dense:['Rare','Epic','Legendary'],core:['Rare','Epic','Legendary'],hive:['Epic','Legendary','Hive']};
 // v2: a hive vein (Mega nest) has its own ladder topping out at the Hive tier; every other vein uses its band's.
-function veinLadder(v){return TIER_LADDER[v.hive?'hive':v.band]}
+function veinLadder(v){if(STOP_SPLIT&&v.band==='rim'&&!v.hive)return SPLIT_LADDER;return TIER_LADDER[v.hive?'hive':v.band]}
 const TIER_ORDER_ALL=['Common','Rare','Epic','Legendary'];
 // v4: each rung of the ladder lasts less than the one below it — RIPEN_DWELL[i] seconds at rung i —
 // and the peak lasts only UNSTABLE_T before collapse, so the best tier is the briefest window.
@@ -2626,7 +2632,7 @@ let mapSeed=newMapSeed();
 function rnd(a,b){return a+rand()*(b-a)}
 function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
 function key(gx,gy){return gx+','+gy}
-function bandAt(x,y){if(STOP_BAND)return STOP_BAND;const d=epiDist(x,y);return d<=CORE_R?'core':d<=DENSE_R?'dense':'rim'}
+function bandAt(x,y){if(STOP_BAND)return STOP_SPLIT&&splitRim(x,y)?'rim':STOP_BAND;const d=epiDist(x,y);return d<=CORE_R?'core':d<=DENSE_R?'dense':'rim'}
 
 function mkTroop(id,kind){kind=kind||'troop';const baseHp=kind==='artillery'?ARTY_HP:kind==='grenadier'?GREN_HP:kind==='mech'?MECH_HP:kind==='rocket'?ROCKET_HP:kind==='brawler'?BRAWL_HP:kind==='marksman'?MARK_HP:70;const hp=Math.round(baseHp*unitHpMult());const r=kind==='artillery'?ARTY_R:kind==='mech'?MECH_R:kind==='rocket'?ROCKET_R:kind==='brawler'?BRAWL_R:kind==='marksman'?MARK_R:TROOP_R;return {id,kind,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp,maxHp:hp,r,dest:null,target:null,state:'idle',cd:0,ang:-Math.PI/2,mechSide:false,tetherOk:true,severed:false,sanity:SANITY_MAX,trail:null,cableHp:0,cableLen:0,cableMaxed:false,following:false,followAng:0,followDist:0}}
 function mkHarv(id){return {id,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp:50,maxHp:50,r:HARV_R,dest:null,node:null,carry:0,state:'idle',autoLoop:true,hv:0,tetherOk:true,severed:false,sanity:SANITY_MAX,trail:null,cableHp:0,cableLen:0,cableMaxed:false,following:false,followAng:0,followDist:0}}
@@ -2693,7 +2699,7 @@ function setMapSize(f){
   [fogC,dimC,fogMaskC].forEach(c=>{c.width=W/FOG_S;c.height=H/FOG_S});
 }
 function reset(landing){
-  setMapSize(STOP_BAND&&MAP_SIZE_BY_BAND[STOP_BAND]||1);
+  setMapSize(STOP_BAND?(STOP_SPLIT?(MAP_SIZE_BY_BAND.rim+MAP_SIZE_BY_BAND.dense)/2:MAP_SIZE_BY_BAND[STOP_BAND]):1);
   // Map layout comes first, entirely from the map seed and independent of where the Bastion lands:
   // epicenter + map type, terrain, veins, clusters, and where every deposit gets rolled. That way
   // picking a different landing spot on the same seed only changes things right around the
@@ -2733,7 +2739,7 @@ function reset(landing){
   S.sites=[...layout.veins.filter(v=>!v.contract),...layout.extra].map(st=>({x:st.x,y:st.y,band:st.band,richness:st.richness,vein:null}));
   {const cs=layout.veins.find(v=>v.contract);S.contractSite={x:cs.x,y:cs.y,band:cs.band,richness:cs.richness,vein:null}}
   if(STOP_BAND){const st=stopInfo(), r=STOP_RICH[STOP_BAND];
-    S.sites.forEach(t=>{t.band=STOP_BAND;t.richness=Math.round(rnd(r[0],r[1]))});
+    S.sites.forEach(t=>{t.band=bandAt(t.x,t.y);const rr=STOP_RICH[t.band];t.richness=Math.round(rnd(rr[0],rr[1]))});
     S.contractSite.band=STOP_BAND;
     if(st.final){const cp=frameXY(rnd(W*0.72,W-450),rnd(H*0.25,H*0.75));S.contractSite.x=cp.x;S.contractSite.y=cp.y;S.sites=S.sites.filter(t=>dist(t,S.contractSite)>900)}
     else{const bs=S.breachSite=pickBreachSite(), bx=W*BARRIER_X, f=MAP_SIZE_BY_BAND[STOP_BAND]||1, want=STOP_BAND==='rim'?RIM_VEINS:S.sites.length;
@@ -2743,6 +2749,8 @@ function reset(landing){
       // the same number, spaced out as well as the room allows
       // (the top-up uses tighter clearances: a small map leaves only a thin strip under the full ones)
       const ok2=(t,gap)=>dist(t,bs)>800*f&&Math.abs(frameAB(t.x,t.y).a-bx)>ZONE_R+BARRIER_HALF+60&&!S.sites.some(o=>o!==t&&dist(o,t)<gap);
+      if(STOP_SPLIT){const rr=STOP_RICH.rim;for(let t=0;t<1500&&S.sites.filter(s=>s.band==='rim').length<3;t++){const m=ZONE_R+60,q=frameXY(rnd(m,W*SPLIT_A-ZONE_R),rnd(m,H-m));
+        if(ok2(q,VEIN_SAME_BAND_GAP*f*(t<400?0.75:0.5)))S.sites.push({x:q.x,y:q.y,band:'rim',richness:Math.round(rnd(rr[0],rr[1])),vein:null})}}
       if(STOP_BAND==='rim')for(let t=0;t<1500&&S.sites.length<want;t++){const m=ZONE_R+60,q={x:rnd(m,W-m),y:rnd(m,H-m)};
         if(ok2(q,VEIN_SAME_BAND_GAP*f*(t<400?0.75:t<900?0.55:0.4)))S.sites.push({x:q.x,y:q.y,band:STOP_BAND,richness:Math.round(rnd(r[0],r[1])),vein:null})}}
   }
@@ -2750,7 +2758,7 @@ function reset(landing){
   // Which sites start with a live vein (and how far along each is) is part of the map, decided
   // here before the spawn is known — so choosing the spawn never reshuffles them. The veins themselves are created once the terrain is final (below).
   const startPicks=[];
-  (STOP_BAND?[STOP_BAND]:['rim','dense','core']).forEach(band=>{
+  (STOP_BAND?(STOP_SPLIT?['rim','dense']:[STOP_BAND]):['rim','dense','core']).forEach(band=>{
     const pool=S.sites.filter(st=>st.band===band);
     for(let k=0;k<VEINS_PER_BAND+(STOP_BAND?1:0)&&pool.length;k++){
       const ok=pool.filter(st=>!startPicks.some(p=>dist(p.site,st)<700));
@@ -2809,12 +2817,12 @@ function reset(landing){
   makeStrand();
   // the opening vein: if no starting vein is close to the landing, a fresh one emerges at the
   // nearest Rim site at least LANDING_SITE_CLEAR away
-  if(S.sites.some(st=>st.band===(STOP_BAND||'rim'))){const rim=S.sites.filter(st=>st.band===(STOP_BAND||'rim')), clear=rim.filter(st=>dist(st,S.base)>=LANDING_SITE_CLEAR);
+  {const LB=STOP_SPLIT?'rim':STOP_BAND||'rim';if(S.sites.some(st=>st.band===LB)){const rim=S.sites.filter(st=>st.band===LB), clear=rim.filter(st=>dist(st,S.base)>=LANDING_SITE_CLEAR);
    const open=(clear.length?clear:rim).reduce((a,b)=>dist(b,S.base)<dist(a,S.base)?b:a);
-   if(!open.vein&&(tutorialMap||!S.veins.some(v=>!v.contract&&dist(v,S.base)<1100)))emergeVein(open,{ripeT:0,opening:true})}
+   if(!open.vein&&(tutorialMap||!S.veins.some(v=>!v.contract&&dist(v,S.base)<1100)))emergeVein(open,{ripeT:0,opening:true})}}
   for(let i=0;i<STRAY_COUNT;i++){const st={x:0,y:0,live:true,t:0};S.strays.push(st);placeStray(st)}
   // v2: every roaming enemy comes from a nest (see NEST)
-  if(!tutorialMap)(STOP_BAND?[STOP_BAND]:Object.keys(NEST_START)).forEach(band=>{const st=NEST_START[band], nn=STOP_BAND?STOP_NESTS[band]:st.n;
+  if(!tutorialMap)(STOP_BAND?(STOP_SPLIT?['rim','dense']:[STOP_BAND]):Object.keys(NEST_START)).forEach(band=>{const st=NEST_START[band], nn=STOP_BAND?Math.round(STOP_NESTS[band]*(STOP_SPLIT?0.6:1)):st.n;
     for(let i=0;i<nn;i++){const r=rand();const size=r<st.mix[0]?'small':r<st.mix[0]+st.mix[1]?'medium':'large';placeNest(size,band)}});
 
   // v4: nests dug in around the breach, between it and where you land
@@ -2851,6 +2859,7 @@ function reset(landing){
 // charges, the Bastion's damage, every unit and drone.
 function stopInfo(){return RUN?RUN_STOPS[RUN.stop]:null}
 function stopName(band){return band==='rim'?'the Rim':band==='dense'?'the Dense Field':'the Core'}
+function stopTitle(st){return st&&st.split?'the edge of the Dense Field: Rim ground giving way to the Dense Field':stopName(st?st.band:STOP_BAND)}
 function stopHpMult(){return RUN?STOP_HP[RUN.stop]:1}
 // the breach vein's site: on the near side of the barrier, anywhere along most of its length
 // (v4: it used to sit in the middle third, right in front of the landing)
@@ -2925,7 +2934,7 @@ function applyCarry(c){
 }
 function pressureNote(){return RUN&&RUN.pressure&&RUN.pressure.ids.length?` Pressure on: ${RUN.pressure.ids.map(id=>PRESSURE.find(p=>p.id===id).name).join(', ')} (+${Math.round(RUN.pressure.bonus*100)}% rewards).`:''}
 function buildStop(carry){
-  STOP_BAND=RUN_STOPS[RUN.stop].band;
+  STOP_BAND=RUN_STOPS[RUN.stop].band;STOP_SPLIT=!!RUN_STOPS[RUN.stop].split;
   pickStopDirs();
   mapSeed=newMapSeed();
   reset();
@@ -2935,7 +2944,7 @@ function buildStop(carry){
   const st=stopInfo();
   if(RUN.stop===0&&pressureNote())setTimeout(()=>msg(pressureNote().trim()),50);
   msg(st.final?`Stop ${RUN.stop+1} of ${RUN_STOPS.length} — the heart of the Core. The contract vein is here and already stirring: take bearings from stray energy to triangulate it, then drain it.`:
-    `Stop ${RUN.stop+1} of ${RUN_STOPS.length} — ${stopName(STOP_BAND)}. You've landed on the ${EDGE_WORD[ENTRY_EDGE]} edge. A ${S.barrier&&S.barrier.type===RIFT?'band of rift':'wall of crystal'} cuts the way ${EDGE_WORD[EXIT_DIR]}: find the breach vein in front of it and drain it to break through.`);
+    `Stop ${RUN.stop+1} of ${RUN_STOPS.length} — ${stopTitle(st)}. You've landed on the ${EDGE_WORD[ENTRY_EDGE]} edge. A ${S.barrier&&S.barrier.type===RIFT?'band of rift':'wall of crystal'} cuts the way ${EDGE_WORD[EXIT_DIR]}: find the breach vein in front of it and drain it to break through.`);
 }
 // walked off the east edge with the way open
 function finishStop(){
@@ -2943,7 +2952,7 @@ function finishStop(){
   RUN.carry=captureCarry();S.paused=true;
   const next=RUN_STOPS[RUN.stop+1];
   document.getElementById('stopTitle')._tc=`Stop ${RUN.stop+1} cleared`;
-  document.getElementById('stopText')._tc=`Next: stop ${RUN.stop+2} of ${RUN_STOPS.length} — ${stopName(next.band)}${next.final?', where the contract vein waits':''}. You'll arrive on its ${EDGE_WORD[EDGE_OPP[EXIT_DIR]]} edge. Everything you have comes with you; enemies there are tougher.`;
+  document.getElementById('stopText')._tc=`Next: stop ${RUN.stop+2} of ${RUN_STOPS.length} — ${stopTitle(next)}${next.final?', where the contract vein waits':''}. You'll arrive on its ${EDGE_WORD[EDGE_OPP[EXIT_DIR]]} edge. Everything you have comes with you; enemies there are tougher.`;
   document.getElementById('stopOverlay')._hd=false;
 }
 function advanceStop(){
@@ -3028,7 +3037,7 @@ const mtof=m=>440*Math.pow(2,(m-69)/12);
 // ---- ambience: a looping wind bed and drone per zone, and scattered distant events ----
 const AMB_ZONE={rim:{wind:[420,0.5],drone:[38,45],wave:'sine',lp:260},dense:{wind:[700,0.35],drone:[39,46],wave:'triangle',lp:520,shimmer:true},core:{wind:[260,0.45],drone:[33,40],wave:'sawtooth',lp:180,rumble:true}};
 let AMB=null;
-function ambZone(){return S&&S.base?(STOP_BAND||bandAt(S.base.x,S.base.y)):'rim'}
+function ambZone(){return S&&S.base?bandAt(S.base.x,S.base.y):'rim'}
 function startAmbience(zone){const b=audioBus();if(!b)return;const ac=b.ac,Z=AMB_ZONE[zone]||AMB_ZONE.rim;stopAmbience();
   const nodes=[];const t=ac.currentTime;
   // wind: looping noise through a band-pass whose centre and level drift slowly (two LFOs)
@@ -3288,7 +3297,7 @@ document.getElementById('recordingToggleBtn').onclick=()=>setRecordingConsent(!m
 // Opens the main menu again after a run ends — Play then rolls a fresh map.
 function openMainMenu(){
   endTutorialState();
-  RUN=null;STOP_BAND=null;document.getElementById('stopOverlay')._hd=true;
+  RUN=null;STOP_BAND=null;STOP_SPLIT=false;document.getElementById('stopOverlay')._hd=true;
   menuOpen=true;
   document.getElementById('mainMenuOverlay')._hd=false;
   document.getElementById('unlocksOverlay')._hd=true;
@@ -3471,7 +3480,7 @@ function tutDeepRaid(){
 }
 function tutCheckDemo(){const d=tutorial.demo;if(d&&d.collapsed&&!(S.activeVein===d))tutSpawnDemo(true)}
 function startTutorial(){
-  RUN=null;STOP_BAND=null;
+  RUN=null;STOP_BAND=null;STOP_SPLIT=false;
   tutorialMap=true; mapSeed=TUTORIAL_SEED;
   reset(); // first pass just to learn where this seed puts its Rim vein sites
   // Land a short walk from the Rim site nearest the default spot: on open ground, on the outer
@@ -4154,7 +4163,7 @@ function updateNests(dt){
   // new Small nests sprout in the fog
   S.nestSproutT-=dt;
   if(S.nestSproutT<=0){S.nestSproutT=NEST_SPROUT_T*rnd(0.8,1.2);
-    if(liveNests().length<NEST_CAP){const r=rand();placeNest('small',STOP_BAND||(r<0.4?'rim':r<0.75?'dense':'core'),true)}}
+    if(liveNests().length<NEST_CAP){const r=rand();placeNest('small',STOP_SPLIT?(r<0.5?'rim':'dense'):STOP_BAND||(r<0.4?'rim':r<0.75?'dense':'core'),true)}}
 }
 // A destroyed nest drops a Dat deposit to collect; Medium ones also kick a charge back into every
 // fabricator, Large ones give up salvage too (free units of a locked kind, or spare drones).
@@ -4341,7 +4350,7 @@ function placePOI(band,reachable){
 function placePOIs(){
   S.wrecks=[];S.beacons=[];
   if(tutorialMap)return;
-  Object.entries(STOP_BAND?{[STOP_BAND]:WRECK_STOP_N}:WRECK_N).forEach(([band,cnt])=>{for(let i=0;i<cnt;i++){const p=placePOI(band,true);if(p)S.wrecks.push({x:p.x,y:p.y,band,r:WRECK_R,prog:0,done:false,ambushed:false,seen:false,ang:rnd(0,Math.PI*2),blink:rnd(0,6),kind:WRECK_KINDS[Math.floor(rand()*WRECK_KINDS.length)],vessel:WRECK_VESSELS[Math.floor(rand()*WRECK_VESSELS.length)],seed:Math.floor(rand()*1e6)})}});
+  Object.entries(STOP_BAND?{[STOP_BAND]:WRECK_STOP_N}:WRECK_N).forEach(([band,cnt])=>{for(let i=0;i<cnt;i++){const p=placePOI(band,true);if(p)S.wrecks.push({x:p.x,y:p.y,band:bandAt(p.x,p.y),r:WRECK_R,prog:0,done:false,ambushed:false,seen:false,ang:rnd(0,Math.PI*2),blink:rnd(0,6),kind:WRECK_KINDS[Math.floor(rand()*WRECK_KINDS.length)],vessel:WRECK_VESSELS[Math.floor(rand()*WRECK_VESSELS.length)],seed:Math.floor(rand()*1e6)})}});
   Object.keys(BEACON_N).forEach(band=>{for(let i=0;i<BEACON_N[band];i++){const p=placePOI(band,false);if(p)S.beacons.push({x:p.x,y:p.y,band,prog:0,on:false,seen:false,sweep:-1})}});
 }
 function rollWreckLoot(band){
@@ -4930,11 +4939,12 @@ function denseMaze(){
     const n=(v(0,0)*(1-tx)+v(1,0)*tx)*(1-ty)+(v(0,1)*(1-tx)+v(1,1)*tx)*ty;
     const x=gx*TCELL+TCELL/2,y=gy*TCELL+TCELL/2;
     let c=1+6*n*n+(gx<2||gy<2||gx>=TGX-2||gy>=TGY-2?20:0);
+    if(STOP_SPLIT&&splitRim(x,y))c=terrain[id]===2?40:terrain[id]===RIFT?8:0.6; // the Rim half stays as it is: corridors keep to its open ground
     for(const o of avoid){const d=Math.hypot(o.x-x,o.y-y);if(d<MAZE_AVOID)c+=260*(1-d/MAZE_AVOID)+80}  // v4: corridors steer well clear of nests, wrecks and beacons
     cost[id]=c;
   }
   // everything but the crystal wall becomes rift; the rooms and corridors are opened back up
-  for(let id=0;id<N;id++)if(!B.mask[id])terrain[id]=RIFT;
+  for(let id=0;id<N;id++)if(!B.mask[id]&&!(STOP_SPLIT&&splitRim((id%TGX)*TCELL+TCELL/2,Math.floor(id/TGX)*TCELL+TCELL/2)))terrain[id]=RIFT;
   const net=new Uint8Array(N);
   const room=(p,r)=>{clearDisk(p.x,p.y,r);const cx=Math.floor(p.x/TCELL),cy=Math.floor(p.y/TCELL),cr=Math.ceil(r/TCELL);
     for(let gy=cy-cr;gy<=cy+cr;gy++)for(let gx=cx-cr;gx<=cx+cr;gx++)if(gx>=0&&gy>=0&&gx<TGX&&gy<TGY&&Math.hypot(gx-cx,gy-cy)*TCELL<=r){net[gy*TGX+gx]=1;cost[gy*TGX+gx]=Math.min(cost[gy*TGX+gx],0.3)}};
@@ -5333,7 +5343,8 @@ function buildTerrainCanvas(){
   }
   // v4: a stop is one zone — tint the whole map by it instead of in rings
   if(STOP_BAND){const c={rim:null,dense:'rgba(178,100,255,0.24)',core:'rgba(255,90,40,0.36)'}[STOP_BAND];
-    if(c){x2.globalCompositeOperation='overlay';x2.fillStyle=c;x2.fillRect(0,0,W,H);x2.globalCompositeOperation='source-over'}
+    if(c){x2.save();if(STOP_SPLIT){const P=[[W*SPLIT_A,0],[W,0],[W,H],[W*SPLIT_A,H]].map(([a,b])=>frameXY(a,b));x2.beginPath();P.forEach((p,i)=>i?x2.lineTo(p.x,p.y):x2.moveTo(p.x,p.y));x2.closePath();x2.clip()}
+      x2.globalCompositeOperation='overlay';x2.fillStyle=c;x2.fillRect(0,0,W,H);x2.restore()}
     return cv2}
   // depth-band tint radiating out from the Black Flame epicenter in rings — the whole reason this
   // is "a zone"
@@ -8939,6 +8950,7 @@ function shuffled(arr){const a=[...arr];for(let i=a.length-1;i>0;i--){const j=Ma
 // Hive's Legendary cards are as rare. The Core is unchanged.
 const REWARD_RIM_EPIC=0.45, REWARD_DENSE_LEGENDARY=0.15;
 function rewardTierFor(tier,band){
+  if(band==='rim'&&STOP_SPLIT&&tier==='Epic')return 'Epic'; // ...except the split stop's Rim half, whose veins can ripen to Epic
   if(band==='rim'&&(tier==='Epic'||tier==='Legendary'||tier==='Hive'))return 'Rare'; // v4: nothing above Rare comes out of the Rim
   if(band==='dense'&&tier==='Legendary'&&Math.random()>REWARD_DENSE_LEGENDARY)return 'Epic';
   return tier;
@@ -9356,7 +9368,7 @@ function startTerrainPaint(loading){
   if(loading&&!menuOpen){const R=Math.max(innerWidth,innerHeight)*0.75+TP_TS,need=new Set();
     for(let ty=0;ty<Math.ceil(H/TP_TS);ty++)for(let tx=0;tx<TPAINT.NTX;tx++){const cx=Math.max(tx*TP_TS,Math.min(S.base.x,(tx+1)*TP_TS)),cy=Math.max(ty*TP_TS,Math.min(S.base.y,(ty+1)*TP_TS));if(Math.hypot(cx-S.base.x,cy-S.base.y)<R)need.add(ty*TPAINT.NTX+tx)}
     TPAINT.need=need;TPAINT.needN=need.size;TPAINT.loading=true;TPAINT.loadT0=performance.now();showLoading(true)}
-  terrainWorker.postMessage({type:'job',id,W,H,TC:TCELL,GX:TGX,GY:TGY,kind:terrainKinds(),seed:mapSeed,band:STOP_BAND?{rim:0,dense:1,core:2}[STOP_BAND]:null,
+  terrainWorker.postMessage({type:'job',id,W,H,TC:TCELL,GX:TGX,GY:TGY,kind:terrainKinds(),seed:mapSeed,band:STOP_BAND&&!STOP_SPLIT?{rim:0,dense:1,core:2}[STOP_BAND]:null,
     epi:{x:EPI.x,y:EPI.y},coreR:CORE_R,denseR:DENSE_R,net:S.crackNet,dep:S.crackDepth,cid:S.crackId,sites,shards});
 }
 function showLoading(on){TPAINT.loading=on;const el=document.getElementById('loadOverlay');el._hd=!on;if(on)document.getElementById('loadFill').style.width='0%'}
@@ -10130,7 +10142,7 @@ function hud(){
     const ready=canLockdown();
     const cv=S.veins.find(v=>v.contract);
     if(RUN&&!stopInfo().final){
-      $('hObjK')._tc=`Stop ${RUN.stop+1}/${RUN_STOPS.length} · ${STOP_BAND==='rim'?'Rim':STOP_BAND==='dense'?'Dense':'Core'}`;
+      $('hObjK')._tc=`Stop ${RUN.stop+1}/${RUN_STOPS.length} · ${STOP_SPLIT?'Rim / Dense':STOP_BAND==='rim'?'Rim':STOP_BAND==='dense'?'Dense':'Core'}`;
       $('hObj')._tc=ready?'ready to drill — press F':S.barrier&&S.barrier.open?`way open — head ${EDGE_WORD[EXIT_DIR]}`:S.breachVein&&S.breachVein.seen?'drain the breach vein':'find the breach vein';
       $('hObjBar')._sw=(100*RUN.stop/(RUN_STOPS.length-1))+'%';
     }else{
