@@ -5055,6 +5055,12 @@ function ensureConnectivity(points){
   }
 }
 // Same flood-fill as bfsReachable, but Bastion-aware: rift tiles block it too, same as rock.
+// v4: where a Bastion move order actually goes: the spot itself if it can walk there, else the nearest
+// ground it can reach (instead of silently standing still)
+function bastionDest(w){const B=S.base;if(lineClear(B.x,B.y,w.x,w.y,true)||astar(B.x,B.y,w.x,w.y,true))return {x:w.x,y:w.y,ok:true};
+  const seen=bfsReachableBastion(B.x,B.y);let best=null,bd=Infinity;
+  for(let id=0;id<seen.length;id++){if(!seen[id])continue;const gx=id%TGX,gy=(id-gx)/TGX;if(tcost(gx,gy,true)===Infinity)continue;const x=gx*TCELL+TCELL/2,y=gy*TCELL+TCELL/2,d=Math.hypot(x-w.x,y-w.y);if(d<bd){bd=d;best={x,y}}}
+  return best?{x:best.x,y:best.y,ok:false}:null}
 function bfsReachableBastion(sx,sy){
   const seen=new Uint8Array(TGX*TGY);
   const scx=Math.floor(sx/TCELL),scy=Math.floor(sy/TCELL);
@@ -6878,7 +6884,8 @@ function rightClick(w){
   const rawBu=[...S.sel.bu].map(id=>S.builders.find(b=>b.id===id)).filter(Boolean);
   if(S.sel.base&&rawT.length===0&&rawH.length===0&&rawBu.length===0){
     if(S.base.locked){note('The Bastion is locked while drilling');return}
-    S.base.dest={x:w.x,y:w.y};return;
+    const d=bastionDest(w);if(!d){note('The Bastion has no way to walk there');return}
+    S.base.dest={x:d.x,y:d.y};if(!d.ok)note('The Bastion can’t walk out onto the rift — heading as close as it can. Look for the corridor round.');return;
   }
   if(rawT.length===0&&rawH.length===0&&rawBu.length===0)return;
   // a severed unit still takes orders — losing power doesn't lose the player control of it,
