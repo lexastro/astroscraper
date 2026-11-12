@@ -864,7 +864,7 @@ let EPI_REACH=5000;
 // v4: a run of stops (see "the run" section). STOP_BAND, while set, makes every point of the map
 // read as that one zone; RUN holds which stop the run is on and what carries over.
 const RUN_STOPS=[{band:'rim'},{band:'dense',split:true},{band:'dense'},{band:'core',final:true}]; // v4: a half-Rim, half-Dense stop between the Rim and the Dense Field // v4: one stop per zone (was two)
-const STOP_HP=[1,1,1.1,1.25];          // enemy toughness per stop, on top of the zone's own
+const STOP_HP=[1,1,1.1,1.15];          // enemy toughness per stop, on top of the zone's own
 const STOP_DEPTH=[0,0.25,0.5,1];          // how deep each stop counts as, for depth-scaled pressure
 const RIM_VEINS=4; // v4: a Rim stop has 4 ordinary veins (it had about 7), so it plays shorter
 const STOP_NESTS={rim:Math.round(10*MS*1.1),dense:Math.round(11*MS*1.1),core:Math.round(10*MS*1.1*0.64)}, STOP_RICH={rim:[20,30],dense:[40,58],core:[75,95]};
@@ -955,7 +955,7 @@ function rollLayout(){
 }
 // Core enemies are a visibly tougher tier — black body, red outline — rather than just a palette
 // swap of the same stats.
-const CORE_ENEMY_HP_MULT=1.8;
+const CORE_ENEMY_HP_MULT=1.4; // v4: eased from 1.8
 // Brute: a rare, lumbering Core-only guardian — tanky and very slow, but when it finally goes
 // down it ruptures into a big swarm of small Core fighters rather than just dying quietly.
 const BRUTE_R=22, BRUTE_HP=420, BRUTE_SPEED=20, BRUTE_DMG=20, BRUTE_CHANCE=0.05, BRUTE_BURST_MIN=18, BRUTE_BURST_MAX=22;
@@ -1459,7 +1459,7 @@ const VEIN_DAT_PER_RICH=3;
 // no progress, no Dat burn, and no wave/saboteur clocks running, same as being paused. Throttle
 // is still locked in up front; it just doesn't start spending/spawning until prep finishes.
 const PREP_TIME=60;
-const BASE_SPAWN_INTERVAL={rim:21,dense:21,core:16}; // v4: Core eased from 10 s — with its bigger waves it was ~10x the Dense Field's pressure // v4: Rim/Dense waves come much sooner (stretched to leave room for the longer wave warning)
+const BASE_SPAWN_INTERVAL={rim:21,dense:21,core:20}; // v4: Core eased from 10 s — with its bigger waves it was ~10x the Dense Field's pressure // v4: Rim/Dense waves come much sooner (stretched to leave room for the longer wave warning)
 const AMBIENT_INTERVAL={rim:45,dense:22,core:7};
 // Off-zone mining pressure: parking harvesters on an open Dat Crystal cluster instead of locking
 // the Bastion down on a vein skips drilling's wave/saboteur spawns entirely — nothing stops the
@@ -1476,7 +1476,7 @@ const WAVE_FRONT_HALF=260; // half-width of the line a wave spawns along, across
 // WAVE_SPAWN_DIST, so it arrives as drilling starts.
 const FIRST_WAVE_LEAD=9;
 const STAB_HUNTER_FRAC=0.35; // share of each drilling wave sent after the Stabilizers
-const WAVE_SPAWN_DIST=820,WAVE_BASE_N={rim:11,dense:13,core:20}; // ~1.4x, in step with the longer gaps between waves
+const WAVE_SPAWN_DIST=820,WAVE_BASE_N={rim:11,dense:13,core:16}; // ~1.4x, in step with the longer gaps between waves
 // v4 horde: every drilling wave brings a flood of swarmlings with it — HORDE_MULT times the wave's
 // own size, each one trivial on its own (a shot or two) but dangerous in a mass. They move as a
 // crowd on one shared flow field toward the Bastion instead of each planning its own path, so they
@@ -1508,7 +1508,7 @@ const TIER_THREAT_BAND={rim:0.85,dense:0.75,core:0.5};
 // dies to a stray hit; a whole pack left unchecked still shreds a cable fast. They spawn out past
 // the Relay itself, on the far side from the vein, so the swarm is visible closing in before it
 // arrives.
-const SABOTEUR_INTERVAL={rim:28,dense:22,core:16}, SABOTEUR_SPAWN_DIST=500, SABOTEUR_BASE_N={rim:5,dense:8,core:14};
+const SABOTEUR_INTERVAL={rim:28,dense:22,core:21}, SABOTEUR_SPAWN_DIST=500, SABOTEUR_BASE_N={rim:5,dense:8,core:10};
 // The drill burns Dat Crystal per second to run — the rate scales with throttle (so the TOTAL
 // cost to finish a vein is throttle-invariant, but a faster throttle demands a faster supply of
 // Dat or the drill literally stalls). CONDENSED_RATE converts how much faster than baseline
@@ -2353,7 +2353,7 @@ function emergeVein(site,o){
   {const src={x:v.mine.x,y:v.mine.y};indexPulse(src,o.contract?VEIN_GLOW_R:Math.max(v.reach,VEIN_GLOW_R));v.pd=src.pd;v.pi=src.pi}
   // a guard cluster camps every vein, sized by how deep it sits
   if(o.guards!==false){
-    const n=v.band==='core'?rnd(20,28):v.band==='dense'?rnd(10,15):rnd(6,10);
+    const n=v.band==='core'?rnd(14,20):v.band==='dense'?rnd(10,15):rnd(6,10);
     for(let i=0;i<n;i++){const a=rnd(0,Math.PI*2),rr=rnd(0,v.r*0.85);
       const p=nearestPlain(v.x+Math.cos(a)*rr,v.y+Math.sin(a)*rr);spawnEnemy(p.x,p.y,'roam')}
   }
@@ -3977,7 +3977,7 @@ const SHARD_WAVE=[['stalker',0.14],['static',0.14],['husk',0.16],['lantern',0.07
 const STALK_REACH=30,STALK_LUNGE=0.5,STALK_CD=1.5,STATIC_HOP=46,STATIC_CD=0.6,STATIC_HUNT_R=520;
 const HUSKCORE_HP=14,HUSKCORE_SPEED=150,HUSKCORE_LIFE=9;
 const LANT_RANGE=300,LANT_CHARGE=1.4,LANT_LOCK=0.4,LANT_CD=2.6,LANT_LEN=440,LANT_WALL_DMG=25;
-const COL_SLAM=0.8,COL_CD=2.8,COL_SLAM_R=70,COL_WALL_DMG=45,COL_FIRST=45,COL_EVERY=80,COL_PER_VEIN=2,COL_DAT=40;
+const COL_SLAM=0.8,COL_CD=2.8,COL_SLAM_R=70,COL_WALL_DMG=45,COL_FIRST=70,COL_EVERY=80,COL_PER_VEIN=2,COL_DAT=40;
 const SMEAR_LIFE=12,SMEAR_R=17,SMEAR_SLOW=0.55,SMEAR_STEP=12;
 function rollShard(kind){let r=rand();for(const [k,p] of (kind==='roam'?SHARD_ROAM:SHARD_WAVE)){if(r<p)return k;r-=p}return null}
 function spawnShard(x,y,k,kind){const D=SHARD[k],hp=Math.round(D.hp*(RUN?stopHpMult():1));
@@ -4131,7 +4131,7 @@ function drawLancer(e){glUse();
 // and it bounds away to a new spot instead. You have to go out and kill it.
 const QUAKER_HP=600, QUAKER_R=22, QUAKER_SPEED=34, QUAKER_STANDOFF=[520,640], QUAKER_JUMP_EVERY=[7,11], QUAKER_AIR_T=1.3;
 const QUAKER_KICK=0.6, QUAKER_REACH=1500, QUAKER_STAB_DMG=20, QUAKER_SPLASH_R=110, QUAKER_SPLASH_DMG=40, QUAKER_SHY_R=190, QUAKER_DAT=25;
-const QUAKER_INTERVAL={rim:55,dense:40,core:30}, QUAKER_MAX={rim:1,dense:2,core:3};
+const QUAKER_INTERVAL={rim:55,dense:40,core:38}, QUAKER_MAX={rim:1,dense:2,core:2};
 function spawnQuaker(v){
   const a=rnd(0,Math.PI*2), d=WAVE_SPAWN_DIST*1.1;
   const p=nearestPlain(Math.max(60,Math.min(W-60,v.x+Math.cos(a)*d)),Math.max(60,Math.min(H-60,v.y+Math.sin(a)*d)));
@@ -4199,7 +4199,7 @@ const NEST={
   mound: {name:'Brood mound',hp:550, r:26,patrolT:40,patrolN:[3,4],brood:7, guards:4,defend:3,feed:1.1,dat:30},
   great: {name:'Great brood mound',hp:900,r:32,patrolT:35,patrolN:[4,5],brood:9,guards:5,defend:4,feed:1.4,dat:45},
 };
-const NEST_BAND_MULT={rim:1,dense:1.5,core:2}; // brood/patrol/guard counts scale with depth
+const NEST_BAND_MULT={rim:1,dense:1.5,core:1.7}; // brood/patrol/guard counts scale with depth
 const NEST_START={rim:{n:6,mix:[0.7,0.3]},dense:{n:6,mix:[0.3,0.5]},core:{n:4,mix:[0,0.4]}}; // mix: small, medium share (rest large)
 const NEST_FEED_R=1600, NEST_STRAGGLERS=0.75, NEST_GAP=550*MS, NEST_BASE_CLEAR=900*MS;
 const NEST_SPROUT_T=140, NEST_CAP=22, NEST_DEFEND_CD=7, NEST_GROW_QUIET=15, NEST_PATROL_REACH=[450,900];
