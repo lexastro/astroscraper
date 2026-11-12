@@ -3065,6 +3065,7 @@ function buildStop(carry){
   const spawn=pickSpawn();
   reset(spawn);
   applyCarry(carry);
+  beginLanding();
   const st=stopInfo();
   if(RUN.stop===0&&pressureNote())setTimeout(()=>msg(pressureNote().trim()),50);
   msg(st.final?`Stop ${RUN.stop+1} of ${RUN_STOPS.length} — the heart of the Core. The contract vein is here and already stirring: take bearings from stray energy to triangulate it, then drain it.`:
@@ -3690,6 +3691,7 @@ function startTutorial(){
   menuOpen=false;
   ['mainMenuOverlay','unlocksOverlay','pressureOverlay','settingsOverlay'].forEach(id=>document.getElementById(id)._hd=true);
   reset(land||d0);
+  beginLanding();
   const tv=S.veins.find(x=>!x.contract&&x.band==='rim'&&Math.abs(x.x-v.x)<1&&Math.abs(x.y-v.y)<1)
     ||S.veins.filter(x=>!x.contract&&x.band==='rim').reduce((a,b)=>dist(b,S.base)<dist(a,S.base)?b:a);
   tutorial={step:0,vein:tv,demo:null,deep:null,cam0:{x:cam.x,y:cam.y,z:cam.z}};
@@ -7126,6 +7128,67 @@ const RIG_R=11.7,RIG_H=215,RIG_BAY=34,RIG_TOP=108,RIG_HOV=9;
 // v4: legs fold up at RIG_LEG_FOLD and come down at RIG_LEG_UNFOLD (per second, 0..1), and stay up
 // RIG_LEG_HOLD seconds after the Rig stops moving
 const RIG_LEG_FOLD=1.8, RIG_LEG_UNFOLD=1.3, RIG_LEG_HOLD=3;
+// v4: the landing. Once the map has loaded, the Rig comes down from LAND_ALT like a reusable booster:
+// a fast fall, the landing burn lighting at LAND_BURN of the way down, legs swinging out in the last
+// stretch (below LAND_LEGS_ALT), touchdown at LAND_T. The game holds still until it's down; then
+// the crew file out of the bay one every LAND_EMERGE_GAP and go to their posts.
+const LAND_ALT=1500, LAND_T=4.6, LAND_BURN=0.5, LAND_LEGS_ALT=260, LAND_EMERGE_GAP=0.16;
+function beginLanding(){const B=S.base,crew=[...S.troops,...S.harvesters,...S.builders];
+  crew.forEach(u=>{u.hidden=true;u.x=B.x;u.y=B.y});
+  B.legDep=0;B._dep=0;B._legDir=0;B._alt=LAND_ALT;B.dest=null;
+  S.landing={t:0,touch:false,q:crew,et:0,lit:false,snd:null}}
+// falls at a steady clip, then the burn brakes it to a stop right at the ground (a 'hoverslam'): the
+// speeds match where the two meet, so it never jerks
+const LAND_A1=LAND_ALT*(1-LAND_BURN)/(1+LAND_BURN);
+const landAlt=u=>u<LAND_BURN?LAND_ALT-(LAND_ALT-LAND_A1)*u/LAND_BURN:LAND_A1*Math.pow(1-(u-LAND_BURN)/(1-LAND_BURN),2);
+function landingTick(dt){const L=S.landing,B=S.base;if(!L.snd)L.snd=landSound();
+  L.t+=dt;const u=Math.min(1,L.t/LAND_T);B._alt=landAlt(u);
+  if(!L.lit&&u>=LAND_BURN){L.lit=true;landBurnIgnite()}
+  if(B._alt<LAND_LEGS_ALT){const was=B.legDep;B.legDep=Math.min(1,B.legDep+dt*1.6);if(was===0)legSound(1)}
+  landSoundTick(L.snd,u,L.lit);
+  if(u>=1){L.touch=true;B._alt=0;B.legDep=1;B.legHoldT=0;landSoundEnd(L.snd);L.snd=null;
+    shakeScreen(8,0.6);burst(B.x,B.y,'#b9a48a',46,230,1.1);burst(B.x,B.y,'#8fe3ff',14,120,0.5)}}
+// after touchdown (the game running again): the crew walk out, then the landing is over
+function emergeTick(dt){const L=S.landing,B=S.base;L.et-=dt;
+  while(L.et<=0&&L.q.length){const u=L.q.shift();if(u.hp>0){u.hidden=false;u.x=B.x+rnd(-4,4);u.y=B.y+rnd(2,8)}L.et+=LAND_EMERGE_GAP;tone(520+rnd(-40,40),0.05,'square',0.02)}
+  if(!L.q.length)S.landing=null}
+// ---- Rig sounds (v4) ----
+let RIG_NOISE=null;
+function rigNoise(ac){if(!RIG_NOISE||RIG_NOISE.sampleRate!==ac.sampleRate){RIG_NOISE=ac.createBuffer(1,ac.sampleRate*2,ac.sampleRate);const d=RIG_NOISE.getChannelData(0);let b=0;for(let i=0;i<d.length;i++){const w=Math.random()*2-1;b=0.97*b+0.03*w;d[i]=w*0.6+b*3}}return RIG_NOISE}
+// the descent: a thin whistle of air at first, then the landing burn's roar (low noise + a growl)
+function landSound(){const ac=ensureAudio();if(!ac)return null;const out=sfxOut(ac),t=ac.currentTime;
+  const src=ac.createBufferSource();src.buffer=rigNoise(ac);src.loop=true;
+  const air=ac.createBiquadFilter();air.type='bandpass';air.frequency.value=1800;air.Q.value=1.4;const ag=ac.createGain();ag.gain.value=0.0001;
+  const roar=ac.createBiquadFilter();roar.type='lowpass';roar.frequency.value=320;roar.Q.value=0.8;const rg=ac.createGain();rg.gain.value=0.0001;
+  const osc=ac.createOscillator();osc.type='sawtooth';osc.frequency.value=48;const of=ac.createBiquadFilter();of.type='lowpass';of.frequency.value=140;const og=ac.createGain();og.gain.value=0.0001;
+  src.connect(air);air.connect(ag);ag.connect(out);src.connect(roar);roar.connect(rg);rg.connect(out);osc.connect(of);of.connect(og);og.connect(out);
+  src.start(t);osc.start(t);return {ac,src,osc,ag,rg,og,roar,air}}
+function landSoundTick(n,u,lit){if(!n)return;const t=n.ac.currentTime,near=Math.pow(u,1.5);
+  n.ag.gain.setTargetAtTime(lit?0.004:0.012+0.05*near,t,0.15);n.air.frequency.setTargetAtTime(1400+1600*near,t,0.2);
+  n.rg.gain.setTargetAtTime(lit?0.16+0.22*near:0.0001,t,0.08);n.roar.frequency.setTargetAtTime(lit?260+380*near:260,t,0.1);
+  n.og.gain.setTargetAtTime(lit?0.05+0.06*near:0.0001,t,0.1);n.osc.frequency.setTargetAtTime(42+18*near+Math.random()*4,t,0.05)}
+function landBurnIgnite(){noiseCrack(0.25,0.18,400);tone(70,0.4,'sawtooth',0.09,0,40)}
+function landSoundEnd(n){if(!n)return;const t=n.ac.currentTime;[n.ag,n.rg,n.og].forEach(g=>{g.gain.cancelScheduledValues(t);g.gain.setTargetAtTime(0.0001,t,0.12)});
+  try{n.src.stop(t+1);n.osc.stop(t+1)}catch(e){}
+  tone(62,0.5,'sine',0.22,0,32);tone(110,0.18,'square',0.06,0,55);noiseCrack(0.4,0.2,260);noiseCrack(0.9,0.05,3000,0.15)} // the thump, and the hiss of the vents
+// the legs: a servo whine (rising to unfold, falling to fold) and a clunk as they lock
+function legSound(dir){if(!sfxReady('rigLegs',0.25))return;const d=dir>0?1/RIG_LEG_UNFOLD:1/RIG_LEG_FOLD;
+  tone(dir>0?150:240,d*0.9,'sawtooth',0.028,0,dir>0?240:150);tone(dir>0?300:480,d*0.9,'triangle',0.014,0,dir>0?480:300);
+  tone(85,0.12,'square',0.06,d*0.92,50);noiseCrack(0.08,0.12,420,d*0.92)}
+// the mining laser: a held, buzzing hum with a sizzle on top, while it fires
+let LASER_SND=null;
+function laserSound(level){const ac=actx;if(!ac||ac.state!=='running'){return}
+  const mute=menuOpen||!S||S.paused||S.tacPause||S.over||S.rewardChoice;const want=mute?0:level;
+  if(want>0.02&&!LASER_SND){const out=sfxOut(ac),t=ac.currentTime,g=ac.createGain();g.gain.value=0.0001;g.connect(out);
+    const o1=ac.createOscillator();o1.type='sawtooth';o1.frequency.value=98;const o2=ac.createOscillator();o2.type='square';o2.frequency.value=196.7;
+    const lp=ac.createBiquadFilter();lp.type='lowpass';lp.frequency.value=700;lp.Q.value=3;
+    const trem=ac.createOscillator();trem.frequency.value=13;const tg=ac.createGain();tg.gain.value=0.25;const amp=ac.createGain();amp.gain.value=0.75;trem.connect(tg);tg.connect(amp.gain);
+    const n=ac.createBufferSource();n.buffer=rigNoise(ac);n.loop=true;const hp=ac.createBiquadFilter();hp.type='bandpass';hp.frequency.value=3200;hp.Q.value=0.9;const ng=ac.createGain();ng.gain.value=0.35;
+    o1.connect(lp);o2.connect(lp);lp.connect(amp);n.connect(hp);hp.connect(ng);ng.connect(amp);amp.connect(g);
+    [o1,o2,trem,n].forEach(x=>x.start(t));LASER_SND={g,nodes:[o1,o2,trem,n],lp};
+    tone(1400,0.18,'sine',0.04,0,500)} // it fires up with a downward zip
+  if(LASER_SND){const t=ac.currentTime;LASER_SND.g.gain.setTargetAtTime(Math.max(0.0001,0.07*want),t,0.08);LASER_SND.lp.frequency.setTargetAtTime(500+500*want+Math.random()*120,t,0.05);
+    if(want<=0.02){const L=LASER_SND;LASER_SND=null;L.g.gain.setTargetAtTime(0.0001,t,0.06);L.nodes.forEach(x=>{try{x.stop(t+0.4)}catch(e){}})}}}
 const RC={G:'#999',DK:'#4a4f57',M1:'#5d6670',M2:'#8d9aa8',TOP:'#a9b6c4',SL:'#6f7c89',W:'#e6e6e6',WT:'#f2f2f2',ANT:'#c9ced4',LASER:'#ffd27a',AMB:'#e8a43a',ARM:'#7a848f',ARM2:'#a8b2bc',ARM3:'#5c656f',PDC:'#d9dee4'};
 const skEach=S0=>{S0.grp='each';return S0};
 function skLift(P,dz){if(!dz)return P;const T=q=>[q[0],q[1],q[2]+dz];return P.map(S0=>({...S0,F:S0.F.map(f=>({...f,pts:f.pts.map(T)})),pts:S0.pts.map(T)}))}
@@ -7188,8 +7251,8 @@ function drawRigTower(B){const dt=Math.max(0,Math.min(0.1,S.t-(B._rt??S.t)));B._
   const app=(k,v,r)=>{B[k]=(B[k]??v)+Math.sign(v-(B[k]??v))*Math.min(Math.abs(v-(B[k]??v)),dt*r)};
   const onRift=terrainAt(B.x,B.y)===RIFT;
   B._dep=B.legDep??1; // the legs are driven by the game (update), not by the drawingapp('_plant',B.locked?1:0,1.2);app('_charge',B.locked?1:0,0.9);
-  const v=S.activeVein,drilling=!!(B.locked&&v&&v.meter&&v.meter.phase==='drill'&&!v.paused&&dist(B,v.mine||v)<BASE_R+40);app('_laser',drilling?1:0,2.5);
-  const dep=B._dep*B._dep*(3-2*B._dep),hov=(1-dep)*(RIG_HOV+Math.sin(S.t*2.2)*1.4);B._hov=hov;
+  const v=S.activeVein,drilling=!!(B.locked&&v&&v.meter&&v.meter.phase==='drill'&&!v.paused&&dist(B,v.mine||v)<BASE_R+40);app('_laser',drilling?1:0,2.5);laserSound(B._laser);
+  const dep=B._dep*B._dep*(3-2*B._dep),hov=(1-dep)*(RIG_HOV+Math.sin(S.t*2.2)*1.4)+(B._alt||0);B._hov=hov;
   SKO.x=B.x;SKO.y=B.y;SKO.s=1;SKO.lean=[0,0];SKO.shk=[0,0];
   if(B._laser>0.02){const col=v?veinEnergy(v).col:'#be64ff',P=skPJ([0,0,0]);ctx.save();ctx.globalCompositeOperation='lighter';
     const g=ctx.createRadialGradient(P[0],P[1],0,P[0],P[1],30);g.addColorStop(0,col);g.addColorStop(1,'rgba(0,0,0,0)');ctx.globalAlpha=0.3*B._laser;ctx.fillStyle=g;ctx.beginPath();ctx.ellipse(P[0],P[1],30,27,0,0,Math.PI*2);ctx.fill();
@@ -7209,6 +7272,14 @@ function drawRigTop(B){const m=B._m;if(m){SKO.x=B.x;SKO.y=B.y;SKO.s=1;SKO.lean=[
     for(let i=0;i<9;i++){const f=((S.t*1.7+i/9)%1),an=i*2.39+Math.floor(S.t*1.7+i/9)*1.3,d=4+f*16,q=skPJ([Math.cos(an)*d,Math.sin(an)*d,Math.sin(Math.PI*f)*7]);ctx.fillStyle=`rgba(255,${180+60*(1-f)|0},90,${(1-f)*on})`;ctx.fillRect(q[0]-0.7,q[1]-0.7,1.4,1.4)}
     ctx.restore();skGlow([0,0,0.5],16,RC.LASER,0.45*on*fl)}
   skGlow(m.lens,7,RC.LASER,0.2+0.75*on);
+  // v4: the landing burn: a flame from each nozzle, the ground lit and the dust thrown out under it
+  if(S.landing&&!S.landing.touch&&S.landing.lit){const alt=B._alt||0,u=Math.min(1,S.landing.t/LAND_T),pw=0.75+0.25*Math.sin(performance.now()/23),len=40+70*(1-u*0.6);
+    ctx.save();ctx.globalCompositeOperation='lighter';ctx.lineCap='round';
+    m.nozz.forEach((q,i)=>{const a=skPJ(q),b=skPJ([q[0]*1.25,q[1]*1.25,Math.max(0,q[2]-len*(0.9+0.2*Math.sin(performance.now()/31+i)))]);
+      [[11,`rgba(255,120,40,${0.22*pw})`],[6,`rgba(255,190,90,${0.5*pw})`],[2.4,`rgba(255,250,225,${0.9*pw})`]].forEach(([lw,c])=>{ctx.strokeStyle=c;ctx.lineWidth=lw;ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke()})});
+    ctx.restore();skGlow([0,0,(m.nozz[0][2])],60,'#ffb060',0.5*pw);
+    const near=Math.max(0,1-alt/500);if(near>0){SKO.x=B.x;SKO.y=B.y;skGlow([0,0,0.5],90*near+20,'#ffa050',0.55*near*pw);
+      ctx.save();ctx.strokeStyle=`rgba(200,180,150,${0.5*near})`;ctx.lineWidth=3;for(let k=0;k<3;k++){const f=((performance.now()/600)+k/3)%1,rr=20+f*110*near;ctx.globalAlpha=1-f;ctx.beginPath();ctx.ellipse(B.x,B.y,rr,rr*0.9,0,0,Math.PI*2);ctx.stroke()}ctx.restore()}}
   const thr=1-(B._dep??1);if(thr>0.02)m.nozz.forEach((q,i)=>{skGlow(q,9,'#8fe3ff',0.7*thr*(0.85+0.15*Math.sin(S.t*37+i)));skGlow([q[0],q[1],0.3],14,'#8fe3ff',0.22*thr)});
   skGlow(m.head,7,RC.LASER,0.1+0.2*(B._charge||0));skGlow(m.beacon,4,'#ff3a24',Math.sin(S.t*3.2)>0.2?0.75:0.1);
   SKO.x=0;SKO.y=0;SKO.s=SK_SCALE}
@@ -9004,7 +9075,8 @@ function update(dt){
   // keeps them up for RIG_LEG_HOLD after it stops in case it's sent on again; locked onto a vein it
   // plants them at once, over a rift they stay up
   {const onRift=terrainAt(B.x,B.y)===RIFT,want=onRift?0:B.locked?1:(B.dest||S.t<(B.legHoldT||0))?0:1,cur=B.legDep??1;
-   B.legDep=want<cur?Math.max(want,cur-dt*RIG_LEG_FOLD):Math.min(want,cur+dt*RIG_LEG_UNFOLD)}
+   B.legDep=want<cur?Math.max(want,cur-dt*RIG_LEG_FOLD):Math.min(want,cur+dt*RIG_LEG_UNFOLD);
+   const dir=Math.sign(want-cur);if(dir&&dir!==B._legDir)legSound(dir);B._legDir=dir}
   if(B.dest&&!B.locked&&(B.legDep<=0.02||B.riftShove)){
     const aim=B.riftShove?B.dest:waypointFor(B,B.dest.x,B.dest.y);
     const factor=terrainAt(B.x,B.y)===1?MUD_MULT:1;
@@ -10628,7 +10700,7 @@ function draw(){
   // the Rig: the Needle tower
   drawPOIs(); // wrecks and beacons lie on the ground, under the Rig and units
   // cables run under the Rig's turret, hanging from beneath it
-  drawRigTower(B);drawTethers();drawBolts();drawRigTop(B);drawDrillReadout(B);hpbar(B.x,B.y-RIG_TOP-(B._hov||0)*0.5-8,B.r*2,B.hp/B.maxHp);drawRiftMeter(B);
+  drawRigTower(B);if(!(S.landing&&!S.landing.touch))drawTethers();drawBolts();drawRigTop(B);drawDrillReadout(B);if(!S.landing)hpbar(B.x,B.y-RIG_TOP-(B._hov||0)*0.5-8,B.r*2,B.hp/B.maxHp);drawRiftMeter(B);
   if(WIRELESS_ENABLED){
     const bwt=0.5+0.5*Math.sin(S.t*2.2);
     ctx.strokeStyle=C.cable;ctx.globalAlpha=0.2*bwt;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(B.x,B.y,WIRELESS_TOL_DENSE*S.mods.relayTolMult,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;
@@ -10648,7 +10720,7 @@ function draw(){
    ctx.stroke();ctx.restore()}
   (S.shoves||[]).forEach(f=>{const k=f.t/0.3;ctx.save();ctx.globalAlpha=0.5*(1-k);ctx.fillStyle=BRAWL_COLOR;ctx.beginPath();ctx.moveTo(f.x,f.y);ctx.arc(f.x,f.y,BRAWL_KB_R*(0.5+0.5*k),f.a-BRAWL_KB_ARC/2,f.a+BRAWL_KB_ARC/2);ctx.closePath();ctx.fill();ctx.restore()});
   // troops
-  S.troops.forEach(t=>{const sel=S.sel.troops.has(t.id),gren=t.kind==='grenadier',arty=t.kind==='artillery',mech=t.kind==='mech',rock=t.kind==='rocket',brawl=t.kind==='brawler';if(sel){ctx.strokeStyle=C.ally;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(t.x,t.y,t.r+5,0,Math.PI*2);ctx.stroke()}
+  S.troops.forEach(t=>{if(t.hidden)return;const sel=S.sel.troops.has(t.id),gren=t.kind==='grenadier',arty=t.kind==='artillery',mech=t.kind==='mech',rock=t.kind==='rocket',brawl=t.kind==='brawler';if(sel){ctx.strokeStyle=C.ally;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(t.x,t.y,t.r+5,0,Math.PI*2);ctx.stroke()}
     drawUnitBody(t);
     if(t.hp<t.maxHp)hpbar(t.x,t.y-14,16,t.hp/t.maxHp);
     if(sel&&t.grp!=null){ctx.fillStyle='#bfe6ff';ctx.font='bold 9px monospace';ctx.textAlign='center';ctx.fillText(t.grp,t.x,t.y-20);ctx.textAlign='start'}
@@ -10676,7 +10748,7 @@ function draw(){
     else{ctx.fillStyle=n.color||C.accent;ctx.beginPath();ctx.arc(n.x,n.y,n.big?6:4,0,Math.PI*2);ctx.fill()}
   });
   // harvesters
-  S.harvesters.forEach(h=>{const sel=S.sel.harv.has(h.id);if(sel){ctx.strokeStyle=C.harv;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(h.x,h.y,h.r+5,0,Math.PI*2);ctx.stroke()}
+  S.harvesters.forEach(h=>{if(h.hidden)return;const sel=S.sel.harv.has(h.id);if(sel){ctx.strokeStyle=C.harv;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(h.x,h.y,h.r+5,0,Math.PI*2);ctx.stroke()}
     ctx.fillStyle=h.flashT>0?'#fff':C.harv;ctx.fillRect(h.x-h.r,h.y-h.r,h.r*2,h.r*2);
     if(!h.autoLoop){ctx.strokeStyle='rgba(255,255,255,0.6)';ctx.lineWidth=1;ctx.strokeRect(h.x-h.r,h.y-h.r,h.r*2,h.r*2)}
     if(h.carry>0){ctx.fillStyle=C.dat;ctx.beginPath();ctx.arc(h.x+6,h.y-6,3+h.carry/6,0,Math.PI*2);ctx.fill()}
@@ -10685,7 +10757,7 @@ function draw(){
     if(!h.tetherOk)drawCutGlyph(h.x,h.y); if(h.following)drawFollowGlyph(h.x,h.y);
     if(sel&&h.dest){ctx.strokeStyle='rgba(232,147,92,0.35)';ctx.beginPath();ctx.moveTo(h.x,h.y);ctx.lineTo(h.dest.x,h.dest.y);ctx.stroke()}});
   // builders
-  S.builders.forEach(bu=>{const sel=S.sel.bu.has(bu.id);if(sel){ctx.strokeStyle=C.builder;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(bu.x,bu.y,bu.r+5,0,Math.PI*2);ctx.stroke()}
+  S.builders.forEach(bu=>{if(bu.hidden)return;const sel=S.sel.bu.has(bu.id);if(sel){ctx.strokeStyle=C.builder;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(bu.x,bu.y,bu.r+5,0,Math.PI*2);ctx.stroke()}
     ctx.fillStyle=bu.flashT>0?'#fff':C.builder;ctx.beginPath();ctx.moveTo(bu.x,bu.y-bu.r);ctx.lineTo(bu.x+bu.r,bu.y+bu.r*0.7);ctx.lineTo(bu.x-bu.r,bu.y+bu.r*0.7);ctx.closePath();ctx.fill();
     if(bu.state==='repair'){ctx.strokeStyle='#fff';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(bu.x-4,bu.y+2);ctx.lineTo(bu.x+4,bu.y+2);ctx.moveTo(bu.x,bu.y-2);ctx.lineTo(bu.x,bu.y+6);ctx.stroke()}
     if(bu.hp<bu.maxHp)hpbar(bu.x,bu.y-14,16,bu.hp/bu.maxHp);
@@ -10899,7 +10971,7 @@ function perfTick(ts,gap,up,dr){
 function frame(ts){requestAnimationFrame(frame); // asked for first, so one bad frame can't stop the game for good
   const gap=ts-lastT,dt=Math.min(0.05,gap/1000||0);lastT=ts;document.body.classList.toggle('inMenu',menuOpen);
   if(TPAINT.loading&&performance.now()-TPAINT.loadT0>25000)showLoading(false);
-  const a=performance.now();if(!TPAINT.loading){update(dt);tutTick()}const b=performance.now();if(cv.width>0&&cv.height>0)draw();perfTick(ts,gap||0,b-a,performance.now()-b)}
+  const a=performance.now();if(!TPAINT.loading&&S&&S.landing&&!S.landing.touch&&!menuOpen&&!S.paused)landingTick(dt);else if(!TPAINT.loading){update(dt);tutTick();if(S&&S.landing&&S.landing.touch&&!menuOpen&&!S.paused)emergeTick(dt)}const b=performance.now();if(cv.width>0&&cv.height>0)draw();perfTick(ts,gap||0,b-a,performance.now()-b)}
 // ---------- voice announcer: VESPER (prototype, off by default) ----------
 // The Rig's onboard operations intelligence. Her voice is pre-rendered clips (ElevenLabs voice
 // "Astrotana", Eleven v4: tools/vox_render.py writes the script from the lines below and packs the
@@ -11044,6 +11116,8 @@ function voxQueue(it){
   if(VOXQ.cur&&it.p===1&&VOXQ.cur.p>=3){VOXQ.q=VOXQ.q.filter(x=>x.p<=2);voxHalt()}
   VOXQ.q.push(it);VOXQ.q.sort((a,b)=>a.p-b.p||a.t-b.t);if(VOXQ.q.length>2)VOXQ.q.length=2;voxPump()}
 function voxPump(){if(!VOX.on||VOXQ.cur||!VOXQ.q.length)return;const now=performance.now()/1000;
+  // v4: nothing is said until the map has loaded and the Rig is down (what's queued keeps till then)
+  if(TPAINT.loading||(S&&S.landing&&!S.landing.touch)){VOXQ.q.forEach(x=>x.t=now);setTimeout(voxPump,250);return}
   VOXQ.q=VOXQ.q.filter(x=>now-x.t<(x.p<=2?8:4)); // stale news isn't worth saying
   if(!VOXQ.q.length)return;if(now<VOXQ.gapT){setTimeout(voxPump,(VOXQ.gapT-now)*1000+20);return}
   // first lines after switching on can arrive before the pack has: give it a moment
