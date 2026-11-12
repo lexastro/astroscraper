@@ -10549,7 +10549,7 @@ function anchorHook(a,to){if(!a)return null;if(a.kind==='mech')return [a.x,a.y,1
 // links only pull, so slack bunches on the floor; the winch feeds out when pulled and winds in toward
 // the cable's real length, slowly while the unit moves and properly once it stands still; rock pushes
 // it back; it sleeps while nothing moves.
-const ROPE_SEG=13,ROPE_ITERS=8;
+const ROPE_SEG=13,ROPE_ITERS=8,ROPE_DOCK_REEL=1400;
 function stepRope(u,a0,dt){let R=u.rope;const tx=u.x,ty=u.y;
   if(!R||R.ax==null){R=u.rope={P:[{x:a0[0],y:a0[1],px:a0[0],py:a0[1]},{x:tx,y:ty,px:tx,py:ty}],wind:0,sleep:0,lx:tx,ly:ty,idle:0}}
   const P=R.P,n=P.length;R.idle=Math.abs(tx-R.lx)+Math.abs(ty-R.ly)<0.1?R.idle+dt:0;R.lx=tx;R.ly=ty;
@@ -10564,6 +10564,9 @@ function stepRope(u,a0,dt){let R=u.rope;const tx=u.x,ty=u.y;
   R.wantWind=stretch<1&&n>3;let rate=0;if(stretch>3)rate=-Math.min(300,stretch*40);else if(R.wantWind)rate=R.idle>1.2?70:6;
   // just hooked onto a new relay: wind the old slack in hard, down to a little more than the new span
   if(R.reel>0){const span=Math.hypot(tx-a0[0],ty-a0[1]);if((n-1)*ROPE_SEG>span*1.1+ROPE_SEG*2){rate=stretch<6?520:stretch>20?rate:0}else R.reel=0}
+  // v4: close to the Rig the drum winds hard (ROPE_DOCK_REEL), and keeps winding while the unit walks
+  // about — it only gives out line if the unit is really hauling on it
+  if(R.dock){R.dock=false;const span=Math.hypot(tx-a0[0],ty-a0[1]);if((n-1)*ROPE_SEG>span*1.05+ROPE_SEG)rate=stretch>20?rate:ROPE_DOCK_REEL}
   R.wind+=rate*dt;
   while(R.wind<=-ROPE_SEG&&P.length<80){R.wind+=ROPE_SEG;const a=P[0],b=P[1],dx=b.x-a.x,dy=b.y-a.y,d=Math.sqrt(dx*dx+dy*dy)||1,x=a.x+dx/d*Math.min(ROPE_SEG,d*0.5),y=a.y+dy/d*Math.min(ROPE_SEG,d*0.5);P.splice(1,0,{x,y,px:x,py:y})}
   while(R.wind>=ROPE_SEG&&P.length>2){R.wind-=ROPE_SEG;P.splice(1,1)}
@@ -10582,7 +10585,7 @@ function drawTethers(){
   S.troops.concat(S.harvesters,S.builders).forEach(u=>{if(!u.trail||!u.anchorRef){u.rope=null;return}
     const h=anchorHook(u.anchorRef,u);if(!h){u.rope=null;return}const dx=u.x-h[0],dy=u.y-h[1],L=Math.hypot(dx,dy)||1,td=Math.min(L*0.6,h[2]*0.55+6),ux=dx/L,uy=dy/L,touch=[h[0]+ux*td,h[1]+uy*td];
     if(u.rope&&u.rope.anc!==u.anchorRef){u.rope.reel=2.5;u.rope.sleep=0}if(u.rope)u.rope.anc=u.anchorRef;
-    if(u.rope&&u.anchorRef===S.base&&L<=TETHER_DOCK_R){u.rope.reel=Math.max(u.rope.reel||0,0.3);u.rope.sleep=0} // v4: back at the Rig, the slack winds straight in
+    if(u.rope&&u.anchorRef===S.base&&L<=TETHER_DOCK_R){u.rope.reel=Math.max(u.rope.reel||0,0.3);u.rope.dock=true;u.rope.sleep=0} // v4: back at the Rig, the slack winds straight in (fast)
     stepRope(u,touch,dt);if(u.rope.anc!==u.anchorRef)u.rope.anc=u.anchorRef;const hangPts=[];for(let k=0;k<=8;k++){const f=k/8;hangPts.push([h[0]+ux*td*f,h[1]+uy*td*f,h[2]*Math.pow(1-f,2.2)])}
     const pts=hangPts.concat(u.rope.P.slice(1).map(q=>[q.x,q.y,0.2]));drawHoses(pts,1,(u.id||0)%8,u.cableMaxed)});
 }
