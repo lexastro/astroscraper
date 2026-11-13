@@ -250,6 +250,12 @@ body.lowGfx #fogGrain{display:none}
 .consentRow{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
 .overlay button.secondary{background:var(--panel2);color:var(--fg);border:1px solid var(--line)}
 .rewardCards{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;max-width:900px}
+/* v4: the cards you already hold this run — under a reward pick and in the pause menu */
+.ownedCards{max-width:760px;margin:14px auto 0;text-align:center}.ownedCards[hidden]{display:none}
+.ownedCards .ocHead{font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
+.ownedCards .ocList{display:flex;flex-wrap:wrap;gap:5px;justify-content:center}
+.ownedCards .oc{--tc:#a9b4c0;font-size:11px;padding:3px 8px;border-radius:10px;border:1px solid var(--tc);color:#dfe6ee;background:rgba(10,13,17,.7);cursor:help}
+.ownedCards .oc b{color:var(--tc);font-weight:600;margin-left:3px}
 /* Reward cards share one neutral dark-grey face; the tier only shows in the outline (--tc, set
    per card), its glow, and the tier label — so the colour reads as rarity at a glance.
    ".overlay button.rewardCard" (not just ".rewardCard") to out-specificity the generic gold
@@ -771,7 +777,7 @@ async function run(d){
 </div>
 
 <div class="overlay" id="pauseOverlay" hidden>
-  <h1>Paused</h1><p>The game is frozen — nothing is moving, drilling, or spawning.</p><button id="pauseResumeBtn">Resume</button>
+  <h1>Paused</h1><p>The game is frozen — nothing is moving, drilling, or spawning.</p><button id="pauseResumeBtn">Resume</button><button id="pauseRestartBtn" class="secondary">Restart run</button><div class="ownedCards" id="pauseCards"></div>
 </div>
 
 <div class="overlay" id="drillSelectOverlay" hidden>
@@ -784,11 +790,13 @@ async function run(d){
 <div class="overlay rewardOverlay" id="rewardOverlay" hidden>
   <h1 id="rewardTitle">Choose a Reward</h1>
   <div class="rewardCards" id="rewardCards"></div>
+  <div class="ownedCards" id="rewardOwned"></div>
   <button id="rerollBtn" class="secondary">Reroll</button>
 </div>
 
 <div class="overlay" id="mainMenuOverlay">
   <h1>Astroscraper</h1>
+  <button id="resumeRunBtn" hidden>Resume run</button>
   <button id="playBtn">Play</button>
   <div class="menuMeta">
     <div class="metaRow"><span class="crystalIcon living">❖</span><span class="v" id="metaLiving">0</span><span class="crystalIcon condensed">⬢</span><span class="v" id="metaCondensed">0</span></div>
@@ -3102,12 +3110,13 @@ function openBreach(v){
 }
 // what carries from one stop to the next
 function captureCarry(){
-  return {dat:S.dat,living:S.living,condensed:S.condensed,rerollCount:S.rerollCount,mods:{...S.mods},runUnlock:{...S.runUnlock},
+  return {cards:(S.cards||[]).map(c=>({...c})),dat:S.dat,living:S.living,condensed:S.condensed,rerollCount:S.rerollCount,mods:{...S.mods},runUnlock:{...S.runUnlock},
     fab:JSON.parse(JSON.stringify(S.fab)),stabCharges:S.stabCharges,probeCharges:S.probeCharges,calls:{...S.calls},callUnlock:{...S.callUnlock},capAdd:{...S.capAdd},kits:{...S.kits},
     hp:S.base.hp,maxHp:S.base.maxHp,drones:S.drones.length,squadCap:S.squadCap,troops:S.troops.map(t=>({kind:t.kind||'troop',hp:t.hp,maxHp:t.maxHp,grp:t.grp}))};
 }
 function applyCarry(c){
   if(!c)return;
+  S.cards=(c.cards||[]).map(x=>({...x}));
   Object.assign(S,{dat:c.dat,living:c.living,condensed:c.condensed,rerollCount:c.rerollCount,stabCharges:c.stabCharges,probeCharges:c.probeCharges});
   S.mods={...S.mods,...c.mods};S.runUnlock={...c.runUnlock};S.fab=c.fab;S.calls={...(c.calls||{})};S.callUnlock={...(c.callUnlock||{})};S.capAdd={...(c.capAdd||{})};S.kits={...(c.kits||{})};
   S.base.hp=c.hp;S.base.maxHp=c.maxHp;S.squadCap=c.squadCap||SQUAD_CAP_START;
@@ -3116,6 +3125,21 @@ function applyCarry(c){
   updateBuildBar();
 }
 function pressureNote(){return RUN&&RUN.pressure&&RUN.pressure.ids.length?` Pressure on: ${RUN.pressure.ids.map(id=>PRESSURE.find(p=>p.id===id).name).join(', ')} (+${Math.round(RUN.pressure.bonus*100)}% rewards).`:''}
+// v4: a run in progress is saved to this browser at the start of every stop: the stop it's on, its
+// Pressure and Loadout, and everything carried into the stop (cards, Dat, units, call-downs, kits).
+// Resume (main menu) rebuilds that stop from there. It's cleared when the run ends.
+const RUN_SAVE_KEY='astroscraper_v4_run';
+function saveRun(carry){if(!RUN||tutorialMap)return;try{localStorage.setItem(RUN_SAVE_KEY,JSON.stringify({v:1,t:Date.now(),run:{stop:RUN.stop,pressure:RUN.pressure,loadout:RUN.loadout},carry:carry||null}))}catch(e){}}
+function loadRunSave(){try{const d=JSON.parse(localStorage.getItem(RUN_SAVE_KEY)||'null');if(!d||d.v!==1||!d.run||!(d.run.stop>=0&&d.run.stop<RUN_STOPS.length))return null;return d}catch(e){return null}}
+function clearRunSave(){try{localStorage.removeItem(RUN_SAVE_KEY)}catch(e){}}
+function resumeRun(){const d=loadRunSave();if(!d)return;
+  RUN={stop:d.run.stop,carry:d.carry,pressure:d.run.pressure||{ids:[],bonus:0},loadout:d.run.loadout||callLoadout()};
+  menuOpen=false;['mainMenuOverlay','unlocksOverlay','pressureOverlay','loadoutOverlay','settingsOverlay','stopOverlay'].forEach(id=>document.getElementById(id)._hd=true);
+  buildStop(d.carry);msg(`Run resumed — back at the start of stop ${RUN.stop+1} of ${RUN_STOPS.length}.`)}
+// Restart (pause menu): a fresh run with the same Pressure (already paid for, so not charged again)
+function restartRun(){const p=RUN&&RUN.pressure;document.getElementById('pauseOverlay')._hd=true;
+  if(tutorial||tutorialMap){startTutorial();return}
+  if(!RUN)return;clearRunSave();RUN={stop:0,carry:null,pressure:p||{ids:[],bonus:0},loadout:callLoadout()};buildStop(null)}
 function buildStop(carry){
   STOP_BAND=RUN_STOPS[RUN.stop].band;STOP_SPLIT=!!RUN_STOPS[RUN.stop].split;
   pickStopDirs();
@@ -3126,6 +3150,7 @@ function buildStop(carry){
   applyCarry(carry);
   // a fresh run: the loadout comes charged, and the Rig lands (later stops start with it already down)
   if(!carry){runCallStart().forEach(id=>grantCall(id,CALL_LOADOUT_CHARGES));beginLanding()}
+  saveRun(carry);
   const st=stopInfo();
   if(RUN.stop===0&&pressureNote())setTimeout(()=>msg(pressureNote().trim()),50);
   msg(st.final?`Stop ${RUN.stop+1} of ${RUN_STOPS.length} — the heart of the Core. The contract vein is here and already stirring: take bearings from stray energy to triangulate it, then drain it.`:
@@ -3191,7 +3216,7 @@ function renderDbgCards(){
     b.style.cssText='text-align:left;padding:6px 8px;background:#1c140e;color:#eef1f4;border:1px solid #3a2a1e;border-left:3px solid '+col+';border-radius:4px;font:inherit;cursor:pointer;opacity:'+(held?0.45:1);
     b.innerHTML='<b style="color:'+col+'">'+tier+'</b> · <b>'+u.name+'</b>'+(held?' <i style="color:#9aa3ad">(held)</i>':'')+'<div style="color:#9aa3ad;margin-top:2px">'+plain+'</div>';
     b.onclick=e=>{let h=false;try{h=!!(u.has&&u.has())}catch(_){}if(h&&!e.shiftKey){msg('Debug: already held — shift-click to force it');return}
-      u.apply();updateBuildBar();sfx.click();msg('Debug: gave '+tier+' card "'+u.name+'"');renderDbgCards()};
+      u.apply();noteCard({id:u.id,tier,name:u.name});updateBuildBar();sfx.click();msg('Debug: gave '+tier+' card "'+u.name+'"');renderDbgCards()};
     host.appendChild(b)}));
   document.getElementById('dbgCardN').textContent=n+' cards';
 }
@@ -3356,6 +3381,8 @@ function probeWidthMult(){const t=meta.upgrades.pingRange||0;return t>0?1+META_U
 function squadFireRateMult(){const t=meta.upgrades.squadFireRate||0;return t>0?1+META_UPGRADES[3].pct[t-1]/100:1}
 function pickupRangeMult(){const t=meta.upgrades.pickupRange||0;return t>0?1+META_UPGRADES[4].pct[t-1]/100:1}
 function refreshMenuMeta(){
+  {const d=loadRunSave(),rb=document.getElementById('resumeRunBtn'),pb=document.getElementById('playBtn');rb._hd=!d;
+   if(d)rb._tc=`Resume run — stop ${d.run.stop+1} of ${RUN_STOPS.length}`;pb._tc=d?'New run':'Play'}
   document.getElementById('metaLiving')._tc=meta.livingBank;
   document.getElementById('metaCondensed')._tc=meta.condensedBank;
   {const ob=document.getElementById('openLoadoutBtn');if(ob)try{ob._tc='Loadout: '+callLoadout().map(id=>CALLDOWNS[id].icon).join(' ')}catch(e){}}
@@ -3501,6 +3528,10 @@ document.getElementById('unlocksBackBtn').onclick=()=>{
 // Main menu: Play starts a run straight away, Unlocks is the meta shop, Settings holds the
 // recording and debug toggles.
 document.getElementById('playBtn').onclick=startRun;
+document.getElementById('resumeRunBtn').onclick=resumeRun;
+// two clicks to restart, so a stray one can't throw a run away
+document.getElementById('pauseRestartBtn').onclick=()=>{const b=document.getElementById('pauseRestartBtn');if(b.dataset.arm){b.dataset.arm='';restartRun();return}
+  b.dataset.arm='1';b._tc=tutorial?'Click again to restart the tutorial':'Click again — this run will be lost';setTimeout(()=>{if(b.dataset.arm){b.dataset.arm='';b._tc=tutorial?'Restart tutorial':'Restart run'}},3000)};
 document.getElementById('settingsBtn').onclick=()=>{
   document.getElementById('mainMenuOverlay')._hd=true;
   document.getElementById('settingsOverlay')._hd=false;
@@ -6700,6 +6731,7 @@ function togglePause(){
   if(S.over||S.rewardChoice)return;
   S.paused=!S.paused;
   document.getElementById('pauseOverlay')._hd=!S.paused;
+  if(S.paused){renderOwnedCards(document.getElementById('pauseCards'),'Your cards this run');const rb=document.getElementById('pauseRestartBtn');rb._tc=tutorial?'Restart tutorial':'Restart run';rb._hd=!RUN&&!tutorial;rb.dataset.arm=''}
   sfx.click();
 }
 // Ping, step one: arm targeting (see PING_* above). Pressing it again, right-clicking or Esc
@@ -9927,6 +9959,7 @@ function softenFogLayers(){
 // Living Crystal were collected into the persistent save, same as a roguelite "you keep what you
 // earned" payout. Living Crystal is what Unlocks actually spends; Condensed just keeps accruing.
 function showOverlay(t,s,payoutMult){
+  if(RUN)clearRunSave(); // v4: the run's over — nothing left to resume
   const pb=RUN&&RUN.pressure?1+RUN.pressure.bonus:1; // v4: Pressure raises what you bank
   const paidOut=Math.round(S.condensed*(payoutMult===undefined?1:payoutMult)*pb), livingPaid=Math.round(S.living*pb);
   meta.condensedBank+=paidOut;
@@ -9979,6 +10012,15 @@ function rollRewardCards(tier,band){
   picks.push({kind:'trade',tier,name:'Sell the Reward',desc:`Skip the upgrade — bank +${TIER_TRADE_DAT[tier]} Dat Crystal instead.`,amt:TIER_TRADE_DAT[tier]});
   return picks;
 }
+// v4: every card taken this run is noted (S.cards, carried from stop to stop) so it can be listed
+function noteCard(c){(S.cards||(S.cards=[])).push({id:c.id||null,tier:c.tier,name:typeof c.name==='string'?c.name:String(c.name)})}
+function cardById(id){if(!id)return null;for(const t in UPGRADES){const u=UPGRADES[t].find(u=>u.id===id);if(u)return u}return null}
+function renderOwnedCards(el,title){const L=S&&S.cards||[];if(!L.length){el._hd=true;return}el._hd=false;
+  // the same card taken twice shows once, ×2; newest first
+  const m=new Map();L.forEach(c=>{const k=(c.id||c.name)+'|'+c.tier;const e=m.get(k);if(e)e.n++;else m.set(k,{...c,n:1})});
+  const esc=t=>String(t).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+  el.innerHTML=`<div class="ocHead">${title} (${L.length})</div><div class="ocList">`+[...m.values()].reverse().map(c=>{const u=cardById(c.id),d=u?String(u.desc||'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim():'';
+    return `<span class="oc" style="--tc:${CARD_TIER_COLOR[c.tier]||'#a9b4c0'}" title="${esc(c.tier+' — '+(d||c.name))}">${esc(u?u.name:c.name)}${c.n>1?`<b>×${c.n}</b>`:''}</span>`}).join('')+'</div>'}
 // Pauses the whole sim (update() bails out while S.rewardChoice is set) and shows the pick.
 function showRewardChoice(tier,band){
   const cards=rollRewardCards(tier,band);
@@ -10001,6 +10043,7 @@ function showRewardChoice(tier,band){
   rb._tc=`Reroll (◆${cost})`;
   rb._ds=S.dat<cost;rb._hd=false;
   document.getElementById('rewardOverlay')._hd=false;
+  renderOwnedCards(document.getElementById('rewardOwned'),'Your cards');
   sfx.veinDone();
 }
 // Spends escalating Dat to reroll the current choice at the same tier. S.rerollCount never resets mid-run, so the
@@ -10023,7 +10066,7 @@ function pickReward(i){
   if(c.kind==='trade'){
     S.dat+=c.amt; floatText(S.base.x,S.base.y-40,'+'+c.amt+' Dat',C.dat);
   }else{
-    c.apply();
+    c.apply();noteCard(c);
   }
   sfx.click();
   document.getElementById('rewardOverlay')._hd=true;
