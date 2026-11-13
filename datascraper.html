@@ -200,13 +200,19 @@ body.lowGfx #fogGrain{display:none}
 @media (prefers-reduced-motion:reduce){.dmStab.targeted{animation:none}}
 /* v4: the vein survey — the first Stabilizer on a vein reads it. Floats where the drill meter sits;
    while drilling it docks beside the steering pad inside the meter. */
-.veinSurvey{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(96px + env(safe-area-inset-bottom,0px));z-index:6;width:210px;
+/* several at once: a row of panels, one per surveyed vein, oldest first; each carries the vein's callsign
+   (shown over the vein in the world too) and a click on it looks at that vein */
+.veinSurveys{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(96px + env(safe-area-inset-bottom,0px));z-index:6;display:flex;gap:8px;align-items:flex-end;justify-content:center;
+  flex-wrap:nowrap;width:max-content;pointer-events:none}
+.veinSurvey{box-sizing:border-box;width:184px;flex:none;pointer-events:auto;cursor:pointer;transition:border-color .12s,transform .12s;
   background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px 10px 9px;box-shadow:0 4px 16px rgba(0,0,0,.5);font-size:12px}
+.veinSurvey:hover{border-color:var(--vc,#8fe3ff);transform:translateY(-2px)}
+.vsHead .vsTag{color:var(--vc,#b48bff);font-weight:700;letter-spacing:.1em}
 .veinSurvey.inMeter{position:static;transform:none;width:150px;flex:none;box-shadow:none;background:#0b0f14;padding:6px 8px}
 .veinSurvey[hidden]{display:none}
 .drillMeter:has(.veinSurvey.inMeter:not([hidden])){width:min(660px,calc(100vw - 32px))}
 .vsHead{display:flex;justify-content:space-between;align-items:baseline;font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
-.vsHead #vsTier{font-weight:600}
+.vsHead .vsTier{font-weight:600}
 .vsLadder{display:flex;gap:3px;margin-bottom:6px}
 .vsLadder i{flex:1;height:7px;border-radius:2px;background:#1c232c;position:relative;overflow:hidden}
 .vsLadder i b{position:absolute;inset:0 auto 0 0;display:block}
@@ -743,11 +749,7 @@ async function run(d){
 
 <!-- Drill meter: shown while the Rig is locked onto a vein — previews the bands during the
      warm-up, sweeps for the strike, then tracks the drifting needle and settled yield. -->
-<div class="veinSurvey" id="veinSurvey" hidden>
-  <div class="vsHead"><span>Vein survey</span><span id="vsTier"></span></div>
-  <div class="vsLadder" id="vsLadder"></div>
-  <div class="vsLine" id="vsLine"></div>
-</div>
+<div class="veinSurveys" id="veinSurveys"></div>
 <div class="drillMeter" id="drillMeter" hidden>
   <div class="dmHead"><span id="dmTitle">Drill meter</span><span id="dmYield"></span></div>
   <div class="dmProg" id="dmProg"><span class="k">Extraction</span><div class="dmProgBar"><i id="dmProgFill"></i></div><span class="v" id="dmProgTxt">0%</span></div>
@@ -1871,7 +1873,7 @@ const UPGRADES={
     {id:'recruit1',name:'Fresh Recruits',desc:'+3 free Troopers, right now.',apply:()=>{spawnFreeTroops(3,'troop')}},
     {id:'energySurge1',name:'Sonic Deterrent I',get desc(){return 'Horn speakers on every Relay: every 10s while drilling they all thump together — enemies reached are shoved back and dazed for 1s.'+relaySlotNote('off','sonic')},has:()=>S.mods.relayOff==='sonic'&&S.mods.energySurgeLevel>=1,apply:()=>{setRelaySlot('off','sonic');S.mods.energySurgeLevel=Math.max(S.mods.energySurgeLevel,1)}},
     {id:'relayArmored',name:'Fortified Relay',get desc(){return 'Every Relay gets an armoured plinth and a turret head: 3× HP, and while tethered it fires like a full Turret.'+relaySlotNote('off','armored')},has:()=>S.mods.relayOff==='armored',apply:()=>{setRelaySlot('off','armored')}},
-    {id:'seekerStabs',name:'Seeker Stabilizers',get desc(){return `Stabilizers launch high and come down on a booster burn, steering onto the hotspot you click — no leading, and every shot lands in about ${Math.round(SEEK_T)}s. The catch: they can't land within ${SEEK_MIN} of the Rig or Relay that fires them, so a Rig drilling a vein can only reach its hotspots on their far swing.`},has:()=>!!S.mods.seekerStabs,apply:()=>{S.mods.seekerStabs=true}},
+    {id:'anchorPod',name:'Anchor Pod',desc:'E now fires a pod at any vein you\'ve found, anywhere on the map. It lands beside the vein and fires Stabilizers into its free hotspots by itself, each one when its hotspot swings out wide and well spread from the others, for a wide steering triangle. Each Stabilizer still uses a charge (or Dat on auto-buy).',has:()=>!!S.mods.anchorPod,apply:()=>{S.mods.anchorPod=true}},
     {id:'heavyArmour',name:'Heavy Armour',desc:'Thick armour on the Rig and every Stabilizer: 30% less damage from everything, 75% less from melee, and melee attackers are knocked back off it.',has:()=>S.mods.heavyArmour,apply:()=>{S.mods.heavyArmour=true}},
     {id:'pointDefence',name:'Point Defence',desc:'Small turrets on the Rig (two) and every Stabilizer (one) that shoot down incoming Splinter shards and Lance volleys before they land. They never fire at enemies themselves.',has:()=>S.mods.pointDefence,apply:()=>{S.mods.pointDefence=true}},
     {id:'relayRadar',name:'Radar Mast',get desc(){return 'A turning radar dish on every Relay: a tethered Relay sees far into the fog around it.'+relaySlotNote('def','radar')},has:()=>S.mods.relayDef==='radar',apply:()=>{setRelaySlot('def','radar')}},
@@ -1992,12 +1994,19 @@ const STAB_CHARGES=3, STAB_RECHARGE_T=15, STAB_RANGE=650, STAB_FLIGHT_SPEED=420,
 // (out to STAB_RELAY_R), so the relay network carries it out to a vein far from the Rig
 function stabSources(){return [{o:S.base,r:STAB_RANGE},...S.relays.filter(r=>r.built&&r.hp>0&&r.tetherOk).map(r=>({o:r,r:STAB_RELAY_R}))]}
 function stabSourceFor(w,min=0){let best=null,bd=Infinity;stabSources().forEach(s=>{const d=dist(w,s.o);if(d<=s.r&&d>=min&&d<bd){bd=d;best=s.o}});return best}
-// v4: the Seeker Stabilizers card. A Stabilizer locks onto the hotspot you click (within SEEK_SNAP), climbs
-// straight up out of the Rig or Relay, then comes down on a booster burn like the Rig's landing, steering onto
-// that hotspot as it drifts. Every shot takes SEEK_T s. The catch: it needs height to turn over, so it can't
-// land within SEEK_MIN of whatever fires it. Flight: climbing until SEEK_UP of the way, out of sight until
-// SEEK_DROP, then the drop from SEEK_ALT (its burn lighting part-way down).
-const SEEK_MIN=180, SEEK_SNAP=90, SEEK_T=3.8, SEEK_UP=0.22, SEEK_DROP=0.42, SEEK_ALT=620, SEEK_HI=900;
+// v4: the Anchor Pod card. E fires a pod at any vein you've found, anywhere on the map: it climbs out of
+// the Rig, comes down on a booster burn POD_OFF from the vein's heart, then fires its Stabilizers into the
+// free hotspots itself, each only when its hotspot (where it'll be when the shot lands) is out on its
+// wide swing and well spread from the others, for a wide steering triangle. It's picky at first and
+// settles for less the longer it waits (POD_PICKY → POD_SETTLE over POD_EASE_T s). Each Stabilizer still
+// spends a charge, or Dat on auto-buy; with neither it waits. Empty (or after POD_WAIT_MAX s) it leaves.
+const POD_T0=3.2, POD_T_PER=1/1400, POD_UP=0.2, POD_DROP=0.42, POD_ALT=620, POD_HI=900, POD_OFF=70,
+  POD_PICKY=0.9, POD_SETTLE=0.4, POD_EASE_T=18, POD_WAIT_MAX=60, POD_LEAVE_T=1.6, POD_SCALE=1.7;
+// v4: surveyed veins get a callsign, shown on their survey panel and over the vein itself
+const VEIN_TAGS=['ASH','BRINE','CINDER','DROSS','EMBER','FLINT','GARNET','HALITE','IRON','JASPER','KILN','LODE','MICA','NICKEL','ONYX','PYRITE','QUARTZ','RUST','SLAG','TALC','UMBER','VITRIOL','WOLFRAM','XENON','YTTRIUM','ZIRCON'];
+function veinTag(v){if(!v.tag){const n=S.tagN=(S.tagN||0)+1;v.tag=VEIN_TAGS[(n-1)%VEIN_TAGS.length]+(n>VEIN_TAGS.length?'-'+Math.ceil(n/VEIN_TAGS.length):'')}return v.tag}
+// every surveyed vein that's still alive, oldest survey first
+function surveyedVeins(){return S.veins.filter(v=>v.surveyed&&veinAlive(v)&&!v.done).map(v=>{if(v.surveyT==null)v.surveyT=S.t;veinTag(v);return v}).sort((a,b)=>a.surveyT-b.surveyT)}
 function mkHotspots(v){
   const hs=[];
   for(let i=0;i<HOTSPOTS_PER_VEIN;i++)hs.push({a0:i/HOTSPOTS_PER_VEIN*Math.PI*2+rnd(-0.5,0.5),spin:rnd(0.25,0.45)*(rnd(0,1)<0.5?-1:1),
@@ -2252,26 +2261,30 @@ function meterView(m){
 // still alive. Tier, a bar per rung of its ladder, and how long until it ripens a tier, goes
 // unstable or collapses (frozen while the Rig is locked onto it).
 function fmtT(t){t=Math.max(0,Math.ceil(t));return t>=60?`${Math.floor(t/60)}:${String(t%60).padStart(2,'0')}`:`${t}s`}
+function mkSurveyCard(v){const el=document.createElement('div');el.className='veinSurvey';el.title='Look at this vein';
+  el.innerHTML='<div class="vsHead"><span class="vsTag"></span><span class="vsTier"></span></div><div class="vsLadder"></div><div class="vsLine"></div>';
+  el.addEventListener('click',()=>{cam.x=v.mine.x;cam.y=v.mine.y;sfx.click()});return el}
 function updateSurveyUI(){
-  const el=document.getElementById('veinSurvey');
-  let v=S.activeVein&&S.activeVein.surveyed?S.activeVein:S.surveyVein;
-  if(v&&(!veinAlive(v)||v.done))v=S.surveyVein=null;
-  const meter=document.getElementById('drillMeter'), body=meter.querySelector('.dmBody'), docked=!meter.hidden&&S.activeVein===v;
-  // the meter's up for another vein: keep out of its way
-  // v4: once you're locked on, ripeness no longer matters: the survey steps aside for a bigger steering pad
-  if(!v||menuOpen||S.over||!meter.hidden){el._hd=true;if(el.parentNode===body){meter.parentNode.insertBefore(el,meter);el.classList.remove('inMeter')}return}
-  el._hd=false;
-  if(docked&&el.parentNode!==body){body.appendChild(el);el.classList.add('inMeter')}
-  else if(!docked&&el.parentNode===body){meter.parentNode.insertBefore(el,meter);el.classList.remove('inMeter')}
-  const L=veinLadder(v), locked=S.activeVein===v&&S.base.locked, tier=locked&&v.meter&&v.meter.phase==='drill'?v.meter.yieldTier:ripeTier(v);
-  const tEl=document.getElementById('vsTier');tEl._tc=tierName(tier);tEl._sc=CARD_TIER_COLOR[tier]||'';
+  const row=document.getElementById('veinSurveys'),meter=document.getElementById('drillMeter'),up=!meter.hidden;
+  // while the drill meter's up, the vein being drilled steps aside for the steering pad; the others sit above the meter.
+  // As many of the newest as fit between the build bar and the minimap.
+  const list=menuOpen||S.over?[]:surveyedVeins().filter(v=>!(up&&v===S.activeVein)),shown=list.slice(-Math.max(1,Math.min(up?3:4,Math.floor((innerWidth-330)/192))));
+  [...row.children].forEach(el=>{if(!shown.includes(el._v))el.remove()});
+  shown.forEach((v,i)=>{const el=v._sv||(v._sv=mkSurveyCard(v));el._v=v;if(row.children[i]!==el)row.insertBefore(el,row.children[i]||null);fillSurvey(el,v)});
+  const b=up?Math.round(innerHeight-meter.getBoundingClientRect().top+10)+'px':'';if(row.style.bottom!==b)row.style.bottom=b;
+}
+function fillSurvey(el,v){
+  const L=veinLadder(v), locked=S.activeVein===v&&S.base.locked, tier=locked&&v.meter&&v.meter.phase==='drill'?v.meter.yieldTier:ripeTier(v), col=veinEnergy(v).col;
+  if(el.__vc!==col){el.__vc=col;el.style.setProperty('--vc',col)}
+  el.querySelector('.vsTag')._tc='◈ '+v.tag;
+  const tEl=el.querySelector('.vsTier');tEl._tc=tierName(tier);tEl._sc=CARD_TIER_COLOR[tier]||'';
   // ladder: each rung fills as the vein ripens through it; the unstable stretch shows red on the last
   const idx=ripeIdx(v), within=idx<L.length-1?Math.min(1,((v.ripeT||0)-ripeStart(idx))/RIPEN_DWELL[Math.min(idx,RIPEN_DWELL.length-1)]):1, u=unstableFrac(v);
   // each rung is as wide as that tier lasts (the peak: its unstable window, Stabilizer bonus and all),
   // so the bar is a true timeline; the peak rung fills as that window burns down, reddening as it goes
   const last=L.length-1, hold=holdsAtPeak(v);
   const dur=i=>i<last?RIPEN_DWELL[Math.min(i,RIPEN_DWELL.length-1)]:(hold?RIPEN_DWELL[RIPEN_DWELL.length-1]:unstableDur(v));
-  document.getElementById('vsLadder')._ih=L.map((t,i)=>{
+  el.querySelector('.vsLadder')._ih=L.map((t,i)=>{
     const f=i<idx?1:i===idx?(i===last?(hold?1:u):within):0, col=i===last&&u>0?mixCol(CARD_TIER_COLOR[t],C.enemy,Math.min(1,u*1.2)):CARD_TIER_COLOR[t];
     return `<i title="${tierName(t)} — ${i===last&&hold?'holds':Math.round(dur(i))+'s'}" style="flex:${dur(i)} 1 0"><b style="width:${(f*100).toFixed(1)}%;background:${col}"></b></i>`}).join('');
   let line;
@@ -2279,7 +2292,7 @@ function updateSurveyUI(){
   else if(holdsAtPeak(v))line=idx<L.length-1?`Ripens to ${tierName(L[idx+1])} in ${fmtT(ripeStart(idx+1)-(v.ripeT||0))}. Holds at its peak — it never collapses.`:'At its peak — it never collapses.';
   else if(idx<L.length-1)line=`Ripens to ${tierName(L[idx+1])} in ${fmtT(ripeStart(idx+1)-(v.ripeT||0))} · collapses in ${fmtT(ripePeakT(v)+unstableDur(v)-(v.ripeT||0))}.`;
   else line=`<span class="warn">Unstable</span> at its peak — collapses in <span class="warn">${fmtT(ripePeakT(v)+unstableDur(v)-(v.ripeT||0))}</span>.`;
-  document.getElementById('vsLine')._ih=line;
+  el.querySelector('.vsLine')._ih=line;
 }
 // v4: one console card per Stabilizer slot on the vein being drilled — its health, how steady it
 // is, how much of the steering weight it's carrying, and a warning when the enemy is coming for it.
@@ -2948,7 +2961,7 @@ function reset(landing){
       cableLenAdd:0,cableHpMult:1,condensedMult:1,livingMult:1,fastBonus:0,drillRateMult:1,freeRelayCharges:0,
       grenFireRateMult:1,grenSplashMult:1,squadRangeMult:1,heavyArmour:false,pointDefence:false,deflector:false,riftShield:false,wallTowers:false,podTowers:false,siegeRing:false,wallType:null,
       energySurgeLevel:0,armedRelays:false,relayOff:null,relayDef:null,teslaLevel:0,martyrs:false,fabRateMult:1},
-    rewardChoice:null,pingRing:null,pings:[],reanim:[],stabs:[],stabShots:[],stabCharges:3,stabRechargeT:0,probes:[],probeCharges:3,probeRechargeT:0,paused:false,
+    rewardChoice:null,pingRing:null,pings:[],reanim:[],stabs:[],stabShots:[],pods:[],stabCharges:3,stabRechargeT:0,probes:[],probeCharges:3,probeRechargeT:0,paused:false,
     sel:{base:false,troops:new Set(),harv:new Set(),bu:new Set()},
     // v2: harvesters, builders, depots and walls are gone — their arrays stay (always empty) so
     // the shared unit/structure code paths keep working untouched.
@@ -7725,7 +7738,7 @@ function inHarvestRange(p){
   return S.relays.some(r=>r.built&&r.tetherOk&&dist(p,r)<=BUILD_R);
 }
 function fireStabilizer(w){
-  if(S.mods.seekerStabs)return fireSeeker(w);
+  if(S.mods.anchorPod)return fireAnchorPod(w);
   const src=stabSourceFor(w);
   if(!src){note('Too far — get the Rig or a live Relay closer');return}
   const d=dist(w,src);
@@ -7736,45 +7749,78 @@ function fireStabilizer(w){
   updateBuildBar();
   return true;
 }
-function fireSeeker(w){
-  const hit=hotspotAt(w,SEEK_SNAP);
-  if(!hit){note('Click on or near a hotspot to lock it');return}
-  const src=stabSourceFor(hit.h,SEEK_MIN);
-  if(!src){note(stabSourceFor(hit.h)?`Too close — a Seeker Stabilizer can't land within ${SEEK_MIN}`:'Too far — get the Rig or a live Relay closer');return}
-  if(S.stabCharges<=0&&!takeStock(STAB_DAT,'Stabilizer'))return;
-  S.stabShots.push({seek:true,v:hit.v,h:hit.h,x0:src.x,y0:src.y,z0:src===S.base?RIG_H*0.95:50,tx:hit.h.x,ty:hit.h.y,t:0,dur:SEEK_T,spin:rnd(0.5,1)*(rnd(0,1)<0.5?-1:1)});
-  if(S.stabCharges>0)S.stabCharges--;
-  tone(240,0.12,'square',0.06,0,520);sndAt(src.x,src.y,()=>{noiseCrack(0.3,0.12,500);tone(90,0.35,'sawtooth',0.05,0,160)});
-  updateBuildBar();
+// the found, live vein whose zone you clicked in, if any
+function veinAtClick(w){let best=null,bd=Infinity;S.veins.forEach(v=>{if(!veinAlive(v)||v.done||!v.mine.found||!v.hot)return;const d=dist(v,w);if(d<=v.r*1.15&&d<bd){bd=d;best=v}});return best}
+function podBusy(v){return S.pods.some(p=>p.v===v&&p.state!=='leave')}
+function fireAnchorPod(w){
+  const v=veinAtClick(w);
+  if(!v){note('Click a vein you\'ve found — the pod can reach any of them');return}
+  if(podBusy(v)){note('A pod is already working that vein');return}
+  if(v.hot.every(h=>h.stab)){note('Its hotspots are all pinned already');return}
+  const B=S.base,a=Math.atan2(B.y-v.mine.y,B.x-v.mine.x),x=v.mine.x+Math.cos(a)*POD_OFF,y=v.mine.y+Math.sin(a)*POD_OFF;
+  S.pods.push({v,x,y,x0:B.x,y0:B.y,z0:RIG_H*0.95,t:0,dur:POD_T0+Math.hypot(x-B.x,y-B.y)*POD_T_PER,state:'fly',downT:0,leaveT:0,cd:0,spin:rnd(0,6.28),claims:[],wait:''});
+  tone(240,0.12,'square',0.06,0,520);sndAt(B.x,B.y,()=>{noiseCrack(0.3,0.12,500);tone(90,0.35,'sawtooth',0.05,0,160)});
   return true;
 }
-// where a Seeker is: its ground point and height (in the 3D model's units), and whether it's in sight
-const seekAlt=u=>{const b=0.45,A1=SEEK_ALT*(1-b)/(1+2*b);return u<b?SEEK_ALT-(SEEK_ALT-A1)*u/b:A1*Math.pow(1-(u-b)/(1-b),3)};
-function seekPos(sh){const f=Math.min(1,sh.t/sh.dur);
-  if(f<SEEK_UP){const u=f/SEEK_UP;return {x:sh.x0,y:sh.y0,z:sh.z0+SEEK_HI*u*u,show:true,thr:1,up:true}}
-  if(f<SEEK_DROP)return {x:sh.tx,y:sh.ty,z:SEEK_HI,show:false};
-  const u=(f-SEEK_DROP)/(1-SEEK_DROP),L=Math.hypot(sh.tx-sh.x0,sh.ty-sh.y0)||1,e=Math.pow(1-u*u*(3-2*u),1.6),z=seekAlt(u);
-  return {x:sh.tx-(sh.tx-sh.x0)/L*90*e,y:sh.ty-(sh.ty-sh.y0)/L*90*e,z,show:true,thr:u>=0.45?0.6+0.4*(1-(u-0.45)/0.55):0.12,dep:Math.max(0,Math.min(1,(70-z)/55)),lx:(sh.tx-sh.x0)/L*0.25*e,ly:(sh.ty-sh.y0)/L*0.25*e}}
+// where a hotspot will be at time t (the same drift as updateHotspots)
+function hotAt(v,h,t){const rr=v.r*(HOT_R[0]+(HOT_R[1]-HOT_R[0])*(0.5+0.5*Math.sin(t*h.rs+h.rp))),a=h.a0+t*h.spin;return {x:v.x+Math.cos(a)*rr,y:v.y+Math.sin(a)*rr}}
+// The hotspot worth a shot right now, if any: score it where it'll be when the Stabilizer lands — how far
+// out on its swing and how far round from the pinned / incoming ones (full marks at a third of a turn),
+// weighted toward the weaker of the two, since a triangle needs both — against how picky the pod still is.
+function podPick(pod){const v=pod.v,want=POD_SETTLE+(POD_PICKY-POD_SETTLE)*Math.max(0,1-pod.downT/POD_EASE_T),TAU=Math.PI*2;
+  const taken=v.hot.filter(h=>h.stab).map(h=>Math.atan2(h.y-v.y,h.x-v.x)).concat(pod.claims.map(c=>c.ang));
+  let best=null;
+  v.hot.forEach(h=>{if(h.stab||pod.claims.some(c=>c.h===h))return;
+    let q=h,dur=0.45;for(let k=0;k<2;k++){dur=Math.max(0.45,dist(pod,q)/STAB_FLIGHT_SPEED);q=hotAt(v,h,S.t+dur)}
+    const out=Math.max(0,Math.min(1,(dist(q,v)/v.r-HOT_R[0])/(HOT_R[1]-HOT_R[0]))),ang=Math.atan2(q.y-v.y,q.x-v.x);
+    let gap=1;taken.forEach(a=>{const d=Math.abs(((ang-a)%TAU+TAU*1.5)%TAU-Math.PI);gap=Math.min(gap,d/(TAU/3))});
+    const g=Math.min(1,gap),score=0.5*Math.min(out,g)+0.25*(out+g);
+    if(score>=want&&(!best||score>best.score))best={h,q,dur,ang,score}});
+  return best}
+function updatePods(dt){
+  S.pods=S.pods.filter(p=>{
+    if(p.state==='fly'){p.t+=dt;if(p.t>=p.dur){p.state='down';burst(p.x,p.y,'#b9a48a',30,170,0.8);shakeScreen(3,0.25);sndAt(p.x,p.y,()=>{tone(62,0.4,'sine',0.18,0,32);noiseCrack(0.3,0.15,300)})}return true}
+    if(p.state==='leave'){p.leaveT+=dt;return p.leaveT<POD_LEAVE_T}
+    const v=p.v;p.downT+=dt;p.claims=p.claims.filter(c=>S.stabShots.includes(c.shot));
+    const alive=veinAlive(v)&&!v.done,free=alive&&v.hot.some(h=>!h.stab&&!p.claims.some(c=>c.h===h));
+    if(!alive||p.downT>POD_WAIT_MAX||(!free&&!p.claims.length)){p.state='leave';sndAt(p.x,p.y,()=>{noiseCrack(0.4,0.12,500);tone(80,0.5,'sawtooth',0.05,0,180)});return true}
+    p.cd-=dt;if(!free||p.cd>0)return true;
+    const pick=podPick(p);
+    if(!pick){p.wait='spread';return true}
+    if(S.stabCharges<=0&&!(autoBuy&&S.dat>=STAB_DAT)){p.wait='charge';return true}
+    if(S.stabCharges>0)S.stabCharges--;else payDat(STAB_DAT,'Stabilizer');
+    p.wait='';p.cd=0.35;
+    const sh={x0:p.x,y0:p.y,tx:pick.q.x,ty:pick.q.y,t:0,dur:pick.dur,spin:rnd(2,4)*(rnd(0,1)<0.5?-1:1),pod:true};
+    S.stabShots.push(sh);p.claims.push({h:pick.h,ang:pick.ang,shot:sh});
+    sndAt(p.x,p.y,()=>tone(240,0.12,'square',0.05,0,520));updateBuildBar();
+    return true});
+}
+// where a pod is drawn: its ground point and height (in the 3D model's units). In flight it climbs out
+// of the Rig, is out of sight for a moment, then drops on a burn (like the Rig's landing) onto its spot.
+const podAlt=u=>{const b=0.45,A1=POD_ALT*(1-b)/(1+2*b);return u<b?POD_ALT-(POD_ALT-A1)*u/b:A1*Math.pow(1-(u-b)/(1-b),3)};
+function podPos(p){
+  if(p.state==='down')return {x:p.x,y:p.y,z:0,show:true,thr:0,dep:1};
+  if(p.state==='leave'){const u=p.leaveT/POD_LEAVE_T;return {x:p.x,y:p.y,z:POD_HI*u*u,show:true,thr:1,up:true,dep:Math.max(0,1-u*3)}}
+  const f=Math.min(1,p.t/p.dur);
+  if(f<POD_UP){const u=f/POD_UP;return {x:p.x0,y:p.y0,z:p.z0+POD_HI*u*u,show:true,thr:1,up:true,dep:0}}
+  if(f<POD_DROP)return {x:p.x,y:p.y,z:POD_HI,show:false};
+  const u=(f-POD_DROP)/(1-POD_DROP),L=Math.hypot(p.x-p.x0,p.y-p.y0)||1,e=Math.pow(1-u*u*(3-2*u),1.6),z=podAlt(u);
+  return {x:p.x-(p.x-p.x0)/L*90*e,y:p.y-(p.y-p.y0)/L*90*e,z,show:true,thr:u>=0.45?0.6+0.4*(1-(u-0.45)/0.55):0.12,dep:Math.max(0,Math.min(1,(70-z)/55)),lx:(p.x-p.x0)/L*0.25*e,ly:(p.y-p.y0)/L*0.25*e}}
 // A spike lands: pin the free hotspot it hit (if any) and buy the vein time, or fizzle.
 function landStabilizer(sh){
   const hit=hotspotAt({x:sh.tx,y:sh.ty});
-  if(!hit){burst(sh.tx,sh.ty,'#8d96a1',10,90,0.4);note(sh.seek?'No free hotspot left to land on':'Missed — lead the hotspot');return}
-  if(sh.seek)burst(hit.h.x,hit.h.y,'#b9a48a',22,150,0.7);
+  if(!hit){burst(sh.tx,sh.ty,'#8d96a1',10,90,0.4);if(!sh.pod)note('Missed — lead the hotspot');return}
   const {v,h}=hit;
   const st={x:h.x,y:h.y,hp:STAB_HP,maxHp:STAB_HP,kind:'stabilizer',r:12,built:true,buildT:STAB_BUILD_T,buildTotal:STAB_BUILD_T,builder:null,repairer:null,vein:v,hot:h,
     cracks:mkCracks(6,4,30,0.45),landT:S.t};
   h.stab=st; S.stabs.push(st);
-  if(!v.surveyed){v.surveyed=true;S.surveyVein=v;msg(`Vein surveyed — ${tierName(ripeTier(v))} grade. The survey panel shows when it ripens next or how long until it collapses.`)}
-  else S.surveyVein=v;
+  if(!v.surveyed){v.surveyed=true;v.surveyT=S.t;msg(`Vein ${veinTag(v)} surveyed — ${tierName(ripeTier(v))} grade. Its survey panel shows when it ripens next or how long until it collapses; click a panel to look at its vein.`)}
   const before=v.lifeBonus||0; v.lifeBonus=Math.min(STAB_LIFE_BONUS*HOTSPOTS_PER_VEIN,before+STAB_LIFE_BONUS);
   burst(h.x,h.y,veinEnergy(v).col,16,140,0.5); shakeScreen(2,0.15); sndAt(h.x,h.y,()=>sfx.build());
 }
 function updateStabilizerShots(dt){
 
   S.stabShots=S.stabShots.filter(sh=>{sh.t+=dt;
-    // a Seeker follows its hotspot; if that one gets pinned first it switches to the nearest free one on the vein
-    if(sh.seek&&sh.h){if(sh.h.stab||sh.v.done){const p=seekPos(sh);let best=null,bd=Infinity;if(!sh.v.done)(sh.v.hot||[]).forEach(h=>{if(h.stab)return;const d=dist(h,p);if(d<bd){bd=d;best=h}});sh.h=best}
-      if(sh.h){sh.tx=sh.h.x;sh.ty=sh.h.y}}
     if(sh.t<sh.dur)return true;landStabilizer(sh);return false});
 }
 // ---------- wall lines ----------
@@ -8444,6 +8490,7 @@ function drawWardenScan(L,o,x,y,z,beamT){const d={x,y,beamT};
       ctx.globalAlpha=0.85;ctx.strokeStyle='#bff7f0';ctx.lineWidth=1.1;ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);ctx.stroke();
       ctx.globalAlpha=0.5+0.4*Math.abs(Math.sin(d.beamT*23));ctx.fillStyle='#bff7f0';ctx.beginPath();ctx.arc(cx+rnd(-2,2)*0.5,cyy,1.5,0,Math.PI*2);ctx.fill();
       ctx.restore()}
+window.__S=()=>S;window.__G=()=>({fireStabilizer,showRewardChoice,podPos,setBuild:m=>{buildMode=m},cam,surveyedVeins});/*TMPHOOK*/
 function drawDrones(back){
   const B=S.base;
   S.drones.forEach(d=>{
@@ -9465,7 +9512,7 @@ function update(dt){
   if(S.pingRing){S.pingRing.t+=dt;if(S.pingRing.t>=S.pingRing.dur)S.pingRing=null}
   if(S.pings.length)S.pings=S.pings.filter(pg=>(pg.t-=dt)>0);
   if(S.reanim.length)updateReanimation(dt);
-  updateStabilizerShots(dt);
+  updateStabilizerShots(dt);updatePods(dt);
   updateProbes(dt);
   if(!S.callsIn)S.callsIn=[];if(!S.callFx)S.callFx=[];if(!S.decoys)S.decoys=[];if(!S.mines)S.mines=[];if(!S.fields)S.fields=[];updateCalls(dt);updateCallFx(dt);updateMinesFields(dt);
   updateFabs(dt);
@@ -10187,7 +10234,7 @@ const CARD_INFO={
   energySurge1:['relayOff','Every Relay','sonic'],energySurge2:['relayOff','Every Relay','sonic'],energySurge3:['relayOff','Every Relay','sonic'],
   relayArmored:['relayOff','Every Relay','fortified'],tesla1:['relayOff','Every Relay','tesla'],tesla2:['relayOff','Every Relay','tesla'],
   relayRadar:['relayDef','Every Relay','radar'],relayWalled:['relayDef','Every Relay','walledRelay'],relayRepair:['relayDef','Every Relay','cradle'],
-  heavyArmour:['rigstab','Rig + every Stabilizer','armour'],seekerStabs:['rigstab','Every Stabilizer you fire','seeker'],pointDefence:['rigstab','Rig + every Stabilizer','pd'],deflector:['rigstab','Rig + every Stabilizer','dome'],
+  heavyArmour:['rigstab','Rig + every Stabilizer','armour'],anchorPod:['rigstab','Stabilizers · fired by a pod','anchor'],pointDefence:['rigstab','Rig + every Stabilizer','pd'],deflector:['rigstab','Rig + every Stabilizer','dome'],
   riftShield:['rig','Rig only','rift'],overdrive:['rig','Rig drill','overdrive'],
   siegeRing:['walls','Around the Rig, each drill','siege'],wallTowers:['walls','Every wall end','towers'],podTowers:['walls','Every wall end','pods'],
   tol1:['cables','Rig + Relays'],cable1:['cables','Every unit cable','spool'],cablehp2:['cables','Every cable'],
@@ -10244,12 +10291,12 @@ const CARD_CAT_ART={
     if(f<0.7)caPod(107,caLerp(-10,88,caSm(f/0.7)),1.3,1);else{caPod(107,88,1.3,0);caGlow(107,92,30*(1-(f-0.7)/0.3),'#ffd27a',0.7*(1-(f-0.7)/0.3))}},
   supply(){caCrate(107,92,2)}};
 const CARD_ART={
-  // a Stabilizer coming down on its burn onto a bracketed hotspot, then standing pinned there
-  seeker(t){const f=(t*0.32)%1,hx=150+Math.sin(t*0.5)*8,hy=98;caGlow(hx,hy,16,'#be64ff',0.75);caRig(52,104,0.4);
-    [[-1,-1],[1,-1],[1,1],[-1,1]].forEach(([sx,sy])=>caLine([[hx+sx*13,hy+sy*4],[hx+sx*13,hy+sy*8],[hx+sx*8,hy+sy*8]],'#8fe3ff',1.1));
-    if(f<0.62){const u=f/0.62,y=caLerp(-12,hy,1-Math.pow(1-u,2.4)),x=hx-24*(1-u),fl=u>0.4?1:0.3;caGlow(x,y+3,8*fl+3,'#8fe3ff',0.7);ctx.fillStyle='#e9fbff';ctx.beginPath();ctx.moveTo(x-2.4,y+2);ctx.lineTo(x,y+4+12*fl);ctx.lineTo(x+2.4,y+2);ctx.fill();
-      caRR(x-4,y-13,8,15,2.5,'#5d6670',CA_OL);ctx.fillStyle='#8fe3ff';ctx.fillRect(x-2.6,y-9,5.2,6);caRR(x-3.4,y-16,6.8,4,1.5,'#a9b6c4',CA_OL)}
-    else caStab(hx,hy+4,0.42)},
+  // an Anchor Pod comes down beside a vein and fires its Stabilizers out to the hotspots, one by one
+  anchor(t){const f=(t*0.22)%1,cx=118,cy=92,hs=[[70,96],[160,100],[132,72]];caGlow(cx,cy,30,'#be64ff',0.35);hs.forEach(([x,y])=>caGlow(x,y,11,'#be64ff',0.7));
+    const pod=(x,y,fl)=>{if(fl){caGlow(x,y+3,8*fl+3,'#8fe3ff',0.7);ctx.fillStyle='#e9fbff';ctx.beginPath();ctx.moveTo(x-3,y+2);ctx.lineTo(x,y+4+14*fl);ctx.lineTo(x+3,y+2);ctx.fill()}
+      caRR(x-5,y-16,10,18,3,'#5d6670',CA_OL);ctx.fillStyle='#8fe3ff';ctx.fillRect(x-3.2,y-11,6.4,7);caRR(x-4,y-20,8,5,1.5,'#a9b6c4',CA_OL)};
+    if(f<0.3){const u=f/0.3;pod(cx,caLerp(-14,cy,1-Math.pow(1-u,2.4)),u>0.4?1:0.3)}
+    else{pod(cx,cy,0);hs.forEach(([x,y],i)=>{const s0=0.38+i*0.17,u=(f-s0)/0.12;if(u>=1)caStab(x,y+4,0.3);else if(u>0){const px=caLerp(cx,x,u),py=caLerp(cy-10,y,u)-Math.sin(u*Math.PI)*26;ctx.fillStyle='#c9d1d9';ctx.beginPath();ctx.arc(px,py,2.6,0,TAU2);ctx.fill();caGlow(px,py,5,'#8fe3ff',0.6)}})}},
   armour(t){const f=(t*0.9)%1,hit=f>0.42&&f<0.56;caRig(70,104,0.42,{armour:true});caStab(140,104,0.5,{armour:true});
     const ex=f<0.45?caLerp(196,156,caSm(f/0.45)):caLerp(156,190,caSm((f-0.45)/0.55));caEnemy(ex,96,Math.PI,1,hit);if(hit){caGlow(154,86,10,'#ffffff',0.6);caTxt('−75%',154,64,'#ffd0c8',9)}},
   pd(t){caRig(70,104,0.42,{pd:true});caStab(150,104,0.5,{pd:true});const f=(t*0.8)%1,P=u=>[caLerp(210,96,u),caLerp(10,40,u)-Math.sin(u*Math.PI)*20];
@@ -10826,7 +10873,7 @@ function skXform(S0,rot,pivot,off){const R=v=>rot(v),T=q=>{const r=R([q[0]-pivot
   return {F:S0.F.map(f=>({...f,pts:f.pts.map(T),n:R(f.n)})),pts:S0.pts.map(T),bias:S0.bias}}
 function stabCapsulePieces(spin,dep,nozzles){const DK='#4a4f57',P=[];
   for(let i=0;i<4;i++){const a=i*Math.PI/2+0.2+spin,ca=Math.cos(a),sa=Math.sin(a),foot=[ca*(7+6*dep),sa*(7+6*dep),15+(1.2-15)*dep];P.push(skBeam([ca*5,sa*5,12],foot,1.6,'#999'))}
-  if(nozzles)for(let i=0;i<4;i++){const a=i*Math.PI/2+Math.PI/4+spin;P.push(skPrism(Math.cos(a)*4.4,Math.sin(a)*4.4,-2.4,0.4,1.0,1.9,8,0,DK))} // the Seeker's booster nozzles
+  if(nozzles)for(let i=0;i<4;i++){const a=i*Math.PI/2+Math.PI/4+spin;P.push(skPrism(Math.cos(a)*4.4,Math.sin(a)*4.4,-2.4,0.4,1.0,1.9,8,0,DK))} // the booster nozzles (Anchor Pods)
   P.push(skPrism(0,0,0,6,6.6,7.4,10,spin,DK,{top:'#5d6670'}));P.push(skPrism(0,0,6,22,6,5.6,8,Math.PI/8+spin,'#5d6670',{top:'#6f7c89'}));
   for(let i=0;i<8;i++){const pn=skPanel(5.85,8,Math.PI/8+spin,i,9,19,0.32,'#8fe3ff',{emit:0.2+0.15*Math.sin(S.t*6+i)});P.push(pn)}
   P.push(skPrism(0,0,13,13.8,6.2,6.2,8,Math.PI/8+spin,'#8d9aa8'));P.push(skPrism(0,0,22,25,5.6,3.6,8,Math.PI/8+spin,'#8d9aa8',{top:'#a9b6c4'}));P.push(skPrism(0,0,25,26,5,4.6,12,spin,'#8d9aa8',{top:'#a9b6c4'}));
@@ -10834,22 +10881,28 @@ function stabCapsulePieces(spin,dep,nozzles){const DK='#4a4f57',P=[];
 // lock-on brackets round a ground point, closing in from R0 to R1 as f goes 0→1
 function seekBrackets(x,y,f,col,R0=40,R1=20){const g=Math.min(1,f),r=R0+(R1-R0)*g*(2-g),c=r*0.45;ctx.save();ctx.strokeStyle=col;ctx.lineWidth=2/Math.max(0.5,cam.z);
   [[-1,-1],[1,-1],[1,1],[-1,1]].forEach(([sx,sy])=>{ctx.beginPath();ctx.moveTo(x+sx*r,y+sy*(r-c)*0.8);ctx.lineTo(x+sx*r,y+sy*r*0.8);ctx.lineTo(x+sx*(r-c),y+sy*r*0.8);ctx.stroke()});ctx.restore()}
-// A Seeker Stabilizer: brackets on its hotspot the whole way; a climb out of the Rig on full thrust; then,
-// after a moment out of sight, the drop — legs folded, the burn lighting part-way down, steering in,
-// legs swinging out for the last stretch while its exhaust kicks up the dust
-function drawSeekShot(sh){const p=seekPos(sh),left=Math.max(0,sh.dur-sh.t);
-  if(sh.h){seekBrackets(sh.tx,sh.ty,sh.t/0.8,'#8fe3ff');if(left>0.05){ctx.fillStyle='#8fe3ff';ctx.font='600 11px '+css('--mono');ctx.textAlign='center';ctx.fillText(`${left.toFixed(1)}s`,sh.tx+44,sh.ty+4)}}
-  if(!p.show)return;const s=SK_SCALE,z=p.z;
-  if(!p.up&&z<80){const k=(1-z/80)*p.thr;for(let i=0;i<12;i++){const a=i/12*Math.PI*2+S.t*0.7,r=(8+(1-z/80)*22+((S.t*40+i*7)%10));ctx.fillStyle=`rgba(150,140,125,${0.22*k})`;ctx.beginPath();ctx.arc(p.x+Math.cos(a)*r,p.y+Math.sin(a)*r*0.8,2.4+((S.t*3+i)%3),0,Math.PI*2);ctx.fill()}}
-  SKO.x=p.x;SKO.y=p.y;SKO.s=s;SKO.shk=[0,0];SKO.lean=[0,0];
-  if(p.thr>0.02){const L=(10+34*p.thr)*(0.85+0.15*Math.sin(S.t*43)),a=skPJ([0,0,z-2.2]),b=skPJ([0,0,z-2.2-L]);ctx.save();ctx.globalCompositeOperation='lighter';ctx.lineCap='round';
-    [[6*s,0.16,1],[3.4*s,0.45,1],[1.4*s,0.9,0.55]].forEach(([lw,al,e],j)=>{ctx.strokeStyle=j===2?`rgba(240,252,255,${al*p.thr})`:`rgba(143,227,255,${al*p.thr})`;ctx.lineWidth=lw;ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(a[0]+(b[0]-a[0])*e,a[1]+(b[1]-a[1])*e);ctx.stroke()});ctx.restore();
-    skGlow([0,0,z-3],12,'#8fe3ff',0.65*p.thr)}
-  skRender(skLift(stabCapsulePieces(sh.t*sh.spin,p.dep||0,true),z));
+// A Stabilizer capsule (or Anchor Pod, scale k) at height z over (x,y): the burn's plume under it, the dust
+// its exhaust kicks up near the ground, the body, and the blinking tip
+function drawBooster(q,spin,k){const s=SK_SCALE*k,z=q.z;
+  if(!q.up&&z<80&&q.thr>0){const f=(1-z/80)*q.thr;for(let i=0;i<12;i++){const a=i/12*Math.PI*2+S.t*0.7,r=(8+(1-z/80)*22+((S.t*40+i*7)%10))*k*0.8;ctx.fillStyle=`rgba(150,140,125,${0.22*f})`;ctx.beginPath();ctx.arc(q.x+Math.cos(a)*r,q.y+Math.sin(a)*r*0.8,(2.4+((S.t*3+i)%3))*k*0.7,0,Math.PI*2);ctx.fill()}}
+  SKO.x=q.x;SKO.y=q.y;SKO.s=s;SKO.shk=[0,0];SKO.lean=[0,0];
+  if(q.thr>0.02){const L=(10+34*q.thr)*(0.85+0.15*Math.sin(S.t*43)),a=skPJ([0,0,z-2.2]),b=skPJ([0,0,z-2.2-L]);ctx.save();ctx.globalCompositeOperation='lighter';ctx.lineCap='round';
+    [[6*s,0.16,1],[3.4*s,0.45,1],[1.4*s,0.9,0.55]].forEach(([lw,al,e],j)=>{ctx.strokeStyle=j===2?`rgba(240,252,255,${al*q.thr})`:`rgba(143,227,255,${al*q.thr})`;ctx.lineWidth=lw;ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(a[0]+(b[0]-a[0])*e,a[1]+(b[1]-a[1])*e);ctx.stroke()});ctx.restore();
+    skGlow([0,0,z-3],12,'#8fe3ff',0.65*q.thr)}
+  skRender(skLift(stabCapsulePieces(spin,q.dep||0,true),z));
   if(Math.sin(S.t*14)>0)skGlow([0,0,z+26],5,'#ffd27a',0.7);
-  SKO.x=0;SKO.y=0}
+  SKO.x=0;SKO.y=0;SKO.s=SK_SCALE}
+// Anchor Pods: brackets and a countdown on the landing spot while one's inbound; on the ground, a pip per
+// hotspot (violet pinned, cyan incoming, grey free) and what it's waiting for
+function drawPods(){
+  S.pods.forEach(p=>{const q=podPos(p),fs=11/Math.max(0.5,cam.z);
+    if(p.state==='fly'){seekBrackets(p.x,p.y,p.t/0.8,'#8fe3ff');const left=p.dur-p.t;ctx.fillStyle='#8fe3ff';ctx.font=`600 ${fs}px `+css('--mono');ctx.textAlign='center';ctx.fillText(`POD · ${left.toFixed(1)}s`,p.x,p.y-30)}
+    if(q.show)drawBooster(q,p.spin+(p.state==='down'?0:p.t*0.5),POD_SCALE);
+    if(p.state==='down'){const v=p.v,y0=p.y-58;(v.hot||[]).forEach((h,i)=>{const x=p.x+(i-(v.hot.length-1)/2)*9,c=h.stab?'#b48bff':p.claims.some(c=>c.h===h)?'#8fe3ff':'#4a5561';ctx.fillStyle=c;ctx.beginPath();ctx.arc(x,y0,3,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#0b0e12';ctx.lineWidth=1;ctx.stroke()});
+      if(p.wait){ctx.font=`600 ${fs}px `+css('--mono');ctx.textAlign='center';ctx.fillStyle=p.wait==='charge'?C.enemy:'#8fe3ff';ctx.globalAlpha=0.6+0.3*Math.sin(S.t*4);ctx.fillText(p.wait==='charge'?'NEEDS A CHARGE':'WAITING FOR A WIDE SPREAD',p.x,y0-10);ctx.globalAlpha=1}}});
+}
 function drawStabShots(){
-  S.stabShots.forEach(sh=>{if(sh.seek){drawSeekShot(sh);return}
+  S.stabShots.forEach(sh=>{
     const f=Math.min(1,sh.t/sh.dur),arc=Math.sin(Math.PI*f),x=sh.x0+(sh.tx-sh.x0)*f,y=sh.y0+(sh.ty-sh.y0)*f;
     const L=Math.hypot(sh.tx-sh.x0,sh.ty-sh.y0)||1,dx=(sh.tx-sh.x0)/L,dy=(sh.ty-sh.y0)/L,h=arc*Math.min(60,30+L*0.08)/SK_SCALE;
     const e=f*f*(3-2*f),th=1.05*(1-e),c=Math.cos(th),sn=Math.sin(th),k=[-dy,dx,0];
@@ -11412,7 +11465,7 @@ function draw(){
   drawExplorationLight(x0-40,y0-40,x1+40,y1+40,vw,vh,shkx,shky);
   drawDrones();
   drawFabShots();
-  drawStabShots();
+  drawPods();drawStabShots();
   drawProbes();
   drawKitEffects();
   drawMinesFields();
@@ -11425,6 +11478,11 @@ function draw(){
     ctx.globalAlpha=0.25;ctx.beginPath();ctx.moveTo(B.x+nx,B.y+ny);ctx.lineTo(ex+nx,ey+ny);ctx.moveTo(B.x-nx,B.y-ny);ctx.lineTo(ex-nx,ey-ny);ctx.stroke();
     ctx.setLineDash([]);ctx.restore()}
   // floating reward text (drawn above fog so it's always legible)
+  // v4: each surveyed vein's callsign floats over it (the same tag as its survey panel)
+  surveyedVeins().forEach(v=>{const col=veinEnergy(v).col,k=1/Math.max(0.45,cam.z),fs=11*k,x=v.mine.x,y=v.mine.y-v.r*0.6,txt='◈ '+v.tag;
+    ctx.font=`700 ${fs}px `+css('--mono');const w=ctx.measureText(txt).width+12*k,h=fs*1.8;
+    ctx.globalAlpha=0.85;ctx.fillStyle='rgba(11,14,18,0.82)';ctx.beginPath();if(ctx.roundRect)ctx.roundRect(x-w/2,y-h/2,w,h,4*k);else ctx.rect(x-w/2,y-h/2,w,h);ctx.fill();
+    ctx.strokeStyle=col;ctx.lineWidth=1.2*k;ctx.stroke();ctx.globalAlpha=1;ctx.fillStyle=col;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(txt,x,y+0.5*k);ctx.textBaseline='alphabetic'});
   S.floaters.forEach(f=>{ctx.globalAlpha=Math.max(0,1-f.t/f.life);ctx.fillStyle=f.col;ctx.font='700 13px '+css('--mono');ctx.textAlign='center';ctx.fillText(f.text,f.x,f.y)});ctx.globalAlpha=1;
   drawTutorialTarget();
   // map edge
@@ -11438,14 +11496,13 @@ function draw(){
     ctx.beginPath();ctx.arc(mouse.wx,mouse.wy,6/cam.z,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1}
   // Stabilizer aiming: the Rig's firing range, a line out to the cursor, and the landing spot
   // with the flight time — hotspots keep drifting while it's in the air, so lead them
-  if(buildMode==='stabilizer'&&S.mods.seekerStabs){const m={x:mouse.wx,y:mouse.wy},hit=hotspotAt(m,SEEK_SNAP),src=hit?stabSourceFor(hit.h,SEEK_MIN):null,near=hit&&!src?stabSourceFor(hit.h):null;
-    ctx.save();ctx.lineWidth=1.5/cam.z;
-    stabSources().forEach(s=>{ctx.strokeStyle='#8fe3ff';ctx.globalAlpha=0.35;ctx.setLineDash([10/cam.z,8/cam.z]);ctx.beginPath();ctx.arc(s.o.x,s.o.y,s.r,0,Math.PI*2);ctx.stroke();
-      ctx.globalAlpha=0.08;ctx.fillStyle=C.enemy;ctx.beginPath();ctx.arc(s.o.x,s.o.y,SEEK_MIN,0,Math.PI*2);ctx.fill();ctx.globalAlpha=0.6;ctx.strokeStyle=C.enemy;ctx.setLineDash([6/cam.z,6/cam.z]);ctx.stroke()});
-    ctx.setLineDash([]);ctx.globalAlpha=0.9;ctx.font='600 12px '+css('--mono');ctx.textAlign='center';
-    if(hit){const col=src?'#8fe3ff':C.enemy;if(src){ctx.globalAlpha=0.4;ctx.strokeStyle=col;ctx.setLineDash([10/cam.z,8/cam.z]);ctx.beginPath();ctx.moveTo(src.x,src.y);ctx.lineTo(hit.h.x,hit.h.y);ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=0.9}
-      seekBrackets(hit.h.x,hit.h.y,1,col);ctx.fillStyle=col;ctx.fillText(src?`LOCK · ${SEEK_T.toFixed(1)}s`:near?'TOO CLOSE':'OUT OF RANGE',hit.h.x,hit.h.y-30)}
-    else{ctx.strokeStyle='#8d96a1';ctx.beginPath();ctx.arc(mouse.wx,mouse.wy,SEEK_SNAP,0,Math.PI*2);ctx.globalAlpha=0.4;ctx.stroke()}
+  if(buildMode==='stabilizer'&&S.mods.anchorPod){const m={x:mouse.wx,y:mouse.wy},v=veinAtClick(m);
+    ctx.save();ctx.lineWidth=2/cam.z;ctx.font='600 12px '+css('--mono');ctx.textAlign='center';
+    if(v){const busy=podBusy(v),full=v.hot.every(h=>h.stab),ok=!busy&&!full,col=ok?'#8fe3ff':C.enemy,B=S.base,a=Math.atan2(B.y-v.mine.y,B.x-v.mine.x),lx=v.mine.x+Math.cos(a)*POD_OFF,ly=v.mine.y+Math.sin(a)*POD_OFF;
+      ctx.strokeStyle=col;ctx.globalAlpha=0.5;ctx.setLineDash([10/cam.z,8/cam.z]);ctx.beginPath();ctx.arc(v.x,v.y,v.r,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=0.9;
+      if(ok)seekBrackets(lx,ly,1,col,24,24);ctx.fillStyle=col;
+      ctx.fillText(busy?'A POD IS ALREADY THERE':full?'ALL HOTSPOTS PINNED':`ANCHOR POD${v.tag?' → '+v.tag:''} · ${(POD_T0+Math.hypot(lx-B.x,ly-B.y)*POD_T_PER).toFixed(1)}s`,v.x,v.y-v.r-10)}
+    else{ctx.strokeStyle='#8d96a1';ctx.globalAlpha=0.5;ctx.beginPath();ctx.arc(mouse.wx,mouse.wy,14/cam.z,0,Math.PI*2);ctx.stroke();ctx.fillStyle='#8d96a1';ctx.fillText('PICK A VEIN YOU\'VE FOUND',mouse.wx,mouse.wy-20/cam.z)}
     ctx.restore()}
   else if(buildMode==='stabilizer'){const m={x:mouse.wx,y:mouse.wy},src=stabSourceFor(m)||B,d=dist(m,src),ok=!!stabSourceFor(m),col=ok?'#8fe3ff':C.enemy;
     ctx.save();ctx.strokeStyle='#8fe3ff';ctx.globalAlpha=0.35;ctx.lineWidth=1.5/cam.z;ctx.setLineDash([10/cam.z,8/cam.z]);
