@@ -146,7 +146,7 @@ body.lowGfx #fogGrain{display:none}
   width:min(460px,calc(100vw - 32px));background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px 10px 9px;
   box-shadow:0 4px 16px rgba(0,0,0,.5);font-size:12px}
 .drillMeter[hidden]{display:none}
-.drillMeter.steering{width:min(600px,calc(100vw - 32px))}
+.drillMeter.steering{width:min(680px,calc(100vw - 40px - var(--padS,184px)));transform:translateX(calc(-50% - (var(--padS,184px) + 8px)/2))}
 /* v4: the needle has left the band the yield is riding on: amber pulse so it reads from the corner of your eye */
 .drillMeter.drift:not(.alarm){border-color:#ffb33c;animation:meterDrift .9s ease-in-out infinite}
 @keyframes meterDrift{50%{box-shadow:0 0 0 2px rgba(255,179,60,.6),0 0 22px rgba(255,179,60,.45)}}
@@ -199,7 +199,9 @@ body.lowGfx #fogGrain{display:none}
 #dmYield{font-weight:700;font-size:12px}
 #dmCanvas{display:block;flex:1;min-width:0;height:44px;border-radius:3px}
 .dmBody{display:flex;gap:8px;align-items:center}
-#dmPad{display:block;flex:none;width:184px;height:184px;background:#0b0f14;border:1px solid var(--line);border-radius:4px;cursor:grab;touch-action:none}
+/* the steering pad sits outside the console, to its right, as tall as the console itself (sized in drawSteerPad) */
+#dmPad{display:block;position:absolute;left:calc(100% + 8px);bottom:-1px;box-sizing:border-box;width:var(--padS,184px);height:var(--padS,184px);background:#0b0f14;border:1px solid #2c3742;border-radius:6px;box-shadow:0 6px 22px rgba(0,0,0,.6);cursor:grab;touch-action:none}
+@media (max-width:720px){.drillMeter.steering{width:min(680px,calc(100vw - 32px));transform:translateX(-50%)}#dmPad{left:-1px;bottom:calc(100% + 8px)}}
 #dmPad:active{cursor:grabbing}
 #dmPad[hidden]{display:none}
 .dmFoot{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:6px;color:var(--muted);min-height:26px}
@@ -421,7 +423,7 @@ body.lowGfx #fogGrain{display:none}
   .tutPanel{top:calc(env(safe-area-inset-top,0px) + 52px);max-height:calc(100vh - 140px);overflow-y:auto}
   .toasts{top:calc(env(safe-area-inset-top,0px) + 56px)}
   .drillMeter{bottom:calc(68px + env(safe-area-inset-bottom,0px));padding:5px 8px 6px;width:min(420px,calc(100vw - 32px))}
-  #dmPad{width:120px;height:120px} #dmHint{display:none} .dmFoot{min-height:0;margin-top:3px} .dmHead{margin-bottom:3px}
+  #dmHint{display:none} .dmFoot{min-height:0;margin-top:3px} .dmHead{margin-bottom:3px}
   .help.open{inset:6% 6%;max-height:88vh}
 }
 /* While the menus are up, the world behind them stays hidden — nothing about the next map shows. */
@@ -683,7 +685,8 @@ async function run(d){
 <div class="drillMeter" id="drillMeter" hidden>
   <div class="dmHead"><span id="dmTitle">Drill meter</span><span id="dmYield"></span></div>
   <div class="dmProg" id="dmProg"><span class="k">Extraction</span><div class="dmProgBar"><i id="dmProgFill"></i></div><span class="v" id="dmProgTxt">0%</span></div>
-  <div class="dmBody"><canvas id="dmCanvas" width="440" height="44"></canvas><canvas id="dmPad" width="132" height="132" hidden title="Drag the weight to steer the drill needle"></canvas></div>
+  <div class="dmBody"><canvas id="dmCanvas" width="440" height="44"></canvas></div>
+  <canvas id="dmPad" width="132" height="132" hidden title="Drag the weight to steer the drill needle"></canvas>
   <div class="dmStabs" id="dmStabs">
     <button class="dmStab" data-i="0"><span class="sTop"><span class="sName">STAB 1</span><span class="sState"></span></span><span class="sBar"><i></i></span><span class="sSub"></span></button>
     <button class="dmStab" data-i="1"><span class="sTop"><span class="sName">STAB 2</span><span class="sState"></span></span><span class="sBar"><i></i></span><span class="sSub"></span></button>
@@ -2284,6 +2287,9 @@ let padScale=1;
 function drawSteerPad(v){
   const pad=document.getElementById('dmPad'), m=v.meter, show=m.phase!=='strike';
   pad._hd=!show; if(!show)return;
+  // beside the console it's as tall as the console; on a narrow screen it sits above it, smaller
+  const meter=document.getElementById('drillMeter'), ps=innerWidth>720?meter.offsetHeight:132;
+  if(ps&&meter._padS!==ps){meter._padS=ps;meter.style.setProperty('--padS',ps+'px')}
   const dpr=devicePixelRatio||1, cssS=pad.clientWidth||132, S2=Math.round(cssS*dpr); if(pad.width!==S2){pad.width=pad.height=S2}
   const g=pad.getContext('2d'), sv=steerState(v), sh=sv.sh, c0=S2/2;
   padScale=(cssS/2-7)/((HOT_R[1]+0.08)*v.r); const P=(x,y)=>[c0+x*padScale*dpr,c0+y*padScale*dpr];
