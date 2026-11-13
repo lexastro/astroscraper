@@ -1252,7 +1252,7 @@ function payDat(cost,what){
 const DRONE_COUNT=4, DRONE_SPEED=170, DRONE_RANGE=760, DRONE_HPS=9, DRONE_WORK_R=18;
 // v4: Stabilizers are tall towers — drones repairing one each work at their own level up it, circling
 // the column there (heights in the tower's own units, 0 at the ground; most drones hover at DRONE_HOVER)
-const STAB_DRONE_LEVELS=[24,100,62,128,44,84], STAB_TOWER_R=10, DRONE_HOVER=6, DRONE_FLY_Z=36, DRONE_ORB_R=4.6;
+const STAB_DRONE_LEVELS=[24,100,62,128,44,84], STAB_TOWER_R=10, DRONE_HOVER=6, DRONE_FLY_Z=36, DRONE_ORB_R=3.6;
 // Dat Crystal deposits are pickups now: the Rig or any unit that rolls over one scoops up the lot.
 const DAT_PICKUP_R=26;
 // v4: the derelict RIG — a rare find on the Dense Field stops. A mining rig (a long-bodied walker, not a
@@ -7230,7 +7230,7 @@ const RIG_LEG_FOLD=1.8, RIG_LEG_UNFOLD=1.3, RIG_LEG_HOLD=3;
 // stretch (below LAND_LEGS_ALT), touchdown at LAND_T. The game holds still until it's down; then
 // the crew file out of the bay one every LAND_EMERGE_GAP and go to their posts.
 const LAND_ALT=1500, LAND_T=5.4, LAND_BURN=0.45, LAND_LEGS_ALT=420, LAND_LEGS_RATE=0.75, LAND_EMERGE_GAP=0.16;
-function beginLanding(){const B=S.base,crew=[...S.troops,...S.harvesters,...S.builders];
+function beginLanding(){const B=S.base,crew=[...S.troops,...S.harvesters,...S.builders,...S.drones]; // the repair Wardens come out last
   crew.forEach(u=>{u.hidden=true;u.x=B.x;u.y=B.y});
   B.legDep=0;B._dep=0;B._legDir=0;B._alt=LAND_ALT;B.dest=null;
   S.landing={t:0,touch:false,q:crew,et:0,lit:false,snd:null}}
@@ -7247,7 +7247,7 @@ function landingTick(dt){const L=S.landing,B=S.base;if(!L.snd)L.snd=landSound();
     shakeScreen(8,0.6);burst(B.x,B.y,'#b9a48a',46,230,1.1);burst(B.x,B.y,'#8fe3ff',14,120,0.5)}}
 // after touchdown (the game running again): the crew walk out, then the landing is over
 function emergeTick(dt){const L=S.landing,B=S.base;L.et-=dt;
-  while(L.et<=0&&L.q.length){const u=L.q.shift();if(u.hp>0){u.hidden=false;u.x=B.x+rnd(-4,4);u.y=B.y+rnd(2,8)}L.et+=LAND_EMERGE_GAP;sndAt(B.x,B.y,()=>tone(520+rnd(-40,40),0.05,'square',0.02))}
+  while(L.et<=0&&L.q.length){const u=L.q.shift(),dr=S.drones.includes(u);if(u.hp>0||dr){u.hidden=false;u.x=B.x+rnd(-4,4);u.y=B.y+rnd(2,8);if(dr)u.z=RIG_BAY*0.5/*a Warden floats out of the bay and rises to its spot*/}L.et+=LAND_EMERGE_GAP;sndAt(B.x,B.y,()=>tone(520+rnd(-40,40),0.05,'square',0.02))}
   if(!L.q.length)S.landing=null}
 // ---- Rig sounds (v4) ----
 let RIG_NOISE=null;
@@ -8176,8 +8176,9 @@ function updateDrones(dt){
   const B=S.base, noDat=false; // v4: repairs are free, so the swarm never grounds for lack of Dat
   const jobs=droneJobs();
   const load=new Map();
-  S.drones.forEach(d=>{if(d.target&&(noDat||!droneJobAlive(d.target))){d.target=null;d.state='dock'}if(d.target)load.set(d.target,(load.get(d.target)||0)+1)});
+  S.drones.forEach(d=>{if(d.hidden)return;if(d.target&&(noDat||!droneJobAlive(d.target))){d.target=null;d.state='dock'}if(d.target)load.set(d.target,(load.get(d.target)||0)+1)});
   S.drones.forEach(d=>{
+    if(d.hidden)return; // still aboard the Rig after a landing
     if(!d.target&&jobs.length){
       let best=null,bs=Infinity;
       jobs.forEach(j=>{const sc=j.pri*1e5+(load.get(j.o)||0)*450+dist(d,j.o);if(sc<bs){bs=sc;best=j.o}});
@@ -8255,7 +8256,7 @@ function drawWardenScan(L,o,x,y,z,beamT){const d={x,y,beamT};
 function drawDrones(back){
   const B=S.base;
   S.drones.forEach(d=>{
-    if(!!back!==droneBehindRig(d))return;
+    if(d.hidden||!!back!==droneBehindRig(d))return;
     const z=d.z??DRONE_HOVER,sy=d.y-z*SK_TILT,R=DRONE_ORB_R,bob=Math.sin(S.t*2.3+d.orbit*3)*0.8,cy=sy+bob; // drawn up the screen by its height, like the towers
     const o=d.state==='repair'?d.target:null,ang=o?Math.atan2(o.y-d.y,o.x-d.x):(!d.target&&!d.loot)?Math.atan2(d.y-B.y,d.x-B.x):d.ang;
     // a soft shadow on the ground (falling down-right further the higher it flies)
