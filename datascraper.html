@@ -43,6 +43,8 @@ canvas#game{display:block;width:100%;height:100%;cursor:crosshair;touch-action:n
 .poiBtn{position:fixed;z-index:5;transform:translate(-50%,0);background:var(--panel);border:1px solid var(--accent);color:var(--fg);font:600 12px var(--mono);padding:5px 10px;border-radius:14px;cursor:pointer;white-space:nowrap;box-shadow:0 2px 10px rgba(0,0,0,0.5)}
 .poiBtn .c{color:var(--dat);margin-left:6px}
 .poiBtn .n{color:var(--muted);margin-left:6px;font-weight:400}
+.poiBtn .k{font-size:10px;color:var(--muted);border:1px solid var(--line);border-radius:3px;padding:0 4px;margin-left:7px}
+#poiDrill{border-color:var(--dat);font-size:13px;padding:6px 12px}
 .poiBtn:hover{background:#1d252e}
 .poiBtn.dry{border-color:var(--line);color:var(--muted)}
 .poiBtn.dry .c{color:var(--enemy)}
@@ -79,7 +81,6 @@ body.lowGfx #fogGrain{display:none}
 .build button .key{font-family:var(--mono);font-size:10px;color:var(--muted)}
 .build button .cost{font-family:var(--mono);font-size:11px;color:var(--dat)}
 .build button:disabled{opacity:.45;cursor:default}
-.build button#bLock{border-color:var(--dat)}
 /* v4: folders: the surface row stays short; a folder opens as a row of its own above it */
 .buildStack{display:flex;flex-direction:column;align-items:flex-start;gap:6px}
 .buildStack>.buildFolder{padding-bottom:0}
@@ -88,6 +89,7 @@ body.lowGfx #fogGrain{display:none}
 .build button.folderBtn.open{border-color:var(--accent);background:var(--panel2);box-shadow:0 0 0 1px rgba(242,182,60,.35)}
 .build button.folderBtn.busy:not(.open){border-color:var(--accent)}
 .build button#bAutoBuy{min-width:0}
+.build button .key.num{color:var(--accent)}
 /* live drilling readout only (speed picking now happens in the #drillSelectOverlay popup) — a
    flex child of .bottomBar, stacked above unitActions/the build bar on the left, well clear of
    both the toast stack (top-left) and the always-on help panel (top-right on desktop) */
@@ -438,6 +440,21 @@ body.lowGfx #fogGrain{display:none}
 /* While the menus are up, the world behind them stays hidden — nothing about the next map shows. */
 body.inMenu :is(#game,#fogGrain,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMeter,.mini,.unitSelCtrl,.help,.tutPanel){visibility:hidden}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}.overlay{animation:none}.bar i.hp.low{animation:none}.overlay button.rewardCard.legendary{animation:none}}
+/* v4 desktop: the bar stands as a column down the left edge; folders and call-downs fly out to the
+   right of their own button, and the drill console drops to the bottom edge in the room it frees */
+@media (min-width:721px) and (min-height:501px){
+  .buildStack{position:relative}
+  .bottomBar{z-index:7} /* an open folder lies over the drill console */
+  #buildMain{flex-direction:column;flex-wrap:nowrap;align-items:stretch;gap:5px}
+  /* compact: icon, label and hotkey on one line, the stock underneath */
+  #buildMain button{min-width:132px;display:grid;grid-template-columns:auto 1fr auto;column-gap:6px;row-gap:1px;align-items:center;text-align:left;padding:6px 9px}
+  #buildMain button .icon{grid-column:1;grid-row:1}
+  #buildMain button .key{grid-column:3;grid-row:1}
+  #buildMain button .cost{grid-column:2/4;grid-row:2}
+  .buildStack>.buildFolder{position:absolute;left:calc(100% - 10px);flex-wrap:nowrap;padding:0}
+  .drillMeter{bottom:max(12px,env(safe-area-inset-bottom,0px))}
+  .drillMeter.steering{width:max(360px,min(680px,calc(100vw - 430px - var(--padS,184px))))}
+}
 </style>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;600&display=swap">
 
@@ -631,6 +648,7 @@ async function run(d){
 </script>
 <div class="banners" id="banners"></div>
 <div class="curNote" id="curNote" hidden></div>
+<button class="poiBtn" id="poiDrill" hidden></button>
 <button class="poiBtn" id="poiRig" hidden></button>
 <button class="poiBtn" id="poiStrand" hidden></button>
 <div id="fogGrain" aria-hidden="true"></div>
@@ -661,10 +679,10 @@ async function run(d){
   </div>
   <!-- v2: every button is a Rig fabricator — charges that refill on their own timer, no Dat
        cost. Structures (data-mode) are aimed and launched; units (data-unit) deploy at once. -->
-  <div class="build" id="callBar" style="display:none"></div>
   <!-- v4: the bar keeps only what you reach for all the time (drill, Stabilizer, Probe, call-downs);
        structures and units live in folders that open as a row above it, one at a time. -->
   <div id="buildBar" class="buildStack">
+    <div class="build buildFolder" id="callBar" style="display:none"></div>
     <div class="build buildFolder" id="fold_build" hidden>
       <button id="bTurret" data-mode="turret"><span class="icon">⌖</span><span>Turret</span><span class="cost" id="cf_turret">●●</span><span class="key">T</span></button>
       <button id="bPodTurret" data-mode="podturret" hidden><span class="icon">⁘</span><span>Missile Pod</span><span class="cost" id="cf_podturret">●</span><span class="key">M</span></button>
@@ -681,7 +699,6 @@ async function run(d){
       <button id="bFabMech" data-unit="mech" hidden><span class="icon">◫</span><span>Mech</span><span class="cost" id="cf_mech">●</span></button>
     </div>
     <div class="build" id="buildMain">
-      <button id="bLock"><span class="icon">⛏</span><span id="bLockLabel">Begin Drilling</span><span class="key">F</span></button>
       <button id="bStab" data-mode="stabilizer"><span class="icon">◈</span><span>Stabilizer</span><span class="cost" id="cStab">●●●</span><span class="key">E</span></button>
       <button id="bPing"><span class="icon">◬</span><span id="bPingLabel">Probe</span><span class="cost" id="cProbe">●●●</span><span class="key">G</span></button>
       <button id="bFoldBuild" class="folderBtn" data-folder="build" title="Turrets, walls and Relays (T · Q · R)"><span class="icon">▦</span><span>Build ▴</span><span class="cost" id="cFoldBuild"></span></button>
@@ -3577,7 +3594,7 @@ const TUTORIAL_STEPS=[
    target:()=>{const v=tutVein();return{x:v.mine.x,y:v.mine.y,r:40}},
    done:()=>!!canLockdown()||S.base.locked},
   {title:'Start drilling',
-   text:()=>`The Rig is in position. Press <kbd>F</kbd> (or <b>Begin Drilling</b> in the bottom bar) to lock on. A needle sweeps the drill meter — press <kbd>F</kbd> again to stop it on a good band. The meter zooms in on where you hit, and the drill starts.`,
+   text:()=>`The Rig is in position. Press <kbd>F</kbd> (or the <b>Begin Drilling</b> button under the Rig) to lock on. A needle sweeps the drill meter — press <kbd>F</kbd> again to stop it on a good band. The meter zooms in on where you hit, and the drill starts.`,
    done:()=>S.base.locked},
   {title:'Tactical pause',
    text:()=>`The first wave is on its way. Press <kbd>Space</kbd> to <b>pause</b> the action. While it's paused you can still select units, give orders and call in builds — they all go ahead when you press <kbd>Space</kbd> again. Use it any time you need a moment to plan. Pause now.`,
@@ -6184,7 +6201,10 @@ cv.addEventListener('wheel',e=>{e.preventDefault();const w0=toWorld(e.clientX,e.
 addEventListener('keydown',e=>{
   if(menuOpen||e.target.tagName==='INPUT')return; keys[e.key.toLowerCase()]=true; keys[e.key]=true;
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='a'){e.preventDefault();keys.a=false;keys.A=false;selectAllUnitsOfKind('troops');return}
-  if(/^Digit[0-9]$/.test(e.code||'')&&!e.altKey){e.preventDefault();const n=+e.code.slice(5);if(e.ctrlKey||e.metaKey)assignGroup(n);else if(!e.repeat)recallGroup(n);return}
+  if(/^Digit[0-9]$/.test(e.code||'')&&!e.altKey){e.preventDefault();const n=+e.code.slice(5);
+    // v4: while the call-down row is up, 1–9 and 0 pick a call-down instead of a control group
+    if(callMenuOpen&&!e.ctrlKey&&!e.metaKey){const id=callIds()[(n+9)%10];if(id&&!e.repeat)tryCall(id);return}
+    if(e.ctrlKey||e.metaKey)assignGroup(n);else if(!e.repeat)recallGroup(n);return}
   if(e.key.toLowerCase()==='q')setBuild(buildMode==='wall'?null:'wall'); else if(e.key.toLowerCase()==='t')setBuild(buildMode==='turret'?null:'turret'); else if(e.key.toLowerCase()==='r')setBuild(buildMode==='relay'?null:'relay'); else if(e.key.toLowerCase()==='e')setBuild(buildMode==='stabilizer'?null:'stabilizer'); else if(e.key.toLowerCase()==='m'&&fabUnlocked('podturret'))setBuild(buildMode==='podturret'?null:'podturret');
   else if(e.key==='Escape'){if(!document.getElementById('drillSelectOverlay').hidden){closeDrillSelect()}else if(callMode||callMenuOpen){callMode=null;toggleCallMenu(false)}else if(probeMode){setProbeMode(false)}else if(pingMode){setPingMode(false)}else if(buildMode||prodMenuOpen){setBuild(null);closeProdMenu()}else if(buildFolder){setFolder(null)}else togglePause()} else if(e.key.toLowerCase()==='b'){S.sel.troops.clear();S.sel.harv.clear();S.sel.bu.clear();S.sel.base=true}
   // v4: Q wall, T turret, E Stabilizer, G probe, Y power a rig, C call-downs, Ctrl+A all units, F drill (lock on / strike)
@@ -6233,7 +6253,7 @@ document.querySelectorAll('#buildBar button').forEach(b=>{
   const cost=k==='stabilizer'?STAB_DAT:k==='probe'?PROBE_DAT:isSquadLike(k)?unitPrice(k):FAB_DAT[k];
   b.title=isSquadLike(k)?`Deploy a ${k==='troop'?'Trooper':FABS[k].name} (${cost} Dat) — right-click works too`:`Right-click to buy another charge for ${cost} Dat`;
 });
-document.getElementById('bLock').onclick=()=>tryLockdown();
+document.getElementById('poiDrill').onclick=e=>{e.stopPropagation();tryLockdown();positionPoiBtns()};
 document.getElementById('bPing').onclick=()=>tryProbe();
 document.getElementById('bCall').onclick=()=>toggleCallMenu();
 document.getElementById('bRig').onclick=()=>tryCaptureRig();
@@ -6244,11 +6264,14 @@ document.getElementById('poiRig').onclick=e=>{e.stopPropagation();tryCaptureRig(
 document.getElementById('poiStrand').onclick=e=>{e.stopPropagation();tryRescueStrand();positionPoiBtns()};
 function positionPoiBtns(){
   const rb=document.getElementById('poiRig'),sb=document.getElementById('poiStrand');
-  if(!S||S.over||menuOpen){rb._hd=true;sb._hd=true;return}
+  if(!S||S.over||menuOpen){rb._hd=true;sb._hd=true;document.getElementById('poiDrill')._hd=true;return}
   const R=cv.getBoundingClientRect();
   const place=(el,x,y,html,dry)=>{const sx=R.left+R.width/2+(x-cam.x)*cam.z,sy=R.top+R.height/2+(y-cam.y)*cam.z;
     if(sx<R.left-40||sx>R.right+40||sy<R.top-20||sy>R.bottom-20){el._hd=true;return}
     el._hd=false;el.style.left=sx+'px';el.style.top=sy+'px';if(el._html!==html){el._html=html;el.innerHTML=html}el.classList.toggle('dry',dry)};
+  // v4: the drill button lives in the world, under the Rig, whenever it can lock on (F works too)
+  {const db=document.getElementById('poiDrill'),v=!S.base.locked&&!S.paused&&canLockdown();
+   if(v)place(db,S.base.x,S.base.y+S.base.r+22,`⛏ ${v.rig?'Drill the Derelict Rig':'Begin Drilling'}<span class="k">F</span>`,false);else db._hd=true}
   const r=S.rig;
   if(r&&r.seen&&!r.online&&!r.vein.done){const ln=rigLinked();place(rb,r.x,r.y+56,`⛭ Power the Derelict Rig<span class="c">◆${RIG_DAT}</span>${ln?'':'<span class="n">needs a Relay link</span>'}`,!ln||S.dat<RIG_DAT)}else rb._hd=true;
   const g=S.strand;
@@ -6463,6 +6486,14 @@ function toggleRepairMode(){
 // v4: which build-bar folder is open ('build' / 'units' / null) — only one at a time, and never
 // alongside the call-down row
 let buildFolder=null;
+const VERT_BAR=matchMedia('(min-width:721px) and (min-height:501px)');
+// desktop: the open row flies out beside its button; a wide landscape phone: the row sits above the
+// bar starting over its button (kept on screen); an upright phone: full width
+function alignFolder(row,btn){
+  if(VERT_BAR.matches){const top=btn.offsetTop;if(row._top!==top){row._top=top;row._ml=null;row.style.marginLeft='';row.style.top=top+'px'}return}
+  if(row._top!=null){row._top=null;row.style.top=''}
+  const main=document.getElementById('buildMain'),ml=innerWidth>720?Math.max(0,Math.min(btn.offsetLeft-parseFloat(getComputedStyle(main).paddingLeft),innerWidth-row.scrollWidth-8)):0;
+  if(row._ml!==ml){row._ml=ml;row.style.marginLeft=ml+'px'}}
 function setFolder(f){buildFolder=f;if(f&&callMenuOpen){callMenuOpen=false;callMode=null}updateBuildBar()}
 document.querySelectorAll('#buildMain .folderBtn').forEach(b=>b.addEventListener('click',()=>{setFolder(buildFolder===b.dataset.folder?null:b.dataset.folder);sfx.click()}));
 function setBuild(m){buildMode=m;mouse.wallDraw=null;if(m){pingMode=false;probeMode=false;callMode=null}closeProdMenu();updateBuildBar()}
@@ -6489,12 +6520,6 @@ function updateBuildBar(){
     b._ds=false;b.classList.toggle('dry',S.fab[k].n<=0);
     document.getElementById('cf_'+k)._tc=fabPips(k);
   });
-  const lb=document.getElementById('bLock');
-  if(lb){
-    const preppingNow=S.base.locked&&S.activeVein&&S.activeVein.prepT>0;
-    document.getElementById('bLockLabel')._tc=preppingNow?`Warming Up… (${Math.ceil(S.activeVein.prepT)}s)`:S.base.locked?'Drilling…':(canLockdown()||{}).rig?'Drill the Derelict Rig':'Begin Drilling';
-    lb._ds=S.base.locked?true:!canLockdown();
-  }
   {const rb=document.getElementById('bRig'),r=S.rig;
     rb._hd=!(r&&r.seen&&!r.online&&!r.vein.done);
     if(!rb.hidden){const ok=rigLinked()&&S.dat>=RIG_DAT;rb.classList.toggle('dry',!ok);
@@ -6513,10 +6538,8 @@ function updateBuildBar(){
    const nb=['turret','podturret','relay'].filter(k=>fabUnlocked(k)).reduce((t,k)=>t+S.fab[k].n,0);
    document.getElementById('cFoldBuild')._tc=`${nb} ready`;
    document.getElementById('cFoldUnits')._tc=`▲ ${squadCount()}/${S.squadCap}`
-   // on a wide screen the open folder's row starts above its own button (kept on screen)
-   if(buildFolder){const row=document.getElementById('fold_'+buildFolder),btn=buildFolder==='build'?fb:fu,main=document.getElementById('buildMain');
-     const ml=innerWidth>720?Math.max(0,Math.min(btn.offsetLeft-parseFloat(getComputedStyle(main).paddingLeft),innerWidth-row.scrollWidth-8)):0;
-     if(row._ml!==ml){row._ml=ml;row.style.marginLeft=ml+'px'}}}
+   if(buildFolder)alignFolder(document.getElementById('fold_'+buildFolder),buildFolder==='build'?fb:fu);
+   if(callMenuOpen)alignFolder(document.getElementById('callBar'),document.getElementById('bCall'))}
   const pgb=document.getElementById('bPing');
   if(pgb){
     pgb._ds=S.probeCharges<=0&&!probeMode;pgb.classList.remove('dry');
@@ -6773,7 +6796,7 @@ function buildCallBar(){const bar=document.getElementById('callBar'),bc=document
   if(bc){bc.style.display=ids.length?'':'none';bc.classList.toggle('on',callMenuOpen);const tot=ids.reduce((t,id)=>t+(S.calls[id]||0),0);document.getElementById('cCall').textContent=tot?`${tot} free`:''}
   bar.style.display=ids.length&&callMenuOpen?'flex':'none';
   if(bar._ids!==ids.join()){bar._ids=ids.join();bar.innerHTML='';ids.forEach(id=>{const K=CALLDOWNS[id],b=document.createElement('button');b.dataset.call=id;
-    b.innerHTML=`<span class="icon">${K.icon}</span><span>${K.name}</span><span class="cost" id="cc_${id}"></span>`;b.title=K.desc;b.onclick=()=>tryCall(id);bar.appendChild(b)})}
+    const i=ids.indexOf(id);b.innerHTML=`<span class="icon">${K.icon}</span><span>${K.name}</span><span class="cost" id="cc_${id}"></span>${i<10?`<span class="key num">${(i+1)%10}</span>`:''}`;b.title=K.desc;b.onclick=()=>tryCall(id);bar.appendChild(b)})}
   ids.forEach(id=>{const b=bar.querySelector(`[data-call="${id}"]`),n=S.calls[id]||0;if(!b)return;b.classList.toggle('on',callMode===id);b.classList.toggle('dry',!n&&S.dat<callPrice(id));
     const el=document.getElementById('cc_'+id);if(el)el.textContent=callMode===id?'Aim…':(n?`${n} free · `:'')+'◆'+callPrice(id)})}
 
