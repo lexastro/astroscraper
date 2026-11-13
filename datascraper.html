@@ -5982,7 +5982,10 @@ function cableSeverPass(allUnits,dt){
 // (far fewer pixels to fill each frame), and the film grain is turned off. Remembered per browser.
 const LOWGFX_KEY='datascraper_lowgfx_v4';
 let lowGfx=false;try{lowGfx=localStorage.getItem(LOWGFX_KEY)==='1'}catch(e){}
-function gDpr(){return lowGfx?Math.min(1,devicePixelRatio||1)*0.6:(devicePixelRatio||1)}
+// v4 (performance): on very sharp screens the canvas renders at no more than GFX_DPR_MAX× (a 2× screen
+// was drawing four times the pixels of a normal one); F8's low-spec mode goes further
+const GFX_DPR_MAX=1.5;
+function gDpr(){return lowGfx?Math.min(1,devicePixelRatio||1)*0.6:Math.min(GFX_DPR_MAX,devicePixelRatio||1)}
 function resize(){const d=gDpr();cv.width=Math.round(cv.clientWidth*d);cv.height=Math.round(cv.clientHeight*d);document.body.classList.toggle('lowGfx',lowGfx)}
 function setLowGfx(on){lowGfx=on;try{localStorage.setItem(LOWGFX_KEY,on?'1':'0')}catch(e){}resize()}
 addEventListener('resize',resize);resize();
@@ -7157,6 +7160,9 @@ function updateRiftShield(dt){const B=S.base;if(!S.mods.riftShield)return;if(B.r
 const RIG_R=11.7,RIG_H=215,RIG_BAY=34,RIG_TOP=108,RIG_HOV=9;
 // v4: legs fold up at RIG_LEG_FOLD and come down at RIG_LEG_UNFOLD (per second, 0..1), and stay up
 // RIG_LEG_HOLD seconds after the Rig stops moving
+// the Rig's cached picture: how far it reaches left of / above its foot (the tower rises up the screen,
+// its shadow falls down-right), and its size, in world units
+const RIG_SPR_X=60,RIG_SPR_Y=150,RIG_SPR_W=290,RIG_SPR_H=380;
 const RIG_LEG_FOLD=1.8, RIG_LEG_UNFOLD=1.3, RIG_LEG_HOLD=3;
 // v4: the landing. Once the map has loaded, the Rig comes down from LAND_ALT like a reusable booster:
 // a fast fall, the landing burn lighting at LAND_BURN of the way down, legs swinging out in the last
@@ -7296,9 +7302,18 @@ function drawRigTower(B){const dt=Math.max(0,Math.min(0.1,S.t-(B._rt??S.t)));B._
   if(hov>0.5)skGlow([0,0,0.4],34,'#8fe3ff',0.16*(1-dep));
   if(S.mods.riftShield&&onRift){const P=skPJ([0,0,0]),low=(B.riftSan??1)<0.25;ctx.save();ctx.globalCompositeOperation='lighter';ctx.lineWidth=1.4;
     for(let i=0;i<3;i++){const rr=40*(0.55+i*0.22);ctx.setLineDash([6,5]);ctx.lineDashOffset=S.t*(i%2?-16:16);ctx.strokeStyle=`rgba(${i%2?'190,100,255':'143,227,255'},${(0.5-i*0.1)*(low&&Math.random()<0.5?0.15:1)})`;ctx.beginPath();ctx.ellipse(P[0],P[1],rr,rr*0.9,0,0,Math.PI*2);ctx.stroke()}ctx.restore()}
-  const m=rigPieces({dep,hov,plant:B._plant,charge:B._charge,armor:!!S.mods.heavyArmour,pd:S.mods.pointDefence?(B.pdYaw||[-Math.PI/2,-Math.PI/2]):null,dmg:1-B.hp/B.maxHp});B._m=m;
-  if((B.riftSan??1)<0.25&&onRift&&Math.random()<0.4)SKO.shk=[(Math.random()-0.5)*4,(Math.random()-0.5)*2];
-  skRender(m.P,B.flashT>0);SKO.shk=[0,0];
+  // v4 (performance): the model is only rebuilt when its pose changes, and while it stands still it's
+  // drawn from a cached picture (redrawn when the pose, the damage, a hit flash or the zoom changes)
+  const pdY=S.mods.pointDefence?(B.pdYaw||[-Math.PI/2,-Math.PI/2]):null,dmg=1-B.hp/B.maxHp;
+  const pk=[dep.toFixed(3),hov.toFixed(2),(B._plant||0).toFixed(3),(B._charge||0).toFixed(3),!!S.mods.heavyArmour,pdY?pdY.map(a=>a.toFixed(2)).join(','):'',dmg.toFixed(2)].join('|');
+  let m=B._mk===pk?B._mc:null;if(!m){m=rigPieces({dep,hov,plant:B._plant,charge:B._charge,armor:!!S.mods.heavyArmour,pd:pdY,dmg});B._mc=m;B._mk=pk}B._m=m;
+  const shake=(B.riftSan??1)<0.25&&onRift&&Math.random()<0.4;
+  if(shake){SKO.shk=[(Math.random()-0.5)*4,(Math.random()-0.5)*2];skRender(m.P,B.flashT>0);SKO.shk=[0,0]}
+  else{const sc=Math.min(4,Math.ceil(cam.z*gDpr()*4)/4),fl=B.flashT>0,sk=pk+'|'+sc+'|'+fl;
+    if(!B._spr||B._sprK!==sk){if(!B._spr)B._spr=document.createElement('canvas');const c=B._spr,Wd=Math.ceil(RIG_SPR_W*sc),Hd=Math.ceil(RIG_SPR_H*sc);
+      if(c.width!==Wd||c.height!==Hd){c.width=Wd;c.height=Hd}const x=c.getContext('2d');x.setTransform(1,0,0,1,0,0);x.clearRect(0,0,Wd,Hd);x.setTransform(sc,0,0,sc,0,0);
+      const keep=ctx,kx=SKO.x,ky=SKO.y;ctx=x;SKO.x=RIG_SPR_X;SKO.y=RIG_SPR_Y;try{skRender(m.P,fl)}finally{ctx=keep;SKO.x=kx;SKO.y=ky}B._sprK=sk}
+    ctx.drawImage(B._spr,B.x-RIG_SPR_X,B.y-RIG_SPR_Y,RIG_SPR_W,RIG_SPR_H)}
   if(B._plant>0.05&&dep>0.9){ctx.save();ctx.globalAlpha=B._plant;ctx.strokeStyle=C.accent;ctx.lineWidth=1.5;m.feet.forEach(f=>{ctx.beginPath();ctx.arc(B.x+f[0],B.y+f[1],9,0,Math.PI*2);ctx.stroke()});ctx.restore()}
   SKO.x=0;SKO.y=0;SKO.s=SK_SCALE}
 // over the cables: the laser, the thrusters, the lamps; then the kit's shields and intercepts
@@ -8372,20 +8387,29 @@ function palShieldEnds(t){
 const USPR=new Map(),USPR_E=28,USPR_ANG=16,USPR_SH=5; // 16 facings; USPR_SH: how far (world px) a unit's shadow falls down-right
 function unitSpriteKey(t){const kk=kitOf(t);const k0=unitSpriteKey0(t);return k0&&kk?k0+'~'+kk:k0}
 function unitSpriteKey0(t){
-  if(t.flashT>0)return null;
-  const k=t.kind||'troop',since=S.t-(t.shotT??-9),aq=Math.round((t.aimV??RIFLE_READY)*5),TAU=Math.PI*2;
-  if(k==='troop')return since>0.3?'t'+aq:null; // v4: the kick and muzzle flash are over by 0.3s; only then is the pose a cached one
+  // v4 (performance): animating poses are cached too, in small time steps (a fresh frame of the
+  // animation every 0.05–0.1 s, which reads the same at a glance), instead of every animating unit
+  // being drawn from scratch every frame. Only poses with effects that reach out from the unit (a
+  // Rocketeer painting a target, a Marksman charging) stay live. A hit flash is the same pose, white.
+  const k=unitPoseKey(t);return k&&t.flashT>0?k+'!':k}
+function unitPoseKey(t){
+  const k=t.kind||'troop',since=S.t-(t.shotT??-9),aq=Math.round((t.aimV??RIFLE_READY)*5),TAU=Math.PI*2,q=(v,st,n)=>Math.min(n,Math.max(0,Math.floor(v/st)));
+  const walk=n=>t.moving?'w'+(((Math.floor(S.t*7/TAU*n))%n)+n)%n:'';
+  if(k==='troop')return 't'+aq+(since<0.3?'s'+q(since,0.05,5):'');
   if(k==='marksman'){if(t.chargeT>0||since<0.9)return null;return 'm'+aq+(t.moving?'w':'')+(((Math.floor((S.t*3+(t.id||0))/TAU*3)%3)+3)%3)}
-  if(k==='brawler'){if(t.jabT>0||S.t-(t.atkT??-9)<0.75||S.t-(t.bashT??-9)<0.85)return null;return 'p'}
-  if(k==='grenadier'){if(S.t-(t.podShotT??-9)<0.35||S.t-(t.podGrewT??-9)<0.35)return null;return 'g'+(t.pods??GREN_PODS)}
-  if(k==='rocket'){if(t.paintT>0||since<0.5)return null;return 'r'+aq}
+  if(k==='brawler'){const p=palState(t);return 'p'+Math.round(p.pitch*6)+','+Math.round(p.h[0]*2)+','+Math.round(p.h[1]*2)+','+Math.round(p.bash*6)+','+Math.round(Math.min(1,p.flare)*4)}
+  if(k==='grenadier'){const a=S.t-(t.podShotT??-9),g=S.t-(t.podGrewT??-9);return 'g'+(t.pods??GREN_PODS)+(a<0.35?'a'+q(a,0.07,4):'')+(g<0.35?'b'+q(g,0.07,4):'')}
+  if(k==='rocket'){if(t.paintT>0)return null;return 'r'+aq+(since<0.5?'s'+q(since,0.1,4):'')}
   if(k==='mech'&&hasKit(t,'breaker'))return S.t-(t.punchT??-9)<0.3||t.moving?null:'B';
+  if(k==='mech'&&hasKit(t,'fieldrelay'))return 'F'+walk(8);
+  if(k==='mech'){const fire=S.t-(t.gatShotT??-9)<0.12,b=(((t.barrel||0)%(Math.PI/3))+Math.PI/3)%(Math.PI/3);
+    return 'G'+walk(8)+'b'+Math.floor(b/(Math.PI/3)*4)+(fire?'f'+(Math.floor(S.t*20)%2):'')} // the barrels repeat every 60°
   return null}
 // Unit images are cached by pose and facing (USPR_ANG steps): the body in one cache, and the cast
 // shadow in another keyed only by unit type and facing (one calm pose's silhouette serves every
 // pose, so units that are firing or jabbing get a shadow for free too). Both caches drop their oldest
 // entries when full rather than starting over.
-const USHD=new Map(),USPR_CAP=900,USHD_CAP=200;
+const USHD=new Map(),USPR_CAP=1600,USHD_CAP=200; // v4: more room now that animation frames are cached too
 function cacheGet(M,k){const c=M.get(k);if(c){M.delete(k);M.set(k,c)}return c}
 function cachePut(M,k,c,cap){M.set(k,c);if(M.size>cap){let n=Math.ceil(cap/4);for(const key of M.keys()){M.delete(key);if(--n<=0)break}}}
 function renderUnit(t,ang,sc,shadow){const S2=Math.ceil(USPR_E*2*sc),c=document.createElement('canvas');c.width=c.height=S2;
@@ -9702,8 +9726,11 @@ function update(dt){
   updateWallLines(dt);
   S.troops.forEach(t=>{if(t.manning&&!S.wallLines.includes(t.manning))t.manning=null});
 
-  rebuildFog();
+  if(S.t-(S._fogT??-9)>=1/FOG_HZ||S.t<S._fogT){S._fogT=S.t;rebuildFog()}
 }
+// v4 (performance): the fog is redrawn FOG_HZ times a second, not every frame: sight moves a few pixels
+// between redraws and its edge is soft, so it looks the same, and it was one of the dearest things in a frame
+const FOG_HZ=20;
 // v4: its own function so the fog is up while the Rig is still coming down (the game itself is held)
 function rebuildFog(){const B=S.base;
   // dim veil, rebuilt fresh every frame: dark over everything, then punched fully clear around
@@ -10302,6 +10329,7 @@ function beginVeinLight(vw,vh,shkx,shky){
 }
 function endVeinLight(){
   const L=veinLX;
+  if(!L._used)return;L._used=false; // v4 (performance): no vein on screen, so nothing to mask or add
   if(!debugNoFog){L.save();L.globalAlpha=1;L.globalCompositeOperation='destination-out';L.imageSmoothingEnabled=true;L.drawImage(fogMaskSoftC,0,0,W,H);L.restore()}
   ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.globalCompositeOperation='lighter';ctx.globalAlpha=1;ctx.drawImage(veinLayer,0,0);ctx.restore();
 }
@@ -10445,9 +10473,10 @@ function skRender(solids,flash){
   // of legs doesn't throw one big blob
   const sh=[],own=[];solids.forEach(S0=>{const L=S0.grp==='each'?(own.push([]),own[own.length-1]):sh;S0.pts.forEach(q=>{L.push(skGJ(q));if(q[2]<0.6)L.push(skPJ(q))})});
   ctx.fillStyle='rgba(0,0,0,0.38)';ctx.beginPath();[sh,...own].forEach(L=>{if(L.length<3)return;const h=skHull(L);h.forEach((q,i)=>i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]));ctx.closePath()});ctx.fill('nonzero');
-  const key=S0=>{let y=0,z=0;S0.pts.forEach(q=>{y+=q[1];z+=q[2]});return (y+z*0.5)/S0.pts.length+(S0.bias||0)};
+  // (each piece's depth is worked out once, not again on every comparison of the sort)
+  const key=S0=>{let y=0,z=0;S0.pts.forEach(q=>{y+=q[1];z+=q[2]});return (y+z*0.5)/S0.pts.length+(S0.bias||0)},ks=new Map();solids.forEach(S0=>ks.set(S0,key(S0)));
   ctx.lineJoin='round';ctx.lineWidth=0.3;ctx.strokeStyle='rgba(16,19,23,0.75)';
-  solids.slice().sort((a,b)=>key(a)-key(b)).forEach(S0=>S0.F.forEach(f=>{if(skDot(f.n,SK_VIEW)<=0.02)return;
+  solids.slice().sort((a,b)=>ks.get(a)-ks.get(b)).forEach(S0=>S0.F.forEach(f=>{if(skDot(f.n,SK_VIEW)<=0.02)return;
     ctx.beginPath();f.pts.forEach((q,i)=>{const P=skPJ(q);i?ctx.lineTo(P[0],P[1]):ctx.moveTo(P[0],P[1])});ctx.closePath();ctx.fillStyle=skShade(f.col,f.n,flash);ctx.fill();
     if(f.o.emit){ctx.save();ctx.globalCompositeOperation='lighter';ctx.globalAlpha=Math.min(1,f.o.emit);ctx.fillStyle=f.col;ctx.fill();ctx.restore()}ctx.stroke()}))}
 function skGlow(p3,r,col,a){if(a<=0.01)return;const [x,y]=skPJ(p3),R=r*SKO.s,[cr,cg,cb]=parseCol(col),g=ctx.createRadialGradient(x,y,0,x,y,R);g.addColorStop(0,`rgba(${cr},${cg},${cb},${Math.min(1,a)})`);g.addColorStop(1,`rgba(${cr},${cg},${cb},0)`);
@@ -10541,13 +10570,20 @@ function drawRelayMast(r){SKO.x=0;SKO.y=0;SKO.s=1;SKO.lean=[0,0];SKO.shk=[0,0];
 const HOSES=['#2f3338','#5d6440','#8c8a6a','#3d4247','#6e7350','#7d7a60','#2a2d31','#55603f'];
 function resample3(pts,n){const seg=[];let L=0;for(let i=1;i<pts.length;i++){const d=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1],pts[i][2]-pts[i-1][2]);seg.push(d);L+=d}
   const out=[];for(let k=0;k<=n;k++){let sd=L*k/n,i=0;while(i<seg.length-1&&sd>seg[i]){sd-=seg[i];i++}const f=seg[i]?sd/seg[i]:0,a=pts[i],b=pts[i+1]||pts[i];out.push([a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f,a[2]+(b[2]-a[2])*f])}return out}
-function drawHoses(pts3,n,seed,hot){if(pts3.length<2)return;SKO.x=0;SKO.y=0;SKO.s=1;SKO.lean=[0,0];SKO.shk=[0,0];
-  const N=Math.max(12,Math.min(90,Math.round(pts3.length*2.5))),Q=resample3(pts3,N),P=Q.map(skPJ),G=Q.map(skGJ),strands=Math.min(10,Math.max(1,n)),sw=strands>1?2.1:1.6,Rb=strands>1?0.62*Math.sqrt(strands):0,tw=Math.PI*1.3/N;
+function drawHoses(pts3,n,seed,hot,batch){if(pts3.length<2)return;
+  // v4 (performance): a cable entirely off-screen isn't drawn; a single unit cable is traced with fewer points
+  {const V=S._view;if(V){let a=1e9,b=1e9,c=-1e9,d=-1e9;for(const q of pts3){if(q[0]<a)a=q[0];if(q[0]>c)c=q[0];if(q[1]-q[2]*0.5<b)b=q[1]-q[2]*0.5;if(q[1]+q[2]>d)d=q[1]+q[2]}if(c<V.x0-20||a>V.x1+20||d<V.y0-20||b>V.y1+20)return}}
+  SKO.x=0;SKO.y=0;SKO.s=1;SKO.lean=[0,0];SKO.shk=[0,0];
+  const N=n>1?Math.max(12,Math.min(90,Math.round(pts3.length*2.5))):Math.max(8,Math.min(40,Math.round(pts3.length*1.3))),Q=resample3(pts3,N),P=Q.map(skPJ),G=Q.map(skGJ);
+  // a single unit cable can be batched with the others (see drawHoseBatch)
+  if(batch&&n===1){batch.push({P,G,col:hot?C.enemy:HOSES[Math.floor(seed*3)%HOSES.length]});SKO.s=SK_SCALE;return}
+  const strands=Math.min(10,Math.max(1,n)),sw=strands>1?2.1:1.6,Rb=strands>1?0.62*Math.sqrt(strands):0,tw=Math.PI*1.3/N;
   const nrm=i=>{const a=P[Math.max(0,i-1)],b=P[Math.min(P.length-1,i+1)],dx=b[0]-a[0],dy=b[1]-a[1],l=Math.hypot(dx,dy)||1;return [-dy/l,dx/l]};
   ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle='rgba(0,0,0,0.3)';ctx.lineWidth=sw+Rb*2;ctx.beginPath();G.forEach((q,i)=>i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]));ctx.stroke();
   const H=[];for(let k=0;k<strands;k++){const ph=k/strands*Math.PI*2+seed+(k%3)*0.35,pts=[],dep=[];for(let i=0;i<P.length;i++){const a=ph+i*tw,[nx,ny]=nrm(i),o=Rb*(0.75+0.25*((k*7)%4)/3)*Math.sin(a);pts.push([P[i][0]+nx*o,P[i][1]+ny*o]);dep.push(Math.cos(a))}H.push({pts,dep,col:hot?C.enemy:HOSES[(k+Math.floor(seed*3))%HOSES.length]})}
   const runs=(h,front)=>{const R=[];let cur=null;for(let i=0;i<h.pts.length;i++){const ok=strands===1||(front?h.dep[i]>=0:h.dep[i]<0);if(ok){if(!cur){cur=[];if(i>0)cur.push(h.pts[i-1])}cur.push(h.pts[i])}else if(cur){cur.push(h.pts[i]);R.push(cur);cur=null}}if(cur)R.push(cur);return R};
   const tube=(r,col,dim)=>{const path=()=>{ctx.beginPath();r.forEach((q,i)=>i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]))};path();ctx.strokeStyle='#121416';ctx.lineWidth=sw+0.55;ctx.stroke();path();ctx.strokeStyle=dim?mixCol(col,'#000000',0.3):col;ctx.lineWidth=sw;ctx.stroke();
+    if(cam.z<0.9&&strands===1)return; // the glint is too thin to see zoomed out
     ctx.beginPath();r.forEach((q,i)=>i?ctx.lineTo(q[0]-sw*0.18,q[1]-sw*0.22):ctx.moveTo(q[0]-sw*0.18,q[1]-sw*0.22));ctx.strokeStyle='rgba(255,250,235,0.3)';ctx.lineWidth=sw*0.3;ctx.stroke()};
   if(strands>1)H.forEach(h=>runs(h,false).forEach(r=>tube(r,h.col,true)));H.forEach(h=>runs(h,true).forEach(r=>tube(r,h.col,false)));
   if(strands>1){[0.15,0.45,0.75].forEach((f,k)=>{const i=Math.round(f*N),[nx,ny]=nrm(i),q=P[i],a=P[Math.max(0,i-1)],b=P[Math.min(P.length-1,i+1)],dx=b[0]-a[0],dy=b[1]-a[1],l=Math.hypot(dx,dy)||1,ux=dx/l*0.9,uy=dy/l*0.9,hw=Rb+sw*0.62;
@@ -10588,7 +10624,7 @@ function stepRope(u,a0,dt){let R=u.rope;const tx=u.x,ty=u.y;
   while(R.wind>=ROPE_SEG&&P.length>2){R.wind-=ROPE_SEG;P.splice(1,1)}
   if(!rate)R.wind=0;R.sleep=motion<0.3&&!rate?R.sleep+dt:0}
 function drawTethers(){
-  const front=[];
+  const front=[],bb=[],fb=[]; // (the back and front batches of unit cables)
   const dt=Math.max(0,Math.min(0.05,S.t-(S._ropeT??S.t)));S._ropeT=S.t;
   // the load each Relay carries: units hanging off it by cable, plus every Relay below it and its own load
   const relays=S.relays.filter(r=>r.built&&r.trail&&r.anchorRef),units=S.troops.concat(S.harvesters,S.builders);
@@ -10604,12 +10640,22 @@ function drawTethers(){
     if(u.rope&&u.rope.anc!==u.anchorRef){u.rope.reel=2.5;u.rope.sleep=0}if(u.rope)u.rope.anc=u.anchorRef;
     if(u.rope&&u.anchorRef===S.base&&L<=TETHER_DOCK_R){u.rope.reel=Math.max(u.rope.reel||0,0.3);u.rope.dock=true;u.rope.sleep=0} // v4: back at the Rig, the slack winds straight in (fast)
     stepRope(u,touch,dt);if(u.rope.anc!==u.anchorRef)u.rope.anc=u.anchorRef;const hangPts=[];for(let k=0;k<=8;k++){const f=k/8;hangPts.push([h[0]+ux*td*f,h[1]+uy*td*f,h[2]*Math.pow(1-f,2.2)])}
-    const pts=hangPts.concat(u.rope.P.slice(1).map(q=>[q.x,q.y,0.2])),draw=()=>drawHoses(pts,1,(u.id||0)%8,u.cableMaxed);
-    if(u.anchorRef===S.base&&rigHookFront(S.base,h))front.push(draw);else draw()});
+    const pts=hangPts.concat(u.rope.P.slice(1).map(q=>[q.x,q.y,0.2]));
+    drawHoses(pts,1,(u.id||0)%8,u.cableMaxed,u.anchorRef===S.base&&rigHookFront(S.base,h)?fb:bb)});
+  drawHoseBatch(bb);front.push(()=>drawHoseBatch(fb));
   S._frontHoses=front;
 }
 // the cables leaving the front of the Rig, drawn after it (set aside by drawTethers)
 function drawTethersFront(){const f=S._frontHoses;S._frontHoses=null;if(f)f.forEach(d=>d())}
+// v4 (performance): every single unit cable in one go — all their shadows in one stroke, then all the
+// dark outlines, then each colour, then the glints — instead of four strokes per cable
+function drawHoseBatch(L){if(!L.length)return;const sw=1.6,path=(k,dx,dy)=>{ctx.beginPath();L.forEach(h=>{if(k&&h.col!==k)return;const P=h[dx===null?'G':'P'];P.forEach((q,i)=>i?ctx.lineTo(q[0]+(dx||0),q[1]+(dy||0)):ctx.moveTo(q[0]+(dx||0),q[1]+(dy||0)))})};
+  ctx.save();ctx.lineCap='round';ctx.lineJoin='round';
+  path(null,null,null);ctx.strokeStyle='rgba(0,0,0,0.3)';ctx.lineWidth=sw;ctx.stroke();
+  path(null,0,0);ctx.strokeStyle='#121416';ctx.lineWidth=sw+0.55;ctx.stroke();
+  [...new Set(L.map(h=>h.col))].forEach(col=>{path(col,0,0);ctx.strokeStyle=col;ctx.lineWidth=sw;ctx.stroke()});
+  if(cam.z>=0.9){path(null,-sw*0.18,-sw*0.22);ctx.strokeStyle='rgba(255,250,235,0.3)';ctx.lineWidth=sw*0.3;ctx.stroke()}
+  ctx.restore()}
 function drawGuardGlyph(x,y){
   ctx.strokeStyle=C.ally;ctx.lineWidth=1.8;
   ctx.beginPath();ctx.moveTo(x-5,y-20);ctx.lineTo(x+5,y-20);ctx.lineTo(x+5,y-16);ctx.quadraticCurveTo(x+5,y-12,x,y-10);ctx.quadraticCurveTo(x-5,y-12,x-5,y-16);ctx.closePath();ctx.stroke();
@@ -10651,6 +10697,7 @@ function draw(){
   const shkx=shk?rnd(-shk,shk):0, shky=shk?rnd(-shk,shk):0;
   ctx.translate(vw/2+shkx,vh/2+shky);ctx.scale(cam.z,cam.z);ctx.translate(-cam.x,-cam.y);
   const x0=cam.x-vw/2/cam.z,y0=cam.y-vh/2/cam.z,x1=cam.x+vw/2/cam.z,y1=cam.y+vh/2/cam.z;
+  S._view={x0,y0,x1,y1}; // (what's on screen, for culling)
   // ground (terrain + depth-band tint)
   ctx.drawImage(terrainCv,0,0,W,H);
   if(!terrainWorker)drawCrackNet(vw,vh,shkx,shky,x0,y0,x1,y1); // otherwise the cracks are cut into the painted ground
@@ -10660,6 +10707,7 @@ function draw(){
   const VL=beginVeinLight(vw,vh,shkx,shky);
   S.veins.forEach((v,i)=>{
     if(v.x+v.r+60<x0||v.x-v.r-60>x1||v.y+v.r+80<y0||v.y-v.r-60>y1)return; // off-screen
+    veinLX._used=true;
     // The glow goes into the vision-masked light layer even before the vein is "seen", so the soft
     // fog edge uncovers it gradually as sight creeps over it instead of it popping in. Only the
     // contract vein stays dark until triangulated — sight alone mustn't give it away.
