@@ -1865,7 +1865,7 @@ const UPGRADES={
     {id:'heavyArmour',name:'Heavy Armour',desc:'Thick armour on the Rig and every Stabilizer: 30% less damage from everything, 75% less from melee, and melee attackers are knocked back off it.',has:()=>S.mods.heavyArmour,apply:()=>{S.mods.heavyArmour=true}},
     {id:'pointDefence',name:'Point Defence',desc:'Small turrets on the Rig (two) and every Stabilizer (one) that shoot down incoming Splinter shards and Lance volleys before they land. They never fire at enemies themselves.',has:()=>S.mods.pointDefence,apply:()=>{S.mods.pointDefence=true}},
     {id:'relayRadar',name:'Radar Mast',get desc(){return 'A turning radar dish on every Relay: a tethered Relay sees far into the fog around it.'+relaySlotNote('def','radar')},has:()=>S.mods.relayDef==='radar',apply:()=>{setRelaySlot('def','radar')}},
-    {id:'martyrs',name:'Martyrs',desc:'A unit that would corrupt detonates instead, damaging enemies and friendlies alike nearby.',apply:()=>{S.mods.martyrs=true}},
+    {id:'martyrs',name:'Martyrs',desc:'A unit that would corrupt detonates instead, damaging enemies and friendlies alike nearby.',has:()=>!!S.mods.martyrs,apply:()=>{S.mods.martyrs=true}},
     {id:'resupply1',name:'Resupply',desc:'Every fabricator, Stabilizer and Probe stock is topped up to full, right now.',apply:()=>{Object.keys(FABS).forEach(k=>{S.fab[k].n=FABS[k].charges});S.stabCharges=STAB_CHARGES;S.probeCharges=PROBE_CHARGES}},
     wallCard('heavy','Heavy Armour Walls'),
     kitCard('shock'),kitCard('lmg'),kitCard('razor'),kitCard('cryo'),kitCard('spotter'),kitCard('flak'),
