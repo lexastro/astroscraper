@@ -80,6 +80,14 @@ body.lowGfx #fogGrain{display:none}
 .build button .cost{font-family:var(--mono);font-size:11px;color:var(--dat)}
 .build button:disabled{opacity:.45;cursor:default}
 .build button#bLock{border-color:var(--dat)}
+/* v4: folders: the surface row stays short; a folder opens as a row of its own above it */
+.buildStack{display:flex;flex-direction:column;align-items:flex-start;gap:6px}
+.buildStack>.buildFolder{padding-bottom:0}
+.buildFolder[hidden]{display:none}
+.buildFolder{position:relative}
+.build button.folderBtn.open{border-color:var(--accent);background:var(--panel2);box-shadow:0 0 0 1px rgba(242,182,60,.35)}
+.build button.folderBtn.busy:not(.open){border-color:var(--accent)}
+.build button#bAutoBuy{min-width:0}
 /* live drilling readout only (speed picking now happens in the #drillSelectOverlay popup) — a
    flex child of .bottomBar, stacked above unitActions/the build bar on the left, well clear of
    both the toast stack (top-left) and the always-on help panel (top-right on desktop) */
@@ -384,7 +392,8 @@ body.lowGfx #fogGrain{display:none}
     background:linear-gradient(to top,rgba(11,14,18,.92),rgba(11,14,18,0) 85%)}
   /* stretch to the screen (the bottom bar otherwise sizes it to its buttons, pushing the last ones
      off the edge where the scroll can't reach them) */
-  .build{align-self:stretch;max-width:100%;box-sizing:border-box}
+  .build,.buildStack{align-self:stretch;max-width:100%;box-sizing:border-box}
+  .buildStack{align-items:stretch}
   .build button{flex:0 0 auto;min-width:60px}
   .build button .key{display:none}
   .build button .cost{font-size:9px}
@@ -653,25 +662,35 @@ async function run(d){
   <!-- v2: every button is a Rig fabricator — charges that refill on their own timer, no Dat
        cost. Structures (data-mode) are aimed and launched; units (data-unit) deploy at once. -->
   <div class="build" id="callBar" style="display:none"></div>
-  <div class="build" id="buildBar">
-    <button id="bTurret" data-mode="turret"><span class="icon">⌖</span><span>Turret</span><span class="cost" id="cf_turret">●●</span><span class="key">T</span></button>
-    <button id="bPodTurret" data-mode="podturret" hidden><span class="icon">⁘</span><span>Missile Pod</span><span class="cost" id="cf_podturret">●</span><span class="key">M</span></button>
-    <button id="bWall" data-mode="wall"><span class="icon">▤</span><span>Wall</span><span class="cost" id="cWall">◆2/slat</span><span class="key">Q</span></button>
-    <button id="bRelay" data-mode="relay"><span class="icon">⟐</span><span>Relay</span><span class="cost" id="cf_relay">●●●</span><span class="key">R</span></button>
-    <button id="bFabTroop" data-unit="troop"><span class="icon">▲</span><span>Trooper</span><span class="cost" id="cf_troop">●●</span></button>
-    <button id="bFabMarksman" data-unit="marksman"><span class="icon">⌁</span><span>Marksman</span><span class="cost" id="cf_marksman">●</span></button>
-    <button id="bFabBrawler" data-unit="brawler"><span class="icon">⛊</span><span>Paladin</span><span class="cost" id="cf_brawler">●●●●○○○○</span></button>
-    <button id="bFabGrenadier" data-unit="grenadier" hidden><span class="icon">✺</span><span>Grenadier</span><span class="cost" id="cf_grenadier">●●</span></button>
-    <button id="bStab" data-mode="stabilizer"><span class="icon">◈</span><span>Stabilizer</span><span class="cost" id="cStab">●●●</span><span class="key">E</span></button>
-    <button id="bFabArtillery" data-unit="artillery" hidden><span class="icon">☄</span><span>Artillery</span><span class="cost" id="cf_artillery">●</span></button>
-    <button id="bFabRocket" data-unit="rocket" hidden><span class="icon">➶</span><span>Rocketeer</span><span class="cost" id="cf_rocket">●●</span></button>
-    <button id="bFabMech" data-unit="mech" hidden><span class="icon">◫</span><span>Mech</span><span class="cost" id="cf_mech">●</span></button>
-    <button id="bLock"><span class="icon">⛏</span><span id="bLockLabel">Begin Drilling</span><span class="key">F</span></button>
-    <button id="bRig" hidden><span class="icon">⛭</span><span id="bRigLabel">Power the Derelict Rig</span><span class="cost" id="cRig"></span><span class="key">Y</span></button>
-    <button id="bStrand" hidden><span class="icon">⚑</span><span>Take on Squad</span><span class="cost" id="cStrand"></span><span class="key">Y</span></button>
-    <button id="bPing"><span class="icon">◬</span><span id="bPingLabel">Probe</span><span class="cost" id="cProbe">●●●</span><span class="key">G</span></button>
-    <button id="bCall" style="display:none" title="One-shot strikes and drops, called in anywhere you can see or your network reaches"><span class="icon">⇣</span><span>Call-down</span><span class="cost" id="cCall"></span><span class="key">C</span></button>
-    <button id="bAutoBuy" title="When on, using an empty stock buys the charge with Dat automatically"><span class="icon">⟳</span><span id="bAutoBuyLabel">Auto-buy: off</span></button>
+  <!-- v4: the bar keeps only what you reach for all the time (drill, Stabilizer, Probe, call-downs);
+       structures and units live in folders that open as a row above it, one at a time. -->
+  <div id="buildBar" class="buildStack">
+    <div class="build buildFolder" id="fold_build" hidden>
+      <button id="bTurret" data-mode="turret"><span class="icon">⌖</span><span>Turret</span><span class="cost" id="cf_turret">●●</span><span class="key">T</span></button>
+      <button id="bPodTurret" data-mode="podturret" hidden><span class="icon">⁘</span><span>Missile Pod</span><span class="cost" id="cf_podturret">●</span><span class="key">M</span></button>
+      <button id="bWall" data-mode="wall"><span class="icon">▤</span><span>Wall</span><span class="cost" id="cWall">◆2/slat</span><span class="key">Q</span></button>
+      <button id="bRelay" data-mode="relay"><span class="icon">⟐</span><span>Relay</span><span class="cost" id="cf_relay">●●●</span><span class="key">R</span></button>
+    </div>
+    <div class="build buildFolder" id="fold_units" hidden>
+      <button id="bFabTroop" data-unit="troop"><span class="icon">▲</span><span>Trooper</span><span class="cost" id="cf_troop">●●</span></button>
+      <button id="bFabMarksman" data-unit="marksman"><span class="icon">⌁</span><span>Marksman</span><span class="cost" id="cf_marksman">●</span></button>
+      <button id="bFabBrawler" data-unit="brawler"><span class="icon">⛊</span><span>Paladin</span><span class="cost" id="cf_brawler">●●●●○○○○</span></button>
+      <button id="bFabGrenadier" data-unit="grenadier" hidden><span class="icon">✺</span><span>Grenadier</span><span class="cost" id="cf_grenadier">●●</span></button>
+      <button id="bFabArtillery" data-unit="artillery" hidden><span class="icon">☄</span><span>Artillery</span><span class="cost" id="cf_artillery">●</span></button>
+      <button id="bFabRocket" data-unit="rocket" hidden><span class="icon">➶</span><span>Rocketeer</span><span class="cost" id="cf_rocket">●●</span></button>
+      <button id="bFabMech" data-unit="mech" hidden><span class="icon">◫</span><span>Mech</span><span class="cost" id="cf_mech">●</span></button>
+    </div>
+    <div class="build" id="buildMain">
+      <button id="bLock"><span class="icon">⛏</span><span id="bLockLabel">Begin Drilling</span><span class="key">F</span></button>
+      <button id="bStab" data-mode="stabilizer"><span class="icon">◈</span><span>Stabilizer</span><span class="cost" id="cStab">●●●</span><span class="key">E</span></button>
+      <button id="bPing"><span class="icon">◬</span><span id="bPingLabel">Probe</span><span class="cost" id="cProbe">●●●</span><span class="key">G</span></button>
+      <button id="bFoldBuild" class="folderBtn" data-folder="build" title="Turrets, walls and Relays (T · Q · R)"><span class="icon">▦</span><span>Build ▴</span><span class="cost" id="cFoldBuild"></span></button>
+      <button id="bFoldUnits" class="folderBtn" data-folder="units" title="Deploy units (U)"><span class="icon">▲</span><span>Units ▴</span><span class="cost" id="cFoldUnits"></span><span class="key">U</span></button>
+      <button id="bCall" style="display:none" title="One-shot strikes and drops, called in anywhere you can see or your network reaches"><span class="icon">⇣</span><span>Call-down</span><span class="cost" id="cCall"></span><span class="key">C</span></button>
+      <button id="bRig" hidden><span class="icon">⛭</span><span id="bRigLabel">Power the Derelict Rig</span><span class="cost" id="cRig"></span><span class="key">Y</span></button>
+      <button id="bStrand" hidden><span class="icon">⚑</span><span>Take on Squad</span><span class="cost" id="cStrand"></span><span class="key">Y</span></button>
+      <button id="bAutoBuy" title="When on, using an empty stock buys the charge with Dat automatically"><span class="icon">⟳</span><span id="bAutoBuyLabel">Auto-buy</span><span class="cost" id="cAutoBuy">off</span></button>
+    </div>
   </div>
 </div>
 
@@ -6167,11 +6186,12 @@ addEventListener('keydown',e=>{
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='a'){e.preventDefault();keys.a=false;keys.A=false;selectAllUnitsOfKind('troops');return}
   if(/^Digit[0-9]$/.test(e.code||'')&&!e.altKey){e.preventDefault();const n=+e.code.slice(5);if(e.ctrlKey||e.metaKey)assignGroup(n);else if(!e.repeat)recallGroup(n);return}
   if(e.key.toLowerCase()==='q')setBuild(buildMode==='wall'?null:'wall'); else if(e.key.toLowerCase()==='t')setBuild(buildMode==='turret'?null:'turret'); else if(e.key.toLowerCase()==='r')setBuild(buildMode==='relay'?null:'relay'); else if(e.key.toLowerCase()==='e')setBuild(buildMode==='stabilizer'?null:'stabilizer'); else if(e.key.toLowerCase()==='m'&&fabUnlocked('podturret'))setBuild(buildMode==='podturret'?null:'podturret');
-  else if(e.key==='Escape'){if(!document.getElementById('drillSelectOverlay').hidden){closeDrillSelect()}else if(callMode||callMenuOpen){callMode=null;toggleCallMenu(false)}else if(probeMode){setProbeMode(false)}else if(pingMode){setPingMode(false)}else if(buildMode||prodMenuOpen){setBuild(null);closeProdMenu()}else togglePause()} else if(e.key.toLowerCase()==='b'){S.sel.troops.clear();S.sel.harv.clear();S.sel.bu.clear();S.sel.base=true}
+  else if(e.key==='Escape'){if(!document.getElementById('drillSelectOverlay').hidden){closeDrillSelect()}else if(callMode||callMenuOpen){callMode=null;toggleCallMenu(false)}else if(probeMode){setProbeMode(false)}else if(pingMode){setPingMode(false)}else if(buildMode||prodMenuOpen){setBuild(null);closeProdMenu()}else if(buildFolder){setFolder(null)}else togglePause()} else if(e.key.toLowerCase()==='b'){S.sel.troops.clear();S.sel.harv.clear();S.sel.bu.clear();S.sel.base=true}
   // v4: Q wall, T turret, E Stabilizer, G probe, Y power a rig, C call-downs, Ctrl+A all units, F drill (lock on / strike)
   else if(e.key==='F8'){e.preventDefault();setLowGfx(!lowGfx)}
   else if(e.key==='F9'){e.preventDefault();perf.on=!perf.on;if(perf.el)perf.el.hidden=!perf.on}
   else if(e.key.toLowerCase()==='c'&&!e.ctrlKey&&!e.metaKey){if(callIds().length)toggleCallMenu()}
+  else if(e.key.toLowerCase()==='u'){setFolder(buildFolder==='units'?null:'units');sfx.click()}
   else if(e.key.toLowerCase()==='h'){cam.x=S.base.x;cam.y=S.base.y}
   else if(e.key.toLowerCase()==='y'){const r=S.rig;if(r&&r.seen&&!r.online&&!r.vein.done&&!(S.strand&&S.strand.seen&&strandInReach()))tryCaptureRig();else tryRescueStrand()}
   else if(e.key.toLowerCase()==='f'){if(!e.repeat)tryLockdown()}
@@ -6187,7 +6207,7 @@ document.querySelectorAll('#buildBar button[data-mode]').forEach(b=>b.addEventLi
 document.querySelectorAll('#buildBar button[data-unit]').forEach(b=>b.addEventListener('click',()=>fabUnit(b.dataset.unit)));
 // v4: right-click any build button to buy one more charge of it with Dat (a Trooper button buys a
 // Trooper outright). Stocks top out at their usual size.
-function refreshAutoBuy(){const b=document.getElementById('bAutoBuy');b.classList.toggle('on',autoBuy);document.getElementById('bAutoBuyLabel')._tc=`Auto-buy: ${autoBuy?'on':'off'}`}
+function refreshAutoBuy(){const b=document.getElementById('bAutoBuy');b.classList.toggle('on',autoBuy);document.getElementById('cAutoBuy')._tc=autoBuy?'on':'off'}
 document.getElementById('bAutoBuy').onclick=()=>{autoBuy=!autoBuy;try{localStorage.setItem(AUTOBUY_KEY,autoBuy?'1':'0')}catch(e){}refreshAutoBuy();sfx.click();
   };
 refreshAutoBuy();
@@ -6440,6 +6460,11 @@ function toggleRepairMode(){
   sfx.click();
   updateBuildBar();
 }
+// v4: which build-bar folder is open ('build' / 'units' / null) — only one at a time, and never
+// alongside the call-down row
+let buildFolder=null;
+function setFolder(f){buildFolder=f;if(f&&callMenuOpen){callMenuOpen=false;callMode=null}updateBuildBar()}
+document.querySelectorAll('#buildMain .folderBtn').forEach(b=>b.addEventListener('click',()=>{setFolder(buildFolder===b.dataset.folder?null:b.dataset.folder);sfx.click()}));
 function setBuild(m){buildMode=m;mouse.wallDraw=null;if(m){pingMode=false;probeMode=false;callMode=null}closeProdMenu();updateBuildBar()}
 function updateBuildBar(){
   document.querySelectorAll('#buildBar button[data-mode]').forEach(b=>{
@@ -6479,6 +6504,19 @@ function updateBuildBar(){
     if(!sb.hidden){const reach=strandInReach();sb.classList.toggle('dry',!reach||S.dat<g.cost);
       document.getElementById('cStrand')._tc=`${reach?'in reach':'out of reach'} · ◆${g.cost}`}}
   buildCallBar();
+  // folders: show the open one; the folder button glows while something of its own is being aimed,
+  // and carries a one-line summary so you needn't open it to check
+  {document.getElementById('fold_build')._hd=buildFolder!=='build';document.getElementById('fold_units')._hd=buildFolder!=='units';
+   const fb=document.getElementById('bFoldBuild'),fu=document.getElementById('bFoldUnits');
+   fb.classList.toggle('open',buildFolder==='build');fu.classList.toggle('open',buildFolder==='units');
+   fb.classList.toggle('busy',['turret','podturret','wall','relay'].includes(buildMode));
+   const nb=['turret','podturret','relay'].filter(k=>fabUnlocked(k)).reduce((t,k)=>t+S.fab[k].n,0);
+   document.getElementById('cFoldBuild')._tc=`${nb} ready`;
+   document.getElementById('cFoldUnits')._tc=`▲ ${squadCount()}/${S.squadCap}`
+   // on a wide screen the open folder's row starts above its own button (kept on screen)
+   if(buildFolder){const row=document.getElementById('fold_'+buildFolder),btn=buildFolder==='build'?fb:fu,main=document.getElementById('buildMain');
+     const ml=innerWidth>720?Math.max(0,Math.min(btn.offsetLeft-parseFloat(getComputedStyle(main).paddingLeft),innerWidth-row.scrollWidth-8)):0;
+     if(row._ml!==ml){row._ml=ml;row.style.marginLeft=ml+'px'}}}
   const pgb=document.getElementById('bPing');
   if(pgb){
     pgb._ds=S.probeCharges<=0&&!probeMode;pgb.classList.remove('dry');
@@ -6687,7 +6725,7 @@ const PROBE_DOME=new Path2D('M114.79,84.77c-3.48,2.42-8.92,4.03-14.79,4.03s-11.3
 // A kind: {name, icon, desc, dat, delay, r, land(x,y,c), drawFall?(c,f), unlocked?()}.
 const CALLDOWNS={};
 let callMode=null,callMenuOpen=false;
-function toggleCallMenu(on){callMenuOpen=on==null?!callMenuOpen:on;if(!callMenuOpen&&callMode)callMode=null;updateBuildBar();sfx.click()}
+function toggleCallMenu(on){callMenuOpen=on==null?!callMenuOpen:on;if(callMenuOpen)buildFolder=null;if(!callMenuOpen&&callMode)callMode=null;updateBuildBar();sfx.click()}
 const callIds=()=>Object.keys(CALLDOWNS).filter(id=>!CALLDOWNS[id].unlocked||CALLDOWNS[id].unlocked()||(S.calls[id]||0)>0);
 function callPrice(id){return Math.round(CALLDOWNS[id].dat*(S.mods.callPriceMult||1))}
 function callR(id){return CALLDOWNS[id].r*(S.mods.callRadiusMult||1)}
