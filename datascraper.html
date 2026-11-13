@@ -6704,7 +6704,11 @@ function fireCall(w){const id=callMode,K=CALLDOWNS[id];if(!K){setCallMode(null);
       S.callsIn.push({id,x:s.x+(e.x-s.x)*f+nx/nl*o,y:s.y+(e.y-s.y)*f+ny/nl*o,t:0,T:T+i*CARPET_GAP+k*0.5,r,quiet:i>0||k>0})}
     S.callStart=null;setCallMode(null);callMenuOpen=false;updateBuildBar();sfx.click();return}
   const c={id,x:w.x,y:w.y,t:0,T:callDelay(id),r:callR(id)};S.callsIn.push(c);
-  if(rand()<(S.mods.callEcho||0)){const a=rnd(0,Math.PI*2),d=rnd(0.6,1.1)*c.r;S.callsIn.push({...c,x:c.x+Math.cos(a)*d,y:c.y+Math.sin(a)*d,T:c.T+0.6,echo:true})}
+  if(rand()<(S.mods.callEcho||0)){
+    // v4: a Bulwark's echo drops as the neighbouring hexagon, sharing one side with the first ring
+    // (the hexagon's sides face 0°, 60°, 120°…; the next one over sits two apothems away)
+    if(id==='bulwark'){const k=Math.floor(rnd(0,6)),a=k*Math.PI/3,d=2*c.r*Math.cos(Math.PI/6);S.callsIn.push({...c,x:c.x+Math.cos(a)*d,y:c.y+Math.sin(a)*d,T:c.T+0.6,echo:true})}
+    else{const a=rnd(0,Math.PI*2),d=rnd(0.6,1.1)*c.r;S.callsIn.push({...c,x:c.x+Math.cos(a)*d,y:c.y+Math.sin(a)*d,T:c.T+0.6,echo:true})}}
   setCallMode(null);callMenuOpen=false;updateBuildBar();sfx.click()}
 function updateCalls(dt){if(!S.callsIn.length)return;S.callsIn=S.callsIn.filter(c=>{c.t+=dt;if(c.t<c.T)return true;const K=CALLDOWNS[c.id];if(K)K.land(c.x,c.y,c);return false})}
 function drawCalls(){
@@ -6782,7 +6786,8 @@ Object.assign(CALLDOWNS,{
   bulwark:{name:'Bulwark Drop',icon:'⬡',dat:180,delay:1.5,r:70,desc:'A ring of walls of your current wall type slams down round the spot, already standing.',
     drawFall(c,f){fallBody(c,f,'#8d9aa8',14)},
     land(x,y,c){const N=6,R=c.r,pts=[];for(let i=0;i<N;i++){const a=Math.PI/N+i/N*Math.PI*2;pts.push({x:x+Math.cos(a)*R,y:y+Math.sin(a)*R})}
-      for(let i=0;i<N;i++){const p=pts[i],q=pts[(i+1)%N];if([p,q].some(o=>o.x<20||o.y<20||o.x>W-20||o.y>H-20))continue;if(wallAt((p.x+q.x)/2,(p.y+q.y)/2))continue;
+      const same=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y)<4,shared=(p,q)=>(S.wallLines||[]).some(L=>{const a={x:L.x0,y:L.y0},b={x:L.x1,y:L.y1};return (same(a,p)&&same(b,q))||(same(a,q)&&same(b,p))});
+      for(let i=0;i<N;i++){const p=pts[i],q=pts[(i+1)%N];if([p,q].some(o=>o.x<20||o.y<20||o.x>W-20||o.y>H-20))continue;if(shared(p,q)||wallAt((p.x+q.x)/2,(p.y+q.y)/2))continue; // (a side the neighbouring ring already has)
         const L=addWallLine(p,q,true);if(!L)continue;S.fabShots=S.fabShots.filter(sh=>sh.line!==L);L.posts=[true,true];L.raiseT0=S.t;L.callDrop=true}
       callEnemiesIn(x,y,R+10,e=>{const a=Math.atan2(e.y-y,e.x-x);e.kbx=Math.cos(a)*200;e.kby=Math.sin(a)*200;e.stunT=Math.max(e.stunT||0,0.4)});
       burst(x,y,'#8d9aa8',20,160,0.5);callFx(x,y,R,'#c3ccd6',0.45,'ring');shakeScreen(4,0.2);sndAt(x,y,()=>sfx.build());wallTowers()}},
