@@ -2516,11 +2516,12 @@ function updateVeinLife(dt){
     if(!v.contract&&veinAlive(v))v.pulseClock=(v.pulseClock||0)+dt/pulseTiming(v).period;
     if(!veinAlive(v)||S.activeVein===v)return;
     if(holdsAtPeak(v)){v.ripeT=Math.min((v.ripeT||0)+dt,ripePeakT(v));return}
-    const wasUnstable=isUnstable(v);
     v.ripeT=(v.ripeT||0)+dt;
     if(v.ripeT>=ripePeakT(v)+unstableDur(v)){collapseVein(v);return}
     if(!v.seen)return;
-    if(!wasUnstable&&isUnstable(v))banner('A vein has gone unstable — it will collapse soon.','danger');
+    // v4: only the vein the Rig is sitting on warns that it's unstable (once, whether it turns while
+    // you're there or you roll onto one already turning); the rest go unstable quietly
+    if(isUnstable(v)&&!v.unstableWarned&&dist(S.base,v.mine)<BASE_R+18){v.unstableWarned=true;banner('The vein under the Rig has gone unstable — it will collapse soon.','danger')}
   });
   // spent veins linger as dark cracks, then free their site and queue a replacement
   // (the replacement's countdown starts the moment a vein dies, not once it's finished fading)
