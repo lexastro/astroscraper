@@ -1,0 +1,674 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Corrupted Units</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0b0e12; --panel:#141a21; --panel2:#1c242e; --fg:#d7dde5; --muted:#7f8b98;
+  --line:#2a3440; --accent:#f2b63c; --ally:#5ec8ff; --enemy:#ff5c4d; --hot:#ff3a24; --zone:#b48bff;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,Segoe UI,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 var(--sans)}
+header{padding:28px 24px 8px;max-width:1360px;margin:0 auto}
+h1{font:600 26px/1.2 var(--mono);margin:0 0 4px;letter-spacing:.02em}
+h1 span{color:var(--hot)}
+.sub{color:var(--muted);margin:0 0 18px;max-width:900px}
+.lang{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin:0 0 14px}
+.chip{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px 12px;display:flex;gap:10px;align-items:flex-start}
+.sw{flex:none;width:28px;height:28px;border-radius:4px;border:1px solid #000}
+.chip b{font:600 12px var(--mono);display:block;letter-spacing:.03em;text-transform:uppercase}
+.chip small{color:var(--muted);font-size:12px;line-height:1.35;display:block}
+.bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:6px 0 4px;font:12px var(--mono);color:var(--muted)}
+.bar button{background:var(--panel2);color:var(--fg);border:1px solid var(--line);border-radius:4px;padding:5px 10px;font:inherit;cursor:pointer}
+.bar button[aria-pressed="true"]{border-color:var(--hot);color:#fff}
+main{max-width:1360px;margin:0 auto;padding:8px 24px 40px;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,600px),1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;overflow:hidden;min-width:0}
+.card h2{margin:0;padding:12px 14px 10px;font:600 16px var(--mono);display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;border-bottom:1px solid var(--line)}
+.card h2 .from{color:var(--ally)}
+.card h2 .arrow{color:var(--muted)}
+.card h2 .to{color:var(--hot)}
+.card h2 .tag{margin-left:auto;font:400 11px var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+canvas{display:block;width:100%}
+.strip{border-top:1px solid var(--line)}
+.txt{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:12px 14px 14px;border-top:1px solid var(--line)}
+.txt h3{margin:0 0 4px;font:600 11px var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.txt ul{margin:0;padding-left:16px;font-size:13px}
+.txt li{margin:0 0 2px}
+.txt p{margin:0 0 6px;font-size:13px}
+.txt p b{color:var(--accent);font-weight:600}
+@media (max-width:640px){.txt{grid-template-columns:1fr}header,main{padding-left:16px;padding-right:16px}}
+footer{max-width:1360px;margin:0 auto;padding:0 24px 40px;color:var(--muted);font-size:12px}
+footer code{font:12px var(--mono);color:var(--fg)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Corrupted <span>Units</span></h1>
+  <p class="sub">Each of your base units, taken over by the force behind the Echoes, nests and glass: concept art drawn with the game's own unit code. The original is on the left on Rim ground, the corrupted copy on the right on Core ground, both running the same idle and attack loop. Below each pair: the same two at in-game size (zoom 1× and 2×), then three of each facing off at 1.5×.</p>
+  <div class="lang">
+    <div class="chip"><span class="sw" style="background:linear-gradient(160deg,#ffd4cc,#b0202a 60%,#4a0a10)"></span><div><b>Dense glass</b><small>Crimson spires, shaded like the nest spires, grow through armour, out of muzzles and from pod cells.</small></div></div>
+    <div class="chip"><span class="sw" style="background:linear-gradient(#7d1420 0 28%,#0a0506 28%)"></span><div><b>Core slabs</b><small>Black plates with crimson edges replace a limb or a shield. Glowing cracks run across what's left of the hull.</small></div></div>
+    <div class="chip"><span class="sw" style="background:linear-gradient(90deg,#ff2a2a 0 33%,#4d5763 33% 66%,#5ec8ff 66%)"></span><div><b>Echo glitch</b><small>The body runs out of sync with itself: red and cyan copies jitter either side, and bands slip sideways or blink out.</small></div></div>
+    <div class="chip"><span class="sw" style="background:radial-gradient(circle,#ff2a2a 0 22%,#120607 24% 60%,#ff2a2a 62% 70%,#0b0e12 72%)"></span><div><b>Red core</b><small>Eyes, visors, lamps and the pack ring burn crimson, now and then flickering cyan.</small></div></div>
+    <div class="chip"><span class="sw" style="background:linear-gradient(90deg,#4d5763 0 25%,#b3aaa1 25% 50%,#94562a 50% 75%,#5b4785 75%)"></span><div><b>Drained palette</b><small>Ally blue goes to slate and white gear to bone. Role colours are kept but scorched, so each unit still reads as what it was.</small></div></div>
+  </div>
+  <div class="bar"><button id="bPause" aria-pressed="false">Pause</button><button id="bGlitch" aria-pressed="true">Echo glitch on</button><span>Attack loop: ~4 s. Facing up in the large view.</span></div>
+</header>
+<main id="cards"></main>
+<footer>
+  <p>The corrupted drawing functions (<code>drawCorruptTrooper</code>, <code>drawCorruptPaladin</code>, <code>drawCorruptGrenadier</code>, <code>drawCorruptMarksman</code>, <code>drawCorruptRocketeer</code>, <code>drawCorruptMech</code>, plus the dispatchers <code>drawCorruptBody</code> and <code>drawCorruptFx</code>) sit in one block in this file's script, marked <em>CORRUPTED UNIT ART (paste-ready)</em>. They use only the game's own unit primitives (<code>rP</code>, <code>rO</code>, <code>rLimb</code>, <code>palState</code>…) and the same unit fields, so they can be pasted into <code>datascraper.html</code> next to the existing unit art. None of this is wired into gameplay.</p>
+</footer>
+<script>
+// ---- shim: the few game globals the unit art reads (values from datascraper.html v4) ----
+let ctx=null;const S={t:0};
+const C={ally:'#5ec8ff',enemy:'#ff5c4d',accent:'#f2b63c',mech:'#c9d1d9',dat:'#9ad36a',zone:'#b48bff',condensed:'#7c5cff'};
+const MECH_SC=1.5,ROCKET_COLOR='#ff8a4c',BRAWL_COLOR='#9fb6d0',GREN_PODS=4,MARK_CHARGE=0.45,ROCKET_PAINT=0.7;
+const hasKit=()=>false,kitBand=()=>{};
+// ===== copied verbatim from datascraper.html (v4 @ 22cb83d) =====
+const RIFLE_READY=0.4;
+function gunMuzzle(t,L){const a=t.ang;return {x:t.x+Math.cos(a)*(L+2)-Math.sin(a)*2.4,y:t.y+Math.sin(a)*(L+2)+Math.cos(a)*2.4}}
+// ---- unit art primitives, lit like the terrain ----
+// The unit drawings are unchanged; only how their pieces are rendered: colours muted a little so the
+// units sit in the world, soft dark-grey outlines, every circle a dome lit from the terrain's
+// top-left sun, every filled shape a light-to-dark wash with a lit rim on its sunny edges and a dark
+// one on the rest, every limb a highlight down its sunny side. The sun's direction is worked out
+// from the canvas transform, so the light holds still however the unit is turned.
+const U_SUN={x:-0.62,y:-0.62},U_OL='rgba(16,19,23,0.85)',U_MUTE=new Map();
+function muteCol(c){let m=U_MUTE.get(c);if(m)return m;let r,g,b,a=1;
+  if(c[0]==='#'){let h=c.slice(1);if(h.length===3)h=h.replace(/./g,x=>x+x);r=parseInt(h.slice(0,2),16);g=parseInt(h.slice(2,4),16);b=parseInt(h.slice(4,6),16)}
+  else{const n=String(c).match(/[\d.]+/g);if(!n||n.length<3){U_MUTE.set(c,c);return c}r=+n[0];g=+n[1];b=+n[2];if(n[3]!=null)a=+n[3]}
+  const L=0.2126*r+0.7152*g+0.0722*b,f=v=>Math.max(0,Math.min(255,((L+(v-L)*0.58)*0.9-128)*1.06+128))|0;
+  m=`rgba(${f(r)},${f(g)},${f(b)},${a})`;U_MUTE.set(c,m);return m}
+function uSun(){const m=ctx.getTransform(),det=m.a*m.d-m.b*m.c||1;let x=(m.d*U_SUN.x-m.c*U_SUN.y)/det,y=(-m.b*U_SUN.x+m.a*U_SUN.y)/det;const l=Math.hypot(x,y)||1;return [x/l,y/l]}
+function rP(pts,c,lw){const [lx,ly]=uSun(),path=()=>{ctx.beginPath();pts.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.closePath()};
+  let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9,cx=0,cy=0,ar=0;pts.forEach((p,i)=>{x0=Math.min(x0,p[0]);y0=Math.min(y0,p[1]);x1=Math.max(x1,p[0]);y1=Math.max(y1,p[1]);cx+=p[0];cy+=p[1];const q=pts[(i+1)%pts.length];ar+=p[0]*q[1]-q[0]*p[1]});cx/=pts.length;cy/=pts.length;
+  const R=Math.max(x1-x0,y1-y0)/2+0.01,sg=ar>0?1:-1;
+  ctx.fillStyle=muteCol(c);path();ctx.fill();
+  const g=ctx.createLinearGradient(cx+lx*R,cy+ly*R,cx-lx*R,cy-ly*R);g.addColorStop(0,'rgba(255,255,255,0.36)');g.addColorStop(0.5,'rgba(255,255,255,0)');g.addColorStop(1,'rgba(0,0,0,0.5)');ctx.fillStyle=g;path();ctx.fill();
+  ctx.strokeStyle=U_OL;ctx.lineWidth=(lw||0.5)*0.62;path();ctx.stroke();
+  for(let i=0;i<pts.length;i++){const p=pts[i],q=pts[(i+1)%pts.length],ex=(q[1]-p[1])*sg,ey=-(q[0]-p[0])*sg,el=Math.hypot(ex,ey)||1,f=(ex*lx+ey*ly)/el,ix=-ex/el*0.35,iy=-ey/el*0.35;
+    if(f>0.25)ctx.strokeStyle=`rgba(255,255,255,${(0.2+0.4*f)*1.375})`;else if(f<-0.25)ctx.strokeStyle=`rgba(0,0,0,${-0.45*f})`;else continue;
+    ctx.lineWidth=0.45;ctx.beginPath();ctx.moveTo(p[0]+ix,p[1]+iy);ctx.lineTo(q[0]+ix,q[1]+iy);ctx.stroke()}}
+function rO(X,Y,r,c,lw){const [lx,ly]=uSun();ctx.fillStyle=muteCol(c);ctx.beginPath();ctx.arc(X,Y,r,0,Math.PI*2);ctx.fill();
+  const g=ctx.createRadialGradient(X+lx*r*0.45,Y+ly*r*0.45,r*0.05,X+lx*r*0.2,Y+ly*r*0.2,r*1.15);g.addColorStop(0,'rgba(255,255,255,0.62)');g.addColorStop(0.35,'rgba(255,255,255,0.1)');g.addColorStop(0.7,'rgba(0,0,0,0.08)');g.addColorStop(1,'rgba(0,0,0,0.62)');
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(X,Y,r,0,Math.PI*2);ctx.fill();ctx.strokeStyle=U_OL;ctx.lineWidth=(lw||0.5)*0.62;ctx.beginPath();ctx.arc(X,Y,r,0,Math.PI*2);ctx.stroke()}
+function rLimb(pts,w,c){const [lx,ly]=uSun();ctx.lineCap='round';ctx.lineJoin='round';
+  [[w+0.6,U_OL],[w,muteCol(c)]].forEach(([lw,col])=>{ctx.lineWidth=lw;ctx.strokeStyle=col;ctx.beginPath();pts.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.stroke()});
+  for(let i=0;i<pts.length-1;i++){const p=pts[i],q=pts[i+1],dx=q[0]-p[0],dy=q[1]-p[1],l=Math.hypot(dx,dy)||1,nx=-dy/l,ny=dx/l,sd=(nx*lx+ny*ly)>0?1:-1,o=w*0.28;
+    ctx.strokeStyle='rgba(255,255,255,0.4)';ctx.lineWidth=w*0.28;ctx.beginPath();ctx.moveTo(p[0]+nx*sd*o,p[1]+ny*sd*o);ctx.lineTo(q[0]+nx*sd*o,q[1]+ny*sd*o);ctx.stroke();
+    ctx.strokeStyle='rgba(0,0,0,0.3)';ctx.lineWidth=w*0.3;ctx.beginPath();ctx.moveTo(p[0]-nx*sd*o,p[1]-ny*sd*o);ctx.lineTo(q[0]-nx*sd*o,q[1]-ny*sd*o);ctx.stroke()}}
+function rifleFlash(X,Y,s){ctx.fillStyle=C.accent;ctx.globalAlpha=0.9;ctx.beginPath();ctx.moveTo(X,Y-5*s);ctx.lineTo(X+2*s,Y);ctx.lineTo(X,Y+s);ctx.lineTo(X-2*s,Y);ctx.closePath();ctx.fill();ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(X,Y-1,1.1*s,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1}
+function riflePose(o){
+  const lerp=(a,b,k)=>a+(b-a)*k,a=o.a,blade=lerp(0.15,0.42,a),fl=o.flash;ctx.save();ctx.rotate(-blade*0.6);
+  const sw=4.4,Ls=[-sw,0.6],Rs=[sw,-0.2],butt=[lerp(1.2,Rs[0]-1.2,a),lerp(1.5,-0.6,a)],rang=lerp(-0.75,blade*0.6-0.05,a);
+  const ca=Math.cos(rang),sa=Math.sin(rang),along=d=>[butt[0]+sa*d,butt[1]-ca*d],grip=along(o.gy),guard=along(o.hy);
+  const AL=fl?'#fff':C.ally,G1='#e6e6e6',G3='#999',G4='#4d4d4d';
+  if(o.pack)o.pack();
+  rP([[Ls[0]-1,Ls[1]],[Ls[0]+0.6,-1.8],[Rs[0]-0.6,-2.4],[Rs[0]+1,Rs[1]],[Rs[0]-0.4,2.6],[Ls[0]+0.4,2.8]],AL,0.6);
+  rLimb([Ls,[lerp(Ls[0]+1,-2.6,a),lerp(-2,-3.6,a)],guard],1.9,AL);
+  ctx.save();ctx.translate(butt[0],butt[1]);ctx.rotate(rang);rP([[-o.rw/2,-o.L],[o.rw/2,-o.L],[o.rw/2,0],[-o.rw/2,0]],G4);rP([[-o.rw/2-0.3,-o.L*0.42],[o.rw/2+0.3,-o.L*0.42],[o.rw/2+0.3,-o.L*0.22],[-o.rw/2-0.3,-o.L*0.22]],G3);if(o.rx)o.rx(o.L,o.rw);ctx.restore();
+  rLimb([Rs,[Rs[0]+lerp(1.2,2.2,a),lerp(1,-0.6,a)],grip],1.9,AL);
+  rO(guard[0],guard[1],1,G4);rO(grip[0],grip[1],1,G4);
+  const hx=lerp(0,butt[0]-1.4,a),hy=lerp(-0.4,-1.6,a);o.head(hx,hy);
+  ctx.restore();
+}
+function drawRifleman(t){
+  const since=S.t-(t.shotT??-9),kick=since<0.3?(since<0.05?since/0.05:1-(since-0.05)/0.25):0,a=t.aimV??RIFLE_READY,fl=t.flashT>0;
+  ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2);
+  ctx.fillStyle='rgba(0,0,0,0)';ctx.beginPath();ctx.ellipse(1,2,6,5,0,0,Math.PI*2);ctx.fill();
+  ctx.translate(0,kick*1.4);
+  riflePose({a,L:11,rw:1.6,gy:3,hy:7.5,flash:fl,
+    pack:()=>{rP([[-3,2],[3,1.6],[3,5],[-3,5.4]],'#999');rO(0,3.6,1.5,'#4d4d4d');ctx.strokeStyle=C.accent;ctx.lineWidth=0.5;ctx.beginPath();ctx.arc(0,3.6,1,0,Math.PI*2);ctx.stroke()},
+    head:(hx,hy)=>{rO(hx,hy,2.8,fl?'#fff':'#e6e6e6',0.6);ctx.fillStyle='#4d4d4d';ctx.fillRect(hx-1.8,hy-2.3,3.6,1.1);ctx.fillStyle=C.ally;ctx.fillRect(hx-1.4,hy-2.2,2.8,0.5)}});
+  ctx.restore();
+  if(since<0.06){const m=gunMuzzle(t,11);ctx.save();ctx.translate(m.x,m.y);ctx.rotate(t.ang+Math.PI/2);rifleFlash(0,0,0.9);ctx.restore()}
+}
+function drawMarksman(t){
+  const since=S.t-(t.shotT??-9),kick=since<0.4?Math.max(0,1-since/0.4):0,a=t.aimV??RIFLE_READY,fl=t.flashT>0,charge=t.chargeT>0?1-t.chargeT/MARK_CHARGE:0,kneel=!t.moving;
+  ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2);
+  ctx.fillStyle='rgba(0,0,0,0)';ctx.beginPath();ctx.ellipse(1,2,6,5,0,0,Math.PI*2);ctx.fill();
+  ctx.translate(0,kick*2);
+  const MC=fl?'#fff':ROLE_COL.marksman,MD=fl?'#fff':ROLE_COL.marksmanDark;
+  if(kneel)rP([[-1.5,3],[1.5,3],[1.8,8],[-0.8,8.4]],fl?'#fff':'#2f6f93');
+  riflePose({a,L:16,rw:1.4,gy:4,hy:10,flash:fl,
+    pack:()=>{const w=Math.sin(S.t*3+(t.id||0))*0.5;ctx.fillStyle=MC;ctx.strokeStyle='#000';ctx.lineWidth=0.5;ctx.beginPath();ctx.moveTo(-5.4,-0.4);ctx.quadraticCurveTo(-7,5,-4+w,9.5);
+      for(let i=0;i<5;i++){ctx.lineTo(-4+w+i*2,9.5+(i%2?-1.2:0.6))}ctx.lineTo(4.6-w,9);ctx.quadraticCurveTo(7,5,5.4,-0.4);ctx.closePath();ctx.fill();ctx.stroke();
+      ctx.strokeStyle=MD;ctx.lineWidth=0.6;ctx.beginPath();ctx.moveTo(-2,2);ctx.lineTo(-2.6,8);ctx.moveTo(1.6,2);ctx.lineTo(2.2,8);ctx.stroke()},
+    rx:(L,w)=>{ctx.fillStyle='#ccc';ctx.fillRect(-w/2-0.4,-L-1.5,w+0.8,1.8);if(charge>0){ctx.fillStyle='#bfefff';ctx.globalAlpha=charge;ctx.fillRect(-0.35,-L+1,0.7,(L-6)*charge);ctx.globalAlpha=0.3*charge;ctx.beginPath();ctx.arc(0,-L-0.6,2.5+charge,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1}},
+    head:(hx,hy)=>{rO(hx,hy,2.9,MC,0.6);ctx.fillStyle=MD;ctx.beginPath();ctx.arc(hx,hy+0.4,2,Math.PI*0.05,Math.PI*0.95);ctx.fill();ctx.fillStyle=C.accent;ctx.fillRect(hx-0.4,hy-2.3,2.2,0.9)}});
+  if(since>0.05&&since<0.8){const k=since/0.8;for(let i=0;i<3;i++){ctx.globalAlpha=(1-k)*0.6;ctx.fillStyle='#cfd8e0';ctx.beginPath();ctx.arc(4+i+k*3,-7-k*4+i,0.8+k*1.5,0,Math.PI*2);ctx.fill()}ctx.globalAlpha=1}
+  ctx.restore();
+  if(since<0.07){const m=gunMuzzle(t,16);ctx.save();ctx.translate(m.x,m.y);ctx.rotate(t.ang+Math.PI/2);rifleFlash(0,0,1.2);ctx.restore()}
+}
+const PAL_WIND=0.32, PAL_SC=1.2, PAL_SH_R=9.2, PAL_SH_A=0.66, PAL_SH_CX=-3.2, PAL_SH_CY=2.2;
+const PAL_SHL=[5.0,0.3], PAL_IDLE=[5.4,-4.0], PAL_BACK=[5.5,5.6], PAL_JAB=[5.1,-9.4], PAL_GL=[-4.2,-3.4], PAL_EDGE=-2.6;
+function palState(t){
+  const L=(a,b,k)=>a+(b-a)*k,E=k=>k<0?0:k>1?1:k*k*(3-2*k),lp=(a,b,k)=>[L(a[0],b[0],k),L(a[1],b[1],k)];
+  const s={pitch:0,h:PAL_IDLE,bash:0,flare:0};
+  if(t.jabT>0){const k=E(1-t.jabT/PAL_WIND);s.pitch=k;s.h=lp(PAL_IDLE,PAL_BACK,k)}
+  else{const a=S.t-(t.atkT??-9);
+    if(a<0.14){s.pitch=1;s.h=lp(PAL_BACK,PAL_JAB,E(a/0.14))}
+    else if(a<0.26){s.pitch=1;s.h=PAL_JAB}
+    else if(a<0.7){const k=E((a-0.26)/0.44);s.pitch=1-k;s.h=lp(PAL_JAB,PAL_IDLE,k)}}
+  const b=S.t-(t.bashT??-9);
+  if(b<0.2){s.bash=-0.5+1.5*E(b/0.2);s.flare=b/0.4}else if(b<0.4){s.bash=1-E((b-0.2)/0.6);s.flare=b/0.4}else if(b<0.8)s.bash=1-E((b-0.2)/0.6);
+  return s;
+}
+function palShieldEnds(t){
+  const s=t._pal||{bash:0},push=Math.max(0,s.bash)*1.5,lift=Math.max(0,s.bash)*1.2,cy=PAL_SH_CY-push-lift,a1=-Math.PI/2-PAL_SH_A,a2=-Math.PI/2+PAL_SH_A;
+  const rot=t.ang+Math.PI/2,c=Math.cos(rot),sn=Math.sin(rot),w=(x,y)=>({x:t.x+(x*c-y*sn)*PAL_SC,y:t.y+(x*sn+y*c)*PAL_SC});
+  return [w(PAL_SH_CX+Math.cos(a1)*PAL_SH_R,cy+Math.sin(a1)*PAL_SH_R),w(PAL_SH_CX+Math.cos(a2)*PAL_SH_R,cy+Math.sin(a2)*PAL_SH_R)];
+}
+function drawPaladin(t){
+  const s=palState(t);t._pal=s;const fl=t.flashT>0,L=(a,b,k)=>a+(b-a)*k;
+  const AL=C.ally,AD=fl?'#fff':'#2f6f93',G1=fl?'#fff':'#e6e6e6',G2=fl?'#fff':'#ccc',G3='#999',G4='#4d4d4d';
+  ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2);ctx.scale(PAL_SC,PAL_SC);
+  ctx.fillStyle='rgba(0,0,0,0)';ctx.beginPath();ctx.ellipse(1,2,7.5,6,0,0,Math.PI*2);ctx.fill();
+  const lift=Math.max(0,s.bash)*1.2;ctx.translate(0,-lift);
+  const [hx,hy]=s.h,SL=18,back=5,pr=Math.sin(s.pitch*Math.PI/2),ang=L(0,-0.05,s.pitch),ux=Math.sin(ang),uy=-Math.cos(ang);
+  const tipX=hx+ux*(SL-back)*pr,tipY=hy+uy*(SL-back)*pr-(1-pr)*0.7,buttX=hx-ux*back*pr,buttY=hy-uy*back*pr;
+  const shaft=(ax,ay,bx,by)=>{ctx.strokeStyle='#000';ctx.lineWidth=1.5;ctx.lineCap='butt';ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);ctx.stroke();ctx.strokeStyle=G3;ctx.lineWidth=0.9;ctx.stroke()};
+  ctx.strokeStyle='rgba(0,0,0,0.33)';ctx.lineWidth=0.9;ctx.beginPath();ctx.moveTo(hx+0.3,hy+0.5);ctx.lineTo(hx+0.3+(1-pr)*5,hy+0.5+(1-pr)*6.5-pr*1.5);ctx.stroke();
+  // left arm, torso, left pauldron, helmet
+  rLimb([[-4.6,0.2],[-5.2,-2],PAL_GL],2,AD);
+  rP([[-6,0.8],[-4.6,-2.2],[4.6,-2.2],[6,0.8],[4.6,3],[-4.6,3]],AD,0.6);
+  rP([[-6.6,0.6],[-5.2,-2.5],[-3.2,-2.5],[-3.4,2.7],[-5.2,2.9]],G2);ctx.fillStyle=AL;ctx.fillRect(-5.6,-0.6,1.6,1.2);
+  rO(0,0.4,3,G1,0.6);ctx.fillStyle=G4;ctx.fillRect(-0.4,-2.5,0.8,2.9);ctx.fillStyle=AL;ctx.fillRect(-1.5,-1.9,3,0.5);
+  // the spear, under the right arm and pauldron
+  if(pr>0.05)shaft(buttX,buttY,tipX,tipY);
+  ctx.save();ctx.translate(tipX,tipY);ctx.rotate(ang);const hl=L(1.3,3.6,pr);rP([[0,-hl],[1.1,-0.4*pr],[0.5,0.4],[-0.5,0.4],[-1.1,-0.4*pr]],G1);ctx.fillStyle=AL;ctx.fillRect(-0.25,-hl*0.75,0.5,hl*0.6);ctx.restore();
+  // right arm swinging straight, gripping the spear
+  const el=[(PAL_SHL[0]+hx)/2+0.3,(PAL_SHL[1]+hy)/2];rLimb([PAL_SHL,el,[hx,hy]],2.1,AD);rO(hx,hy,1.1,G3);
+  rP([[6.6,0.6],[5.2,-2.5],[3.2,-2.5],[3.4,2.7],[5.2,2.9]],G2);ctx.fillStyle=AL;ctx.fillRect(4,-0.6,1.6,1.2);
+  if(hy<PAL_EDGE){const k=(PAL_EDGE-PAL_SHL[1])/(hy-PAL_SHL[1]),ax=PAL_SHL[0]+(hx-PAL_SHL[0])*k;rLimb([[ax,PAL_EDGE],[hx,hy]],2.1,AD);rO(hx,hy,1.1,G3)}
+  if(hy>2.9){const k=(2.9-PAL_SHL[1])/(hy-PAL_SHL[1]),ax=PAL_SHL[0]+(hx-PAL_SHL[0])*k;rLimb([[ax,2.9],[hx,hy]],2.1,AD);rO(hx,hy,1.1,G3)}
+  rO(PAL_GL[0],PAL_GL[1],1.3,G3);ctx.fillStyle=AL;ctx.fillRect(PAL_GL[0]-0.5,PAL_GL[1]-0.3,1,0.6);
+  // the hard-light shield
+  const push=Math.max(0,s.bash)*1.5;ctx.save();ctx.translate(PAL_SH_CX,PAL_SH_CY-4.2-push);
+  ctx.strokeStyle=AL;ctx.globalAlpha=0.38+0.12*Math.sin(S.t*8+t.id);ctx.lineWidth=2.6;ctx.beginPath();ctx.arc(0,4.2,PAL_SH_R,-Math.PI/2-PAL_SH_A,-Math.PI/2+PAL_SH_A);ctx.stroke();ctx.globalAlpha=0.95;ctx.lineWidth=0.7;ctx.stroke();ctx.globalAlpha=1;
+  if(s.flare>0&&s.flare<1){ctx.fillStyle=AL;ctx.globalAlpha=0.32*(1-s.flare);ctx.beginPath();ctx.moveTo(0,0);ctx.arc(0,0,8+20*s.flare,-Math.PI/2-0.78,-Math.PI/2+0.78);ctx.closePath();ctx.fill();ctx.globalAlpha=1}
+  ctx.restore();ctx.restore();
+  // jab sparks at the spear tip as it lands
+  const a=S.t-(t.atkT??-9);if(a>0.1&&a<0.3){const rot=t.ang+Math.PI/2,c=Math.cos(rot),sn=Math.sin(rot),X=t.x+(tipX*c-(tipY-lift)*sn)*PAL_SC,Y=t.y+(tipX*sn+(tipY-lift)*c)*PAL_SC,k=(a-0.1)/0.2;
+    ctx.globalAlpha=1-k;for(let i=0;i<5;i++){const q=Math.random()*Math.PI*2,r=2+Math.random()*4;ctx.strokeStyle=i%2?'#fff':AL;ctx.lineWidth=0.8;ctx.beginPath();ctx.moveTo(X,Y);ctx.lineTo(X+Math.cos(q)*r,Y+Math.sin(q)*r);ctx.stroke()}ctx.globalAlpha=1}
+}
+const ROLE_COL={marksman:'#5f8a55',marksmanDark:'#3f5e39',grenadier:'#e8913a',rocket:'#9b7cf5',rocketDark:'#6c51c8'};
+function drawGrenadier(t){
+  const fl=t.flashT>0,AL=fl?'#fff':C.ally,n=t.pods??GREN_PODS,pop=S.t-(t.podShotT??-9),OC=fl?'#fff':ROLE_COL.grenadier;
+  ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2);ctx.scale(1.15,1.15);
+  ctx.fillStyle='rgba(0,0,0,0)';ctx.beginPath();ctx.ellipse(1,3,7,6,0,0,Math.PI*2);ctx.fill();
+  // the pod: four cells, emptied in order 0..3 and reloaded in reverse; the newest one blinks in
+  rP([[-4.6,0.8],[4.6,0.8],[4.6,7.6],[-4.6,7.6]],OC,0.6);ctx.fillStyle='#000';ctx.globalAlpha=0.25;ctx.fillRect(-4.6,6.4,9.2,1.2);ctx.globalAlpha=1;
+  for(let i=0;i<4;i++){const cx=-1.8+(i%2)*3.6,cy=2.8+(i>>1)*2.6,loaded=i>=GREN_PODS-n,fresh=loaded&&i===GREN_PODS-n&&S.t-(t.podGrewT??-9)<0.3;rO(cx,cy,1.1,loaded?(fresh?ROCKET_COLOR:'#5a2f1a'):'#111',0.4)}
+  if(pop<0.3){const cell=GREN_PODS-n-1;if(cell>=0){const cx=-1.8+(cell%2)*3.6,cy=2.8+(cell>>1)*2.6;ctx.fillStyle='#cfd8e0';ctx.globalAlpha=0.6*(1-pop/0.3);ctx.beginPath();ctx.arc(cx,cy,1.5+pop*8,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1}}
+  rP([[-5.4,0.6],[-4,-2],[4,-2],[5.4,0.6],[4,2.6],[-4,2.6]],AL,0.6);
+  rLimb([[-4,0.2],[-4.4,-2.6],[-2.6,-4.4]],1.9,AL);rLimb([[4,0.2],[4.4,-2.6],[2.6,-4.4]],1.9,AL);rO(-2.6,-4.4,1,'#4d4d4d');rO(2.6,-4.4,1,'#4d4d4d');
+  ctx.fillStyle='#4d4d4d';ctx.fillRect(-1.6,-5,3.2,1.6);ctx.fillStyle=ROCKET_COLOR;ctx.fillRect(-0.5,-4.8,1,1.2);
+  rO(0,0.2,2.7,fl?'#fff':'#e6e6e6',0.6);ctx.fillStyle=OC;ctx.fillRect(-0.6,-2.4,1.2,4.4);ctx.fillStyle='#4d4d4d';ctx.fillRect(-1.7,-2,3.4,1);ctx.fillStyle=OC;ctx.fillRect(-1.3,-1.9,2.6,0.5);
+  ctx.restore();
+}
+function drawRocketeer(t){
+  const fl=t.flashT>0,AD=fl?'#fff':C.ally,VC=fl?'#fff':ROLE_COL.rocket,VD=fl?'#fff':ROLE_COL.rocketDark,a=t.aimV??RIFLE_READY,since=S.t-(t.shotT??-9),kick=since<0.25?1-since/0.25:0,ang=0.3+(0-0.3)*a;
+  ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2);
+  ctx.fillStyle='rgba(0,0,0,0)';ctx.beginPath();ctx.ellipse(1,2,6,5,0,0,Math.PI*2);ctx.fill();
+  ctx.translate(0,kick*1.6);
+  rP([[-5.4,0.6],[-4,-2],[4,-2],[5.4,0.6],[4,2.6],[-4,2.6]],AD,0.6);
+  ctx.save();ctx.translate(3,0.6);ctx.rotate(ang);rP([[-2.3,-12],[2.3,-12],[2.3,7],[-2.3,7]],VC,0.6);rP([[-2.7,-12.6],[2.7,-12.6],[2.7,-10.6],[-2.7,-10.6]],VD);rP([[-2.7,5.6],[2.7,5.6],[2.7,7.6],[-2.7,7.6]],VD);rP([[-3,-6],[-2.3,-6],[-2.3,-2.6],[-3,-2.6]],'#4d4d4d');ctx.fillStyle=C.enemy;ctx.beginPath();ctx.arc(1.4,-11,0.6,0,Math.PI*2);ctx.fill();ctx.restore();
+  rLimb([[4,0],[5.6,-0.8],[3.8,-2.4]],1.9,AD);rLimb([[-4,0.2],[-1.6,-3.4],[2.2,-5.6]],1.9,AD);rO(3.8,-2.4,1,'#4d4d4d');rO(2.2,-5.6,1,'#4d4d4d');
+  rO(0.6,-0.6,2.8,VC,0.6);ctx.fillStyle=VD;ctx.fillRect(-1.1,-2.9,3.4,1.1);ctx.fillStyle=C.enemy;ctx.fillRect(-0.7,-2.8,2.6,0.5);
+  ctx.restore();
+  // the painting laser, from the launcher's sight to the target
+  if(t.paintT>0&&t.paintTgt){const m=gunMuzzle(t,9),c=t.paintTgt;ctx.save();ctx.strokeStyle=C.enemy;ctx.globalAlpha=0.45+0.4*Math.random();ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(m.x,m.y);ctx.lineTo(c.x,c.y);ctx.stroke();
+    const k=1-t.paintT/ROCKET_PAINT;ctx.globalAlpha=0.9;ctx.lineWidth=1.4;ctx.beginPath();ctx.arc(c.x,c.y,(c.r||8)+4+(1-k)*10,0,Math.PI*2);ctx.stroke();ctx.restore()}
+  if(since<0.5){const b={x:t.x-Math.cos(t.ang)*6+Math.cos(t.ang+Math.PI/2)*3,y:t.y-Math.sin(t.ang)*6+Math.sin(t.ang+Math.PI/2)*3},k=since/0.5;
+    for(let i=0;i<4;i++){ctx.fillStyle=i<2?ROCKET_COLOR:'#cfd8e0';ctx.globalAlpha=(1-k)*0.5;ctx.beginPath();ctx.arc(b.x-Math.cos(t.ang)*(k*14+i*3),b.y-Math.sin(t.ang)*(k*14+i*3),2+k*4,0,Math.PI*2);ctx.fill()}ctx.globalAlpha=1}
+}
+function drawBreaker(t){const HULL='#d6cfc3',JOINT='#858b95',DARKJ='#5d636c',st=t.moving?Math.sin(S.t*7):0,ps=S.t-(t.punchT??-9),pk=ps<0.26?Math.sin(ps/0.26*Math.PI)*(t.hay?1.15:1):0,pl=t.punchSide?0:pk,pr=t.punchSide?pk:0;
+  ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2);ctx.scale(MECH_SC,MECH_SC);
+  [-1,1].forEach(sd=>{const k=st*sd*2.6;rLimb([[sd*4.2,2],[sd*5.6,6+k]],3.4,JOINT);rP([[sd*5.6-3,5.4+k],[sd*5.6+3,5.4+k],[sd*5.6+3.4,10.4+k],[sd*5.6-3.4,10.4+k]],HULL);rP([[sd*5.6-2.6,9.2+k],[sd*5.6+2.6,9.2+k],[sd*5.6+3.4,10.4+k],[sd*5.6-3.4,10.4+k]],DARKJ)});
+  [[-1,pl],[1,pr]].forEach(([sd,e])=>{const sh=[sd*8.6,-0.6],el=[sd*(12.6-e*2.4),0.6-e*9],fi=[sd*(12.4-e*7.4),-3.6-e*17];
+    rLimb([sh,el],3.6,JOINT);rLimb([el,fi],4.4,HULL);rO(el[0],el[1],2,DARKJ);
+    ctx.save();ctx.translate(fi[0],fi[1]);ctx.rotate(-sd*e*0.18);rP([[-3.4,-3.6],[3.4,-3.6],[3.8,3.2],[-3.8,3.2]],HULL);rP([[-3.6,-4.8],[3.6,-4.8],[3.4,-3],[-3.4,-3]],JOINT);ctx.restore();
+    rP([[sd*5.6,-5.2],[sd*11.4,-4.4],[sd*12.2,1.6],[sd*6.2,2.8]],HULL);rO(sd*9.2,-1.4,1.1,JOINT)});
+  rO(0,0.6,7.6,HULL);ctx.strokeStyle='rgba(16,19,23,0.4)';ctx.lineWidth=0.4;ctx.beginPath();ctx.moveTo(-5.4,3.4);ctx.lineTo(5.4,3.4);ctx.stroke();
+  ctx.strokeStyle='#f2f2ee';ctx.lineWidth=1.3;ctx.lineJoin='round';ctx.beginPath();ctx.moveTo(-3.2,-0.4);ctx.lineTo(0,-2.4);ctx.lineTo(3.2,-0.4);ctx.stroke();
+  rO(0,-5,2.3,'#f2f2ee');ctx.fillStyle='#f2a63c';ctx.beginPath();ctx.arc(0,-5,1.5,0,Math.PI*2);ctx.fill();ctx.fillStyle='#ffe9a8';ctx.beginPath();ctx.arc(-0.4,-5.4,0.6,0,Math.PI*2);ctx.fill();
+  ctx.restore()}
+
+// The Gatling Suppressor (the Mech with no kit), in the Breaker's family: short stomping legs, the dome
+// with its amber eye and chevron, shoulder pads; a big shield in the left hand held across its front,
+// a rotary cannon on the right arm whose six barrels turn faster as it spins up, an ammo drum on its
+// back feeding it by a belt.
+function drawGatMech(t){const HULL='#c9cfd6',JOINT='#7d8591',DARKJ='#535a64',GUN='#3a4048',st=t.moving?Math.sin(S.t*7):0,sp=t.spin||0,firing=S.t-(t.gatShotT??-9)<0.12;
+  ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2);ctx.scale(MECH_SC,MECH_SC);
+  [-1,1].forEach(sd=>{const k=st*sd*2.6;rLimb([[sd*4.2,2],[sd*5.6,6+k]],3.4,JOINT);rP([[sd*5.6-3,5.4+k],[sd*5.6+3,5.4+k],[sd*5.6+3.4,10.4+k],[sd*5.6-3.4,10.4+k]],HULL);rP([[sd*5.6-2.6,9.2+k],[sd*5.6+2.6,9.2+k],[sd*5.6+3.4,10.4+k],[sd*5.6-3.4,10.4+k]],DARKJ)});
+  rP([[1.5,1.5],[6,1.5],[6,7.5],[1.5,7.5]],'#6f7b6a');rLimb([[3.8,1.5],[8,-2],[10.6,-5]],1,'#2a2f36'); // ammo drum and feed belt
+  const arm=(sd,e)=>{const sh=[sd*8.6,-0.6],el=[sd*(12.6-e*1.6),0.6-e*4],fi=[sd*(12.4-e*3),-3.6-e*7];rLimb([sh,el],3.6,JOINT);rLimb([el,fi],4.4,HULL);rO(el[0],el[1],2,DARKJ);return fi};
+  const pad=sd=>{rP([[sd*5.6,-5.2],[sd*11.4,-4.4],[sd*12.2,1.6],[sd*6.2,2.8]],HULL);rO(sd*9.2,-1.4,1.1,JOINT)};
+  // the shield, held across its front from the left hand
+  const fl=arm(-1,0.55);ctx.save();ctx.translate(fl[0],fl[1]);ctx.rotate(0.42);rP([[-7.6,-3.6],[5.6,-5],[7,-1.8],[-7,0.2]],HULL);rP([[-6.4,-2.8],[4.8,-4],[5.4,-2.6],[-6,-1.4]],'#9fb6d0');ctx.restore();pad(-1);
+  // the rotary cannon
+  const fr=arm(1,0.5);ctx.save();ctx.translate(fr[0],fr[1]);rP([[-3.4,-3],[3.4,-3],[3.4,3],[-3.4,3]],HULL);const b0=t.barrel||0;
+  for(let i=0;i<6;i++){const a=b0+i/6*Math.PI*2,bx=Math.cos(a)*2,bz=Math.sin(a);if(bz<0)continue;rP([[bx-0.7,-14],[bx+0.7,-14],[bx+0.7,-3],[bx-0.7,-3]],i%2?GUN:'#4a5058')}rO(0,-14,2.4,GUN);rO(0,-14,1,'#15181c');
+  if(firing){ctx.fillStyle='#ffe2a0';ctx.globalAlpha=0.6+0.4*Math.random();ctx.beginPath();ctx.arc(0,-16,2+Math.random()*1.6+sp,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1}ctx.restore();pad(1);
+  rO(0,0.6,7.6,HULL);ctx.strokeStyle='rgba(16,19,23,0.4)';ctx.lineWidth=0.4;ctx.beginPath();ctx.moveTo(-5.4,3.4);ctx.lineTo(5.4,3.4);ctx.stroke();
+  ctx.strokeStyle='#f2f2ee';ctx.lineWidth=1.3;ctx.lineJoin='round';ctx.beginPath();ctx.moveTo(-3.2,-0.4);ctx.lineTo(0,-2.4);ctx.lineTo(3.2,-0.4);ctx.stroke();
+  rO(0,-5,2.3,'#f2f2ee');ctx.fillStyle='#f2a63c';ctx.beginPath();ctx.arc(0,-5,1.5,0,Math.PI*2);ctx.fill();ctx.fillStyle='#ffe9a8';ctx.beginPath();ctx.arc(-0.4,-5.4,0.6,0,Math.PI*2);ctx.fill();
+  ctx.restore()}
+// The Field Relay: a squat hull on two legs carrying a relay mast and crossarm, a green lamp up front
+function drawFieldRelay(t){const st=t.moving?Math.sin(S.t*6):0;ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2);ctx.scale(MECH_SC,MECH_SC);
+  [[-1,1],[1,-1]].forEach(([sd,ph])=>{const k=st*ph*2.5;rLimb([[sd*6,2],[sd*9,6+k],[sd*8,11+k]],2.4,'#7f93a8');rLimb([[sd*6,-2],[sd*9,-6-k],[sd*8,-10-k]],2.4,'#7f93a8')});
+  rP([[-7,-7],[7,-7],[8,6],[-8,6]],'#9fb6d0');rLimb([[0,2],[0,10]],1.6,'#8d9aa8');rO(0,10,3,'#c3ccd6');rP([[-5,8.6],[5,8.6],[5,10],[-5,10]],'#6f7b88');rO(0,-2,3,'#7bd389');
+  ctx.restore()}
+// =====================================================================================================
+// ---------- CORRUPTED UNIT ART (paste-ready) ----------
+// Corrupted copies of the player's units, for use as enemies. Built for the game's own unit renderer:
+// they use only what datascraper.html already has (ctx, S.t, C, rP/rO/rLimb/uSun, palState, PAL_*,
+// MECH_SC, GREN_PODS, MARK_CHARGE, ROCKET_PAINT, RIFLE_READY, gunMuzzle). Each draw function takes a
+// unit-shaped object ({x,y,ang,flashT,...} plus that unit's own anim fields: shotT, aimV, chargeT, jabT,
+// atkT, bashT, pods, podShotT, podGrewT, paintT, paintTgt, spin, barrel, gatShotT), drawn facing t.ang.
+//
+// The look borrows from the hostile force's three families:
+//  - Dense glass: crimson spires (cSpire/cCluster) grown through armour, out of muzzles and pod cells.
+//  - Core shards: black slabs with crimson edges (cSlab) replacing limbs and plates; a pulsing red core
+//    (cCore) where an eye or lamp was; glowing cracks (cCrack).
+//  - Echoes: the whole body is blitted out of sync with itself, red and cyan copies jittering either
+//    side and horizontal bands slipping sideways or blinking out (corruptBlit).
+// The ally blue is drained to slate, white gear to bone, and each role colour is kept but scorched, so
+// a corrupted unit still reads as its source at a glance.
+//
+// To draw one:   drawCorruptBody(t); drawCorruptFx(t);
+// drawCorruptBody goes through an offscreen buffer for the Echo glitch. In play, cache the calm pose the
+// way drawUnitBody does and only run the glitch live (or every few frames) to keep big waves cheap.
+// =====================================================================================================
+const CORR={body:'#4d5763',bone:'#b3aaa1',bone2:'#8e857d',grip:'#3a3436',blk:'#0a0506',core:'#120607',
+  edge:'#4e0c15',edge2:'#7d1420',hot:'#ff3a24',hot2:'#ffd0a0',red:'#ff2a2a',cyan:'#5ec8ff',deep:[105,12,20],
+  pod:'#b0652c',moss:'#3d4c35',mossD:'#262f20',viol:'#5b4785',violD:'#3b2c5e',hull:'#8d9198'};
+const CTAU=Math.PI*2;
+// a stable hash (the same mix as the game's glHash)
+function cHash(a,b,c){let h=(a*73856093)^(b*19349663)^(c*83492791);h=Math.imul(h^(h>>>15),2246822507);h=Math.imul(h^(h>>>13),3266489909);h^=h>>>16;return (h>>>0)/4294967296}
+const cId=t=>(t.id??t.seed??0)|0;
+const cQ=()=>Math.floor(S.t*10); // glitch frame: re-rolls ten times a second, like the Core shards
+// the visor colour: crimson, flickering cyan now and then (the Echo's other copy)
+const cVisor=(t,k)=>cHash(cId(t),cQ(),k||5)<0.13?CORR.cyan:CORR.hot;
+
+// ---- glow, recorded while drawing and added (lighter) after the glitch blit ----
+const CB={a:document.createElement('canvas'),tt:document.createElement('canvas'),glows:[],calm:false,off:false};
+function cGlowAt(x,y,r,a,col){if(CB.calm)return;const m=ctx.getTransform();CB.glows.push({x:m.a*x+m.c*y+m.e,y:m.b*x+m.d*y+m.f,r:r*Math.hypot(m.a,m.b),a,col:col||'255,58,36'})}
+
+// A glass spire in a unit's own frame, after the Dense spires: two faces meeting at a ridge, one lit
+// by the sun and one in shade, washed from deep red glass at the foot to a pale tip.
+function cSpire(x,y,a,len,w,col){col=col||CORR.deep;if(len<=0.05)return;
+  const [lx,ly]=uSun(),c=Math.cos(a),s=Math.sin(a),px=-s*w/2,py=c*w/2;
+  const T=[x+c*len,y+s*len],Lb=[x+px,y+py],Rb=[x-px,y-py],M=[x+c*len*0.16,y+s*len*0.16],litL=(px*lx+py*ly)>0;
+  const tri=(A,B,Cc)=>{ctx.beginPath();ctx.moveTo(A[0],A[1]);ctx.lineTo(B[0],B[1]);ctx.lineTo(Cc[0],Cc[1]);ctx.closePath()};
+  ctx.strokeStyle=U_OL;ctx.lineWidth=0.36;tri(Lb,T,Rb);ctx.stroke();
+  [[Lb,M,litL],[M,Rb,!litL]].forEach(([A,B,lit])=>{const k=lit?1.3:0.55,g=ctx.createLinearGradient(x,y,T[0],T[1]);
+    g.addColorStop(0,`rgba(${Math.min(255,col[0]*k*1.2+70)|0},${Math.min(255,col[1]*k+12)|0},${Math.min(255,col[2]*k+12)|0},0.96)`);
+    g.addColorStop(1,lit?'rgba(255,176,164,0.95)':`rgba(${Math.min(255,col[0]*k+60)|0},${Math.min(255,col[1]*k+14)|0},${Math.min(255,col[2]*k+18)|0},0.94)`);
+    ctx.fillStyle=g;tri(A,B,T);ctx.fill()});
+  const ln=(A,B)=>{ctx.beginPath();ctx.moveTo(A[0],A[1]);ctx.lineTo(B[0],B[1]);ctx.stroke()},hi='rgba(255,225,220,0.75)',lo='rgba(30,0,4,0.8)';
+  ctx.lineWidth=0.26;ctx.strokeStyle=litL?hi:lo;ln(Lb,T);ctx.strokeStyle=litL?lo:hi;ln(Rb,T);ctx.strokeStyle='rgba(255,235,230,0.4)';ctx.lineWidth=0.18;ln(M,T)}
+// n spires fanned round direction a (spread radians), base jittered across width w
+function cCluster(x,y,a,n,len,w,spread,seed){const L=[];
+  for(let i=0;i<n;i++){const aa=a+(n>1?(i/(n-1)-0.5)*spread:0)+(cHash(seed,i,1)-0.5)*0.3,o=(cHash(seed,i,3)-0.5)*w*0.8;
+    L.push({x:x+Math.cos(aa+Math.PI/2)*o,y:y+Math.sin(aa+Math.PI/2)*o,a:aa,l:len*(0.6+0.5*cHash(seed,i,2)),w:w*(0.7+0.4*cHash(seed,i,4))})}
+  L.sort((p,q)=>p.l-q.l).forEach(s=>cSpire(s.x,s.y,s.a,s.l,s.w))}
+// a Core slab: black, its sunny long edge crimson
+function cSlab(x,y,len,w,ang){ctx.save();ctx.translate(x,y);ctx.rotate(ang);const [,sy]=uSun(),e=Math.max(0.35,w*0.28);
+  ctx.fillStyle=CORR.blk;ctx.fillRect(-len/2,-w/2,len,w);ctx.fillStyle=CORR.edge2;ctx.fillRect(-len/2,sy<0?-w/2:w/2-e,len,e);
+  ctx.strokeStyle=U_OL;ctx.lineWidth=0.3;ctx.strokeRect(-len/2,-w/2,len,w);ctx.restore()}
+// a glowing crack across armour
+function cCrack(P,w){w=w||0.5;const p=0.65+0.35*Math.sin(S.t*6+P[0][0]*3+P[0][1]);const path=()=>{ctx.beginPath();P.forEach((q,i)=>i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]))};
+  ctx.save();ctx.lineCap='round';ctx.lineJoin='miter';ctx.strokeStyle='rgba(10,2,4,0.9)';ctx.lineWidth=w*1.9;path();ctx.stroke();
+  ctx.globalAlpha=p;ctx.strokeStyle=CORR.hot;ctx.lineWidth=w;path();ctx.stroke();ctx.strokeStyle=CORR.hot2;ctx.lineWidth=w*0.35;path();ctx.stroke();ctx.restore()}
+// a red core: dark, red rim, a pulsing heart (the Echo / Splinter core)
+function cCore(x,y,r){ctx.fillStyle=CORR.core;ctx.beginPath();ctx.arc(x,y,r,0,CTAU);ctx.fill();ctx.strokeStyle=CORR.red;ctx.lineWidth=Math.max(0.3,r*0.26);ctx.stroke();
+  ctx.fillStyle=CORR.red;ctx.globalAlpha=0.6+0.4*Math.sin(S.t*9+x*3);ctx.beginPath();ctx.arc(x,y,r*0.42,0,CTAU);ctx.fill();ctx.globalAlpha=1;cGlowAt(x,y,r*2.8,0.5)}
+// a red shard muzzle flash (in place of the amber rifle flash), in world space along ang
+function cShardFlash(X,Y,ang,s){ctx.save();ctx.translate(X,Y);ctx.rotate(ang+Math.PI/2);ctx.globalCompositeOperation='lighter';
+  ctx.fillStyle=CORR.hot;ctx.globalAlpha=0.9;ctx.beginPath();ctx.moveTo(0,-6*s);ctx.lineTo(1.6*s,0);ctx.lineTo(0,1.2*s);ctx.lineTo(-1.6*s,0);ctx.closePath();ctx.fill();
+  ctx.fillStyle=CORR.cyan;ctx.globalAlpha=0.5;ctx.fillRect(-2.6*s,-1.4*s,0.7*s,0.7*s);ctx.fillRect(1.9*s,-3*s,0.6*s,0.6*s);
+  ctx.fillStyle='#fff';ctx.globalAlpha=0.9;ctx.beginPath();ctx.arc(0,-1,0.9*s,0,CTAU);ctx.fill();ctx.restore()}
+
+// ---- the Echo glitch ----
+// Draws fn (a unit drawing at t, in world units through the current transform) into a buffer, then
+// blits it as an Echo does: a red copy one side and a cyan copy the other, jittering; the body itself in
+// horizontal bands, a few slipped sideways and now and then one blinking out; then the recorded glows.
+// E is the half-size of the buffer in world units, g the strength (1 normal).
+function corruptBlit(t,fn,E,g){E=E||30;g=g==null?1:g;CB.glows.length=0;
+  if(CB.calm||CB.off){fn();if(!CB.calm)CB.glows.forEach(cGlowBlit(0,0));return}
+  const m=ctx.getTransform(),sc=Math.hypot(m.a,m.b)||1,S2=Math.ceil(E*2*sc);
+  [CB.a,CB.tt].forEach(c=>{if(c.width<S2||c.height<S2){c.width=c.height=Math.max(S2,c.width)}});
+  const W2=CB.a.width,b=CB.a.getContext('2d');b.setTransform(1,0,0,1,0,0);b.clearRect(0,0,W2,W2);
+  const dx=m.a*t.x+m.c*t.y+m.e,dy=m.b*t.x+m.d*t.y+m.f;b.setTransform(m.a,m.b,m.c,m.d,E*sc-(dx-m.e),E*sc-(dy-m.f));
+  const keep=ctx;ctx=b;try{fn()}finally{ctx=keep}
+  const ox=dx-E*sc,oy=dy-E*sc,id=cId(t),q=cQ(),h=k=>cHash(id,q,k);
+  const tint=col=>{const x=CB.tt.getContext('2d');x.setTransform(1,0,0,1,0,0);x.globalCompositeOperation='source-over';x.clearRect(0,0,W2,W2);x.drawImage(CB.a,0,0);
+    x.globalCompositeOperation='source-in';x.fillStyle=col;x.fillRect(0,0,W2,W2);x.globalCompositeOperation='source-over';return CB.tt};
+  const j=(1.4+Math.sin(S.t*7+id)*0.7+(h(1)<0.07?1.8:0))*g,px=-Math.sin(t.ang)*sc*j,py=Math.cos(t.ang)*sc*j;
+  ctx.save();ctx.setTransform(1,0,0,1,0,0);
+  ctx.globalAlpha=0.36*g;ctx.drawImage(tint(CORR.red),0,0,S2,S2,ox+px,oy+py,S2,S2);
+  ctx.globalAlpha=0.24*g;ctx.drawImage(tint(C.ally),0,0,S2,S2,ox-px,oy-py,S2,S2);
+  ctx.globalAlpha=1;const N=8,bh=S2/N;
+  for(let i=0;i<N;i++){const y0=Math.floor(i*bh),y1=Math.floor((i+1)*bh),r=h(10+i);if(r>1-0.03*g)continue; // a band blinks out
+    const slip=r<0.2*g?(h(30+i)-0.5)*3.4*sc*g:0;if(y1>y0)ctx.drawImage(CB.a,0,y0,S2,y1-y0,ox+slip,oy+y0,S2,y1-y0)}
+  CB.glows.forEach(cGlowBlit(ox,oy));ctx.restore()}
+// a recorded glow (device pixels, offset by the blit position), added with 'lighter'
+const cGlowBlit=(ox,oy)=>G=>{ctx.save();ctx.setTransform(1,0,0,1,0,0);
+  const x=G.x+ox,y=G.y+oy,g=ctx.createRadialGradient(x,y,0,x,y,G.r);g.addColorStop(0,`rgba(${G.col},${G.a})`);g.addColorStop(1,`rgba(${G.col},0)`);
+  ctx.globalCompositeOperation='lighter';ctx.fillStyle=g;ctx.fillRect(x-G.r,y-G.r,G.r*2,G.r*2);ctx.restore()};
+
+// riflePose (the Trooper / Marksman posture) with the corrupted options: its own body colour, a lurch
+// off true, a broken left arm that hangs instead of holding the handguard, and a torso hook for cracks.
+function cRiflePose(o){
+  const lerp=(a,b,k)=>a+(b-a)*k,a=o.a,blade=lerp(0.15,0.42,a);ctx.save();ctx.rotate(-blade*0.6+(o.lurch||0));
+  const sw=4.4,Ls=[-sw,0.6],Rs=[sw,-0.2],butt=[lerp(1.2,Rs[0]-1.2,a),lerp(1.5,-0.6,a)],rang=lerp(-0.75,blade*0.6-0.05,a)+(o.droop||0);
+  const ca=Math.cos(rang),sa=Math.sin(rang),along=d=>[butt[0]+sa*d,butt[1]-ca*d],grip=along(o.gy),guard=along(o.hy);
+  const AL=o.flash?'#fff':o.body,G3='#6f6863',G4='#2f2a2c';
+  if(o.pack)o.pack();
+  rP([[Ls[0]-1,Ls[1]],[Ls[0]+0.6,-1.8],[Rs[0]-0.6,-2.4],[Rs[0]+1,Rs[1]],[Rs[0]-0.4,2.6],[Ls[0]+0.4,2.8]],AL,0.6);
+  if(o.torso)o.torso();
+  if(o.broken){const sx=Math.sin(S.t*2.3+(o.seed||0))*0.5;rLimb([Ls,[Ls[0]-1.3,3.2],[Ls[0]-0.5+sx,6]],1.7,AL);rO(Ls[0]-0.5+sx,6,0.9,G4)}
+  else rLimb([Ls,[lerp(Ls[0]+1,-2.6,a),lerp(-2,-3.6,a)],guard],1.9,AL);
+  ctx.save();ctx.translate(butt[0],butt[1]);ctx.rotate(rang);rP([[-o.rw/2,-o.L],[o.rw/2,-o.L],[o.rw/2,0],[-o.rw/2,0]],G4);rP([[-o.rw/2-0.3,-o.L*0.42],[o.rw/2+0.3,-o.L*0.42],[o.rw/2+0.3,-o.L*0.22],[-o.rw/2-0.3,-o.L*0.22]],G3);if(o.rx)o.rx(o.L,o.rw);ctx.restore();
+  rLimb([Rs,[Rs[0]+lerp(1.2,2.2,a),lerp(1,-0.6,a)],grip],1.9,AL);
+  if(!o.broken)rO(guard[0],guard[1],1,G4);rO(grip[0],grip[1],1,G4);
+  const hx=lerp(0,butt[0]-1.4,a),hy=lerp(-0.4,-1.6,a);o.head(hx,hy);
+  ctx.restore()}
+
+// ---- Hollow Trooper ----
+// The Trooper's rifle stance, lurching off true, the left arm hanging dead. Glass has grown out of the
+// muzzle into a spire and through the left shoulder blade; the pack's amber ring is a red core; the
+// helmet is cracked and its blue visor strip burns red.
+function drawCorruptTrooper(t){
+  const since=S.t-(t.shotT??-9),kick=since<0.3?(since<0.05?since/0.05:1-(since-0.05)/0.25):0,a=t.aimV??RIFLE_READY,fl=t.flashT>0,sd=cId(t);
+  ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2);ctx.translate(0,kick*1.6);
+  cRiflePose({a,L:11,rw:1.6,gy:3,hy:7.5,flash:fl,body:CORR.body,broken:true,seed:sd,lurch:0.14+Math.sin(S.t*1.7+sd)*0.05,droop:0.12*(1-a),
+    pack:()=>{rP([[-3,2],[3,1.6],[3,5],[-3,5.4]],CORR.bone2);cCrack([[-3,3.2],[-1.2,3.9],[-0.6,5.3]],0.4);cCore(0,3.6,1.5)},
+    torso:()=>{cCrack([[1.4,-2.2],[0.6,-0.6],[1.8,0.6],[1,2.6]],0.45);cCluster(-3.6,1.6,2.35,3,4.6,1.6,1.05,sd*7+3)},
+    rx:(L)=>{cSpire(0,-L+1.4,-Math.PI/2,6,1.9);cCrack([[-0.5,-L*0.7],[0.4,-L*0.55],[-0.3,-L*0.4]],0.3)},
+    head:(hx,hy)=>{const X=hx+0.7,Y=hy+0.3;rO(X,Y,2.8,fl?'#fff':CORR.bone,0.6);ctx.fillStyle=CORR.blk;ctx.fillRect(X-1.8,Y-2.3,3.6,1.1);
+      ctx.fillStyle=cVisor(t);ctx.fillRect(X-1.4+(cHash(sd,cQ(),6)<0.2?0.6:0),Y-2.2,2.8,0.5);cCrack([[X+0.6,Y-1],[X+1.3,Y+0.3],[X+0.7,Y+1.6]],0.35)}});
+  ctx.restore()}
+
+// ---- Oathbreaker (Paladin) ----
+// The Paladin's frame, hunched and turned a little off its line. The hard-light shield has failed into
+// a ragged ring of red glass shards that hang where the arc was, drifting; the spear head is a glass
+// spire; the left pauldron is split and grown through with crystal; the visor slit burns red.
+function drawCorruptPaladin(t){
+  const s=palState(t),fl=t.flashT>0,L=(a,b,k)=>a+(b-a)*k,sd=cId(t),q=cQ();
+  const AD=fl?'#fff':CORR.body,G1=fl?'#fff':CORR.bone,G2=fl?'#fff':CORR.bone2,G3='#6f6863';
+  ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2-0.1+Math.sin(S.t*1.3+sd)*0.05);ctx.scale(PAL_SC,PAL_SC);
+  const lift=Math.max(0,s.bash)*1.2;ctx.translate(0,-lift);
+  const [hx,hy]=s.h,SL=18,back=5,pr=Math.sin(s.pitch*Math.PI/2),ang=L(0,-0.05,s.pitch),ux=Math.sin(ang),uy=-Math.cos(ang);
+  const tipX=hx+ux*(SL-back)*pr,tipY=hy+uy*(SL-back)*pr-(1-pr)*0.7,buttX=hx-ux*back*pr,buttY=hy-uy*back*pr;
+  const shaft=(ax,ay,bx,by)=>{ctx.strokeStyle='#000';ctx.lineWidth=1.5;ctx.lineCap='butt';ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);ctx.stroke();ctx.strokeStyle=G3;ctx.lineWidth=0.9;ctx.stroke()};
+  // left arm, torso, the split left pauldron, helmet
+  rLimb([[-4.6,0.2],[-5.6,-1.2],[-4.8,-2.6]],2,AD);
+  rP([[-6,0.8],[-4.6,-2.2],[4.6,-2.2],[6,0.8],[4.6,3],[-4.6,3]],AD,0.6);cCrack([[1.6,-2.1],[0.7,-0.4],[2,1],[1.2,2.9]],0.45);
+  rP([[-6.6,0.6],[-5.2,-2.5],[-3.2,-2.5],[-3.4,2.7],[-5.2,2.9]],G2);cCrack([[-6.3,0.2],[-4.9,-0.5],[-4.4,-2.3]],0.4);cCluster(-5.4,1.4,2.45,2,4,1.5,0.8,sd*5+1);
+  rO(0.3,-0.3,3,G1,0.6);ctx.fillStyle=CORR.blk;ctx.fillRect(-0.1,-2.8,0.8,2.9);ctx.fillStyle=cVisor(t);ctx.fillRect(-1.2,-2.2,3,0.5);cCrack([[1.7,-1.6],[0.9,-0.2],[2,1.2]],0.3);
+  // the spear, its head grown into a spire
+  if(pr>0.05)shaft(buttX,buttY,tipX,tipY);
+  ctx.save();ctx.translate(tipX,tipY);ctx.rotate(ang);cSpire(0,0.4,-Math.PI/2,L(2.2,6,pr),1.9);ctx.restore();
+  const el=[(PAL_SHL[0]+hx)/2+0.3,(PAL_SHL[1]+hy)/2];rLimb([PAL_SHL,el,[hx,hy]],2.1,AD);rO(hx,hy,1.1,G3);
+  rP([[6.6,0.6],[5.2,-2.5],[3.2,-2.5],[3.4,2.7],[5.2,2.9]],G2);ctx.fillStyle=CORR.edge2;ctx.fillRect(4,-0.6,1.6,1.2);
+  if(hy<PAL_EDGE){const k=(PAL_EDGE-PAL_SHL[1])/(hy-PAL_SHL[1]),ax=PAL_SHL[0]+(hx-PAL_SHL[0])*k;rLimb([[ax,PAL_EDGE],[hx,hy]],2.1,AD);rO(hx,hy,1.1,G3)}
+  if(hy>2.9){const k=(2.9-PAL_SHL[1])/(hy-PAL_SHL[1]),ax=PAL_SHL[0]+(hx-PAL_SHL[0])*k;rLimb([[ax,2.9],[hx,hy]],2.1,AD);rO(hx,hy,1.1,G3)}
+  rO(PAL_GL[0]-0.4,PAL_GL[1]+0.4,1.3,G3);
+  // the shield: what's left of the hard light, a ring of glass shards hanging on the arc
+  const push=Math.max(0,s.bash)*1.5;ctx.save();ctx.translate(PAL_SH_CX,PAL_SH_CY-4.2-push);
+  ctx.strokeStyle=CORR.hot;ctx.globalAlpha=0.1+0.14*cHash(sd,q,2);ctx.lineWidth=2.2;ctx.setLineDash([1.1,1.7]);ctx.beginPath();ctx.arc(0,4.2,PAL_SH_R,-Math.PI/2-PAL_SH_A,-Math.PI/2+PAL_SH_A);ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1;
+  for(let i=0;i<6;i++){const a=-Math.PI/2-PAL_SH_A+(i+0.5)/6*2*PAL_SH_A+Math.sin(S.t*2.2+i*1.7+sd)*0.04,r=PAL_SH_R+Math.sin(S.t*3+i)*0.35-(i%2)*0.5,
+      ta=a+Math.PI/2+(i%2?0.3:-0.15),ln=3.3+(i%3)*0.5,x=Math.cos(a)*r-Math.cos(ta)*ln*0.5,y=4.2+Math.sin(a)*r-Math.sin(ta)*ln*0.5;
+    if(i!==3||cHash(sd,q,7)>0.25)cSpire(x,y,ta,ln,1.7)} // one shard blinks out now and then
+  if(s.flare>0&&s.flare<1){ctx.fillStyle=CORR.hot;ctx.globalAlpha=0.3*(1-s.flare);ctx.beginPath();ctx.moveTo(0,0);ctx.arc(0,0,8+20*s.flare,-Math.PI/2-0.78,-Math.PI/2+0.78);ctx.closePath();ctx.fill();ctx.globalAlpha=1}
+  cGlowAt(0,-PAL_SH_R+4.2,7,0.22);
+  ctx.restore();ctx.restore()}
+
+// ---- Brood Carrier (Grenadier) ----
+// The missile pod has split and something is growing in it: each loaded cell holds a glass spire instead
+// of a missile, and an emptied cell grows one back (popping in like a reload). Its left arm hangs; the
+// helmet is bowed forward and off to one side, the front sight a red point.
+function drawCorruptGrenadier(t){
+  const fl=t.flashT>0,AL=fl?'#fff':CORR.body,n=t.pods??GREN_PODS,OC=fl?'#fff':CORR.pod,sd=cId(t),pop=S.t-(t.podShotT??-9);
+  ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2+0.14+Math.sin(S.t*1.5+sd)*0.04);ctx.scale(1.15,1.15);
+  rP([[-4.6,0.8],[4.6,0.8],[4.9,7.8],[-4.4,7.4]],OC,0.6);ctx.fillStyle='#000';ctx.globalAlpha=0.3;ctx.fillRect(-4.5,6.3,9.3,1.3);ctx.globalAlpha=1;
+  cCrack([[-4.5,4.2],[-2.8,3.9],[-0.2,4.8],[2.2,3.7],[4.7,4.3]],0.5);cCrack([[0.2,0.9],[-0.4,2.2]],0.35);
+  for(let i=0;i<4;i++){const cx=-1.8+(i%2)*3.6,cy=2.8+(i>>1)*2.6,loaded=i>=GREN_PODS-n,grow=loaded&&i===GREN_PODS-n?Math.min(1,(S.t-(t.podGrewT??-9))/0.35):1;
+    rO(cx,cy,1.15,'#1a0608',0.4);ctx.strokeStyle=CORR.edge2;ctx.lineWidth=0.35;ctx.beginPath();ctx.arc(cx,cy,0.8,0,CTAU);ctx.stroke()}
+  for(let i=3;i>=0;i--){const cx=-1.8+(i%2)*3.6,cy=2.8+(i>>1)*2.6,loaded=i>=GREN_PODS-n,grow=loaded&&i===GREN_PODS-n?Math.min(1,(S.t-(t.podGrewT??-9))/0.35):1;
+    if(!loaded)continue;const a=Math.PI/2+(i%2?0.7:-0.7)+(i>>1?0:(i%2?-0.35:0.35));cSpire(cx-Math.cos(a)*0.7,cy-Math.sin(a)*0.7,a,(3.2+(i>>1)*1.2)*grow,1.8*Math.max(0.35,grow))}
+  if(pop<0.3){const cell=GREN_PODS-n-1;if(cell>=0){const cx=-1.8+(cell%2)*3.6,cy=2.8+(cell>>1)*2.6;ctx.fillStyle=CORR.hot;ctx.globalAlpha=0.5*(1-pop/0.3);ctx.beginPath();ctx.arc(cx,cy,1.4+pop*8,0,CTAU);ctx.fill();ctx.globalAlpha=1}}
+  cGlowAt(0,4.2,6,0.28);
+  rP([[-5.4,0.6],[-4,-2],[4,-2],[5.4,0.6],[4,2.6],[-4,2.6]],AL,0.6);cCrack([[-1.6,-1.9],[-0.6,-0.3],[-1.8,1.2],[-1,2.5]],0.4);
+  rLimb([[-4,0.2],[-5.4,2.4],[-5.5,5]],1.8,AL);rO(-5.5,5,0.9,CORR.grip);
+  rLimb([[4,0.2],[4.4,-2.6],[2.6,-4.4]],1.9,AL);rO(2.6,-4.4,1,CORR.grip);
+  ctx.fillStyle=CORR.grip;ctx.fillRect(-0.8,-5,3.2,1.6);ctx.fillStyle=CORR.hot;ctx.fillRect(0.3,-4.8,1,1.2);
+  cCluster(4.6,0.2,0.05,2,3.4,1.3,0.7,sd*3+9);
+  const X=0.6,Y=-0.9;rO(X,Y,2.7,fl?'#fff':CORR.bone,0.6);ctx.fillStyle=OC;ctx.fillRect(X-0.6,Y-2.4,1.2,4.4);ctx.fillStyle=CORR.blk;ctx.fillRect(X-1.7,Y-2,3.4,1);ctx.fillStyle=cVisor(t);ctx.fillRect(X-1.3,Y-1.9,2.6,0.5);
+  cCrack([[X-1.9,Y+0.2],[X-0.9,Y+1],[X-1.2,Y+2.2]],0.3);
+  ctx.restore()}
+
+// ---- Lantern Marksman ----
+// The Marksman, still kneeling, but its cloak hangs in torn strips that slip sideways like the Core
+// shards' scanlines, and its hood has split down the middle like a Lantern's head: the seam opens and
+// burns white-hot as it charges. The rail's charge line is red; glass grows along the barrel.
+function drawCorruptMarksman(t){
+  const since=S.t-(t.shotT??-9),kick=since<0.4?Math.max(0,1-since/0.4):0,a=t.aimV??RIFLE_READY,fl=t.flashT>0,charge=t.chargeT>0?1-t.chargeT/MARK_CHARGE:0,kneel=!t.moving,sd=cId(t),q=cQ();
+  ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2);ctx.translate(0,kick*2);
+  const MC=fl?'#fff':CORR.moss,MD=fl?'#fff':CORR.mossD;
+  if(kneel)rP([[-1.5,3],[1.5,3],[1.8,8],[-0.8,8.4]],fl?'#fff':'#2c3640');
+  cRiflePose({a,L:16,rw:1.4,gy:4,hy:10,flash:fl,body:CORR.body,lurch:0.06,seed:sd,
+    pack:()=>{const w=Math.sin(S.t*3+sd)*0.5,cloak=()=>{ctx.fillStyle=MC;ctx.strokeStyle='#000';ctx.lineWidth=0.5;ctx.beginPath();ctx.moveTo(-5.4,-0.4);ctx.quadraticCurveTo(-7,5,-4+w,9.5);
+        for(let i=0;i<5;i++){ctx.lineTo(-4+w+i*2,9.5+(i%2?-2:1.2))}ctx.lineTo(4.6-w,9);ctx.quadraticCurveTo(7,5,5.4,-0.4);ctx.closePath();ctx.fill();ctx.stroke();
+        ctx.strokeStyle=MD;ctx.lineWidth=0.6;ctx.beginPath();ctx.moveTo(-2,2);ctx.lineTo(-2.6,8);ctx.moveTo(1.6,2);ctx.lineTo(2.2,8);ctx.stroke()};
+      for(let b=0;b<5;b++){const y0=-1+b*2.25,sl=cHash(sd,q,40+b)<0.4?(cHash(sd,q,50+b)-0.5)*2.8:(b%2?0.5:-0.4);
+        ctx.save();ctx.beginPath();ctx.rect(-9,y0,18,b===4?3.5:1.85);ctx.clip();ctx.translate(sl,0);cloak();ctx.restore()}
+      cSpire(-4.4,5.2,2.3,3.6,1.4);cSpire(3.8,7,1.0,2.8,1.2)},
+    torso:()=>{cCrack([[1.5,-2.1],[0.4,-0.4],[1.6,1]],0.4)},
+    rx:(L,w)=>{ctx.fillStyle='#6d6560';ctx.fillRect(-w/2-0.4,-L-1.5,w+0.8,1.8);ctx.fillStyle=CORR.hot;ctx.fillRect(-0.3,-L-1.3,0.6,0.6);
+      cSpire(w/2-0.1,-L*0.62,-Math.PI/2+0.45,3.4,1.2);cSpire(-w/2+0.1,-L*0.35,-Math.PI/2-0.5,2.6,1);
+      if(charge>0){ctx.fillStyle=CORR.hot;ctx.globalAlpha=charge;ctx.fillRect(-0.35,-L+1,0.7,(L-6)*charge);ctx.globalAlpha=0.35*charge;ctx.beginPath();ctx.arc(0,-L-0.6,2.5+charge,0,CTAU);ctx.fill();ctx.globalAlpha=1;cGlowAt(0,-L-0.6,5+charge*4,0.5*charge)}},
+    head:(hx,hy)=>{rO(hx,hy,2.9,MC,0.6);ctx.fillStyle=MD;ctx.beginPath();ctx.arc(hx,hy+0.4,2,Math.PI*0.05,Math.PI*0.95);ctx.fill();
+      const op=Math.min(1,0.18+0.82*charge+(since<0.35?1-since/0.35:0));ctx.save();ctx.translate(hx,hy);ctx.rotate(0.12);
+      ctx.fillStyle=CORR.blk;ctx.fillRect(-0.45-op*0.75,-3,0.9+op*1.5,6);ctx.fillStyle=CORR.hot;ctx.fillRect(-0.22-op*0.45,-2.6,0.44+op*0.9,5.2);ctx.fillStyle=CORR.hot2;ctx.fillRect(-0.08-op*0.16,-2.2,0.16+op*0.32,4.4);ctx.restore();
+      cGlowAt(hx,hy,3+op*5,0.25+0.4*op)}});
+  ctx.restore()}
+
+// ---- False Spotter (Rocketeer) ----
+// The violet launcher, cracked along its length, carried lopsided on one good arm, with a cluster of
+// glass grown out of the exhaust end; the helmet's sight glitches between red and cyan. Its laser
+// (drawCorruptFx) flickers red and cyan and marks with four glass shards instead of a ring.
+function drawCorruptRocketeer(t){
+  const fl=t.flashT>0,AD=fl?'#fff':CORR.body,VC=fl?'#fff':CORR.viol,VD=fl?'#fff':CORR.violD,a=t.aimV??RIFLE_READY,since=S.t-(t.shotT??-9),kick=since<0.25?1-since/0.25:0,ang=0.3+(0-0.3)*a+0.2,sd=cId(t);
+  ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2);ctx.translate(0,kick*1.6);
+  rLimb([[-4,0.2],[-5.6,2.6],[-5.1,5.4]],1.8,AD);rO(-5.1,5.4,0.9,CORR.grip);
+  rP([[-5.4,0.6],[-4,-2],[4,-2],[5.4,0.6],[4,2.6],[-4,2.6]],AD,0.6);cCrack([[-1.8,-1.9],[-0.8,-0.2],[-2,1.2],[-1.2,2.5]],0.4);
+  ctx.save();ctx.translate(3,0.6);ctx.rotate(ang);
+  cCluster(0,6.6,Math.PI/2,3,5,1.8,0.9,sd*2+2);
+  rP([[-2.3,-12],[2.3,-12],[2.3,7],[-2.3,7]],VC,0.6);rP([[-2.7,-12.6],[2.7,-12.6],[2.7,-10.6],[-2.7,-10.6]],VD);rP([[-2.7,5.6],[2.7,5.6],[2.7,7.6],[-2.7,7.6]],VD);rP([[-3,-6],[-2.3,-6],[-2.3,-2.6],[-3,-2.6]],CORR.grip);
+  cCrack([[-2.2,-8.4],[-0.5,-6.6],[-1.1,-3.8],[1,-1.8],[0.3,1.4],[2.2,3.4]],0.5);
+  ctx.fillStyle=cVisor(t,7);ctx.beginPath();ctx.arc(1.4,-11,0.7,0,CTAU);ctx.fill();cGlowAt(1.4,-11,2.6,0.5);
+  ctx.restore();
+  rLimb([[4,0],[5.6,-0.8],[3.8,-2.4]],1.9,AD);rO(3.8,-2.4,1,CORR.grip);
+  const jx=cHash(sd,cQ(),8)<0.2?(cHash(sd,cQ(),9)-0.5)*1.6:0;
+  cSpire(-0.6,1.2,2.25,3.2,1.3);
+  rO(0.9,-0.4,2.8,VC,0.6);ctx.fillStyle=VD;ctx.fillRect(-0.8+jx,-2.7,3.4,1.1);ctx.fillStyle=cVisor(t);ctx.fillRect(-0.4+jx,-2.6,2.6,0.5);cCrack([[2.6,-1.2],[1.6,0.2],[2.4,1.6]],0.3);
+  ctx.restore()}
+
+// ---- Husk Suppressor (Mech) ----
+// The Gatling Suppressor, hollowed out. The amber eye is a red core; the dome is cracked through and a
+// crown of glass grows out of its back; the white chevron is snapped. The shield is a black Core slab
+// with glass along its edge; the six barrels have fused into five spires that still turn as it spins
+// up; the ammo drum has burst into crystal; the right leg is rebuilt from slabs.
+function drawCorruptMech(t){
+  const HULL=t.flashT>0?'#fff':CORR.hull,JOINT='#5d6168',DARKJ='#35383d',st=t.moving?Math.sin(S.t*7):0,sp=t.spin||0,firing=S.t-(t.gatShotT??-9)<0.12,sd=cId(t);
+  ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2+Math.sin(S.t*0.9+sd)*0.04);ctx.scale(MECH_SC,MECH_SC);
+  {const k=-st*2.6;rLimb([[-4.2,2],[-5.6,6+k]],3.4,JOINT);rP([[-8.6,5.4+k],[-2.6,5.4+k],[-2.2,10.4+k],[-9,10.4+k]],HULL);rP([[-8.2,9.2+k],[-3,9.2+k],[-2.2,10.4+k],[-9,10.4+k]],DARKJ)}
+  {const k=st*2.6;cSlab(4.8,3.8,4.8,3.2,1.25);cSlab(5.8,7.8+k,5.6,4.4,1.62);cSlab(6.6,10.4+k,3.4,2.4,1.95);cSpire(7.6,8.2+k,0.3,3.2,1.4)}
+  rP([[1.5,1.5],[6,1.5],[6.4,7.5],[1.5,7.5]],'#4a3f36');cCrack([[1.8,3],[3.6,4.3],[3,6],[5.8,7.2]],0.5);cCluster(4,5.2,1.75,3,6.4,2,1.2,sd+3);
+  rLimb([[3.8,1.5],[8,-2],[10.6,-5]],1,'#2a1d20');
+  const arm=(s,e)=>{const sh=[s*8.6,-0.6],el=[s*(12.6-e*1.6),0.6-e*4],fi=[s*(12.4-e*3),-3.6-e*7];rLimb([sh,el],3.6,JOINT);rLimb([el,fi],4.4,HULL);rO(el[0],el[1],2,DARKJ);return fi};
+  const pad=s=>{rP([[s*5.6,-5.2],[s*11.4,-4.4],[s*12.2,1.6],[s*6.2,2.8]],HULL);rO(s*9.2,-1.4,1.1,JOINT)};
+  // the shield, now a Core slab with glass along its front edge
+  const fl=arm(-1,0.55);ctx.save();ctx.translate(fl[0],fl[1]);ctx.rotate(0.42);
+  rP([[-7.8,-3.2],[-2.4,-5.8],[5.8,-5.4],[7.2,-1.6],[0.6,0.6],[-7,0.4]],CORR.blk,0.6);
+  ctx.strokeStyle=CORR.edge2;ctx.lineWidth=0.9;ctx.beginPath();ctx.moveTo(-7.6,-3.1);ctx.lineTo(-2.4,-5.5);ctx.lineTo(5.6,-5.1);ctx.lineTo(7,-1.7);ctx.stroke();
+  ctx.strokeStyle=CORR.edge;ctx.lineWidth=0.5;ctx.beginPath();ctx.moveTo(-5,-1.6);ctx.lineTo(-1,-3.6);ctx.lineTo(4.4,-3.2);ctx.stroke();
+  cSpire(-5,-4.4,-1.95,3.8,1.6);cSpire(0.8,-5.6,-1.55,5.6,2);cSpire(5.4,-5,-1.15,3.6,1.5);
+  ctx.restore();pad(-1);cCrack([[-6.2,-4.6],[-8.6,-2.4],[-9.6,0.6],[-11.6,1.2]],0.45);
+  // the fused cannon: five spires that turn on the drum as it spins up
+  const fr=arm(1,0.5);ctx.save();ctx.translate(fr[0],fr[1]);rP([[-3.4,-3],[3.4,-3],[3.4,3],[-3.4,3]],HULL);cCrack([[-2.8,-1],[-0.6,0.4],[0.4,2.6]],0.4);
+  const b0=t.barrel||0,B=[];for(let i=0;i<5;i++){const a=b0+i/5*CTAU,bz=Math.sin(a);if(bz<-0.35)continue;B.push({bx:Math.cos(a)*2.1,bz,l:9+cHash(sd,i,9)*4})}
+  B.sort((p,q)=>p.bz-q.bz).forEach(b=>cSpire(b.bx,-2.6,-Math.PI/2+b.bx*0.07,b.l,1.25));cCore(0,-3,1.3);
+  if(firing){ctx.save();ctx.globalCompositeOperation='lighter';ctx.fillStyle=CORR.hot;ctx.globalAlpha=0.55+0.4*Math.random();ctx.beginPath();ctx.arc(0,-14.5,1.2+Math.random()*1+sp*0.6,0,CTAU);ctx.fill();
+    ctx.fillStyle=CORR.cyan;ctx.globalAlpha=0.5;for(let i=0;i<3;i++){const a=-Math.PI/2+(Math.random()-0.5)*0.8,r=3+Math.random()*4;ctx.fillRect(Math.cos(a)*r-0.4,-15+Math.sin(a)*r-0.4,0.8,0.8)}ctx.restore()}
+  ctx.restore();pad(1);cCrack([[7.2,-4.6],[8.6,-2],[11.2,-0.6]],0.4);
+  rO(0,0.6,7.6,HULL);cCrack([[-6.6,-1.6],[-3.4,-0.2],[-4,2.6],[-1.2,5.6]],0.55);cCrack([[2.6,-6.8],[3.6,-3.4],[6.8,-1.4]],0.45);
+  ctx.strokeStyle='#d6cfc4';ctx.lineWidth=1.3;ctx.lineJoin='round';ctx.lineCap='butt';ctx.beginPath();ctx.moveTo(-3.2,-0.4);ctx.lineTo(-1.1,-1.7);ctx.moveTo(0.5,-1.8);ctx.lineTo(1.2,-2.2);ctx.lineTo(3.4,0.2);ctx.stroke();
+  cCluster(0,4.4,Math.PI/2,4,7,2.4,1.6,sd+11);
+  rO(0,-5,2.3,'#cbc4ba');cCore(0,-5,1.7);
+  ctx.restore()}
+
+// the dispatcher, in the shape of drawUnitBodyLive
+const CORRUPT_DRAW={troop:drawCorruptTrooper,brawler:drawCorruptPaladin,grenadier:drawCorruptGrenadier,marksman:drawCorruptMarksman,rocket:drawCorruptRocketeer,mech:drawCorruptMech};
+const CORRUPT_E={troop:26,brawler:30,grenadier:22,marksman:30,rocket:26,mech:38},CORRUPT_G={troop:1,brawler:0.9,grenadier:0.9,marksman:0.9,rocket:1,mech:0.7};
+function drawCorruptBody(t){const k=t.kind||'troop';corruptBlit(t,()=>CORRUPT_DRAW[k](t),CORRUPT_E[k],CORRUPT_G[k])}
+// what reaches out past the body (flashes, beams, the false spotter's laser): drawn live, unglitched
+function drawCorruptFx(t){const k=t.kind||'troop',since=S.t-(t.shotT??-9);
+  if(k==='troop'&&since<0.07){const m=gunMuzzle(t,17);cShardFlash(m.x,m.y,t.ang,0.9)}
+  if(k==='marksman'){const m=gunMuzzle(t,16),c=Math.cos(t.ang),s=Math.sin(t.ang),L=MARK_RANGE_FX;
+    if(t.chargeT>0){const ch=1-t.chargeT/MARK_CHARGE;ctx.save();ctx.strokeStyle=CORR.hot;ctx.globalAlpha=0.2+0.5*ch;ctx.lineWidth=0.6;ctx.setLineDash([4,3]);ctx.lineDashOffset=-S.t*30;
+      ctx.beginPath();ctx.moveTo(m.x,m.y);ctx.lineTo(m.x+c*L,m.y+s*L);ctx.stroke();ctx.restore()}
+    if(since<0.22){const k2=since/0.22;ctx.save();ctx.globalCompositeOperation='lighter';ctx.lineCap='round';ctx.strokeStyle=CORR.hot;ctx.globalAlpha=0.85*(1-k2);ctx.lineWidth=3.2*(1-k2*0.6);
+      ctx.beginPath();ctx.moveTo(m.x,m.y);ctx.lineTo(m.x+c*L,m.y+s*L);ctx.stroke();ctx.strokeStyle='#fff';ctx.lineWidth=0.9;ctx.stroke();ctx.restore();cShardFlash(m.x,m.y,t.ang,1.3)}}
+  if(k==='rocket'){if(t.paintT>0&&t.paintTgt){const m=gunMuzzle(t,9),c=t.paintTgt,cy=Math.random()<0.3;ctx.save();ctx.strokeStyle=cy?CORR.cyan:CORR.hot;ctx.globalAlpha=0.45+0.4*Math.random();ctx.lineWidth=1;
+      const nx=c.x-m.x,ny=c.y-m.y;ctx.beginPath();ctx.moveTo(m.x,m.y);ctx.lineTo(m.x+nx*0.45+(Math.random()-0.5)*1.5,m.y+ny*0.45);ctx.lineTo(c.x,c.y);ctx.stroke();
+      const k2=1-t.paintT/ROCKET_PAINT,R=(c.r||8)+3+(1-k2)*9;ctx.globalAlpha=0.95;ctx.restore();ctx.save();ctx.translate(c.x,c.y);ctx.rotate(S.t*2);
+      for(let i=0;i<4;i++){const a=i/4*CTAU;cSpire(Math.cos(a)*(R+3),Math.sin(a)*(R+3),a+Math.PI,3.2,1.6)}ctx.restore()}
+    if(since<0.5){const b={x:t.x-Math.cos(t.ang)*6+Math.cos(t.ang+Math.PI/2)*3,y:t.y-Math.sin(t.ang)*6+Math.sin(t.ang+Math.PI/2)*3},k2=since/0.5;
+      for(let i=0;i<4;i++){ctx.fillStyle=i<2?CORR.hot:'#3a2a2c';ctx.globalAlpha=(1-k2)*0.55;ctx.beginPath();ctx.arc(b.x-Math.cos(t.ang)*(k2*14+i*3),b.y-Math.sin(t.ang)*(k2*14+i*3),2+k2*4,0,CTAU);ctx.fill()}ctx.globalAlpha=1}}
+}
+const MARK_RANGE_FX=400; // in game: MARK_RANGE
+// ---------- end of CORRUPTED UNIT ART ----------
+
+// =====================================================================================================
+// ---------- the concept sheet (not for the game) ----------
+// =====================================================================================================
+const UNITS=[
+ {kind:'troop',from:'Trooper',to:'Hollow Trooper',tag:'Echo waves · Rim and up',big:9,draw:drawRifleman,period:4,
+  feat:['Rifle muzzle grown into a glass spire','Crystal through the left shoulder blade','Left arm hangs dead; lurches off its aim','Pack ring is a red core; visor burns red'],
+  play:['<b>Enemy:</b> marches in the front rank of Echo waves and fires slow glass rounds that pierce like yours, then stay in the ground as caltrops for a few seconds.','<b>Twist:</b> put one down inside the Bastion\'s ring and the shell drops out: a free Trooper joins you.']},
+ {kind:'brawler',from:'Paladin',to:'Oathbreaker',tag:'Dense Field',big:6.8,draw:drawPaladin,period:4,
+  feat:['Hard-light shield failed into a ring of glass shards','Spear head is a crimson spire','Split pauldron grown through with crystal','Hunched, turned off its line'],
+  play:['<b>Enemy:</b> its shard ring throws blocked shots back, like your Glass Wardens. Oathbreakers standing side by side join into a red wall your piercing rounds can\'t pass, so go round it or use Grenadiers.','<b>Drop:</b> a chance at the Glass Warden kit.']},
+ {kind:'grenadier',from:'Grenadier',to:'Brood Carrier',tag:'Dense Field · near nests',big:9.5,draw:drawGrenadier,period:4.5,
+  feat:['The pod has split; each cell grows a glass spire, not a missile','Emptied cells grow a spire back','Bowed, tilted helmet; left arm hangs','Shoulder sprouting small spires'],
+  play:['<b>Enemy:</b> lobs glass seeds that take root where they land. Each grows into a little nest that spits swarmlings until you shoot it.','<b>Drop:</b> kill it before the pod is empty and the pod bursts into Dat crystal.']},
+ {kind:'marksman',from:'Marksman',to:'Lantern Marksman',tag:'Core',big:7.5,draw:drawMarksman,period:4,
+  feat:['Hood split down the middle like a Lantern\'s head; the seam burns white as it charges','Cloak torn into strips that slip like Core scanlines','Red charge line, red scope','Glass growing along the barrel'],
+  play:['<b>Enemy:</b> takes up a spot at the edge of sight. Its red charge line shows exactly where the beam will go for a full second, then the beam goes through every unit in that line.','<b>Twist:</b> it blinks to a new spot after each shot (the Static\'s hop).']},
+ {kind:'rocket',from:'Rocketeer',to:'False Spotter',tag:'Dense and Core',big:8.5,draw:drawRocketeer,period:4,
+  feat:['Violet launcher cracked along its length, held lopsided','Glass grown out of the exhaust','Sight glitches between red and cyan','Laser flickers; marks with four glass shards'],
+  play:['<b>Enemy:</b> paints your Stabilizers and Relays, never your units. Two seconds later a glass javelin falls on the mark.','<b>Twist:</b> kill it while the laser is on and the javelin lands on its own nest instead.']},
+ {kind:'mech',from:'Mech',to:'Husk Suppressor',tag:'Core mini-boss',big:4.6,draw:drawGatMech,period:4,
+  feat:['Amber eye is a red core; dome cracked, with a glass crown on its back','Shield is a black Core slab with glass on its edge','Six barrels fused into five turning spires','Burst ammo drum; right leg rebuilt from slabs'],
+  play:['<b>Enemy:</b> spins up and sprays shards that slow, like your Gatling, and the slab blocks fire from the front, so flank it.','<b>Twist:</b> when the hull dies its core crawls to the nearest nest to grow a new one (like a Husk). Catch the core and you can salvage the hull as a free Mech.']},
+];
+function drawOrig(t){ctx.fillStyle=t.flashT>0?'#fff':C.ally;UNITS.find(u=>u.kind===t.kind).draw(t)}
+function mkUnit(kind,id,ang){return {kind,id,x:0,y:0,ang,flashT:0,moving:false,aimV:RIFLE_READY,shotT:-9,pods:GREN_PODS,barrel:0,spin:0,r:8}}
+// a looping attack, the same timing for both copies
+const lastAt=(p,arr)=>{let b=null;arr.forEach(a=>{if(a<=p)b=a});return b==null?-9:S.t-(p-b)};
+const lerp=(a,b,k)=>a+(b-a)*k;
+function animate(t,p,dt,reach){const k=t.kind;
+  const aim=p<0.5?RIFLE_READY:p<0.9?lerp(RIFLE_READY,1,(p-0.5)/0.4):p<2.6?1:p<3.1?lerp(1,RIFLE_READY,(p-2.6)/0.5):RIFLE_READY;
+  if(k==='troop'){t.aimV=aim;t.shotT=lastAt(p,[1.0,1.45,1.9])}
+  else if(k==='marksman'){t.aimV=aim;t.chargeT=p>=1.0&&p<1.45?MARK_CHARGE-(p-1.0):0;t.shotT=lastAt(p,[1.45])}
+  else if(k==='brawler'){t.jabT=p>=1.0&&p<1.32?0.32-(p-1.0):0;t.atkT=lastAt(p,[1.32]);t.bashT=lastAt(p,[2.8])}
+  else if(k==='grenadier'){const sh=[1.0,1.1,1.2,1.3],gr=[2.05,2.8,3.55,4.3],f=sh.filter(a=>a<=p).length,r=gr.filter(a=>a<=p).length;t.pods=GREN_PODS-f+r;t.podShotT=lastAt(p,sh);t.podGrewT=lastAt(p,gr)}
+  else if(k==='rocket'){t.aimV=aim;t.paintT=p>=0.8&&p<1.5?ROCKET_PAINT-(p-0.8):0;t.paintTgt={x:t.x+Math.cos(t.ang)*reach,y:t.y+Math.sin(t.ang)*reach,r:6};t.shotT=lastAt(p,[1.5])}
+  else if(k==='mech'){t.spin=p<0.6?0:p<1.4?(p-0.6)/0.8:p<3?1:Math.max(0,1-(p-3)/0.6);t.barrel=(t.barrel||0)+t.spin*dt*26;t.gatShotT=t.spin>0.7&&p<3?S.t-(p%0.09):-9}
+}
+// ---- staging: a unit drawn at (X,Y) in css px at sc css px per world px, with the game's cast shadow ----
+let DPR=Math.min(2,window.devicePixelRatio||1);
+const SB=document.createElement('canvas'),SH=document.createElement('canvas');
+function stage(main,X,Y,sc,t,body,fx){const E=40,px=Math.ceil(E*2*sc*DPR);
+  if(SB.width<px){SB.width=SB.height=px;SH.width=SH.height=px}
+  const b=SB.getContext('2d'),h=SH.getContext('2d');
+  const pass=calm=>{b.setTransform(1,0,0,1,0,0);b.clearRect(0,0,px,px);b.setTransform(sc*DPR,0,0,sc*DPR,E*sc*DPR,E*sc*DPR);CB.calm=calm;ctx=b;try{body(t)}finally{CB.calm=false}};
+  pass(true);h.setTransform(1,0,0,1,0,0);h.globalCompositeOperation='source-over';h.clearRect(0,0,px,px);h.drawImage(SB,0,0);h.globalCompositeOperation='source-in';h.fillStyle='rgba(0,0,0,0.48)';h.fillRect(0,0,px,px);h.globalCompositeOperation='source-over';
+  main.drawImage(SH,0,0,px,px,X-E*sc+5*sc,Y-E*sc+5*sc,E*2*sc,E*2*sc);
+  pass(false);main.drawImage(SB,0,0,px,px,X-E*sc,Y-E*sc,E*2*sc,E*2*sc);
+  if(fx){ctx=main;main.save();main.translate(X,Y);main.scale(sc,sc);fx(t);main.restore()}}
+// ---- ground: Rim on the left, Core on the right, with speckle and a faint red crack net on the Core side ----
+function mulberry(a){return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function paintGround(w,h,seed,split){const c=document.createElement('canvas');c.width=Math.ceil(w*DPR);c.height=Math.ceil(h*DPR);const g=c.getContext('2d');g.scale(DPR,DPR);const R=mulberry(seed);
+  const sx=w*split;g.fillStyle='rgb(27,30,33)';g.fillRect(0,0,sx,h);g.fillStyle='rgb(30,23,21)';g.fillRect(sx,0,w-sx,h);
+  for(let i=0;i<w*h/90;i++){const x=R()*w,y=R()*h,core=x>sx,v=R();g.fillStyle=core?(v<0.5?'rgba(64,57,55,0.35)':'rgba(10,6,5,0.35)'):(v<0.5?'rgba(78,82,86,0.3)':'rgba(8,10,12,0.35)');const s=1+R()*2.4;g.fillRect(x,y,s,s*0.7)}
+  for(let i=0;i<w*h/2200;i++){const x=R()*w,y=R()*h,core=x>sx,r=4+R()*10;g.fillStyle=core?'rgba(44,32,26,0.45)':'rgba(60,47,33,0.3)';g.beginPath();g.ellipse(x,y,r,r*0.6,R()*3,0,7);g.fill()}
+  g.save();g.beginPath();g.rect(sx,0,w-sx,h);g.clip();g.lineJoin='miter';
+  for(let n=0;n<6;n++){let x=sx+R()*(w-sx),y=R()*h,a=R()*6.28;g.beginPath();g.moveTo(x,y);for(let i=0;i<6;i++){a+=(R()-0.5)*1.4;const L=10+R()*30;x+=Math.cos(a)*L;y+=Math.sin(a)*L;g.lineTo(x,y)}
+    g.strokeStyle='rgba(10,2,4,0.8)';g.lineWidth=2;g.stroke();g.strokeStyle='rgba(255,58,36,0.22)';g.lineWidth=0.8;g.stroke()}
+  g.restore();
+  const gr=g.createLinearGradient(sx-16,0,sx+16,0);gr.addColorStop(0,'rgba(11,14,18,0)');gr.addColorStop(0.5,'rgba(11,14,18,0.7)');gr.addColorStop(1,'rgba(11,14,18,0)');g.fillStyle=gr;g.fillRect(sx-16,0,32,h);
+  return c}
+function label(m,x,y,txt,col,al){m.font='600 10px "IBM Plex Mono",monospace';m.textAlign=al||'left';m.fillStyle=col||'rgba(215,221,229,0.55)';m.fillText(txt,x,y)}
+// ---- cards ----
+const host=document.getElementById('cards'),CARDS=[];
+UNITS.forEach((u,i)=>{const el=document.createElement('section');el.className='card';
+  el.innerHTML=`<h2><span class="from">${u.from}</span><span class="arrow">→</span><span class="to">${u.to}</span><span class="tag">${u.tag}</span></h2>
+  <canvas class="big" height="320"></canvas><canvas class="strip" height="150"></canvas>
+  <div class="txt"><div><h3>Corruption</h3><ul>${u.feat.map(f=>`<li>${f}</li>`).join('')}</ul></div><div><h3>Gameplay</h3>${u.play.map(p=>`<p>${p}</p>`).join('')}</div></div>`;
+  host.appendChild(el);
+  const up=-Math.PI/2,c={u,el,big:el.querySelector('.big'),strip:el.querySelector('.strip'),vis:true,off:[0,0.1,-0.6,0.2,0,0.9][i],
+    A:mkUnit(u.kind,11+i,up),B:mkUnit(u.kind,21+i,up),
+    sm:[mkUnit(u.kind,31+i,up),mkUnit(u.kind,41+i,up),mkUnit(u.kind,51+i,up),mkUnit(u.kind,61+i,up)],
+    fo:[0,1,2].map(j=>mkUnit(u.kind,71+i*3+j,0)),fc:[0,1,2].map(j=>mkUnit(u.kind,91+i*3+j,Math.PI))};
+  CARDS.push(c)});
+function sizeCard(c){const w=c.el.clientWidth;[[c.big,320],[c.strip,150]].forEach(([cv,h])=>{cv.width=Math.round(w*DPR);cv.height=Math.round(h*DPR);cv.style.height=h+'px';cv.cw=w;cv.ch=h});
+  c.gBig=paintGround(w,320,7+c.u.kind.length*13,0.5);c.gStrip=paintGround(w,150,99+c.u.kind.length*7,0.5)}
+function sizeAll(){DPR=Math.min(2,window.devicePixelRatio||1);CARDS.forEach(sizeCard)}
+window.addEventListener('resize',()=>{clearTimeout(sizeAll.t);sizeAll.t=setTimeout(sizeAll,120)});
+const io=new IntersectionObserver(es=>es.forEach(e=>{const c=CARDS.find(c=>c.el===e.target);if(c)c.vis=e.isIntersecting}),{rootMargin:'200px'});
+CARDS.forEach(c=>io.observe(c.el));
+function drawCard(c,dt){const u=c.u,p=((S.t+c.off)%u.period+u.period)%u.period;
+  // large view
+  let m=c.big.getContext('2d'),w=c.big.cw,h=c.big.ch;m.setTransform(1,0,0,1,0,0);m.drawImage(c.gBig,0,0);m.setTransform(DPR,0,0,DPR,0,0);
+  const Y=h*(u.kind==='mech'||u.kind==='brawler'?0.66:0.62),sc=u.big*Math.min(1,w/620),reach=(Y-34)/sc;
+  [c.A,c.B].forEach(t=>animate(t,p,dt,reach));
+  stage(m,w*0.25,Y,sc,c.A,drawOrig);stage(m,w*0.75,Y,sc,c.B,drawCorruptBody,drawCorruptFx);
+  label(m,12,20,'ORIGINAL',null);label(m,w-12,20,'CORRUPTED',CORR.hot,'right');
+  label(m,12,h-12,u.from.toUpperCase()+' · ×'+sc.toFixed(1),'rgba(215,221,229,0.35)');label(m,w-12,h-12,u.to.toUpperCase(),'rgba(255,90,70,0.5)','right');
+  // in-game sizes
+  m=c.strip.getContext('2d');w=c.strip.cw;h=c.strip.ch;m.setTransform(1,0,0,1,0,0);m.drawImage(c.gStrip,0,0);m.setTransform(DPR,0,0,DPR,0,0);
+  [...c.sm,...c.fo,...c.fc].forEach(t=>animate(t,p,dt,60));
+  const y1=h*0.6;
+  stage(m,w*0.06,y1,1,c.sm[0],drawOrig);stage(m,w*0.13,y1,1,c.sm[1],drawCorruptBody,drawCorruptFx);
+  const z2=u.kind==='mech'?1.5:2;stage(m,w*0.25,y1,z2,c.sm[2],drawOrig);stage(m,w*0.39,y1,z2,c.sm[3],drawCorruptBody,drawCorruptFx);
+  label(m,w*0.095,18,'1×','rgba(215,221,229,0.45)','center');label(m,w*0.32,18,z2+'×','rgba(215,221,229,0.45)','center');label(m,w*0.75,18,'FACE-OFF · '+(u.kind==='mech'?'1':'1.5')+'×','rgba(215,221,229,0.45)','center');
+  const mech=u.kind==='mech',fs=mech?1:1.5,gap=mech?40:30,fx0=w*0.6,fx1=w*0.9;
+  c.fo.forEach((t,j)=>stage(m,fx0+(j===1?-8:5),h*0.52+(j-1)*gap,fs,t,drawOrig));
+  c.fc.forEach((t,j)=>stage(m,fx1+(j===1?8:-5),h*0.52+(j-1)*gap,fs,t,drawCorruptBody,drawCorruptFx));
+}
+let last=performance.now()/1000,paused=false,simT=0;
+function frame(){const now=performance.now()/1000,dt=Math.min(0.05,now-last);last=now;if(!paused)simT+=dt;S.t=simT;
+  CARDS.forEach(c=>{if(c.vis)drawCard(c,paused?0:dt)});requestAnimationFrame(frame)}
+document.getElementById('bPause').onclick=e=>{paused=!paused;e.target.textContent=paused?'Play':'Pause';e.target.setAttribute('aria-pressed',paused)};
+document.getElementById('bGlitch').onclick=e=>{CB.off=!CB.off;e.target.textContent=CB.off?'Echo glitch off':'Echo glitch on';e.target.setAttribute('aria-pressed',!CB.off)};
+// ?t=2.2 freezes the loop at that time; &ov=1 lays the cards out three across without text (for screenshots)
+const QS=new URLSearchParams(location.search),qT=QS.get('t');
+if(QS.get('ov')){const st=document.createElement('style');st.textContent='header p.sub,.lang,.bar,footer,.txt{display:none} header{padding:14px 12px 0} main{grid-template-columns:repeat(3,1fr);gap:10px;padding:10px 12px} .card h2{font-size:13px;padding:8px 10px}';document.head.appendChild(st)}if(qT!=null){simT=+qT;paused=true;const b=document.getElementById('bPause');b.textContent='Play';b.setAttribute('aria-pressed','true')}
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(sizeAll);
+sizeAll();requestAnimationFrame(frame);
+</script>
+</body>
+</html>
