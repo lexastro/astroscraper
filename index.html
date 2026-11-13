@@ -1862,6 +1862,7 @@ const UPGRADES={
     {id:'recruit1',name:'Fresh Recruits',desc:'+3 free Troopers, right now.',apply:()=>{spawnFreeTroops(3,'troop')}},
     {id:'energySurge1',name:'Sonic Deterrent I',get desc(){return 'Horn speakers on every Relay: every 10s while drilling they all thump together — enemies reached are shoved back and dazed for 1s.'+relaySlotNote('off','sonic')},has:()=>S.mods.relayOff==='sonic'&&S.mods.energySurgeLevel>=1,apply:()=>{setRelaySlot('off','sonic');S.mods.energySurgeLevel=Math.max(S.mods.energySurgeLevel,1)}},
     {id:'relayArmored',name:'Fortified Relay',get desc(){return 'Every Relay gets an armoured plinth and a turret head: 3× HP, and while tethered it fires like a full Turret.'+relaySlotNote('off','armored')},has:()=>S.mods.relayOff==='armored',apply:()=>{setRelaySlot('off','armored')}},
+    {id:'seekerStabs',name:'Seeker Stabilizers',get desc(){return `Stabilizers launch high and come down on a booster burn, steering onto the hotspot you click — no leading, and every shot lands in about ${Math.round(SEEK_T)}s. The catch: they can't land within ${SEEK_MIN} of the Rig or Relay that fires them, so a Rig drilling a vein can only reach its hotspots on their far swing.`},has:()=>!!S.mods.seekerStabs,apply:()=>{S.mods.seekerStabs=true}},
     {id:'heavyArmour',name:'Heavy Armour',desc:'Thick armour on the Rig and every Stabilizer: 30% less damage from everything, 75% less from melee, and melee attackers are knocked back off it.',has:()=>S.mods.heavyArmour,apply:()=>{S.mods.heavyArmour=true}},
     {id:'pointDefence',name:'Point Defence',desc:'Small turrets on the Rig (two) and every Stabilizer (one) that shoot down incoming Splinter shards and Lance volleys before they land. They never fire at enemies themselves.',has:()=>S.mods.pointDefence,apply:()=>{S.mods.pointDefence=true}},
     {id:'relayRadar',name:'Radar Mast',get desc(){return 'A turning radar dish on every Relay: a tethered Relay sees far into the fog around it.'+relaySlotNote('def','radar')},has:()=>S.mods.relayDef==='radar',apply:()=>{setRelaySlot('def','radar')}},
@@ -1981,7 +1982,13 @@ const STAB_CHARGES=3, STAB_RECHARGE_T=15, STAB_RANGE=650, STAB_FLIGHT_SPEED=420,
 // v4: a Stabilizer can be fired from the Rig (out to STAB_RANGE) or from any live, tethered Relay
 // (out to STAB_RELAY_R), so the relay network carries it out to a vein far from the Rig
 function stabSources(){return [{o:S.base,r:STAB_RANGE},...S.relays.filter(r=>r.built&&r.hp>0&&r.tetherOk).map(r=>({o:r,r:STAB_RELAY_R}))]}
-function stabSourceFor(w){let best=null,bd=Infinity;stabSources().forEach(s=>{const d=dist(w,s.o);if(d<=s.r&&d<bd){bd=d;best=s.o}});return best}
+function stabSourceFor(w,min=0){let best=null,bd=Infinity;stabSources().forEach(s=>{const d=dist(w,s.o);if(d<=s.r&&d>=min&&d<bd){bd=d;best=s.o}});return best}
+// v4: the Seeker Stabilizers card. A Stabilizer locks onto the hotspot you click (within SEEK_SNAP), climbs
+// straight up out of the Rig or Relay, then comes down on a booster burn like the Rig's landing, steering onto
+// that hotspot as it drifts. Every shot takes SEEK_T s. The catch: it needs height to turn over, so it can't
+// land within SEEK_MIN of whatever fires it. Flight: climbing until SEEK_UP of the way, out of sight until
+// SEEK_DROP, then the drop from SEEK_ALT (its burn lighting part-way down).
+const SEEK_MIN=180, SEEK_SNAP=90, SEEK_T=3.8, SEEK_UP=0.22, SEEK_DROP=0.42, SEEK_ALT=620, SEEK_HI=900;
 function mkHotspots(v){
   const hs=[];
   for(let i=0;i<HOTSPOTS_PER_VEIN;i++)hs.push({a0:i/HOTSPOTS_PER_VEIN*Math.PI*2+rnd(-0.5,0.5),spin:rnd(0.25,0.45)*(rnd(0,1)<0.5?-1:1),
@@ -2056,8 +2063,8 @@ function steerState(v){
   return {sh,s,target:s*sh.reach*STEER_MAX,L};
 }
 // The free hotspot nearest w, if within snapping distance, on a found, unfinished vein.
-function hotspotAt(w){
-  let best=null,bd=STAB_SNAP;
+function hotspotAt(w,snap=STAB_SNAP){
+  let best=null,bd=snap;
   S.veins.forEach(v=>{if(v.done||!v.mine.found||!v.hot)return;
     v.hot.forEach(h=>{if(h.stab)return;const d=dist(h,w);if(d<bd){bd=d;best={v,h}}})});
   return best;
@@ -7709,6 +7716,7 @@ function inHarvestRange(p){
   return S.relays.some(r=>r.built&&r.tetherOk&&dist(p,r)<=BUILD_R);
 }
 function fireStabilizer(w){
+  if(S.mods.seekerStabs)return fireSeeker(w);
   const src=stabSourceFor(w);
   if(!src){note('Too far — get the Rig or a live Relay closer');return}
   const d=dist(w,src);
@@ -7719,10 +7727,30 @@ function fireStabilizer(w){
   updateBuildBar();
   return true;
 }
+function fireSeeker(w){
+  const hit=hotspotAt(w,SEEK_SNAP);
+  if(!hit){note('Click on or near a hotspot to lock it');return}
+  const src=stabSourceFor(hit.h,SEEK_MIN);
+  if(!src){note(stabSourceFor(hit.h)?`Too close — a Seeker Stabilizer can't land within ${SEEK_MIN}`:'Too far — get the Rig or a live Relay closer');return}
+  if(S.stabCharges<=0&&!takeStock(STAB_DAT,'Stabilizer'))return;
+  S.stabShots.push({seek:true,v:hit.v,h:hit.h,x0:src.x,y0:src.y,z0:src===S.base?RIG_H*0.95:50,tx:hit.h.x,ty:hit.h.y,t:0,dur:SEEK_T,spin:rnd(0.5,1)*(rnd(0,1)<0.5?-1:1)});
+  if(S.stabCharges>0)S.stabCharges--;
+  tone(240,0.12,'square',0.06,0,520);sndAt(src.x,src.y,()=>{noiseCrack(0.3,0.12,500);tone(90,0.35,'sawtooth',0.05,0,160)});
+  updateBuildBar();
+  return true;
+}
+// where a Seeker is: its ground point and height (in the 3D model's units), and whether it's in sight
+const seekAlt=u=>{const b=0.45,A1=SEEK_ALT*(1-b)/(1+2*b);return u<b?SEEK_ALT-(SEEK_ALT-A1)*u/b:A1*Math.pow(1-(u-b)/(1-b),3)};
+function seekPos(sh){const f=Math.min(1,sh.t/sh.dur);
+  if(f<SEEK_UP){const u=f/SEEK_UP;return {x:sh.x0,y:sh.y0,z:sh.z0+SEEK_HI*u*u,show:true,thr:1,up:true}}
+  if(f<SEEK_DROP)return {x:sh.tx,y:sh.ty,z:SEEK_HI,show:false};
+  const u=(f-SEEK_DROP)/(1-SEEK_DROP),L=Math.hypot(sh.tx-sh.x0,sh.ty-sh.y0)||1,e=Math.pow(1-u*u*(3-2*u),1.6),z=seekAlt(u);
+  return {x:sh.tx-(sh.tx-sh.x0)/L*90*e,y:sh.ty-(sh.ty-sh.y0)/L*90*e,z,show:true,thr:u>=0.45?0.6+0.4*(1-(u-0.45)/0.55):0.12,dep:Math.max(0,Math.min(1,(70-z)/55)),lx:(sh.tx-sh.x0)/L*0.25*e,ly:(sh.ty-sh.y0)/L*0.25*e}}
 // A spike lands: pin the free hotspot it hit (if any) and buy the vein time, or fizzle.
 function landStabilizer(sh){
   const hit=hotspotAt({x:sh.tx,y:sh.ty});
-  if(!hit){burst(sh.tx,sh.ty,'#8d96a1',10,90,0.4);note('Missed — lead the hotspot');return}
+  if(!hit){burst(sh.tx,sh.ty,'#8d96a1',10,90,0.4);note(sh.seek?'No free hotspot left to land on':'Missed — lead the hotspot');return}
+  if(sh.seek)burst(hit.h.x,hit.h.y,'#b9a48a',22,150,0.7);
   const {v,h}=hit;
   const st={x:h.x,y:h.y,hp:STAB_HP,maxHp:STAB_HP,kind:'stabilizer',r:12,built:true,buildT:STAB_BUILD_T,buildTotal:STAB_BUILD_T,builder:null,repairer:null,vein:v,hot:h,
     cracks:mkCracks(6,4,30,0.45),landT:S.t};
@@ -7734,7 +7762,11 @@ function landStabilizer(sh){
 }
 function updateStabilizerShots(dt){
 
-  S.stabShots=S.stabShots.filter(sh=>{sh.t+=dt;if(sh.t<sh.dur)return true;landStabilizer(sh);return false});
+  S.stabShots=S.stabShots.filter(sh=>{sh.t+=dt;
+    // a Seeker follows its hotspot; if that one gets pinned first it switches to the nearest free one on the vein
+    if(sh.seek&&sh.h){if(sh.h.stab||sh.v.done){const p=seekPos(sh);let best=null,bd=Infinity;if(!sh.v.done)(sh.v.hot||[]).forEach(h=>{if(h.stab)return;const d=dist(h,p);if(d<bd){bd=d;best=h}});sh.h=best}
+      if(sh.h){sh.tx=sh.h.x;sh.ty=sh.h.y}}
+    if(sh.t<sh.dur)return true;landStabilizer(sh);return false});
 }
 // ---------- wall lines ----------
 function wallEnds(noTurrets){const out=[];(S.wallLines||[]).forEach(L=>{out.push({x:L.x0,y:L.y0},{x:L.x1,y:L.y1})});if(!noTurrets)S.turrets.forEach(t=>{if(t.built)out.push({x:t.x,y:t.y})});return out}
@@ -10127,7 +10159,7 @@ const CARD_INFO={
   energySurge1:['relayOff','Every Relay','sonic'],energySurge2:['relayOff','Every Relay','sonic'],energySurge3:['relayOff','Every Relay','sonic'],
   relayArmored:['relayOff','Every Relay','fortified'],tesla1:['relayOff','Every Relay','tesla'],tesla2:['relayOff','Every Relay','tesla'],
   relayRadar:['relayDef','Every Relay','radar'],relayWalled:['relayDef','Every Relay','walledRelay'],relayRepair:['relayDef','Every Relay','cradle'],
-  heavyArmour:['rigstab','Rig + every Stabilizer','armour'],pointDefence:['rigstab','Rig + every Stabilizer','pd'],deflector:['rigstab','Rig + every Stabilizer','dome'],
+  heavyArmour:['rigstab','Rig + every Stabilizer','armour'],seekerStabs:['rigstab','Every Stabilizer you fire','seeker'],pointDefence:['rigstab','Rig + every Stabilizer','pd'],deflector:['rigstab','Rig + every Stabilizer','dome'],
   riftShield:['rig','Rig only','rift'],overdrive:['rig','Rig drill','overdrive'],
   siegeRing:['walls','Around the Rig, each drill','siege'],wallTowers:['walls','Every wall end','towers'],podTowers:['walls','Every wall end','pods'],
   tol1:['cables','Rig + Relays'],cable1:['cables','Every unit cable','spool'],cablehp2:['cables','Every cable'],
@@ -10184,6 +10216,12 @@ const CARD_CAT_ART={
     if(f<0.7)caPod(107,caLerp(-10,88,caSm(f/0.7)),1.3,1);else{caPod(107,88,1.3,0);caGlow(107,92,30*(1-(f-0.7)/0.3),'#ffd27a',0.7*(1-(f-0.7)/0.3))}},
   supply(){caCrate(107,92,2)}};
 const CARD_ART={
+  // a Stabilizer coming down on its burn onto a bracketed hotspot, then standing pinned there
+  seeker(t){const f=(t*0.32)%1,hx=150+Math.sin(t*0.5)*8,hy=98;caGlow(hx,hy,16,'#be64ff',0.75);caRig(52,104,0.4);
+    [[-1,-1],[1,-1],[1,1],[-1,1]].forEach(([sx,sy])=>caLine([[hx+sx*13,hy+sy*4],[hx+sx*13,hy+sy*8],[hx+sx*8,hy+sy*8]],'#8fe3ff',1.1));
+    if(f<0.62){const u=f/0.62,y=caLerp(-12,hy,1-Math.pow(1-u,2.4)),x=hx-24*(1-u),fl=u>0.4?1:0.3;caGlow(x,y+3,8*fl+3,'#8fe3ff',0.7);ctx.fillStyle='#e9fbff';ctx.beginPath();ctx.moveTo(x-2.4,y+2);ctx.lineTo(x,y+4+12*fl);ctx.lineTo(x+2.4,y+2);ctx.fill();
+      caRR(x-4,y-13,8,15,2.5,'#5d6670',CA_OL);ctx.fillStyle='#8fe3ff';ctx.fillRect(x-2.6,y-9,5.2,6);caRR(x-3.4,y-16,6.8,4,1.5,'#a9b6c4',CA_OL)}
+    else caStab(hx,hy+4,0.42)},
   armour(t){const f=(t*0.9)%1,hit=f>0.42&&f<0.56;caRig(70,104,0.42,{armour:true});caStab(140,104,0.5,{armour:true});
     const ex=f<0.45?caLerp(196,156,caSm(f/0.45)):caLerp(156,190,caSm((f-0.45)/0.55));caEnemy(ex,96,Math.PI,1,hit);if(hit){caGlow(154,86,10,'#ffffff',0.6);caTxt('−75%',154,64,'#ffd0c8',9)}},
   pd(t){caRig(70,104,0.42,{pd:true});caStab(150,104,0.5,{pd:true});const f=(t*0.8)%1,P=u=>[caLerp(210,96,u),caLerp(10,40,u)-Math.sin(u*Math.PI)*20];
@@ -10758,17 +10796,37 @@ const STAB_BRACKETS=new Path2D('M39.53 3.61 V38.95 H4.18 Z M65.4 100.17 V64.83 H
 // just before it lands, ready for the tower to pop up.
 function skXform(S0,rot,pivot,off){const R=v=>rot(v),T=q=>{const r=R([q[0]-pivot[0],q[1]-pivot[1],q[2]-pivot[2]]);return [r[0]+pivot[0]+off[0],r[1]+pivot[1]+off[1],r[2]+pivot[2]+off[2]]};
   return {F:S0.F.map(f=>({...f,pts:f.pts.map(T),n:R(f.n)})),pts:S0.pts.map(T),bias:S0.bias}}
+function stabCapsulePieces(spin,dep,nozzles){const DK='#4a4f57',P=[];
+  for(let i=0;i<4;i++){const a=i*Math.PI/2+0.2+spin,ca=Math.cos(a),sa=Math.sin(a),foot=[ca*(7+6*dep),sa*(7+6*dep),15+(1.2-15)*dep];P.push(skBeam([ca*5,sa*5,12],foot,1.6,'#999'))}
+  if(nozzles)for(let i=0;i<4;i++){const a=i*Math.PI/2+Math.PI/4+spin;P.push(skPrism(Math.cos(a)*4.4,Math.sin(a)*4.4,-2.4,0.4,1.0,1.9,8,0,DK))} // the Seeker's booster nozzles
+  P.push(skPrism(0,0,0,6,6.6,7.4,10,spin,DK,{top:'#5d6670'}));P.push(skPrism(0,0,6,22,6,5.6,8,Math.PI/8+spin,'#5d6670',{top:'#6f7c89'}));
+  for(let i=0;i<8;i++){const pn=skPanel(5.85,8,Math.PI/8+spin,i,9,19,0.32,'#8fe3ff',{emit:0.2+0.15*Math.sin(S.t*6+i)});P.push(pn)}
+  P.push(skPrism(0,0,13,13.8,6.2,6.2,8,Math.PI/8+spin,'#8d9aa8'));P.push(skPrism(0,0,22,25,5.6,3.6,8,Math.PI/8+spin,'#8d9aa8',{top:'#a9b6c4'}));P.push(skPrism(0,0,25,26,5,4.6,12,spin,'#8d9aa8',{top:'#a9b6c4'}));
+  return P}
+// lock-on brackets round a ground point, closing in from R0 to R1 as f goes 0→1
+function seekBrackets(x,y,f,col,R0=40,R1=20){const g=Math.min(1,f),r=R0+(R1-R0)*g*(2-g),c=r*0.45;ctx.save();ctx.strokeStyle=col;ctx.lineWidth=2/Math.max(0.5,cam.z);
+  [[-1,-1],[1,-1],[1,1],[-1,1]].forEach(([sx,sy])=>{ctx.beginPath();ctx.moveTo(x+sx*r,y+sy*(r-c)*0.8);ctx.lineTo(x+sx*r,y+sy*r*0.8);ctx.lineTo(x+sx*(r-c),y+sy*r*0.8);ctx.stroke()});ctx.restore()}
+// A Seeker Stabilizer: brackets on its hotspot the whole way; a climb out of the Rig on full thrust; then,
+// after a moment out of sight, the drop — legs folded, the burn lighting part-way down, steering in,
+// legs swinging out for the last stretch while its exhaust kicks up the dust
+function drawSeekShot(sh){const p=seekPos(sh),left=Math.max(0,sh.dur-sh.t);
+  if(sh.h){seekBrackets(sh.tx,sh.ty,sh.t/0.8,'#8fe3ff');if(left>0.05){ctx.fillStyle='#8fe3ff';ctx.font='600 11px '+css('--mono');ctx.textAlign='center';ctx.fillText(`${left.toFixed(1)}s`,sh.tx+44,sh.ty+4)}}
+  if(!p.show)return;const s=SK_SCALE,z=p.z;
+  if(!p.up&&z<80){const k=(1-z/80)*p.thr;for(let i=0;i<12;i++){const a=i/12*Math.PI*2+S.t*0.7,r=(8+(1-z/80)*22+((S.t*40+i*7)%10));ctx.fillStyle=`rgba(150,140,125,${0.22*k})`;ctx.beginPath();ctx.arc(p.x+Math.cos(a)*r,p.y+Math.sin(a)*r*0.8,2.4+((S.t*3+i)%3),0,Math.PI*2);ctx.fill()}}
+  SKO.x=p.x;SKO.y=p.y;SKO.s=s;SKO.shk=[0,0];SKO.lean=[0,0];
+  if(p.thr>0.02){const L=(10+34*p.thr)*(0.85+0.15*Math.sin(S.t*43)),a=skPJ([0,0,z-2.2]),b=skPJ([0,0,z-2.2-L]);ctx.save();ctx.globalCompositeOperation='lighter';ctx.lineCap='round';
+    [[6*s,0.16,1],[3.4*s,0.45,1],[1.4*s,0.9,0.55]].forEach(([lw,al,e],j)=>{ctx.strokeStyle=j===2?`rgba(240,252,255,${al*p.thr})`:`rgba(143,227,255,${al*p.thr})`;ctx.lineWidth=lw;ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(a[0]+(b[0]-a[0])*e,a[1]+(b[1]-a[1])*e);ctx.stroke()});ctx.restore();
+    skGlow([0,0,z-3],12,'#8fe3ff',0.65*p.thr)}
+  skRender(skLift(stabCapsulePieces(sh.t*sh.spin,p.dep||0,true),z));
+  if(Math.sin(S.t*14)>0)skGlow([0,0,z+26],5,'#ffd27a',0.7);
+  SKO.x=0;SKO.y=0}
 function drawStabShots(){
-  S.stabShots.forEach(sh=>{
+  S.stabShots.forEach(sh=>{if(sh.seek){drawSeekShot(sh);return}
     const f=Math.min(1,sh.t/sh.dur),arc=Math.sin(Math.PI*f),x=sh.x0+(sh.tx-sh.x0)*f,y=sh.y0+(sh.ty-sh.y0)*f;
     const L=Math.hypot(sh.tx-sh.x0,sh.ty-sh.y0)||1,dx=(sh.tx-sh.x0)/L,dy=(sh.ty-sh.y0)/L,h=arc*Math.min(60,30+L*0.08)/SK_SCALE;
     const e=f*f*(3-2*f),th=1.05*(1-e),c=Math.cos(th),sn=Math.sin(th),k=[-dy,dx,0];
     const rot=v=>{const kv=k[0]*v[0]+k[1]*v[1],cr=[k[1]*v[2],-k[0]*v[2],k[0]*v[1]-k[1]*v[0]];return [v[0]*c+cr[0]*sn+k[0]*kv*(1-c),v[1]*c+cr[1]*sn+k[1]*kv*(1-c),v[2]*c+cr[2]*sn]};
-    const dep=f<0.78?0:Math.min(1,(f-0.78)/0.18),spin=sh.t*sh.spin*0.6,DK='#4a4f57',P=[];
-    for(let i=0;i<4;i++){const a=i*Math.PI/2+0.2+spin,ca=Math.cos(a),sa=Math.sin(a),foot=[ca*(7+6*dep),sa*(7+6*dep),15+(1.2-15)*dep];P.push(skBeam([ca*5,sa*5,12],foot,1.6,'#999'))}
-    P.push(skPrism(0,0,0,6,6.6,7.4,10,spin,DK,{top:'#5d6670'}));P.push(skPrism(0,0,6,22,6,5.6,8,Math.PI/8+spin,'#5d6670',{top:'#6f7c89'}));
-    for(let i=0;i<8;i++){const pn=skPanel(5.85,8,Math.PI/8+spin,i,9,19,0.32,'#8fe3ff',{emit:0.2+0.15*Math.sin(S.t*6+i)});P.push(pn)}
-    P.push(skPrism(0,0,13,13.8,6.2,6.2,8,Math.PI/8+spin,'#8d9aa8'));P.push(skPrism(0,0,22,25,5.6,3.6,8,Math.PI/8+spin,'#8d9aa8',{top:'#a9b6c4'}));P.push(skPrism(0,0,25,26,5,4.6,12,spin,'#8d9aa8',{top:'#a9b6c4'}));
+    const dep=f<0.78?0:Math.min(1,(f-0.78)/0.18),spin=sh.t*sh.spin*0.6,P=stabCapsulePieces(spin,dep,false);
     SKO.x=x;SKO.y=y;SKO.lean=[0,0];SKO.shk=[0,0];SKO.s=SK_SCALE;
     // a puff trail behind it, and the thruster glow at its foot
     for(let q=1;q<=5;q++){const g=f-q*0.035;if(g<=0)break;const gx=sh.x0+(sh.tx-sh.x0)*g-x,gy=sh.y0+(sh.ty-sh.y0)*g-y,gh=Math.sin(Math.PI*g)*Math.min(60,30+L*0.08)/SK_SCALE,[px,py]=skPJ([gx/SK_SCALE,gy/SK_SCALE,gh]);
@@ -11352,7 +11410,16 @@ function draw(){
     ctx.beginPath();ctx.arc(mouse.wx,mouse.wy,6/cam.z,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1}
   // Stabilizer aiming: the Rig's firing range, a line out to the cursor, and the landing spot
   // with the flight time — hotspots keep drifting while it's in the air, so lead them
-  if(buildMode==='stabilizer'){const m={x:mouse.wx,y:mouse.wy},src=stabSourceFor(m)||B,d=dist(m,src),ok=!!stabSourceFor(m),col=ok?'#8fe3ff':C.enemy;
+  if(buildMode==='stabilizer'&&S.mods.seekerStabs){const m={x:mouse.wx,y:mouse.wy},hit=hotspotAt(m,SEEK_SNAP),src=hit?stabSourceFor(hit.h,SEEK_MIN):null,near=hit&&!src?stabSourceFor(hit.h):null;
+    ctx.save();ctx.lineWidth=1.5/cam.z;
+    stabSources().forEach(s=>{ctx.strokeStyle='#8fe3ff';ctx.globalAlpha=0.35;ctx.setLineDash([10/cam.z,8/cam.z]);ctx.beginPath();ctx.arc(s.o.x,s.o.y,s.r,0,Math.PI*2);ctx.stroke();
+      ctx.globalAlpha=0.08;ctx.fillStyle=C.enemy;ctx.beginPath();ctx.arc(s.o.x,s.o.y,SEEK_MIN,0,Math.PI*2);ctx.fill();ctx.globalAlpha=0.6;ctx.strokeStyle=C.enemy;ctx.setLineDash([6/cam.z,6/cam.z]);ctx.stroke()});
+    ctx.setLineDash([]);ctx.globalAlpha=0.9;ctx.font='600 12px '+css('--mono');ctx.textAlign='center';
+    if(hit){const col=src?'#8fe3ff':C.enemy;if(src){ctx.globalAlpha=0.4;ctx.strokeStyle=col;ctx.setLineDash([10/cam.z,8/cam.z]);ctx.beginPath();ctx.moveTo(src.x,src.y);ctx.lineTo(hit.h.x,hit.h.y);ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=0.9}
+      seekBrackets(hit.h.x,hit.h.y,1,col);ctx.fillStyle=col;ctx.fillText(src?`LOCK · ${SEEK_T.toFixed(1)}s`:near?'TOO CLOSE':'OUT OF RANGE',hit.h.x,hit.h.y-30)}
+    else{ctx.strokeStyle='#8d96a1';ctx.beginPath();ctx.arc(mouse.wx,mouse.wy,SEEK_SNAP,0,Math.PI*2);ctx.globalAlpha=0.4;ctx.stroke()}
+    ctx.restore()}
+  else if(buildMode==='stabilizer'){const m={x:mouse.wx,y:mouse.wy},src=stabSourceFor(m)||B,d=dist(m,src),ok=!!stabSourceFor(m),col=ok?'#8fe3ff':C.enemy;
     ctx.save();ctx.strokeStyle='#8fe3ff';ctx.globalAlpha=0.35;ctx.lineWidth=1.5/cam.z;ctx.setLineDash([10/cam.z,8/cam.z]);
     stabSources().forEach(s=>{ctx.beginPath();ctx.arc(s.o.x,s.o.y,s.r,0,Math.PI*2);ctx.stroke()});
     ctx.globalAlpha=0.5;ctx.strokeStyle=col;ctx.beginPath();ctx.moveTo(src.x,src.y);ctx.lineTo(mouse.wx,mouse.wy);ctx.stroke();ctx.setLineDash([]);
