@@ -3590,7 +3590,7 @@ const TUTORIAL_STEPS=[
    target:()=>{const v=tutVein();return{x:v.x,y:v.y,r:v.r+20}},
    done:()=>!!tutVein().surveyed},
   {title:'Move the Rig',
-   text:()=>`Now bring the Rig over. Click the Rig to select it, then <b>right-click the glowing mining point</b> inside the vein. It's slow, so give it a moment to roll over.`,
+   text:()=>`Now bring the Rig over. Click the Rig (or press <kbd>Z</kbd>) to select it, then <b>right-click the glowing mining point</b> inside the vein. It folds its legs up, floats over slowly, and sets down again when it arrives.`,
    target:()=>{const v=tutVein();return{x:v.mine.x,y:v.mine.y,r:40}},
    done:()=>!!canLockdown()||S.base.locked},
   {title:'Start drilling',
@@ -3600,7 +3600,7 @@ const TUTORIAL_STEPS=[
    text:()=>`The first wave is on its way. Press <kbd>Space</kbd> to <b>pause</b> the action. While it's paused you can still select units, give orders and call in builds — they all go ahead when you press <kbd>Space</kbd> again. Use it any time you need a moment to plan. Pause now.`,
    done:()=>S.tacPause||S.tacUsed},
   {title:'Build a Turret',
-   text:()=>`Dig in — you can do all of this while paused. Press <kbd>T</kbd> and click inside the Rig's ring to launch a <b>Turret</b>. The Rig's fabricators hold a small free stock of each thing it can make; once a stock runs out, each one costs Dat Crystal.`,
+   text:()=>`Dig in — you can do all of this while paused. Open the <b>Build</b> menu (<kbd>B</kbd>) and pick <b>Turret</b> — or just press <kbd>T</kbd> — then click inside the Rig's ring to launch a <b>Turret</b>. The Rig's fabricators hold a small free stock of each thing it can make; once a stock runs out, each one costs Dat Crystal.`,
    target:()=>({x:S.base.x,y:S.base.y,r:BUILD_R}),
    done:()=>S.turrets.some(t=>t.built)||S.fabShots.some(sh=>sh.k==='turret')},
   {title:'Lay a wall',
@@ -3608,7 +3608,7 @@ const TUTORIAL_STEPS=[
    target:()=>({x:S.base.x,y:S.base.y,r:BUILD_R}),
    done:()=>(S.wallLines||[]).length>=1},
   {title:'Chain it',
-   text:()=>`<b>Click the end</b> of your wall, then click again where the next stretch should run to — it joins straight on, no need to hold the button. A wall can start from a Turret too, and a Turret placed near a wall's end snaps onto it. Right-click cancels a wall you're drawing; <kbd>Esc</kbd> leaves wall mode.`,
+   text:()=>`<b>Click the end</b> of your wall, then click again where the next stretch should run to — it joins straight on, no need to hold the button. A wall can start from a Turret too, and a Turret placed near a wall's end snaps onto it. When you're done, <b>right-click</b> (or <kbd>Esc</kbd>) to leave wall mode.`,
    target:()=>({x:S.base.x,y:S.base.y,r:BUILD_R}),
    done:()=>(S.wallLines||[]).length>=2},
   {title:'Formations',
@@ -3664,7 +3664,7 @@ const TUTORIAL_STEPS=[
    enter:()=>tutDeepSetup(),
    text:()=>`We've moved the Rig to the edge of the <b>Dense Field</b> — the rift-choked ring closer to the Black Flame. Two things change out here. The violet <b>rift</b> is everywhere: Troopers can wade through it (slowly), but the Rig can only walk the grey corridors. And the Rim's free wireless link is gone — <b>every unit needs a cable</b> back to the Rig.`},
   {title:'Every unit runs a cable',
-   text:()=>`Select your Troopers (<kbd>C</kbd>) and <b>right-click the marked spot</b> out in the rift. Watch the line they trail behind them — that's their cable, paid out from the Rig as they go.`,
+   text:()=>`Select your Troopers (drag a box round them, or <kbd>Ctrl</kbd>+<kbd>A</kbd> for every unit) and <b>right-click the marked spot</b> out in the rift. Watch the line they trail behind them — that's their cable, paid out from the Rig as they go.`,
    target:()=>{const d=tutorial.deep;return d?{x:d.near.x,y:d.near.y,r:50}:null},
    done:()=>S.troops.some(t=>t.trail&&(t.cableLen||0)>150)},
   {title:'The end of the line',
@@ -3729,7 +3729,8 @@ function tutDeepSetup(){
   S.troops.forEach((u,i)=>{const a=i*2.1;u.x=B.x+Math.cos(a)*(B.r+20);u.y=B.y+Math.sin(a)*(B.r+20);
     u.trail=null;u.cableLen=0;u.cableMaxed=false;u.severed=false;u.tetherOk=true;u.sanity=SANITY_MAX;u._path=null;u._pg=null;guardBastion(u)});
   S.fab.relay.n=Math.max(S.fab.relay.n,FABS.relay.charges);updateBuildBar();
-  const w={x:wreck.x,y:wreck.y,band:'dense',r:WRECK_R,prog:0,done:false,ambushed:true,seen:true,ang:rnd(0,Math.PI*2),blink:rnd(0,6)};
+  // (a wreck like any other: it needs its crash kind, vessel and seed or it can't be drawn)
+  const w={x:wreck.x,y:wreck.y,band:'dense',r:WRECK_R,prog:0,done:false,ambushed:true,seen:true,ang:rnd(0,Math.PI*2),blink:rnd(0,6),kind:'skid',vessel:'hauler',seed:Math.floor(rnd(0,1e6))};
   S.wrecks.push(w);
   const a=Math.atan2(w.y-B.y,w.x-B.x);
   tutorial.deep={wreck:w,near:{x:B.x+Math.cos(a)*260,y:B.y+Math.sin(a)*260},foes:null};
@@ -4915,7 +4916,8 @@ const WRECK_KINDS=['skid','crater','split','swallowed','convoy'],WRECK_VESSELS=[
 function groundUnder(x,y,r){if(TPAINT.on&&TPAINT.done&&!TPAINT.done.has(Math.floor(y/TP_TS)*TPAINT.NTX+Math.floor(x/TP_TS)))return null; // not painted yet
   try{const k=terrainCv.width/W,sx=Math.max(0,Math.round((x-r)*k)),sy=Math.max(0,Math.round((y-r)*k)),sw=Math.max(1,Math.round(r*2*k));
   const d=terrainCv.getContext('2d').getImageData(sx,sy,sw,sw).data;let R=0,G=0,B=0,n=0;for(let i=0;i<d.length;i+=16){R+=d[i];G+=d[i+1];B+=d[i+2];n++}return n?[R/n,G/n,B/n]:null}catch(e){return null}}
-function wreckSprite(w){if(!w.ground)w.ground=groundUnder(w.x,w.y,90);if(w._spr&&w._spr.done===w.done&&w._spr.hasGround===!!w.ground)return w._spr; // baked again once the terrain under it is painted
+function wreckSprite(w){if(!w.kind){w.kind='skid';w.vessel=w.vessel||'lander';w.seed=w.seed??1} // (never let one bad wreck stop the whole frame drawing)
+  if(!w.ground)w.ground=groundUnder(w.x,w.y,90);if(w._spr&&w._spr.done===w.done&&w._spr.hasGround===!!w.ground)return w._spr; // baked again once the terrain under it is painted
   const s=WRECKART.bakeSite(w.kind,w.band,w.seed,WRECK_SPR[0],WRECK_SPR[1],WRECK_SPR[0]/2,WRECK_SPR[1]/2,{bare:true,vessel:w.vessel,opened:w.done,ground:w.ground});s.done=w.done;s.hasGround=!!w.ground;return w._spr=s}
 function drawPOIs(){
   if(!S.wrecks)return;
