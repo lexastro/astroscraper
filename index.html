@@ -5809,11 +5809,16 @@ function tcost(cx,cy,forBastion,forEnemy){
   if(S.glassCov){const c=S.glassCov[cy*TGX+cx];if(c>=GLASS_BLOCK)return Infinity;if(c>0)return (v===1||(v===RIFT&&!forEnemy)?2.4:1)*(1+c*2)}
   return (v===1||(v===RIFT&&!forEnemy))?2.4:1;
 }
+// v4: clear of crystal-wall glass too (a solid glass cell, or inside a shard) — spawns used to land
+// in the glass, where they were stuck for good
+function plainBlocked(x,y){if(terrainAt(x,y)===2)return true;if(!S||!S.glassCov)return false;
+  const cx=Math.floor(x/TCELL),cy=Math.floor(y/TCELL);if(cx<0||cy<0||cx>=TGX||cy>=TGY)return true;
+  return S.glassCov[cy*TGX+cx]>=GLASS_BLOCK||!!glassHit(x,y,12)}
 function nearestPlain(x,y){
-  if(terrainAt(x,y)!==2)return{x,y};
-  for(let r=1;r<=12;r++)for(let a=0;a<8;a++){
-    const ang=a/8*Math.PI*2, nx=x+Math.cos(ang)*r*TCELL*0.5, ny=y+Math.sin(ang)*r*TCELL*0.5;
-    if(terrainAt(nx,ny)!==2)return{x:nx,y:ny};
+  if(!plainBlocked(x,y))return{x,y};
+  for(let r=1;r<=24;r++)for(let a=0;a<8;a++){
+    const ang=a/8*Math.PI*2+(r&1)*Math.PI/8, nx=x+Math.cos(ang)*r*TCELL*0.5, ny=y+Math.sin(ang)*r*TCELL*0.5;
+    if(nx>4&&ny>4&&nx<W-4&&ny<H-4&&!plainBlocked(nx,ny))return{x:nx,y:ny};
   }
   return {x,y};
 }
@@ -8658,7 +8663,8 @@ function hordeStep(e,tgt,dt){
   const w=wallAt(e.x+ux*(e.r+6),e.y+uy*(e.r+6),true);
   if(w){if(e.cd<=0){damageWall(w,e.dmg*1.5);spark(w.x,w.y,C.enemy,1);e.cd=0.8;wallTouch(w,e)}return}
   const sp=e.speed*enemyRoughFactor(e.x,e.y)*dt,nx=e.x+ux*sp,ny=e.y+uy*sp;
-  if(!hordeBlocked(nx,ny)){e.x=nx;e.y=ny}else if(!hordeBlocked(nx,e.y))e.x=nx;else if(!hordeBlocked(e.x,ny))e.y=ny;
+  // (one already inside blocked ground — solid glass — walks out rather than freezing there)
+  if(!hordeBlocked(nx,ny)||hordeBlocked(e.x,e.y)){e.x=nx;e.y=ny}else if(!hordeBlocked(nx,e.y))e.x=nx;else if(!hordeBlocked(e.x,ny))e.y=ny;
   e.ang=Math.atan2(uy,ux);
 }
 function spawnVeinWave(v){
