@@ -1089,6 +1089,8 @@ const ARTY_R=10, ARTY_HP=90, ARTY_SPEED=55, ARTY_RANGE=7000, ARTY_CD=14, ARTY_DM
 // radius of their own — scattered around the target so a cluster of enemies can each eat one,
 // alternating out of its left and right side cannons.
 // MECH_CD: 1.8s baseline, fire rate +10%.
+// a Mech's body turns at most MECH_TURN radians a second (see the troop loop), and holds its aim MECH_AIM_HOLD s after a shot
+const MECH_TURN=6, MECH_AIM_HOLD=0.7, MECH_TURN_SLACK=0.1; // (it ignores a change of aim smaller than MECH_TURN_SLACK)
 const MECH_R=15, MECH_SC=1.5, MECH_HP=160, MECH_SPEED=85, MECH_RANGE=140, MECH_DMG=5, MECH_CD=1.8/1.1,
   MECH_PROJ_SPEED=460, MECH_PELLETS=4, MECH_PELLET_SPREAD=26, MECH_PELLET_HIT_R=30, MECH_SANITY_RESIST=0.15;
 // Mech short-range engage: its shotgun range is short, so an idle Mech that sees an enemy within
@@ -5915,6 +5917,9 @@ function astar(x0,y0,x1,y1,forBastion,forEnemy){
 // Idle Mech behaviour (see MECH_ENGAGE_R/MECH_LEASH): close to firing range on the nearest
 // revealed enemy within reach of its post, never stepping beyond the leash; with nothing to
 // engage, walk back to the post.
+// v4: a Mech that has just fired keeps facing what it shot for MECH_AIM_HOLD, rather than swinging round to
+// where it's walking and straight back on its next shot; anyone else just faces where it's going
+function faceTravel(t,a){if(t.kind==='mech'&&S.t-Math.max(t.gatShotT??-9,t.shotT??-9)<MECH_AIM_HOLD)return;t.ang=a}
 function mechEngage(t,range,speed,dt){
   if(!t.post)t.post={x:t.x,y:t.y};
   // manning a wall: never step out over it — hold the spot behind it, facing out
@@ -5933,7 +5938,7 @@ function mechEngage(t,range,speed,dt){
     const nd2=dist(t,t.post);
     if(nd2>leash&&nd2>od){t.x=ox;t.y=oy} // at the end of its leash — hold here
   }else if(dist(t,t.post)>6){
-    t.ang=Math.atan2(t.post.y-t.y,t.post.x-t.x);
+    faceTravel(t,Math.atan2(t.post.y-t.y,t.post.x-t.x));
     moveToward(t,waypointFor(t,t.post.x,t.post.y),speed,dt);
   }else if(wall&&t.wallAng!=null)t.ang=t.wallAng; // back in the line: shields forward again
 }
@@ -7272,7 +7277,7 @@ function guardMove(t,range,speed,dt){
   const r=guardRadius(g)+t.guardDist;
   const fx=g.x+Math.cos(t.guardAng)*r, fy=g.y+Math.sin(t.guardAng)*r;
   if(dist(t,{x:fx,y:fy})>8){
-    if(t.kind==='mech'||t.kind==='brawler')t.ang=Math.atan2(fy-t.y,fx-t.x);
+    if(t.kind==='mech'||t.kind==='brawler')faceTravel(t,Math.atan2(fy-t.y,fx-t.x));
     moveToward(t,waypointFor(t,fx,fy),speed,dt);
   }
 }
@@ -9639,7 +9644,7 @@ function update(dt){
     if(t.hold&&!t.dest&&t.state!=='attack'){if(!t.post)t.post={x:t.x,y:t.y};t.x=t.post.x;t.y=t.post.y} // planted: no moving, no chasing (an order to move or attack still goes through, and it plants again after)
     else if(t.following){followMove(t,speed,dt);if(mech||brawl)t.post={x:t.x,y:t.y}}
     else if(t.state==='move'&&t.dest){
-      if(mech||brawl)t.ang=Math.atan2(t.dest.y-t.y,t.dest.x-t.x);
+      if(mech||brawl)faceTravel(t,Math.atan2(t.dest.y-t.y,t.dest.x-t.x));
       const aim=waypointFor(t,t.dest.x,t.dest.y);
       moveToward(t,aim,speed*factor,dt);
       if(dist(t,t.dest)<4||(t._nearDone&&dist(t,t.dest)<44)){t._nearDone=false;t.dest=null;t.pace=null;t.state='idle';if(mech||brawl||t.hold)t.post={x:t.x,y:t.y};if(brawl&&t.wall&&t.wallAng!=null)t.ang=t.wallAng;if(t.formAng!=null)t.ang=t.formAng;takeLeg(t)}
@@ -9740,6 +9745,9 @@ function update(dt){
     S.nodes.forEach(n=>{if(!n.found&&dist(n,t)<TROOP_VISION*S.mods.visionMult*S.mods.squadRangeMult)n.found=true});
   });
 
+  // v4: a Mech's heavy body swings round at most MECH_TURN a second toward wherever it now wants to face,
+  // so it can't snap back and forth from one frame to the next
+  S.troops.forEach(t=>{if(t.kind!=='mech')return;const a=t.ang||0;if(t._fa==null){t._fa=a;return}const d=Math.atan2(Math.sin(a-t._fa),Math.cos(a-t._fa)),m=MECH_TURN*dt;if(Math.abs(d)>MECH_TURN_SLACK)t._fa+=Math.max(-m,Math.min(m,d));t.ang=t._fa});
   // harvesters — unarmed; auto-loop to the nearest resource unless paused by a manual order or cut
   S.harvesters.forEach(h=>{
     const factor=roughFactor(h.x,h.y);
