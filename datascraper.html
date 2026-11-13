@@ -150,6 +150,13 @@ body.lowGfx #fogGrain{display:none}
 @media (max-width:720px),(max-height:500px){.versionTag{bottom:calc(66px + env(safe-area-inset-bottom,0px))}.changesPanel{bottom:calc(92px + env(safe-area-inset-bottom,0px))}}
 .overlay h1{font-family:var(--mono);font-weight:500;font-size:26px;margin:0;letter-spacing:.04em;text-wrap:balance}
 .overlay p{margin:0;color:var(--muted);max-width:40ch}
+/* v4: the run's numbers on the death / victory screen */
+.runStats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;width:min(620px,92vw);margin:4px 0}.runStats[hidden]{display:none}
+.runStats .rs{background:rgba(10,13,17,.72);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:8px 10px;text-align:left;min-width:0}
+.runStats .rs b{display:block;font-family:var(--mono);font-size:19px;font-weight:500;color:#e6ecf2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.runStats .rs span{display:block;font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-top:2px}
+.runStats .rs small{display:block;font-size:11px;color:var(--muted);margin-top:3px}
+@media (max-width:560px){.runStats{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .overlay button{background:var(--accent);color:#1a1200;border:0;font:inherit;font-weight:600;padding:10px 18px;border-radius:4px;cursor:pointer}
 .overlay button:disabled{opacity:.4;cursor:default}
 .drillMeter{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(96px + env(safe-area-inset-bottom,0px));z-index:6;
@@ -785,7 +792,7 @@ async function run(d){
 </div>
 
 <div class="overlay" id="overlay" hidden>
-  <h1 id="ovTitle"></h1><p id="ovText"></p><button id="ovBtn">Return to Base</button>
+  <h1 id="ovTitle"></h1><p id="ovText"></p><div class="runStats" id="ovStats" hidden></div><button id="ovBtn">Return to Base</button>
 </div>
 
 <div class="overlay" id="loadOverlay" hidden><div class="loadBox"><b>Surveying the ground</b><div class="loadBar"><i id="loadFill"></i></div><span id="loadSub">mapping rock, rift and crystal…</span></div></div>
@@ -961,6 +968,8 @@ function pickStopDirs(){
   EXIT_DIR=r<0.5?opp:turns[r<0.75?0:1];RUN.exit=EXIT_DIR;
 }
 let RUN=null, STOP_BAND=null, STOP_SPLIT=false;
+// v4: run stats for the end screen — kept on RUN (so they ride through stops and saves), only on a real run
+function stat(k,n){if(!RUN||tutorialMap)return;const st=RUN.stats||(RUN.stats={});st[k]=(st[k]||0)+(n===undefined?1:n)}
 // v4: the split stop. Its entry side (up to SPLIT_A of the way along, in the stop's own frame) is Rim
 // ground; the rest, with the crystal wall and the way out, is the Dense Field. Its map is sized between
 // the two, and its Rim veins can ripen as far as Epic.
@@ -2160,7 +2169,7 @@ function updateMeter(v,dt){
   if(m.phase!=='drill'||v.paused)return;
   if(m.over==='offer'){m.offerT=(m.offerT??OVER_OFFER_T)-dt;if(m.offerT<=0)m.over='bank'}
   if(m.over==='run'){m.overT+=dt;m.safe=1-(1-OVER_SAFE_MIN)*Math.min(1,m.overT/OVER_T);
-    if(m.overT>=OVER_T){m.over='won';v.bonus=(v.bonus||0)+1;banner('Overdrill held! The vein pays a second reward.','success');sfx.win();burst(v.mine.x,v.mine.y,C.accent,36,200,0.9)}}
+    if(m.overT>=OVER_T){m.over='won';v.bonus=(v.bonus||0)+1;banner('Overdrill held! The vein pays a second reward.','success');stat('overdrills');sfx.win();burst(v.mine.x,v.mine.y,C.accent,36,200,0.9)}}
   const sv=steerState(v), K=(METER_K_BASE+METER_K_STAB*stabHold(v))*(1+0.5*sv.sh.auth)*(1-STEER_WOBBLE*sv.L), sig=METER_TURB[m.anchorTier]*(m.over==='run'?OVER_TURB:1);
   // v4: the Stabilizers take a while to bring the needle round — it's pulled toward m.aim, which
   // only catches up with where the weight points over STEER_LAG seconds, so a last-second swing
@@ -2208,7 +2217,7 @@ function updateMeter(v,dt){
   if(!m.seamDone&&!m.seam&&!m.over&&v.drillProg>=m.seamAt*v.richness)openSeam(v);
   if(m.seam){const sm=m.seam;sm.t-=dt;
     if(Math.abs(m.x-sm.x)<=sm.hw){sm.hold+=dt;sm.inT=(sm.inT||0)+dt;if(sm.inT>0.5){sm.inT=0;tone(1320+440*sm.hold/SEAM_HOLD,0.05,'sine',0.03)}}
-    if(sm.hold>=SEAM_HOLD){m.seam=null;m.seamDone=true;v.bonus=(v.bonus||0)+1;banner('Seam tapped! The vein will pay a second reward.','success');sfx.win();burst(v.mine.x,v.mine.y,'#6ff0ff',30,180,0.8)}
+    if(sm.hold>=SEAM_HOLD){m.seam=null;m.seamDone=true;v.bonus=(v.bonus||0)+1;banner('Seam tapped! The vein will pay a second reward.','success');stat('seams');sfx.win();burst(v.mine.x,v.mine.y,'#6ff0ff',30,180,0.8)}
     else if(sm.t<=0){m.seam=null;m.seamDone=true;msg('The seam closed.')}}
 }
 // A failed strike or a needle that drifts into the red: the vein blows. The Rig takes a hit
@@ -3158,7 +3167,7 @@ function pressureNote(){return RUN&&RUN.pressure&&RUN.pressure.ids.length?` Pres
 // Pressure and Loadout, and everything carried into the stop (cards, Dat, units, call-downs, kits).
 // Resume (main menu) rebuilds that stop from there. It's cleared when the run ends.
 const RUN_SAVE_KEY='astroscraper_v4_run';
-function saveRun(carry){if(!RUN||tutorialMap)return;try{localStorage.setItem(RUN_SAVE_KEY,JSON.stringify({v:1,t:Date.now(),run:{stop:RUN.stop,pressure:RUN.pressure,loadout:RUN.loadout,exit:RUN.exit},carry:carry||null}))}catch(e){}}
+function saveRun(carry){if(!RUN||tutorialMap)return;try{localStorage.setItem(RUN_SAVE_KEY,JSON.stringify({v:1,t:Date.now(),run:{stop:RUN.stop,pressure:RUN.pressure,loadout:RUN.loadout,exit:RUN.exit,stats:RUN.stats||{}},carry:carry||null}))}catch(e){}}
 // v4: the live save — the whole stop as it stands, so Resume puts you back mid-fight. The map itself is
 // built again from its seed (same spawn, same stop directions), then everything that changes in play is
 // laid back over it: units, enemies, veins and the drill, walls, Relays, Turrets, Stabilizers, nests,
@@ -3195,7 +3204,7 @@ let liveSaveAt=0;
 function liveSave(){if(!RUN||tutorialMap||!S||S.over||S.rewardChoice||(S.landing&&!S.landing.touch)||menuOpen||TPAINT.loading||!S._spawn)return;
   try{const top={};for(const k of Object.keys(S)){if(k[0]==='_'||SNAP_SKIP.has(k))continue;top[k]=S[k]}
     let fog=null;try{fog=fogC.toDataURL()}catch(e){}
-    const d={v:2,t:Date.now(),run:{stop:RUN.stop,pressure:RUN.pressure,loadout:RUN.loadout,exit:RUN.exit},carry:RUN.stopCarry||null,
+    const d={v:2,t:Date.now(),run:{stop:RUN.stop,pressure:RUN.pressure,loadout:RUN.loadout,exit:RUN.exit,stats:RUN.stats||{}},carry:RUN.stopCarry||null,
       live:{mapSeed,spawn:S._spawn,entry:ENTRY_EDGE,exitDir:EXIT_DIR,cam:{x:cam.x,y:cam.y,z:cam.z},fog,snap:snapEncode(top)}};
     localStorage.setItem(RUN_SAVE_KEY,JSON.stringify(d));liveSaveAt=performance.now()}catch(e){console.warn('live save failed',e)}}
 function liveSaveTick(){if(performance.now()-liveSaveAt>LIVE_SAVE_T*1000)liveSave()}
@@ -3203,7 +3212,7 @@ addEventListener('pagehide',liveSave);addEventListener('beforeunload',liveSave);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')liveSave()});
 // build the same stop again and lay the saved state over it
 function resumeLive(d){const L=d.live;
-  RUN={stop:d.run.stop,carry:null,pressure:d.run.pressure||{ids:[],bonus:0},loadout:d.run.loadout||callLoadout(),exit:d.run.exit,stopCarry:d.carry||null};
+  RUN={stop:d.run.stop,carry:null,pressure:d.run.pressure||{ids:[],bonus:0},loadout:d.run.loadout||callLoadout(),exit:d.run.exit,stopCarry:d.carry||null,stats:d.run.stats||{}};
   menuOpen=false;['mainMenuOverlay','unlocksOverlay','pressureOverlay','loadoutOverlay','settingsOverlay','stopOverlay'].forEach(id=>document.getElementById(id)._hd=true);
   STOP_BAND=RUN_STOPS[RUN.stop].band;STOP_SPLIT=!!RUN_STOPS[RUN.stop].split;ENTRY_EDGE=L.entry;EXIT_DIR=L.exitDir;
   mapSeed=L.mapSeed;reset();reset(L.spawn);S._spawn=L.spawn;
@@ -3220,7 +3229,7 @@ function loadRunSave(){try{const d=JSON.parse(localStorage.getItem(RUN_SAVE_KEY)
 function clearRunSave(){try{localStorage.removeItem(RUN_SAVE_KEY)}catch(e){}}
 function resumeRun(){const d=loadRunSave();if(!d)return;
   if(d.v===2&&d.live){try{resumeLive(d);return}catch(e){console.warn('live resume failed, going back to the start of the stop',e)}}
-  RUN={stop:d.run.stop,carry:d.carry,pressure:d.run.pressure||{ids:[],bonus:0},loadout:d.run.loadout||callLoadout(),exit:d.run.exit};
+  RUN={stop:d.run.stop,carry:d.carry,pressure:d.run.pressure||{ids:[],bonus:0},loadout:d.run.loadout||callLoadout(),exit:d.run.exit,stats:d.run.stats||{}};
   menuOpen=false;['mainMenuOverlay','unlocksOverlay','pressureOverlay','loadoutOverlay','settingsOverlay','stopOverlay'].forEach(id=>document.getElementById(id)._hd=true);
   buildStop(d.carry);msg(`Run resumed — back at the start of stop ${RUN.stop+1} of ${RUN_STOPS.length}.`)}
 // Restart (pause menu): a fresh run with the same Pressure (already paid for, so not charged again)
@@ -4573,7 +4582,7 @@ function updateNests(dt){
 }
 // A destroyed nest drops a Dat deposit to collect; Medium ones also kick a charge back into every
 // fabricator, Large ones give up salvage too (free units of a locked kind, or spare drones).
-function nestDestroyed(n){
+function nestDestroyed(n){stat('nests');
   const N=NEST[n.size], amt=Math.round(N.dat*(n.band==='core'?2:n.band==='dense'?1.5:1));
   S.nodes.push({x:n.x,y:n.y,amt,max:amt,found:true});
   burst(n.x,n.y,'#ff5c4d',36,200,0.8);burst(n.x,n.y,C.dat,14,120,0.6);shakeScreen(6,0.35);
@@ -6905,7 +6914,7 @@ function callLineEnd(s,w){const dx=w.x-s.x,dy=w.y-s.y,L=Math.hypot(dx,dy)||1,l=M
 function fireCall(w){const id=callMode,K=CALLDOWNS[id];if(!K){setCallMode(null);return}
   if(K.line&&!S.callStart){if(!inCallRange(w)){note('Out of sight: start it somewhere you can see, or near the Rig or a live Relay');return}S.callStart={x:w.x,y:w.y};note('Now click where the line ends');sfx.click();return}
   if(!K.line&&!inCallRange(w)){note('Out of sight: call it somewhere you can see, or near the Rig or a live Relay');return}
-  if((S.calls[id]||0)>0)S.calls[id]--;else{const p=callPrice(id);if(S.dat<p){note(`${K.name} costs ◆${p}`);setCallMode(null);return}S.dat-=p}
+  if((S.calls[id]||0)>0)S.calls[id]--;else{const p=callPrice(id);if(S.dat<p){note(`${K.name} costs ◆${p}`);setCallMode(null);return}S.dat-=p}stat('calls');
   if(K.line){const s=S.callStart,e=callLineEnd(s,w),T=callDelay(id),r=callR(id),echo=rand()<(S.mods.callEcho||0);
     for(let k=0;k<(echo?2:1);k++)for(let i=0;i<CARPET_N;i++){const f=i/(CARPET_N-1),o=k?r*0.8:0,nx=-(e.y-s.y),ny=e.x-s.x,nl=Math.hypot(nx,ny)||1;
       S.callsIn.push({id,x:s.x+(e.x-s.x)*f+nx/nl*o,y:s.y+(e.y-s.y)*f+ny/nl*o,t:0,T:T+i*CARPET_GAP+k*0.5,r,quiet:i>0||k>0})}
@@ -9307,7 +9316,8 @@ function drawReanimating(c,p){const u=c._u||(c._u={kind:c.type,id:Math.floor(Mat
 function update(dt){
   if(S.over||S.rewardChoice||S.paused)return;
   if(S.tacPause){const ps=520/cam.z*dt;if(keys['w']||keys['arrowup'])cam.y-=ps;if(keys['s']||keys['arrowdown'])cam.y+=ps;if(keys['a']||keys['arrowleft'])cam.x-=ps;if(keys['d']||keys['arrowright'])cam.x+=ps;clampCam();return}
-  S.t+=dt;
+  S.t+=dt;stat('time',dt);
+  {const h=Math.max(0,S.base.hp);if(S._statHp!=null&&h<S._statHp)stat('rigDmg',S._statHp-h);S._statHp=h}
   if(S.shoves)S.shoves=S.shoves.filter(f=>(f.t+=dt)<0.3);
   const B=S.base;
   // camera keys
@@ -9396,6 +9406,7 @@ function update(dt){
       const datEarned=Math.round((v.reward.dat||0)*tierMult);
       const livingEarned=Math.round((v.reward.living||0)*tierMult*S.mods.livingMult);
       S.dat+=datEarned; S.living+=livingEarned; S.condensed+=condensedEarned;
+      stat('veins');stat('dat',datEarned);if(RUN&&!tutorialMap&&tierRank(tier)>tierRank(RUN.stats.best||'Common'))RUN.stats.best=tier;
       burst(v.x,v.y,TIER_COLOR[tier],24,140,0.7);
       if(datEarned){burst(v.x,v.y,C.dat,30,190,0.9);floatText(v.x,v.y-16,'+'+datEarned+' Dat',C.dat);sndAt(v.x,v.y,()=>sfx.gather())}
       if(livingEarned)floatText(v.x,v.y-34,'+'+livingEarned+' Living',C.living);
@@ -9474,9 +9485,11 @@ function update(dt){
   tetherPass(S.builders,BUILDER_SPEED*S.mods.moveSpeedMult,dt);
   debugPass();
   // Sanity hit 0 — the unit snaps and defects to the enemy side
+  const _uc0=S.troops.length+S.harvesters.length+S.builders.length;
   S.troops=S.troops.filter(t=>{if(t.sanity<=0){sndAt(t.x,t.y,()=>sfx.death(t.kind||'troop'));corruptUnit(t,t.kind,t.kind==='grenadier'?'A Grenadier':t.kind==='artillery'?'An Artillery Piece':t.kind==='mech'?'A Mech':t.kind==='rocket'?'A Rocketeer':t.kind==='brawler'?'A Paladin':t.kind==='marksman'?'A Marksman':'A Trooper');S.sel.troops.delete(t.id);return false}return true});
   S.harvesters=S.harvesters.filter(h=>{if(h.sanity<=0){corruptUnit(h,'harvester','A Harvester');S.sel.harv.delete(h.id);return false}return true});
   S.builders=S.builders.filter(bu=>{if(bu.sanity<=0){releaseBuilderClaim(bu);corruptUnit(bu,'builder','A Builder');S.sel.bu.delete(bu.id);return false}return true});
+  stat('lost',_uc0-(S.troops.length+S.harvesters.length+S.builders.length));
 
   // troops (combat only — resource gathering is the harvesters' job). Severed troops still
   // fight and reveal vision — they just do it unpowered while their Sanity drains.
@@ -9916,6 +9929,7 @@ function update(dt){
   S.enemies=S.enemies.filter(e=>{if(e.hp<=0){
     if(e.kind==='nest'){nestDestroyed(e);sndAt(e.x,e.y,()=>sfx.kill());return false}
     if(e.silent)return false;
+    stat('kills');
     if(e.shard==='colossus'){S.nodes.push({x:e.x,y:e.y,amt:COL_DAT,max:COL_DAT,found:true});burst(e.x,e.y,SH_HOT,34,200,0.8);burst(e.x,e.y,'#1a0a0c',26,150,0.9);shakeScreen(6,0.4);sndAt(e.x,e.y,()=>sfx.explode());msg(`Colossus down — it dropped ${COL_DAT} Dat.`);return false}
     if(e.shard==='husk')bruteDeaths.push({x:e.x,y:e.y,husk:true,seed:e.seed});
     if(e.kind==='quaker'){S.nodes.push({x:e.x,y:e.y,amt:QUAKER_DAT,max:QUAKER_DAT,found:true});burst(e.x,e.y,'#c9a46b',26,170,0.7);sndAt(e.x,e.y,()=>sfx.kill());msg(`Quaker down — it dropped ${QUAKER_DAT} Dat.`);return false}
@@ -9963,10 +9977,11 @@ function update(dt){
   S.troops.forEach(t=>{if(t.hp<=0){S.sel.troops.delete(t.id);sndAt(t.x,t.y,()=>sfx.death(t.kind||'troop'));if(t.lastHitBy==='enemy')queueReanimation(t,t.kind||'troop')}});
   S.harvesters.forEach(h=>{if(h.hp<=0){S.sel.harv.delete(h.id);sndAt(h.x,h.y,()=>sfx.death('harvester'));if(h.lastHitBy==='enemy')queueReanimation(h,'harvester')}});
   S.builders.forEach(bu=>{if(bu.hp<=0){S.sel.bu.delete(bu.id);sndAt(bu.x,bu.y,()=>sfx.death('builder'));if(bu.lastHitBy==='enemy')queueReanimation(bu,'builder')}});
+  const _ul0=S.troops.length+S.harvesters.length+S.builders.length;
   S.troops=S.troops.filter(t=>t.hp>0); S.troops.forEach(t=>{if(dist(t,B)<BASE_FOOTPRINT+60&&!S.enemies.some(e=>dist(e,t)<200))t.hp=Math.min(t.maxHp,t.hp+6*dt)});
   S.harvesters=S.harvesters.filter(h=>h.hp>0); S.harvesters.forEach(h=>{if(dist(h,B)<BASE_FOOTPRINT+60&&!S.enemies.some(e=>dist(e,h)<200))h.hp=Math.min(h.maxHp,h.hp+6*dt)});
   S.builders.forEach(bu=>{if(bu.hp<=0)releaseBuilderClaim(bu)});
-  S.builders=S.builders.filter(bu=>bu.hp>0); S.builders.forEach(bu=>{if(dist(bu,B)<BASE_FOOTPRINT+60&&!S.enemies.some(e=>dist(e,bu)<200))bu.hp=Math.min(bu.maxHp,bu.hp+6*dt)});
+  S.builders=S.builders.filter(bu=>bu.hp>0);stat('lost',_ul0-(S.troops.length+S.harvesters.length+S.builders.length)); S.builders.forEach(bu=>{if(dist(bu,B)<BASE_FOOTPRINT+60&&!S.enemies.some(e=>dist(e,bu)<200))bu.hp=Math.min(bu.maxHp,bu.hp+6*dt)});
   // v4: units within the Rig's ring slowly mend (the Rig only — Relays don't do this)
   S.troops.concat(S.harvesters).forEach(u=>{if(u.hp>0&&u.hp<u.maxHp&&dist(u,B)<=UNIT_REGEN_R)u.hp=Math.min(u.maxHp,u.hp+u.maxHp*UNIT_REGEN_PCT*dt)});
   // Dat Crystal shards dropped by dead enemies — any unit walking over one scoops it up straight
@@ -10081,8 +10096,21 @@ function showOverlay(t,s,payoutMult){
   document.getElementById('ovTitle')._tc=t;
   document.getElementById('ovText')._tc=`${s} Banked ${paidOut} Condensed Crystal (total: ${meta.condensedBank})`+
     (livingPaid?` and ${livingPaid} Living Crystal (total: ${meta.livingBank}).`:'.')+(pb>1?` Pressure bonus: +${Math.round((pb-1)*100)}%.`:'');
+  renderRunStats(paidOut,livingPaid);
   document.getElementById('overlay')._hd=false;
 }
+function renderRunStats(paid,living){const el=document.getElementById('ovStats');if(!RUN||tutorialMap){el._hd=true;return}
+  const st=RUN.stats||{},n=v=>Math.round(v||0).toLocaleString(),best=st.best;
+  const T=[[`${RUN.stop+1} / ${RUN_STOPS.length}`,'Stop reached',S.over==='win'?'Run complete':RUN_STOPS[RUN.stop].band==='core'?'The Core':RUN_STOPS[RUN.stop].band==='dense'?'Dense Field':'The Rim'],
+    [fmtT(st.time||0),'Time'],
+    [n(st.veins),'Veins drained',best?`best: <b style="display:inline;font-size:11px;color:${CARD_TIER_COLOR[best]}">${tierName(best)}</b>`:''],
+    [n(st.dat),'Dat mined'],
+    [n(st.kills),'Enemies killed',st.nests?`${n(st.nests)} nest${st.nests===1?'':'s'} broken`:''],
+    [n(st.lost),'Units lost'],
+    [n((S.cards||[]).length),'Cards taken',(st.seams||st.overdrills)?`${n(st.seams)} seam${st.seams===1?'':'s'} · ${n(st.overdrills)} overdrill${st.overdrills===1?'':'s'}`:''],
+    [n(st.calls),'Call-downs used',st.rigDmg?`Rig took ${n(st.rigDmg)} damage`:''],
+  ];
+  el.innerHTML=T.map(([v,l,sub])=>`<div class="rs"><b>${v}</b><span>${l}</span>${sub?`<small>${sub}</small>`:''}</div>`).join('');el._hd=false}
 const TIER_ORDER=Object.keys(TIER_MULT);
 function shuffled(arr){const a=[...arr];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
 // One guaranteed card at the vein's drained tier, plus two "bonus" cards randomly drawn from the
