@@ -14,6 +14,8 @@ import argparse, base64, io, json, os, re, sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DIRS = ['north', 'south', 'east', 'west', 'northeast', 'northwest', 'southeast', 'southwest', 'near side']
 SPOKEN_DIR = {'northeast': 'north-east', 'northwest': 'north-west', 'southeast': 'south-east', 'southwest': 'south-west'}
+# v4 grade names: the clip ids keep the old tier keys, Vesper says the crystal grade (TIER_NAME in the game)
+TIER_SAID = {'common': 'Raw', 'rare': 'Clear', 'epic': 'Pure', 'legendary': 'Flawless', 'hive': 'Blooded'}
 VARS = {'dir': DIRS, 'tier': ['common', 'rare', 'epic', 'legendary', 'hive'], 'side': ['left', 'right']}
 
 
@@ -33,7 +35,7 @@ def read_lines():
                 slot = re.search(r'\{(dir|tier|side)\}', line)
                 if slot:  # one clip per fill-in, as the game's VOX_DIRS / VOX_VARS name them
                     for d in VARS[slot.group(1)]:
-                        said = SPOKEN_DIR.get(d, d) if slot.group(1) == 'dir' else d.capitalize() if slot.group(1) == 'tier' else d
+                        said = SPOKEN_DIR.get(d, d) if slot.group(1) == 'dir' else TIER_SAID[d] if slot.group(1) == 'tier' else d
                         clips[f'{base}:{d}'] = line.replace(slot.group(0), said)
                 else:
                     clips[base] = line

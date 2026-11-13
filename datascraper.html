@@ -11655,7 +11655,7 @@ const VOX_TUT={
   'Pin all three':"Pin the other two hotspots. Three Stabilizers make a steering triangle.",
   'Steer the needle':"Drag the gold weight on the pad to steer the needle.",
   'The price of steering':"Careful. Leaning loads those Stabilizers, and the enemy notices.",
-  'Watch the yield':"Your pay tier floats over me while we drill. If it turns amber, steer back before it settles.",
+  'Watch the yield':"Your pay grade floats over me while we drill. If it turns amber, steer back before it settles.",
   'Call in support':"I've got two call-downs for you. Press C, pick one, and drop it on the next wave.",
   'Tap the seam':"See that cyan seam? Steer into it and hold for four seconds, then come back to your band.",
   'Hold the line':"Now hold the line until the vein runs dry.",
@@ -11678,7 +11678,7 @@ const VOX_DIRS=['north','south','east','west','northeast','northwest','southeast
 const voxRec=()=>!VOX.voice;
 // the recorded pack: base64 MP3 per line id, fetched once the announcer is on, decoded on first use
 const VOXP={state:'none',clips:null,bufs:{},chain:null};
-const VOX_PACK_V=9; // bump whenever vox/vesper.json is re-packed, so browsers don't keep the old one cached
+const VOX_PACK_V=10; // bump whenever vox/vesper.json is re-packed, so browsers don't keep the old one cached
 function voxLoadPack(){if(VOXP.state!=='none'||!voxRec())return;VOXP.state='loading';
   fetch('vox/vesper.json?v='+VOX_PACK_V).then(r=>r.ok?r.json():Promise.reject(r.status)).then(j=>{VOXP.clips=j.clips;VOXP.state='ready'}).catch(e=>{VOXP.state='failed';console.info('announcer: no voice pack, using the browser voice',e)})}
 function voxVoices(){return voxSynth?voxSynth.getVoices().filter(v=>/^en/i.test(v.lang)):[]}
