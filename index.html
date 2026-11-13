@@ -3129,11 +3129,69 @@ function pressureNote(){return RUN&&RUN.pressure&&RUN.pressure.ids.length?` Pres
 // Pressure and Loadout, and everything carried into the stop (cards, Dat, units, call-downs, kits).
 // Resume (main menu) rebuilds that stop from there. It's cleared when the run ends.
 const RUN_SAVE_KEY='astroscraper_v4_run';
-function saveRun(carry){if(!RUN||tutorialMap)return;try{localStorage.setItem(RUN_SAVE_KEY,JSON.stringify({v:1,t:Date.now(),run:{stop:RUN.stop,pressure:RUN.pressure,loadout:RUN.loadout},carry:carry||null}))}catch(e){}}
-function loadRunSave(){try{const d=JSON.parse(localStorage.getItem(RUN_SAVE_KEY)||'null');if(!d||d.v!==1||!d.run||!(d.run.stop>=0&&d.run.stop<RUN_STOPS.length))return null;return d}catch(e){return null}}
+function saveRun(carry){if(!RUN||tutorialMap)return;try{localStorage.setItem(RUN_SAVE_KEY,JSON.stringify({v:1,t:Date.now(),run:{stop:RUN.stop,pressure:RUN.pressure,loadout:RUN.loadout,exit:RUN.exit},carry:carry||null}))}catch(e){}}
+// v4: the live save — the whole stop as it stands, so Resume puts you back mid-fight. The map itself is
+// built again from its seed (same spawn, same stop directions), then everything that changes in play is
+// laid back over it: units, enemies, veins and the drill, walls, Relays, Turrets, Stabilizers, nests,
+// wrecks, Dat, cards, call-downs, the explored fog and the camera. Big things that only depend on the
+// seed (the crack network, the glass geometry) aren't stored, nor are effects and cached pictures.
+// Taken every LIVE_SAVE_T seconds of play and whenever the window is closed or hidden.
+const LIVE_SAVE_T=30;
+const SNAP_SKIP=new Set(['crackNet','crackDepth','crackId','glass','glassB','glassCov','glassFine','mapSeed','mapType','mapLayout','routeFixes',
+  'particles','floaters','tracers','datFx','callFx','smears','surgeWaves','pingRing','shake','sel','rewardChoice','unitSig','landing']);
+const SNAP_SKIP_DEEP=new Set(['pd','pi']); // a vein's pulse index: rebuilt from the crack network
+function b64enc(u8){let s='';for(let i=0;i<u8.length;i+=0x8000)s+=String.fromCharCode.apply(null,u8.subarray(i,i+0x8000));return btoa(s)}
+function b64dec(str){const s=atob(str),u=new Uint8Array(s.length);for(let i=0;i<s.length;i++)u[i]=s.charCodeAt(i);return u}
+// a graph of plain objects, arrays, Maps, Sets and typed arrays, with shared references and loops kept
+function snapEncode(root){const ids=new Map(),nodes=[],U={$u:1};
+  const enc=(v,key)=>{if(v===undefined)return U;if(v===null)return null;const t=typeof v;
+    if(t==='number')return Number.isFinite(v)?v:{$n:String(v)};if(t==='string'||t==='boolean')return v;if(t!=='object')return U;
+    if(ids.has(v))return {$r:ids.get(v)};
+    if(ArrayBuffer.isView(v)){const id=nodes.length;ids.set(v,id);nodes.push({ta:v.constructor.name,b:b64enc(new Uint8Array(v.buffer,v.byteOffset,v.byteLength))});return {$r:id}}
+    let node;
+    if(Array.isArray(v))node={a:[]};else if(v instanceof Map)node={m:[]};else if(v instanceof Set)node={st:[]};
+    else{const pr=Object.getPrototypeOf(v);if(pr!==Object.prototype&&pr!==null)return U;node={o:{}}}
+    const id=nodes.length;ids.set(v,id);nodes.push(node);
+    if(node.a)v.forEach(x=>{const e=enc(x);node.a.push(e===U?null:e)});
+    else if(node.m)v.forEach((x,k)=>{const ek=enc(k),ev=enc(x);if(ek!==U&&ev!==U)node.m.push([ek,ev])});
+    else if(node.st)v.forEach(x=>{const e=enc(x);if(e!==U)node.st.push(e)});
+    else for(const k of Object.keys(v)){if(k[0]==='_'||SNAP_SKIP_DEEP.has(k))continue;const e=enc(v[k]);if(e!==U)node.o[k]=e}
+    return {$r:id}};
+  const r=enc(root);return {root:r,nodes}}
+function snapDecode(d){const objs=d.nodes.map(n=>n.a?[]:n.m?new Map():n.st?new Set():n.ta?new (window[n.ta]||Uint8Array)(b64dec(n.b).buffer):{});
+  const dec=v=>{if(v===null||typeof v!=='object')return v;if(v.$r!=null)return objs[v.$r];if(v.$n!=null)return Number(v.$n);return undefined};
+  d.nodes.forEach((n,i)=>{const o=objs[i];if(n.a)n.a.forEach(x=>o.push(dec(x)));else if(n.m)n.m.forEach(([k,x])=>o.set(dec(k),dec(x)));else if(n.st)n.st.forEach(x=>o.add(dec(x)));else if(n.o)for(const k in n.o)o[k]=dec(n.o[k])});
+  return dec(d.root)}
+let liveSaveAt=0;
+function liveSave(){if(!RUN||tutorialMap||!S||S.over||S.rewardChoice||(S.landing&&!S.landing.touch)||menuOpen||TPAINT.loading||!S._spawn)return;
+  try{const top={};for(const k of Object.keys(S)){if(k[0]==='_'||SNAP_SKIP.has(k))continue;top[k]=S[k]}
+    let fog=null;try{fog=fogC.toDataURL()}catch(e){}
+    const d={v:2,t:Date.now(),run:{stop:RUN.stop,pressure:RUN.pressure,loadout:RUN.loadout,exit:RUN.exit},carry:RUN.stopCarry||null,
+      live:{mapSeed,spawn:S._spawn,entry:ENTRY_EDGE,exitDir:EXIT_DIR,cam:{x:cam.x,y:cam.y,z:cam.z},fog,snap:snapEncode(top)}};
+    localStorage.setItem(RUN_SAVE_KEY,JSON.stringify(d));liveSaveAt=performance.now()}catch(e){console.warn('live save failed',e)}}
+function liveSaveTick(){if(performance.now()-liveSaveAt>LIVE_SAVE_T*1000)liveSave()}
+addEventListener('pagehide',liveSave);addEventListener('beforeunload',liveSave);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')liveSave()});
+// build the same stop again and lay the saved state over it
+function resumeLive(d){const L=d.live;
+  RUN={stop:d.run.stop,carry:null,pressure:d.run.pressure||{ids:[],bonus:0},loadout:d.run.loadout||callLoadout(),exit:d.run.exit,stopCarry:d.carry||null};
+  menuOpen=false;['mainMenuOverlay','unlocksOverlay','pressureOverlay','loadoutOverlay','settingsOverlay','stopOverlay'].forEach(id=>document.getElementById(id)._hd=true);
+  STOP_BAND=RUN_STOPS[RUN.stop].band;STOP_SPLIT=!!RUN_STOPS[RUN.stop].split;ENTRY_EDGE=L.entry;EXIT_DIR=L.exitDir;
+  mapSeed=L.mapSeed;reset();reset(L.spawn);S._spawn=L.spawn;
+  const top=snapDecode(L.snap);for(const k in top)S[k]=top[k];
+  // what's rebuilt rather than stored
+  S.veins.forEach(v=>{const src={x:v.mine.x,y:v.mine.y};indexPulse(src,v.contract?VEIN_GLOW_R:Math.max(v.reach||PULSE_REACH,VEIN_GLOW_R));v.pd=src.pd;v.pi=src.pi});
+  S.landing=null;S.paused=true;document.getElementById('pauseOverlay')._hd=false;
+  buildMode=null;callMode=null;probeMode=false;pingMode=false;
+  if(L.cam){cam.x=L.cam.x;cam.y=L.cam.y;cam.z=L.cam.z}
+  if(L.fog){const im=new Image();im.onload=()=>{fogX.save();fogX.globalCompositeOperation='source-over';fogX.clearRect(0,0,fogC.width,fogC.height);fogX.drawImage(im,0,0,fogC.width,fogC.height);fogX.restore()};im.src=L.fog}
+  updateBuildBar();liveSaveAt=performance.now();
+  msg(`Run resumed where you left off — stop ${RUN.stop+1} of ${RUN_STOPS.length}. Paused: press Space when you're ready.`)}
+function loadRunSave(){try{const d=JSON.parse(localStorage.getItem(RUN_SAVE_KEY)||'null');if(!d||(d.v!==1&&d.v!==2)||!d.run||!(d.run.stop>=0&&d.run.stop<RUN_STOPS.length))return null;return d}catch(e){return null}}
 function clearRunSave(){try{localStorage.removeItem(RUN_SAVE_KEY)}catch(e){}}
 function resumeRun(){const d=loadRunSave();if(!d)return;
-  RUN={stop:d.run.stop,carry:d.carry,pressure:d.run.pressure||{ids:[],bonus:0},loadout:d.run.loadout||callLoadout()};
+  if(d.v===2&&d.live){try{resumeLive(d);return}catch(e){console.warn('live resume failed, going back to the start of the stop',e)}}
+  RUN={stop:d.run.stop,carry:d.carry,pressure:d.run.pressure||{ids:[],bonus:0},loadout:d.run.loadout||callLoadout(),exit:d.run.exit};
   menuOpen=false;['mainMenuOverlay','unlocksOverlay','pressureOverlay','loadoutOverlay','settingsOverlay','stopOverlay'].forEach(id=>document.getElementById(id)._hd=true);
   buildStop(d.carry);msg(`Run resumed — back at the start of stop ${RUN.stop+1} of ${RUN_STOPS.length}.`)}
 // Restart (pause menu): a fresh run with the same Pressure (already paid for, so not charged again)
@@ -3146,7 +3204,7 @@ function buildStop(carry){
   mapSeed=newMapSeed();
   reset();
   const spawn=pickSpawn();
-  reset(spawn);
+  reset(spawn);S._spawn=spawn;RUN.stopCarry=carry||null;
   applyCarry(carry);
   // a fresh run: the loadout comes charged, and the Rig lands (later stops start with it already down)
   if(!carry){runCallStart().forEach(id=>grantCall(id,CALL_LOADOUT_CHARGES));beginLanding()}
@@ -3382,7 +3440,7 @@ function squadFireRateMult(){const t=meta.upgrades.squadFireRate||0;return t>0?1
 function pickupRangeMult(){const t=meta.upgrades.pickupRange||0;return t>0?1+META_UPGRADES[4].pct[t-1]/100:1}
 function refreshMenuMeta(){
   {const d=loadRunSave(),rb=document.getElementById('resumeRunBtn'),pb=document.getElementById('playBtn');rb._hd=!d;
-   if(d)rb._tc=`Resume run — stop ${d.run.stop+1} of ${RUN_STOPS.length}`;pb._tc=d?'New run':'Play'}
+   if(d)rb._tc=`Resume run — stop ${d.run.stop+1} of ${RUN_STOPS.length}`+(d.v===2&&d.live?'':' (from its start)');pb._tc=d?'New run':'Play'}
   document.getElementById('metaLiving')._tc=meta.livingBank;
   document.getElementById('metaCondensed')._tc=meta.condensedBank;
   {const ob=document.getElementById('openLoadoutBtn');if(ob)try{ob._tc='Loadout: '+callLoadout().map(id=>CALLDOWNS[id].icon).join(' ')}catch(e){}}
@@ -3582,6 +3640,7 @@ document.getElementById('recordingToggleBtn').onclick=()=>setRecordingConsent(!m
 [['volMusic','music'],['volAmb','amb'],['volSfx','sfx']].forEach(([id,k])=>{const el=document.getElementById(id);el.value=Math.round(AUD[k]*100);el.oninput=()=>{startAudioEngine();setAudVol(k,el.value/100);if(k==='sfx'&&sfxReady('volTest',0.15))tone(660,0.08,'triangle',0.06)}});
 // Opens the main menu again after a run ends — Play then rolls a fresh map.
 function openMainMenu(){
+  if(RUN&&!S.over)liveSave(); // (leaving a run for the menu keeps it resumable as it stands)
   endTutorialState();
   RUN=null;STOP_BAND=null;STOP_SPLIT=false;document.getElementById('stopOverlay')._hd=true;
   menuOpen=true;
@@ -11268,7 +11327,7 @@ function perfTick(ts,gap,up,dr){
 function frame(ts){requestAnimationFrame(frame); // asked for first, so one bad frame can't stop the game for good
   const gap=ts-lastT,dt=Math.min(0.05,gap/1000||0);lastT=ts;document.body.classList.toggle('inMenu',menuOpen);
   if(TPAINT.loading&&performance.now()-TPAINT.loadT0>25000)showLoading(false);
-  const a=performance.now();if(!TPAINT.loading&&S&&S.landing&&!S.landing.touch&&!menuOpen&&!S.paused)landingTick(dt);else if(!TPAINT.loading){update(dt);tutTick();if(S&&S.landing&&S.landing.touch&&!menuOpen&&!S.paused)emergeTick(dt)}const b=performance.now();if(cv.width>0&&cv.height>0)draw();perfTick(ts,gap||0,b-a,performance.now()-b)}
+  const a=performance.now();if(RUN&&!menuOpen)liveSaveTick();if(!TPAINT.loading&&S&&S.landing&&!S.landing.touch&&!menuOpen&&!S.paused)landingTick(dt);else if(!TPAINT.loading){update(dt);tutTick();if(S&&S.landing&&S.landing.touch&&!menuOpen&&!S.paused)emergeTick(dt)}const b=performance.now();if(cv.width>0&&cv.height>0)draw();perfTick(ts,gap||0,b-a,performance.now()-b)}
 // ---------- voice announcer: VESPER (prototype, off by default) ----------
 // The Rig's onboard operations intelligence. Her voice is pre-rendered clips (ElevenLabs voice
 // "Astrotana", Eleven v4: tools/vox_render.py writes the script from the lines below and packs the
