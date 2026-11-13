@@ -6322,7 +6322,7 @@ cv.addEventListener('pointerup',e=>{
     const t=S.troops.find(t=>dist(t,w)<t.r+8);
     const h=!t&&S.harvesters.find(h=>dist(h,w)<h.r+8);
     const bu=!t&&!h&&S.builders.find(bu=>bu.state!=='dock'&&dist(bu,w)<bu.r+8);
-    const hitBase=!t&&!h&&!bu&&dist(S.base,w)<S.base.r+10;
+    const hitBase=!t&&!h&&!bu&&rigHitScore(w)<1;
     if(isTouch){
       const now=performance.now();
       const isDouble=lastTap&&now-lastTap.t<350&&Math.hypot(e.clientX-lastTap.x,e.clientY-lastTap.y)<24;
@@ -7182,12 +7182,17 @@ const GUARD_UNIT_NAMES={marksman:'Marksman',troop:'Trooper',grenadier:'Grenadier
 // The friendly thing under the cursor, if any — whichever the click is most squarely on (distance
 // relative to its own size), so clicking the Rig's body picks the Rig even with a Builder
 // parked on it, while clicking right on that Builder still picks the Builder.
+// how far a point is from the Rig, relative to its size: its footprint, or anywhere up the tower
+// (which rises up the screen from its foot), so clicking any part of its body picks it. Under 1 is a hit.
+function rigHitScore(w){const B=S.base,top=B.y-RIG_BODY_TOP-(B._hov||0)*SK_TILT,y=Math.max(top,Math.min(B.y,w.y));
+  return Math.min(dist(B,w)/(B.r+10),Math.hypot(w.x-B.x,w.y-y)/RIG_BODY_HW)}
+const RIG_BODY_TOP=96,RIG_BODY_HW=20; // the drawn tower: top above its foot, half its width (with a little slack)
 function friendlyAt(w){
   let best=null,bs=1;
   const consider=(o,r)=>{const s=dist(o,w)/r;if(s<bs){bs=s;best=o}};
   [S.troops,S.harvesters,S.builders].forEach(a=>a.forEach(u=>consider(u,u.r+6)));
   [S.turrets,S.relays,S.depots].forEach(a=>a.forEach(o=>{if(o.built)consider(o,26)}));
-  consider(S.base,S.base.r+10);
+  {const sc=rigHitScore(w);if(sc<bs){bs=sc;best=S.base}}
   return best;
 }
 function guardName(g){
