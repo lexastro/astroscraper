@@ -327,6 +327,25 @@ body.lowGfx #fogGrain{display:none}
 .unlockCard.unlocked{border-color:var(--ally)}
 .unlockCard.unlocked .ucIcon{color:var(--ally)}
 .shopSection{display:flex;flex-direction:column;align-items:center;gap:10px}
+/* v4: the shop's tabs, along the top; only the open tab's section shows */
+.shopTabs{position:sticky;top:-24px;z-index:2;display:flex;flex-wrap:wrap;justify-content:center;gap:6px;padding:8px;margin:-4px 0 4px;background:rgba(5,7,10,.92);border-bottom:1px solid var(--line);width:min(920px,100%)}
+.overlay .shopTabs button{background:var(--panel2);color:var(--fg);border:1px solid var(--line);padding:8px 16px}
+.overlay .shopTabs button.on{background:var(--accent);color:#1a1200;border-color:var(--accent)}
+.shopSection[data-sec]:not(.on){display:none}
+/* v4: the Cards tab — every card in the game, by grade; ones you haven't picked in a run yet are dimmed */
+.cardTierHead{font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;margin:14px 0 8px}
+.cardShopGrid{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;max-width:960px}
+.cardShopItem{display:flex;flex-direction:column;gap:6px;align-items:stretch;width:204px}
+.overlay .cardShopItem button.rewardCard{cursor:default;transform:none}
+.overlay .cardShopItem button.rewardCard:hover{transform:none}
+.cardShopItem.locked button.rewardCard{filter:grayscale(1) brightness(.55)}
+.cardShopItem .csFoot{display:flex;flex-direction:column;gap:5px;align-items:center;font-size:11px;color:var(--muted)}
+.cardShopItem .csPips{display:flex;gap:4px}.cardShopItem .csPips i{width:14px;height:5px;border-radius:2px;background:var(--line)}.cardShopItem .csPips i.on{background:var(--accent)}
+.cardShopItem .csNext{font-size:11px;color:#c9d9bd;line-height:1.35}
+.overlay .cardShopItem .csFoot button{width:100%;padding:7px 10px}
+.cardShopItem.owned button.rewardCard{box-shadow:0 0 0 2px var(--ally),0 6px 16px rgba(0,0,0,.45)}
+.loadCard{width:170px}
+.loadCard .ucName{font-size:13px}
 .shopHeader{display:flex;align-items:baseline;gap:14px}
 .shopHeader b{font-size:13px;color:var(--fg);text-transform:uppercase;letter-spacing:.06em}
 .shopHeader .metaRow{margin:0}
@@ -823,14 +842,7 @@ async function run(d){
 
 <div class="overlay" id="mainMenuOverlay">
   <h1>Astroscraper</h1>
-  <button id="resumeRunBtn" hidden>Resume run</button>
   <button id="playBtn">Play</button>
-  <div class="menuMeta">
-    <div class="metaRow"><span class="crystalIcon living">❖</span><span class="v" id="metaLiving">0</span><span class="crystalIcon condensed">⬢</span><span class="v" id="metaCondensed">0</span></div>
-    <button id="openUnlocksBtn" class="secondary">Unlocks</button>
-    <button id="openPressureBtn" class="secondary">Pressure</button>
-    <button id="openLoadoutBtn" class="secondary">Loadout</button>
-  </div>
   <button id="tutorialBtn" class="secondary">Tutorial</button>
   <button id="settingsBtn" class="secondary">Settings</button>
   <!-- debug only (shown while debug mode is on: the ` key, here or in a run): copy the save out to a file, or load one -->
@@ -845,21 +857,41 @@ async function run(d){
   </div>
 </div>
 
+<!-- v4: after Play — get ready for a run: resume or start one, set the loadout, shop for upgrades -->
+<div class="overlay" id="prepOverlay" hidden>
+  <h1>Expedition</h1>
+  <div class="metaRow"><span class="crystalIcon living">❖</span><span class="v" id="metaLiving">0</span><span class="crystalIcon condensed">⬢</span><span class="v" id="metaCondensed">0</span></div>
+  <button id="resumeRunBtn" hidden>Resume run</button>
+  <button id="startRunBtn">Start run</button>
+  <div class="menuMeta">
+    <button id="openLoadoutBtn" class="secondary">Loadout</button>
+    <button id="openUnlocksBtn" class="secondary">Upgrades</button>
+    <button id="openPressureBtn" class="secondary" hidden>Pressure</button>
+  </div>
+  <button id="prepBackBtn" class="secondary">Back</button>
+</div>
+
 <div class="overlay" id="unlocksOverlay" hidden>
-  <h1>Unlocks</h1>
-  <div class="shopSection">
+  <h1>Upgrades</h1>
+  <div class="shopTabs" id="shopTabs"><button data-tab="cards">Cards</button><button data-tab="units">Units</button><button data-tab="upgrades">Upgrades</button><button data-tab="calls">Call-downs</button></div>
+  <div class="shopSection" data-sec="cards">
+    <div class="shopHeader"><b>Cards</b><span class="metaRow"><span class="crystalIcon living">❖</span><span class="v" id="cardShopLiving">0</span><span class="crystalIcon condensed">⬢</span><span class="v" id="cardShopCondensed">0</span></span></div>
+    <p>Every card in the game. Pick one from a reward during a run to unlock it here, then buy it to put it in your starting loadout and upgrade it. Flawless cards cost Living Crystal; the rest, and every upgrade, cost Condensed. Upgrades count whenever the card is in play.</p>
+    <div id="cardShop"></div>
+  </div>
+  <div class="shopSection" data-sec="units">
     <div class="shopHeader"><b>Unit Unlocks</b><span class="metaRow"><span class="crystalIcon living">❖</span><span class="v" id="unlocksLiving">0</span></span></div>
     <p>Spend Living Crystal — the hidden vein's reward — to permanently unlock a unit for every future run.</p>
     <div class="unlockCards" id="unlockCards"></div>
   </div>
-  <div class="shopSection">
+  <div class="shopSection" data-sec="upgrades">
     <div class="shopHeader"><b>Upgrades</b><span class="metaRow"><span class="crystalIcon condensed">⬢</span><span class="v" id="upgradesCondensed">0</span></span></div>
     <p>Spend Condensed Crystal on permanent upgrades — some can be bought more than once, each time pricier than the last.</p>
     <div class="unlockCards" id="upgradeCards"></div>
   </div>
-  <div class="shopSection">
+  <div class="shopSection" data-sec="calls">
     <div class="shopHeader"><b>Call-downs</b><span class="metaRow"><span class="crystalIcon condensed">⬢</span><span class="v" id="callShopCondensed">0</span></span></div>
-    <p>Spend Condensed Crystal to own a call-down for good. Pick the two you start each run with under Loadout on the main menu.</p>
+    <p>Spend Condensed Crystal to own a call-down for good. Pick the two you start each run with under Loadout.</p>
     <div class="unlockCards" id="callShopCards"></div>
   </div>
   <button id="unlocksBackBtn" class="secondary">Back</button>
@@ -869,9 +901,16 @@ async function run(d){
   <h1>Loadout</h1>
   <div class="shopSection">
     <div class="shopHeader"><b>Starting call-downs</b></div>
-    <p>Pick the two call-downs every run starts with. Buy more in Unlocks; the rest can still turn up as cards and wreck finds during a run.</p>
+    <p>Pick the two call-downs every run starts with. Buy more under Upgrades; the rest can still turn up as cards and wreck finds during a run.</p>
     <div class="unlockCards" id="loadoutCards"></div>
     <p id="loadoutSummary"></p>
+  </div>
+  <div class="shopSection">
+    <div class="shopHeader"><b>Starting cards</b></div>
+    <p id="loadCardIntro"></p>
+    <div class="unlockCards" id="loadCardList"></div>
+    <p id="loadCardSummary"></p>
+    <button id="cardSlotBtn" class="secondary"></button>
   </div>
   <button id="loadoutBackBtn" class="secondary">Back</button>
 </div>
@@ -1501,6 +1540,7 @@ let autoBuy=false;try{autoBuy=localStorage.getItem(AUTOBUY_KEY)==='1'}catch(e){}
 // v4: PRESSURE — before a run you can pay Condensed Crystal to make it harder; whatever you bank at the
 // end of that run (Condensed and Living Crystal) is multiplied by 1 + the sum of the bonuses picked.
 // The cost is paid when the run starts and isn't refunded, win or lose. Your picks are remembered.
+const PRESSURE_ON=false;
 const PRESSURE=[
   {id:'nests',name:'Hardened Nests',icon:'◉',cost:6,bonus:0.15,desc:'Every nest and brood mound has 50% more health.'},
   {id:'tide',name:'Swarm Tide',icon:'≋',cost:6,bonus:0.15,desc:'Drilling waves are 30% bigger.'},
@@ -1509,6 +1549,7 @@ const PRESSURE=[
   {id:'lean',name:'Lean Start',icon:'◇',cost:4,bonus:0.1,get desc(){return `Start with ${RUN_START_DAT_LEAN} Dat, 4 Troopers and no Paladins (instead of ${RUN_START_DAT} Dat, 6 Troopers and 8 Paladins).`}},
 ];
 const ARTY_UNLOCK_COST=2, GREN_UNLOCK_COST=1, MECH_UNLOCK_COST=1, ROCKET_UNLOCK_COST=1, PODT_UNLOCK_COST=3;
+const strs=a=>Array.isArray(a)?a.filter(x=>typeof x==='string'):[];
 function loadMeta(){
   try{
     const raw=localStorage.getItem(META_KEY);
@@ -1524,11 +1565,14 @@ function loadMeta(){
         upgrades:Object.fromEntries(Object.entries(mu).map(([k,v])=>[k,v|0])),
         recordingConsent:m.recordingConsent===true?true:m.recordingConsent===false?false:undefined,
         // v4: call-downs bought in the shop, and the two picked to start every run with (checked against CALLDOWNS in callLoadout)
-        calls:Array.isArray(m.calls)?m.calls.filter(x=>typeof x==='string'):[],callLoadout:Array.isArray(m.callLoadout)?m.callLoadout.filter(x=>typeof x==='string').slice(0,2):[]};
+        calls:Array.isArray(m.calls)?m.calls.filter(x=>typeof x==='string'):[],callLoadout:Array.isArray(m.callLoadout)?m.callLoadout.filter(x=>typeof x==='string').slice(0,2):[],
+        // v4: the card shop — cards picked at least once in a run (cardSeen), bought (cardOwn), their upgrade tiers (cardLv),
+        // the ones every run starts with (cardLoadout) and whether the third starting slot is bought (cardSlot3)
+        cardSeen:strs(m.cardSeen),cardOwn:strs(m.cardOwn),cardLv:Object.fromEntries(Object.entries(m.cardLv||{}).map(([k,v])=>[k,v|0])),cardLoadout:strs(m.cardLoadout),cardSlot3:!!m.cardSlot3};
     }
   }catch(e){}
   return {condensedBank:0,livingBank:0,unlockArtillery:false,unlockGrenadier:false,unlockMech:false,unlockRocket:false,unlockPodTurret:false,pressure:[],
-    upgrades:{bastionHp:0,unitHp:0,pingRange:0},recordingConsent:undefined,calls:[],callLoadout:[]};
+    upgrades:{bastionHp:0,unitHp:0,pingRange:0},recordingConsent:undefined,calls:[],callLoadout:[],cardSeen:[],cardOwn:[],cardLv:{},cardLoadout:[],cardSlot3:false};
 }
 function saveMeta(){try{localStorage.setItem(META_KEY,JSON.stringify(meta))}catch(e){}}
 let meta=loadMeta();
@@ -1873,23 +1917,31 @@ function drawFieldRelay(t){const st=t.moving?Math.sin(S.t*6):0;ctx.save();ctx.tr
   rP([[-7,-7],[7,-7],[8,6],[-8,6]],'#9fb6d0');rLimb([[0,2],[0,10]],1.6,'#8d9aa8');rO(0,10,3,'#c3ccd6');rP([[-5,8.6],[5,8.6],[5,10],[-5,10]],'#6f7b88');rO(0,-2,3,'#7bd389');
   ctx.restore()}
 
+// v4: CARD UPGRADES — a card bought in the shop (see the Cards tab) can be upgraded up to CARD_UP_MAX tiers
+// with Condensed Crystal; cards marked up:1 grow by CARD_UP_STEP of their own bonus per tier (a few use a
+// smaller step), and counts by a set amount. The tier counts whenever the card is in play: picked from a
+// reward or in the starting loadout. Cards with nothing to scale have no tiers.
+const CARD_UP_STEP=0.25, CARD_UP_MAX=3;
+const cardLv=id=>Math.min(CARD_UP_MAX,(typeof meta!=='undefined'&&meta.cardLv&&meta.cardLv[id])|0);
+const upPct=(id,p,step=CARD_UP_STEP)=>Math.round(p*(1+step*cardLv(id))*10)/10;
+const upN=(id,n,per)=>n+per*cardLv(id);
 function callCard(id){return {id:'call_'+id,get name(){return 'Call-down: '+CALLDOWNS[id].name},get desc(){return `${CALLDOWNS[id].desc}<span class="rcSwap">Adds it to your call-down menu for the run, with ${CALL_CARD_N} free charges.</span>`},has:()=>CALLDOWNS[id].unlocked(),apply:()=>unlockCall(id)}}
 const UPGRADES={
   Common:[
-    {id:'dmg1',name:'Battle Drills I',desc:'Trooper damage +10%.',apply:()=>{S.mods.troopDmgMult*=1.1}},
-    {id:'grenrate1',name:'Lubed Tubes I',desc:'Grenadier fire rate +10%.',apply:()=>{S.mods.grenFireRateMult*=1.1}},
-    {id:'grensplash1',name:'Blast Power I',desc:'Explosive blast radius +10%.',apply:()=>{S.mods.grenSplashMult*=1.1}},
-    {id:'vis1',name:"Surveyor's Eye",desc:'Vision radius +20% for every unit.',apply:()=>{S.mods.visionMult*=1.2}},
-    {id:'drones1',name:'Spare Drones',desc:'+2 repair drones join the swarm.',apply:()=>{addDrones(2)}},
+    {id:'dmg1',name:'Battle Drills I',up:1,get desc(){return `Trooper damage +${upPct('dmg1',10)}%.`},apply:()=>{S.mods.troopDmgMult*=1+upPct('dmg1',10)/100}},
+    {id:'grenrate1',name:'Lubed Tubes I',up:1,get desc(){return `Grenadier fire rate +${upPct('grenrate1',10)}%.`},apply:()=>{S.mods.grenFireRateMult*=1+upPct('grenrate1',10)/100}},
+    {id:'grensplash1',name:'Blast Power I',up:1,get desc(){return `Explosive blast radius +${upPct('grensplash1',10)}%.`},apply:()=>{S.mods.grenSplashMult*=1+upPct('grensplash1',10)/100}},
+    {id:'vis1',name:"Surveyor's Eye",up:1,get desc(){return `Vision radius +${upPct('vis1',20)}% for every unit.`},apply:()=>{S.mods.visionMult*=1+upPct('vis1',20)/100}},
+    {id:'drones1',name:'Spare Drones',up:1,get desc(){return `+${upN('drones1',2,1)} repair drones join the swarm.`},apply:()=>{addDrones(upN('drones1',2,1))}},
   ],
   Rare:[
-    {id:'swarm2',name:'Additional Swarm',desc:'A whole extra repair swarm: +4 repair drones.',apply:()=>{addDrones(4)}},
-    {id:'dmg2',name:'Battle Drills II',desc:'Trooper damage +20%.',apply:()=>{S.mods.troopDmgMult*=1.2}},
-    {id:'grenrate2',name:'Lubed Tubes II',desc:'Grenadier fire rate +20%.',apply:()=>{S.mods.grenFireRateMult*=1.2}},
-    {id:'grensplash2',name:'Blast Power II',desc:'Explosive blast radius +20%.',apply:()=>{S.mods.grenSplashMult*=1.2}},
-    {id:'tol1',name:'Signal Boost',desc:'Wireless tether range +35% (Rig & Relays).',apply:()=>{S.mods.relayTolMult*=1.35}},
-    {id:'cable1',name:'Spooled Cable',desc:'Max tether cable length +150.',apply:()=>{S.mods.cableLenAdd+=150}},
-    {id:'recruit1',name:'Fresh Recruits',desc:'+3 free Troopers, right now.',apply:()=>{spawnFreeTroops(3,'troop')}},
+    {id:'swarm2',name:'Additional Swarm',up:1,get desc(){return `A whole extra repair swarm: +${upN('swarm2',4,1)} repair drones.`},apply:()=>{addDrones(upN('swarm2',4,1))}},
+    {id:'dmg2',name:'Battle Drills II',up:1,get desc(){return `Trooper damage +${upPct('dmg2',20)}%.`},apply:()=>{S.mods.troopDmgMult*=1+upPct('dmg2',20)/100}},
+    {id:'grenrate2',name:'Lubed Tubes II',up:1,get desc(){return `Grenadier fire rate +${upPct('grenrate2',20)}%.`},apply:()=>{S.mods.grenFireRateMult*=1+upPct('grenrate2',20)/100}},
+    {id:'grensplash2',name:'Blast Power II',up:1,get desc(){return `Explosive blast radius +${upPct('grensplash2',20)}%.`},apply:()=>{S.mods.grenSplashMult*=1+upPct('grensplash2',20)/100}},
+    {id:'tol1',name:'Signal Boost',up:1,get desc(){return `Wireless tether range +${upPct('tol1',35)}% (Rig & Relays).`},apply:()=>{S.mods.relayTolMult*=1+upPct('tol1',35)/100}},
+    {id:'cable1',name:'Spooled Cable',up:1,get desc(){return `Max tether cable length +${upN('cable1',150,40)}.`},apply:()=>{S.mods.cableLenAdd+=upN('cable1',150,40)}},
+    {id:'recruit1',name:'Fresh Recruits',up:1,get desc(){return `+${upN('recruit1',3,1)} free Troopers, right now.`},apply:()=>{spawnFreeTroops(upN('recruit1',3,1),'troop')}},
     {id:'energySurge1',name:'Sonic Deterrent I',get desc(){return 'Horn speakers on every Relay: every 10s while drilling they all thump together — enemies reached are shoved back and dazed for 1s.'+relaySlotNote('off','sonic')},has:()=>S.mods.relayOff==='sonic'&&S.mods.energySurgeLevel>=1,apply:()=>{setRelaySlot('off','sonic');S.mods.energySurgeLevel=Math.max(S.mods.energySurgeLevel,1)}},
     {id:'relayArmored',name:'Fortified Relay',get desc(){return 'Every Relay gets an armoured plinth and a turret head: 3× HP, and while tethered it fires like a full Turret.'+relaySlotNote('off','armored')},has:()=>S.mods.relayOff==='armored',apply:()=>{setRelaySlot('off','armored')}},
     {id:'anchorPod',name:'Anchor Pod',desc:'E fires a pod at any vein you have found, anywhere on the map. It lands beside it and fires the Stabilizers itself, each when its hotspot swings out wide and well spread, for a wide steering triangle. Each still uses a charge (or Dat).',has:()=>!!S.mods.anchorPod,apply:()=>{S.mods.anchorPod=true}},
@@ -1901,22 +1953,22 @@ const UPGRADES={
     wallCard('heavy','Heavy Armour Walls'),
     kitCard('shock'),kitCard('lmg'),kitCard('razor'),kitCard('cryo'),kitCard('spotter'),kitCard('flak'),
     callCard('emp'),callCard('decoy'),callCard('minefield'),callCard('bulwark'),
-    {id:'callDelay',name:'Priority Uplink',desc:'Call-downs land twice as fast.',has:()=>S.mods.callDelayMult<1,apply:()=>{S.mods.callDelayMult=0.5}},
-    {id:'callRadius',name:'Wide Payload',desc:'Call-downs cover 40% more ground.',has:()=>S.mods.callRadiusMult>1,apply:()=>{S.mods.callRadiusMult=1.4}},
-    {id:'callCrate',name:'Requisition Crate',desc:'Two free call-downs, chosen at random.',apply:()=>{msg(`Requisitioned: ${giftCall(2)}.`)}},
+    {id:'callDelay',name:'Priority Uplink',up:1,get desc(){return cardLv('callDelay')?`Call-downs land in ${Math.round(100-upPct('callDelay',50,0.15))}% of the time.`:'Call-downs land twice as fast.'},has:()=>S.mods.callDelayMult<1,apply:()=>{S.mods.callDelayMult=1-upPct('callDelay',50,0.15)/100}},
+    {id:'callRadius',name:'Wide Payload',up:1,get desc(){return `Call-downs cover ${upPct('callRadius',40)}% more ground.`},has:()=>S.mods.callRadiusMult>1,apply:()=>{S.mods.callRadiusMult=1+upPct('callRadius',40)/100}},
+    {id:'callCrate',name:'Requisition Crate',up:1,get desc(){return `${['Two','Three','Four','Five'][cardLv('callCrate')]} free call-downs, chosen at random.`},apply:()=>{msg(`Requisitioned: ${giftCall(upN('callCrate',2,1))}.`)}},
     {id:'barracks1',name:'Barracks Expansion',get desc(){return `Field ${BARRACKS_SLOTS} more Troopers at a time (up to ${SQUAD_CAP_MAX}), and ${BARRACKS_SLOTS} free Troopers join you to fill them.`},has:()=>S.squadCap>=SQUAD_CAP_MAX,apply:()=>{raiseSquadCap(BARRACKS_SLOTS)}},
     barracksCard('brawler'),barracksCard('grenadier'),
   ],
   Epic:[
     kitCard('warden'),kitCard('fire'),kitCard('rail'),kitCard('cluster'),kitCard('fieldrelay'),
     callCard('droppod'),callCard('carpet'),callCard('overclock'),callCard('gravity'),
-    {id:'callPrice',name:'Bulk Contract',desc:'Call-downs cost 35% less Dat.',has:()=>S.mods.callPriceMult<1,apply:()=>{S.mods.callPriceMult=0.65}},
-    {id:'callEcho',name:'Echo Strike',desc:'Each call-down has a 30% chance to land a second time close by.',has:()=>S.mods.callEcho>0,apply:()=>{S.mods.callEcho=0.3}},
+    {id:'callPrice',name:'Bulk Contract',up:1,get desc(){return `Call-downs cost ${upPct('callPrice',35,0.15)}% less Dat.`},has:()=>S.mods.callPriceMult<1,apply:()=>{S.mods.callPriceMult=1-upPct('callPrice',35,0.15)/100}},
+    {id:'callEcho',name:'Echo Strike',up:1,get desc(){return `Each call-down has a ${upPct('callEcho',30)}% chance to land a second time close by.`},has:()=>S.mods.callEcho>0,apply:()=>{S.mods.callEcho=upPct('callEcho',30)/100}},
     {id:'callReq',name:'Field Requisition',desc:'Every time you start drilling, two free call-downs arrive.',has:()=>S.mods.callReq,apply:()=>{S.mods.callReq=true}},
     barracksCard('marksman'),barracksCard('rocket'),
-    {id:'hardscopes',name:'Hard Scopes',desc:"Trooper vision and firing range +20% (stacks with Surveyor's Eye).",apply:()=>{S.mods.squadRangeMult*=1.2}},
-    {id:'dmg3',name:'Battle Drills III',desc:'Trooper damage +30%.',apply:()=>{S.mods.troopDmgMult*=1.3}},
-    {id:'tactical',name:'Tactical Reinforcements',desc:'+5 free Troopers, +3 free Grenadiers, right now.',apply:()=>{spawnFreeTroops(5,'troop');spawnFreeTroops(3,'grenadier')}},
+    {id:'hardscopes',name:'Hard Scopes',up:1,get desc(){return `Trooper vision and firing range +${upPct('hardscopes',20)}% (stacks with Surveyor's Eye).`},apply:()=>{S.mods.squadRangeMult*=1+upPct('hardscopes',20)/100}},
+    {id:'dmg3',name:'Battle Drills III',up:1,get desc(){return `Trooper damage +${upPct('dmg3',30)}%.`},apply:()=>{S.mods.troopDmgMult*=1+upPct('dmg3',30)/100}},
+    {id:'tactical',name:'Tactical Reinforcements',up:1,get desc(){return `+${upN('tactical',5,1)} free Troopers, +${upN('tactical',3,1)} free Grenadiers, right now.`},apply:()=>{spawnFreeTroops(upN('tactical',5,1),'troop');spawnFreeTroops(upN('tactical',3,1),'grenadier')}},
     {id:'energySurge2',name:'Sonic Deterrent II',get desc(){return 'Relay horns thump every 5s instead of 10s.'+relaySlotNote('off','sonic')},has:()=>S.mods.relayOff==='sonic'&&S.mods.energySurgeLevel>=2,apply:()=>{setRelaySlot('off','sonic');S.mods.energySurgeLevel=Math.max(S.mods.energySurgeLevel,2)}},
     {id:'tesla1',name:'Electric Surge I',get desc(){return `A tesla coil on every Relay: while drilling, every few seconds each one strikes the nearest enemy and the bolt jumps on to 2 more (${TESLA_DMG} damage, less each jump, a short stun).`+relaySlotNote('off','tesla')},has:()=>S.mods.relayOff==='tesla'&&S.mods.teslaLevel>=1,apply:()=>{setRelaySlot('off','tesla');S.mods.teslaLevel=Math.max(S.mods.teslaLevel,1)}},
     {id:'deflector',name:'Deflector',desc:'A shield dome round the Rig and every Stabilizer: Lantern beams lose 85% of their damage and shots 50%. Melee walks straight through it.',has:()=>S.mods.deflector,apply:()=>{S.mods.deflector=true}},
@@ -1930,9 +1982,9 @@ const UPGRADES={
   ],
   Legendary:[
     barracksCard('mech'),kitCard('breaker'),
-    {id:'overdrive',name:'Overdrive Capacitor',desc:'Drill rate +40%.',apply:()=>{S.mods.drillRateMult*=1.4}},
-    {id:'cablehp2',name:'Hardened Network',desc:'All tether cable HP +150%.',apply:()=>{S.mods.cableHpMult*=2.5}},
-    {id:'living1',name:'Rich Vein Memory',desc:'Living Crystal yield ×2 for the rest of the run.',apply:()=>{S.mods.livingMult*=2}},
+    {id:'overdrive',name:'Overdrive Capacitor',up:1,get desc(){return `Drill rate +${upPct('overdrive',40)}%.`},apply:()=>{S.mods.drillRateMult*=1+upPct('overdrive',40)/100}},
+    {id:'cablehp2',name:'Hardened Network',up:1,get desc(){return `All tether cable HP +${upPct('cablehp2',150)}%.`},apply:()=>{S.mods.cableHpMult*=1+upPct('cablehp2',150)/100}},
+    {id:'living1',name:'Rich Vein Memory',up:1,get desc(){return `Living Crystal yield ×${1+upPct('living1',100)/100} for the rest of the run.`},apply:()=>{S.mods.livingMult*=1+upPct('living1',100)/100}},
     {id:'podTowers',name:'Missile Battery Walls',desc:'Every wall end gets a free Missile Pod — on the walls you have now and every wall you build from here on. Turrets raised by Bulwark Towers become Missile Pods. A pod that falls is not replaced. Drawback: walls cost three times as much (replaces Bulwark Towers\' double cost).',has:()=>S.mods.podTowers||!meta.unlockPodTurret,
      apply:()=>{S.mods.podTowers=true;S.fabShots.forEach(sh=>{if(sh.free&&sh.k==='turret')sh.k='podturret'});S.turrets.forEach(t=>{if(t.tower&&t.kind==='turret'){const f=t.hp/t.maxHp;t.kind='podturret';t.maxHp=PODT_HP;t.hp=PODT_HP*f;t.pods=PODT_CELLS;burst(t.x,t.y,ROLE_COL.grenadier,10,110,0.4)}});wallTowers();updateBuildBar()}},
     wallCard('glass','Glass Ridge Walls'),
@@ -3255,7 +3307,7 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
 // build the same stop again and lay the saved state over it
 function resumeLive(d){const L=d.live;
   RUN={stop:d.run.stop,carry:null,pressure:d.run.pressure||{ids:[],bonus:0},loadout:d.run.loadout||callLoadout(),exit:d.run.exit,stopCarry:d.carry||null,stats:d.run.stats||{}};
-  menuOpen=false;['mainMenuOverlay','unlocksOverlay','pressureOverlay','loadoutOverlay','settingsOverlay','stopOverlay'].forEach(id=>document.getElementById(id)._hd=true);
+  menuOpen=false;['mainMenuOverlay','prepOverlay','unlocksOverlay','pressureOverlay','loadoutOverlay','settingsOverlay','stopOverlay'].forEach(id=>document.getElementById(id)._hd=true);
   STOP_BAND=RUN_STOPS[RUN.stop].band;STOP_SPLIT=!!RUN_STOPS[RUN.stop].split;ENTRY_EDGE=L.entry;EXIT_DIR=L.exitDir;
   mapSeed=L.mapSeed;reset();reset(L.spawn);S._spawn=L.spawn;
   const top=snapDecode(L.snap);for(const k in top)S[k]=top[k];
@@ -3272,7 +3324,7 @@ function clearRunSave(){try{localStorage.removeItem(RUN_SAVE_KEY)}catch(e){}}
 function resumeRun(){const d=loadRunSave();if(!d)return;
   if(d.v===2&&d.live){try{resumeLive(d);return}catch(e){console.warn('live resume failed, going back to the start of the stop',e)}}
   RUN={stop:d.run.stop,carry:d.carry,pressure:d.run.pressure||{ids:[],bonus:0},loadout:d.run.loadout||callLoadout(),exit:d.run.exit,stats:d.run.stats||{}};
-  menuOpen=false;['mainMenuOverlay','unlocksOverlay','pressureOverlay','loadoutOverlay','settingsOverlay','stopOverlay'].forEach(id=>document.getElementById(id)._hd=true);
+  menuOpen=false;['mainMenuOverlay','prepOverlay','unlocksOverlay','pressureOverlay','loadoutOverlay','settingsOverlay','stopOverlay'].forEach(id=>document.getElementById(id)._hd=true);
   buildStop(d.carry);msg(`Run resumed — back at the start of stop ${RUN.stop+1} of ${RUN_STOPS.length}.`)}
 // Restart (pause menu): a fresh run with the same Pressure (already paid for, so not charged again)
 function restartRun(){const p=RUN&&RUN.pressure;document.getElementById('pauseOverlay')._hd=true;
@@ -3287,7 +3339,7 @@ function buildStop(carry){
   reset(spawn);S._spawn=spawn;RUN.stopCarry=carry||null;
   applyCarry(carry);
   // a fresh run: the loadout comes charged, and the Rig lands (later stops start with it already down)
-  if(!carry){runCallStart().forEach(id=>grantCall(id,CALL_LOADOUT_CHARGES));beginLanding()}
+  if(!carry){runCallStart().forEach(id=>grantCall(id,CALL_LOADOUT_CHARGES));beginLanding();runCardStart()}
   saveRun(carry);
   const st=stopInfo();
   if(RUN.stop===0&&pressureNote())setTimeout(()=>msg(pressureNote().trim()),50);
@@ -3479,11 +3531,12 @@ function startAudioEngine(){if(audioTimer)return;if(!audioBus())return;audioTime
 function startRun(){
   // v4: a run is a journey of stops (see "the run")
   // pay for the chosen Pressure (anything no longer affordable is dropped)
-  const ids=[];meta.pressure.forEach(id=>{if(PRESSURE.some(p=>p.id===id)&&pressureCost([...ids,id])<=meta.condensedBank)ids.push(id)});
+  // (Pressure is switched off for now: PRESSURE_ON. Its button is hidden and no run starts under it.)
+  const ids=[];if(PRESSURE_ON)meta.pressure.forEach(id=>{if(PRESSURE.some(p=>p.id===id)&&pressureCost([...ids,id])<=meta.condensedBank)ids.push(id)});
   meta.condensedBank-=pressureCost(ids);saveMeta();
   RUN={stop:0,carry:null,pressure:{ids,bonus:pressureBonus(ids)},loadout:callLoadout()};
   menuOpen=false;
-  ['mainMenuOverlay','unlocksOverlay','pressureOverlay','loadoutOverlay','settingsOverlay','stopOverlay'].forEach(id=>document.getElementById(id)._hd=true);
+  ['mainMenuOverlay','prepOverlay','unlocksOverlay','pressureOverlay','loadoutOverlay','settingsOverlay','stopOverlay'].forEach(id=>document.getElementById(id)._hd=true);
   buildStop(null);
 }
 // Shared by every "spend Living Crystal to permanently unlock X" unit — Artillery, Grenadier,
@@ -3519,8 +3572,8 @@ function probeWidthMult(){const t=meta.upgrades.pingRange||0;return t>0?1+META_U
 function squadFireRateMult(){const t=meta.upgrades.squadFireRate||0;return t>0?1+META_UPGRADES[3].pct[t-1]/100:1}
 function pickupRangeMult(){const t=meta.upgrades.pickupRange||0;return t>0?1+META_UPGRADES[4].pct[t-1]/100:1}
 function refreshMenuMeta(){
-  {const d=loadRunSave(),rb=document.getElementById('resumeRunBtn'),pb=document.getElementById('playBtn');rb._hd=!d;
-   if(d)rb._tc=`Resume run — stop ${d.run.stop+1} of ${RUN_STOPS.length}`+(d.v===2&&d.live?'':' (from its start)');pb._tc=d?'New run':'Play'}
+  {const d=loadRunSave(),rb=document.getElementById('resumeRunBtn'),pb=document.getElementById('startRunBtn');rb._hd=!d;
+   if(d)rb._tc=`Resume run — stop ${d.run.stop+1} of ${RUN_STOPS.length}`+(d.v===2&&d.live?'':' (from its start)');pb._tc=d?'New run':'Start run'}
   document.getElementById('metaLiving')._tc=meta.livingBank;
   document.getElementById('metaCondensed')._tc=meta.condensedBank;
   {const ob=document.getElementById('openLoadoutBtn');if(ob)try{ob._tc='Loadout: '+callLoadout().map(id=>CALLDOWNS[id].icon).join(' ')}catch(e){}}
@@ -3639,34 +3692,105 @@ function renderLoadout(){
     card.querySelector('button').onclick=()=>{if(on)return;meta.callLoadout=[L[1],id].filter(Boolean);saveMeta();renderLoadout();refreshMenuMeta()};
     host.appendChild(card)});
   const n=Object.keys(CALLDOWNS).filter(callOwned).length;
-  document.getElementById('loadoutSummary')._tc=`Starting with ${L.map(id=>CALLDOWNS[id].name).join(' and ')}.`+(n<=2?' Buy more call-downs in Unlocks to swap these out.':'');
+  document.getElementById('loadoutSummary')._tc=`Starting with ${L.map(id=>CALLDOWNS[id].name).join(' and ')}.`+(n<=2?' Buy more call-downs under Upgrades to swap these out.':'');
 }
 document.getElementById('openLoadoutBtn').onclick=()=>{
-  document.getElementById('mainMenuOverlay')._hd=true;
+  document.getElementById('prepOverlay')._hd=true;
   document.getElementById('loadoutOverlay')._hd=false;
-  renderLoadout();
+  renderLoadout();renderLoadCards();
 };
 document.getElementById('loadoutBackBtn').onclick=()=>{
   document.getElementById('loadoutOverlay')._hd=true;
-  document.getElementById('mainMenuOverlay')._hd=false;
+  document.getElementById('prepOverlay')._hd=false;
   refreshMenuMeta();
 };
 document.getElementById('openUnlocksBtn').onclick=()=>{
-  document.getElementById('mainMenuOverlay')._hd=true;
+  document.getElementById('prepOverlay')._hd=true;
   document.getElementById('unlocksOverlay')._hd=false;
   renderUnlockCards();
   renderUpgradeCards();
   renderCallShop();
+  showShopTab(shopTab);
 };
 document.getElementById('unlocksBackBtn').onclick=()=>{
   document.getElementById('unlocksOverlay')._hd=true;
-  document.getElementById('mainMenuOverlay')._hd=false;
+  document.getElementById('prepOverlay')._hd=false;
   refreshMenuMeta();
 };
-// Main menu: Play starts a run straight away, Unlocks is the meta shop, Settings holds the
-// recording and debug toggles.
-document.getElementById('playBtn').onclick=startRun;
+// v4: the menu is two screens: the first is Play, Tutorial and Settings; Play opens the Expedition
+// screen (prepOverlay), where you resume or start a run, set the Loadout and shop under Upgrades.
+document.getElementById('playBtn').onclick=()=>{document.getElementById('mainMenuOverlay')._hd=true;document.getElementById('prepOverlay')._hd=false;refreshMenuMeta()};
+document.getElementById('prepBackBtn').onclick=()=>{document.getElementById('prepOverlay')._hd=true;document.getElementById('mainMenuOverlay')._hd=false};
+document.getElementById('startRunBtn').onclick=startRun;
 document.getElementById('resumeRunBtn').onclick=resumeRun;
+// the shop's tabs
+let shopTab='cards';
+function showShopTab(t){shopTab=t;document.querySelectorAll('#shopTabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));
+  document.querySelectorAll('#unlocksOverlay .shopSection[data-sec]').forEach(sec=>sec.classList.toggle('on',sec.dataset.sec===t));
+  if(t==='cards')renderCardShop();document.getElementById('unlocksOverlay').scrollTop=0}
+document.querySelectorAll('#shopTabs button').forEach(b=>b.onclick=()=>showShopTab(b.dataset.tab));
+// ---- v4: the card shop and the starting cards ----
+// A card is unlocked by picking it from a reward in a run (seeCard). Then it can be bought — Flawless
+// ones for Living Crystal, the rest for Condensed — and upgraded (cards with up:1) CARD_UP_MAX tiers for
+// Condensed. Bought cards can go in the starting loadout: CARD_SLOTS of them, one more once the third slot
+// is bought with Living Crystal; they're applied as the Rig lands on the first stop (runCardStart).
+const CARD_BUY={Common:4,Rare:6,Epic:9}, CARD_BUY_LIVING=2, CARD_UP_COST={Common:[3,5,8],Rare:[4,7,11],Epic:[6,10,15],Legendary:[8,13,20]};
+const CARD_SLOTS=2, CARD_SLOT3_COST=3;
+const ALL_CARDS=()=>TIER_ORDER_ALL.filter(t=>UPGRADES[t]).flatMap(t=>UPGRADES[t].filter(u=>u.id).map(u=>({tier:t,u})));
+const cardTier=id=>{for(const t in UPGRADES)if(UPGRADES[t].some(u=>u.id===id))return t;return 'Common'};
+const cardSlots=()=>CARD_SLOTS+(meta.cardSlot3?1:0);
+const cardOwned=id=>meta.cardOwn.includes(id);
+function cardLoadout(){const L=[];meta.cardLoadout.forEach(id=>{if(cardOwned(id)&&cardById(id)&&!L.includes(id)&&L.length<cardSlots())L.push(id)});return L}
+function seeCard(c){if(!c||!c.id||tutorialMap||!cardById(c.id)||meta.cardSeen.includes(c.id))return;meta.cardSeen.push(c.id);saveMeta();
+  setTimeout(()=>msg(`New card unlocked: ${cardById(c.id).name} can now be bought under Upgrades → Cards.`),400)}
+function runCardStart(){if(tutorial||tutorialMap)return;const got=[];
+  cardLoadout().forEach(id=>{const u=cardById(id);if(!u||(u.has&&u.has()))return;try{u.apply();noteCard({id,tier:cardTier(id),name:u.name});got.push(u.name)}catch(e){console.warn('starting card failed',id,e)}});
+  if(got.length){updateBuildBar();setTimeout(()=>msg(`Starting cards: ${got.join(', ')}.`),80)}}
+const plainDesc=u=>String(u.desc||'').replace(/<span class="rc(Swap|Pair)[^"]*"[^>]*>.*?<\/span>/g,'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
+// what the card's text will say one tier up
+function nextTierDesc(u){const lv=meta.cardLv[u.id]|0;meta.cardLv[u.id]=lv+1;try{return plainDesc(u)}finally{if(lv)meta.cardLv[u.id]=lv;else delete meta.cardLv[u.id]}}
+function renderCardShop(){
+  document.getElementById('cardShopLiving')._tc=meta.livingBank;document.getElementById('cardShopCondensed')._tc=meta.condensedBank;
+  const ov=document.getElementById('unlocksOverlay'),keepY=ov.scrollTop; // (rebuilding it mustn't jump the page back to the top)
+  const host=document.getElementById('cardShop');host.innerHTML='';const all=ALL_CARDS();
+  TIER_ORDER_ALL.filter(t=>UPGRADES[t]).forEach(t=>{const list=all.filter(c=>c.tier===t);if(!list.length)return;
+    const seen=list.filter(c=>meta.cardSeen.includes(c.u.id)).length;
+    const hd=document.createElement('div');hd.className='cardTierHead';hd.style.color=CARD_TIER_COLOR[t];hd.textContent=`${tierName(t)} cards — ${seen}/${list.length} unlocked`;host.appendChild(hd);
+    const grid=document.createElement('div');grid.className='cardShopGrid';host.appendChild(grid);
+    list.forEach(({tier,u})=>{const id=u.id,seenIt=meta.cardSeen.includes(id),own=cardOwned(id),lv=cardLv(id),leg=tier==='Legendary';
+      const item=document.createElement('div');item.className='cardShopItem'+(seenIt?'':' locked')+(own?' owned':'');
+      const face=document.createElement('button');face.className='rewardCard';face.style.setProperty('--tc',CARD_TIER_COLOR[tier]);face.tabIndex=-1;
+      item.appendChild(face);grid.appendChild(item);buildCardFace(face,{id,name:u.name,desc:u.desc,tier},{still:true});
+      const foot=document.createElement('div');foot.className='csFoot';item.appendChild(foot);
+      if(!seenIt){foot.innerHTML='<span>Pick it from a reward in a run to unlock it.</span>';return}
+      const btn=document.createElement('button');
+      if(!own){const cost=leg?CARD_BUY_LIVING:CARD_BUY[tier],bank=leg?meta.livingBank:meta.condensedBank;
+        btn.innerHTML=`Buy — <span class="crystalIcon ${leg?'living':'condensed'}">${leg?'❖':'⬢'}</span>${cost}`;btn._ds=bank<cost;
+        btn.onclick=()=>{if(cardOwned(id))return;if(leg){if(meta.livingBank<cost)return;meta.livingBank-=cost}else{if(meta.condensedBank<cost)return;meta.condensedBank-=cost}
+          meta.cardOwn.push(id);if(cardLoadout().length<cardSlots())meta.cardLoadout=[...cardLoadout(),id];saveMeta();sfx.click();renderCardShop();refreshMenuMeta()};
+        foot.appendChild(btn);return}
+      if(!u.up){foot.innerHTML='<span>Owned · no upgrades</span>';return}
+      foot.innerHTML=`<span class="csPips">${Array.from({length:CARD_UP_MAX},(_,i)=>`<i class="${i<lv?'on':''}"></i>`).join('')}</span>`;
+      if(lv>=CARD_UP_MAX){foot.insertAdjacentHTML('beforeend','<span>Owned · fully upgraded</span>');return}
+      const cost=CARD_UP_COST[tier][lv];foot.insertAdjacentHTML('beforeend',`<span class="csNext">Tier ${lv+1}: ${nextTierDesc(u)}</span>`);
+      btn.innerHTML=`Upgrade — <span class="crystalIcon condensed">⬢</span>${cost}`;btn._ds=meta.condensedBank<cost;
+      btn.onclick=()=>{if(cardLv(id)!==lv||meta.condensedBank<cost)return;meta.condensedBank-=cost;meta.cardLv[id]=lv+1;saveMeta();sfx.click();renderCardShop();refreshMenuMeta()};
+      foot.appendChild(btn)})});ov.scrollTop=keepY}
+function renderLoadCards(){
+  const L=cardLoadout(),n=cardSlots(),host=document.getElementById('loadCardList');host.innerHTML='';
+  const owned=ALL_CARDS().filter(c=>cardOwned(c.u.id));
+  document.getElementById('loadCardIntro')._tc=`Pick the ${n===2?'two':'three'} cards every run starts with — they take effect as the Rig lands. Unlock cards by picking them in a run, then buy them under Upgrades → Cards.`;
+  owned.forEach(({tier,u})=>{const on=L.includes(u.id),lv=cardLv(u.id);
+    const card=document.createElement('div');card.className='unlockCard loadCard'+(on?' unlocked':'');if(!on)card.style.borderColor=CARD_TIER_COLOR[tier];
+    card.innerHTML=`<span class="ucName" style="color:${CARD_TIER_COLOR[tier]}">${u.name}</span><span class="ucDesc">${plainDesc(u)}</span><span class="ucPrice">${tierName(tier)}${u.up?` · tier ${lv}/${CARD_UP_MAX}`:''}</span>`+
+      `<button class="metaUnlock${on?' unlocked':''}">${on?'Selected':'Select'}</button>`;
+    // selecting one when every slot is full swaps out the one picked longest ago; clicking a selected one takes it out
+    card.querySelector('button').onclick=()=>{meta.cardLoadout=on?L.filter(x=>x!==u.id):[...L,u.id].slice(-n);saveMeta();renderLoadCards();refreshMenuMeta()};
+    host.appendChild(card)});
+  document.getElementById('loadCardSummary')._tc=!owned.length?'You don’t own any cards yet.':L.length?`Starting with ${L.map(id=>cardById(id).name).join(', ')} (${L.length}/${n}).`:`No starting cards picked (0/${n}).`;
+  const sb=document.getElementById('cardSlotBtn');
+  if(meta.cardSlot3){sb._hd=true}else{sb._hd=false;sb.innerHTML=`Buy a third card slot — <span class="crystalIcon living">❖</span>${CARD_SLOT3_COST}`;sb._ds=meta.livingBank<CARD_SLOT3_COST;
+    sb.onclick=()=>{if(meta.cardSlot3||meta.livingBank<CARD_SLOT3_COST)return;meta.livingBank-=CARD_SLOT3_COST;meta.cardSlot3=true;saveMeta();sfx.click();renderLoadCards();refreshMenuMeta()}}}
 // debug: the save as a file — the run in progress, unlocks, audio and voice settings — and back again
 const SAVE_FILE_KEYS=()=>[RUN_SAVE_KEY,META_KEY,AUDIO_KEY,VOX_KEY];
 document.getElementById('dbgSaveBtn').onclick=()=>{if(RUN&&S&&!S.over)liveSave();const d={};SAVE_FILE_KEYS().forEach(k=>{const v=localStorage.getItem(k);if(v!=null)d[k]=v});
@@ -3699,6 +3823,7 @@ document.getElementById('settingsBackBtn').onclick=()=>{
 document.getElementById('debugUnlockAllBtn').onclick=()=>{
   const allUnlocked=UNLOCKS.every(u=>meta[u.flag]);
   UNLOCKS.forEach(u=>{meta[u.flag]=!allUnlocked});
+  meta.cardSeen=allUnlocked?[...meta.cardOwn]:ALL_CARDS().map(c=>c.u.id); // and every card unlocked for the shop (or back to just the bought ones)
   saveMeta();
   refreshMenuMeta();
   renderUnlockCards();
@@ -3709,6 +3834,7 @@ document.getElementById('debugWipeUpgradesBtn').onclick=()=>{
   const wb=document.getElementById('debugWipeUpgradesBtn');
   if(!wb.dataset.armed){wb.dataset.armed='1';wb._tc='[Debug] Click again to wipe all upgrades';return}
   Object.keys(meta.upgrades).forEach(k=>{meta.upgrades[k]=0});
+  meta.cardLv={};
   saveMeta();
   refreshMenuMeta();
   wb._tc='[Debug] Upgrades wiped';
@@ -3739,8 +3865,7 @@ function openMainMenu(){
   RUN=null;STOP_BAND=null;STOP_SPLIT=false;document.getElementById('stopOverlay')._hd=true;
   menuOpen=true;
   document.getElementById('mainMenuOverlay')._hd=false;
-  document.getElementById('unlocksOverlay')._hd=true;
-  document.getElementById('settingsOverlay')._hd=true;
+  ['prepOverlay','unlocksOverlay','loadoutOverlay','settingsOverlay'].forEach(id=>document.getElementById(id)._hd=true);
   refreshMenuMeta();
   reset(); // parks (paused) on a fresh map behind the menu
 }
@@ -3947,7 +4072,7 @@ function startTutorial(){
     if(canLandAt(x,y)&&terrainAt(x,y)===0)land={x,y};
   }
   menuOpen=false;
-  ['mainMenuOverlay','unlocksOverlay','pressureOverlay','settingsOverlay'].forEach(id=>document.getElementById(id)._hd=true);
+  ['mainMenuOverlay','prepOverlay','unlocksOverlay','loadoutOverlay','pressureOverlay','settingsOverlay'].forEach(id=>document.getElementById(id)._hd=true);
   reset(land||d0);
   beginLanding();
   const tv=S.veins.find(x=>!x.contract&&x.band==='rim'&&Math.abs(x.x-v.x)<1&&Math.abs(x.y-v.y)<1)
@@ -10579,8 +10704,8 @@ function buildCardFace(btn,c,o={}){const info=o.info||CARD_INFO[c.id]||null,cat=
   if(note){const slot=note.dataset.slot,rep=note.dataset.rep;note.remove();const b=document.createElement('span');b.className='rcSlot '+slot;b.textContent=slot==='off'?'⚔ Offensive relay slot':'⛨ Defensive relay slot';btn.insertBefore(b,btn.querySelector('.rcBody'));
     if(rep){const r=document.createElement('span');r.className='rcSwap';r.textContent='Replaces your '+rep;btn.querySelector('.rcBody').appendChild(r)}}
   const seed=caH((c.id||c.name||'').length+3)*10,drawArt=CARD_ART[art]||CARD_CAT_ART[cat];
-  cardCanvas(btn.querySelector('canvas.art'),(g,t,dpr,w,h)=>{const k=Math.min(w/214,h/122);g.setTransform(dpr*w/214,0,0,dpr*h/122,0,0);caGround(seed);
-    g.setTransform(dpr*k*1.22,0,0,dpr*k*1.22,dpr*(w/2-107*k*1.22+6*k),dpr*(h-20*k-106*k*1.22));drawArt(t);g.setTransform(dpr,0,0,dpr,0,0);caGlow(w/2,0,w*0.42,K.col,0.06)});
+  cardCanvas(btn.querySelector('canvas.art'),(g,t,dpr,w,h)=>{const k=Math.min(w/214,h/122);t=o.still?1.3:t;g.setTransform(dpr*w/214,0,0,dpr*h/122,0,0);caGround(seed);
+    g.setTransform(dpr*k*1.22,0,0,dpr*k*1.22,dpr*(w/2-107*k*1.22+6*k),dpr*(h-20*k-106*k*1.22));drawArt(t);g.setTransform(dpr,0,0,dpr,0,0);caGlow(w/2,0,w*0.42,K.col,0.06)},o.still);
   cardCanvas(btn.querySelector('canvas.badge'),(g,t,dpr,w,h)=>{g.setTransform(1,0,0,1,0,0);g.clearRect(0,0,g.canvas.width,g.canvas.height);const k=dpr*w/24;g.setTransform(k,0,0,k,g.canvas.width/2,g.canvas.height/2);(o.icon||CARD_ICON[cat])()},true)}
 // Pauses the whole sim (update() bails out while S.rewardChoice is set) and shows the pick.
 function showRewardChoice(tier,band){
@@ -10627,7 +10752,7 @@ function pickReward(i){
   if(c.kind==='trade'){
     S.dat+=c.amt; floatText(S.base.x,S.base.y-40,'+'+c.amt+' Dat',C.dat);
   }else{
-    c.apply();noteCard(c);
+    c.apply();noteCard(c);seeCard(c);
   }
   sfx.click();
   document.getElementById('rewardOverlay')._hd=true;
