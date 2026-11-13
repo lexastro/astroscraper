@@ -2155,6 +2155,11 @@ const tierRank=t=>t==='Hive'?4:TIER_ORDER_ALL.indexOf(t);
 // Core veins drill for minutes)
 const SEAM_LIFE_FRAC=0.4;
 const SEAM_AT_MIN=0.15, SEAM_AT_MAX=0.4, SEAM_LIFE=30, SEAM_HOLD=4, SEAM_HW=0.08, SEAM_OFF=[0.45,0.72];
+// v4: a seam isn't free — a sliver of red opens inside it, somewhere off its middle (within SEAM_RED_OFF of
+// its half-width), SEAM_RED_HW0 wide each side to begin with and widening by SEAM_RED_GROW a second up to
+// SEAM_RED_MAX, so the longer you leave it the less room there is. It's red like any other: touch it and
+// the alarm runs, and stay in too long and the vein ruptures.
+const SEAM_RED_HW0=0.01, SEAM_RED_GROW=0.0012, SEAM_RED_MAX=0.045, SEAM_RED_OFF=0.4;
 // v4: OVERDRILL — when the vein is tapped out you can bank it (F) or keep drilling (O) for OVER_T
 // more seconds: the needle bucks harder (OVER_TURB) and red closes in from both ends of the meter
 // (down to OVER_SAFE_MIN of the view either side of the strike), and a wave comes at once. Hold out
@@ -2164,8 +2169,8 @@ const OVER_T=20, OVER_TURB=1.6, OVER_SAFE_MIN=0.38, OVER_OFFER_T=8;
 function openSeam(v){const m=v.meter;
   for(let k=0;k<12;k++){const side=Math.random()<0.5?-1:1,x=side*rnd(SEAM_OFF[0],SEAM_OFF[1]),p=m.anchor+x*ZOOM_HALF;
     if([x-SEAM_HW,x,x+SEAM_HW].some(q=>stripAt(m.strip,m.anchor+q*ZOOM_HALF).red))continue;
-    m.seam={x,hw:SEAM_HW,t:Math.max(SEAM_LIFE,SEAM_LIFE_FRAC*v.richness/(DRILL_RATE*S.mods.drillRateMult)),hold:0};
-    banner(`A SEAM has opened on the drill meter, off to the ${side<0?'left':'right'} — steer the needle into it for ${SEAM_HOLD}s before it closes and the vein pays a second reward.`,'success');
+    m.seam={x,hw:SEAM_HW,t:Math.max(SEAM_LIFE,SEAM_LIFE_FRAC*v.richness/(DRILL_RATE*S.mods.drillRateMult)),hold:0,rx:rnd(-SEAM_RED_OFF,SEAM_RED_OFF)*SEAM_HW,rhw:SEAM_RED_HW0,age:0};
+    banner(`A SEAM has opened on the drill meter, off to the ${side<0?'left':'right'} — steer the needle into it for ${SEAM_HOLD}s before it closes and the vein pays a second reward. Mind the red sliver growing inside it.`,'success');
     tone(1320,0.12,'sine',0.06);tone(1760,0.2,'sine',0.05,0.1);if(!tutorial&&!tutorialMap)seamHulks(v);return}
   m.seamDone=true}
 function overdrillChoice(go){const v=S.activeVein,m=v&&v.meter;if(!m||m.over!=='offer')return;
@@ -2212,6 +2217,9 @@ function updateMeter(v,dt){
    m.x+=(-K*(m.x-m.aim)+m.wn)*dt}
   let here=stripAt(m.strip,m.anchor+m.x*ZOOM_HALF);
   if(m.over==='run'&&Math.abs(m.x)>m.safe)here={red:true};
+  // the seam's clock runs (and its red sliver grows) even while the needle is in the red
+  if(m.seam){const sm=m.seam;sm.t-=dt;sm.age=(sm.age||0)+dt;sm.rx=sm.rx||0;sm.rhw=Math.min(SEAM_RED_MAX,SEAM_RED_HW0+SEAM_RED_GROW*sm.age);
+    if(Math.abs(m.x-(sm.x+sm.rx))<=sm.rhw)here={red:true}}
   m.hereTier=here.red?null:here.tier;
   // v4: slipping into the red no longer ruptures on the spot — an alarm sounds and the danger builds
   // for RED_GRACE seconds; get the needle out in time and it drains away again (RED_RECOVER × as
@@ -2242,7 +2250,7 @@ function updateMeter(v,dt){
   m.drift=dr;
   // the seam: opens partway through, and fills while the needle sits in it
   if(!m.seamDone&&!m.seam&&!m.over&&v.drillProg>=m.seamAt*v.richness)openSeam(v);
-  if(m.seam){const sm=m.seam;sm.t-=dt;
+  if(m.seam){const sm=m.seam;
     if(Math.abs(m.x-sm.x)<=sm.hw){sm.hold+=dt;sm.inT=(sm.inT||0)+dt;if(sm.inT>0.5){sm.inT=0;tone(1320+440*sm.hold/SEAM_HOLD,0.05,'sine',0.03)}}
     if(sm.hold>=SEAM_HOLD){m.seam=null;m.seamDone=true;v.bonus=(v.bonus||0)+1;banner('Seam tapped! The vein will pay a second reward.','success');stat('seams');sfx.win();burst(v.mine.x,v.mine.y,'#6ff0ff',30,180,0.8)}
     else if(sm.t<=0){m.seam=null;m.seamDone=true;msg('The seam closed.')}}
@@ -2383,7 +2391,8 @@ function updateMeterUI(){
   if(m.over==='run'){g.fillStyle=C.enemy;g.globalAlpha=0.8;const a=X(m.anchor-m.safe*ZOOM_HALF),b=X(m.anchor+m.safe*ZOOM_HALF);g.fillRect(0,barY,Math.max(0,a),barH);g.fillRect(b,barY,Wc-b,barH);g.globalAlpha=1}
   if(m.seam){const sm=m.seam,a=X(m.anchor+(sm.x-sm.hw)*ZOOM_HALF),b=X(m.anchor+(sm.x+sm.hw)*ZOOM_HALF),pl=0.6+0.4*Math.sin(performance.now()/120);
     g.strokeStyle='#6ff0ff';g.lineWidth=2*dpr;g.globalAlpha=pl;g.strokeRect(a,barY-2*dpr,b-a,barH+4*dpr);g.globalAlpha=0.35;g.fillStyle='#6ff0ff';g.fillRect(a,barY,b-a,barH);
-    g.globalAlpha=1;g.fillRect(a,barY+barH+2*dpr,(b-a)*sm.hold/SEAM_HOLD,3*dpr)}
+    g.globalAlpha=1;g.fillRect(a,barY+barH+2*dpr,(b-a)*sm.hold/SEAM_HOLD,3*dpr);
+    const ra=X(m.anchor+(sm.x+sm.rx-sm.rhw)*ZOOM_HALF),rb=X(m.anchor+(sm.x+sm.rx+sm.rhw)*ZOOM_HALF);g.fillStyle=C.enemy;g.globalAlpha=0.9;g.fillRect(ra,barY,Math.max(1,rb-ra),barH);g.globalAlpha=1}
   const np=m.phase==='strike'?m.p:m.anchor+m.x*ZOOM_HALF, nx=X(np);
   g.strokeStyle='#fff';g.lineWidth=2*dpr;g.beginPath();g.moveTo(nx,barY-3*dpr);g.lineTo(nx,barY+barH+2*dpr);g.stroke();
   g.fillStyle='#fff';g.beginPath();g.moveTo(nx,barY-1);g.lineTo(nx-5*dpr,2*dpr);g.lineTo(nx+5*dpr,2*dpr);g.closePath();g.fill();
@@ -3812,7 +3821,7 @@ const TUTORIAL_STEPS=[
    text:()=>`Call-downs are one-shot strikes from orbit. Press <kbd>C</kbd> (or the <b>Call-down</b> button), pick one, and click where it should land: anywhere near the Rig or a live Relay, or <b>anywhere a unit or a Probe can see</b>. You've been given a free <b>Orbital Lance</b> and <b>Stasis Field</b> — try one on the next wave. (In a run you start with two charges each of the two call-downs in your <b>Loadout</b>, picked on the main menu; once they're used, a call costs Dat.)`,
    done:()=>{const n=Object.values(S.calls).reduce((a,n)=>a+(n||0),0);return n<(tutorial.callN??0)||S.callsIn.length>0||tutVein().done||!veinAlive(tutVein())}},
   {title:'Tap the seam',
-   text:()=>`Partway through the drill a thin cyan <b>seam</b> opens on the meter, off to one side, and an arrow on the steering pad points to it. Steer the needle into it and keep it there <b>4 seconds</b> in all before it closes, and the vein pays a <b>second reward</b>. Getting there means leaning hard — the Stabilizers you lean on strain and draw the enemy — and the needle leaves your band while it's out there, so bring it back afterwards.`,
+   text:()=>`Partway through the drill a thin cyan <b>seam</b> opens on the meter, off to one side, and an arrow on the steering pad points to it. Steer the needle into it and keep it there <b>4 seconds</b> in all before it closes, and the vein pays a <b>second reward</b>. A <b>red sliver</b> opens inside the seam and widens the longer it's open, and it's red like any other — so get in early and steer round it. Getting there means leaning hard — the Stabilizers you lean on strain and draw the enemy — and the needle leaves your band while it's out there, so bring it back afterwards.`,
    done:()=>{const v=tutVein(),m=v&&v.meter;return !m||!!m.seamDone||!!m.over||v.done||!veinAlive(v)}},
   {title:'Hold the line',
    text:()=>`Waves pour out of the nests around the vein. A <b>rumble and red markers</b> at the screen edge warn you where the next one is coming from, and every few waves a <b>great wave</b> comes. Each wave brings a swarm of small swarmers that pile up against your walls. <b>Right-click an enemy</b> to focus your units on it. Deploy more Troopers, or <b>Marksmen</b> for long-range shots that pierce a line of enemies (both cost Dat). If the needle slips into the red an alarm sounds: steer it back out within a few seconds or the vein ruptures. Hold out until the vein is drained.`,
@@ -11986,7 +11995,7 @@ const VOX_TUT={
   'The price of steering':"Careful. Leaning loads those Stabilizers, and the enemy notices.",
   'Watch the yield':"Your pay grade floats over me while we drill. If it turns amber, steer back before it settles.",
   'Call in support':"I've got two call-downs for you. Press C, pick one, and drop it on the next wave.",
-  'Tap the seam':"See that cyan seam? Steer into it and hold for four seconds, then come back to your band.",
+  'Tap the seam':"See that cyan seam? Steer into it and hold for four seconds, but keep off the red sliver inside it. Then come back to your band.",
   'Hold the line':"Now hold the line until the vein runs dry.",
   'Bank or overdrill':"Vein's tapped. F banks it. O overdrills, if you're feeling brave.",
   'Pick a reward':"Vein drained. Pick an upgrade, or sell it for Dat. Rerolls cost more each time.",
