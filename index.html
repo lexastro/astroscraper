@@ -3865,7 +3865,7 @@ function tutDeepSetup(){
     wreck=w;
   }
   if(!wreck)wreck={x:spot.x+780,y:spot.y};
-  B.x=spot.x;B.y=spot.y;B.dest=null;B.locked=false;B._path=null;B._pg=null;
+  B.x=spot.x;B.y=spot.y;B.dest=null;B.queue=null;B.locked=false;B._path=null;B._pg=null;
   if(S.activeVein&&S.activeVein.done)S.activeVein=null;
   S.enemies=S.enemies.filter(e=>dist(e,B)>1400);S.fabShots=[];
   S.troops.forEach((u,i)=>{const a=i*2.1;u.x=B.x+Math.cos(a)*(B.r+20);u.y=B.y+Math.sin(a)*(B.r+20);
@@ -6239,8 +6239,8 @@ cv.addEventListener('pointerdown',e=>{
   if(e.button===2){
     // with combat units selected, a right-drag lays out a formation (see formationSlots); a plain
     // right-click (no drag) is still an ordinary order, issued on release
-    if(S.sel.troops.size&&!buildMode&&!probeMode&&!pingMode&&!callMode){mouse.form={x0:w.x,y0:w.y,x1:w.x,y1:w.y,sx:e.clientX,sy:e.clientY,moved:false};try{cv.setPointerCapture(e.pointerId)}catch(_){};return}
-    rightClick(w);return}
+    if(S.sel.troops.size&&!buildMode&&!probeMode&&!pingMode&&!callMode){mouse.form={x0:w.x,y0:w.y,x1:w.x,y1:w.y,sx:e.clientX,sy:e.clientY,moved:false,queue:e.shiftKey};try{cv.setPointerCapture(e.pointerId)}catch(_){};return}
+    rightClick(w,e.shiftKey);return}
   if(e.button===0){
     if(callMode){fireCall(w);return}
     if(probeMode){fireProbe(w);return}
@@ -6284,7 +6284,7 @@ cv.addEventListener('pointerup',e=>{
     // a click (no drag) on a wall end or Turret starts the wall there: it follows the cursor until the next click
     if(!d.sticky&&d.s0&&Math.hypot(d.x1-d.x0,d.y1-d.y0)<WALL_MIN_LEN){d.sticky=true}else finishWallDraw();
     if(e.pointerType==='touch')touchPts.delete(e.pointerId);return}
-  if(mouse.form){const f=mouse.form;mouse.form=null;if(e.pointerType==='touch')touchPts.delete(e.pointerId);if(f.moved)orderFormation(f);else rightClick({x:f.x0,y:f.y0});return}
+  if(mouse.form){const f=mouse.form;mouse.form=null;if(e.pointerType==='touch')touchPts.delete(e.pointerId);if(f.moved)orderFormation(f);else rightClick({x:f.x0,y:f.y0},f.queue);return}
   if(mouse.wallDragging){
     mouse.wallDragging=false;
     if(e.pointerType==='touch'){
@@ -6602,7 +6602,7 @@ function followSelected(){
   const all=[...rawT,...rawH,...rawBu];
   if(all.length===0){note('Select units first');return}
   all.forEach((u,i)=>{
-    u.following=true;u.dest=null;u.target=null;u.state='idle';u.guard=null;u.hold=false;u.wallHome=null;u.manning=null;u.formAng=null;
+    u.following=true;u.queue=null;u.dest=null;u.target=null;u.state='idle';u.guard=null;u.hold=false;u.wallHome=null;u.manning=null;u.formAng=null;
     u.followAng=(i/all.length)*Math.PI*2+rnd(-0.15,0.15);
     u.followDist=BASE_FOOTPRINT+rnd(20,60);
   });
@@ -6616,7 +6616,7 @@ function holdSelected(){
   const sel=[...S.sel.troops].map(id=>S.troops.find(t=>t.id===id)).filter(Boolean);
   if(!sel.length){note('Select Troopers or Paladins');return}
   const release=sel.every(t=>t.hold);
-  sel.forEach(t=>{t.hold=!release;t.wallHome=null;t.following=false;t.guard=null;t.dest=null;t.target=null;t.pace=null;t.state='idle';t.post={x:t.x,y:t.y}});
+  sel.forEach(t=>{t.hold=!release;t.queue=null;t.wallHome=null;t.following=false;t.guard=null;t.dest=null;t.target=null;t.pace=null;t.state='idle';t.post={x:t.x,y:t.y}});
   sfx.click();updateBuildBar();
 }
 // Moves a following unit toward its personal orbit point around the (possibly moving) Rig.
@@ -6787,7 +6787,7 @@ function tryLockdown(){
     note(cracked?`Vein still cracked — ${Math.ceil(cracked.crackedT)}s`:'Move onto a vein first');
     return;
   }
-  S.throttleMul=1; S.base.locked=true; S.base.dest=null;
+  S.throttleMul=1; S.base.locked=true; S.base.dest=null; S.base.queue=null;
   if(S.mods.siegeRing)buildSiegeRing();
   if(S.mods.callReq)msg(`Field Requisition: ${giftCall(2)} ready.`);
   S.activeVein=v; v.drillProg=0; v.prepT=0; v.stalled=false; v.paused=false; v.waveDir=rnd(0,Math.PI*2); v.firstWaveSent=true;
@@ -7273,15 +7273,17 @@ function formationSlots(f,units){
 }
 function orderFormation(f,manLine){
   const units=formationUnits();if(!units.length)return;
-  const {face,slots}=formationSlots(f,units);
+  const qU=f.queue?units.filter(movingOrder):[],qSave=qU.map(t=>[t,LEG_KEYS.map(k=>t[k])]);
+  const {face,slots}=qU.length?fromQueueEnds(qU,()=>formationSlots(f,units)):formationSlots(f,units);
   slots.forEach(({t,x,y})=>{
-    let d={x,y};if(terrainAt(d.x,d.y)===2)d=nearestPlain(d.x,d.y);if(S.glassB&&glassHit(d.x,d.y,10)){const q={x:d.x,y:d.y};glassPush(q,12);d=q}
+    let d={x,y};t.queue=null;if(terrainAt(d.x,d.y)===2)d=nearestPlain(d.x,d.y);if(S.glassB&&glassHit(d.x,d.y,10)){const q={x:d.x,y:d.y};glassPush(q,12);d=q}
     t.following=false;t.guard=null;t.target=null;t.wallHome=null;t.state='move';t.dest={x:Math.max(10,Math.min(W-10,d.x)),y:Math.max(10,Math.min(H-10,d.y))};
     t.formAng=face;t.wall=t.kind==='brawler';t.wallAng=face;t.manning=manLine||null;
   });
   // the whole formation keeps to its slowest unit, so it arrives together
   const sp=units.map(troopBaseSpeed),lo=Math.min(...sp);if(units.length>1&&lo<Math.max(...sp))units.forEach(t=>{t.pace=lo});
   S.formFx={slots:slots.map(s=>({x:s.t.dest.x,y:s.t.dest.y})),face,t:S.t};S.formDragged=true;
+  queueLegs(qSave);
   sfx.click();
 }
 // the wall line under a point (any standing slat within MAN_PICK_R)
@@ -7396,7 +7398,7 @@ const RIG_LEG_FOLD=1.8, RIG_LEG_UNFOLD=1.3, RIG_LEG_HOLD=3;
 const LAND_ALT=1500, LAND_T=5.4, LAND_BURN=0.45, LAND_LEGS_ALT=420, LAND_LEGS_RATE=0.75, LAND_EMERGE_GAP=0.16;
 function beginLanding(){const B=S.base,crew=[...S.troops,...S.harvesters,...S.builders,...S.drones]; // the repair Wardens come out last
   crew.forEach(u=>{u.hidden=true;u.x=B.x;u.y=B.y});
-  B.legDep=0;B._dep=0;B._legDir=0;B._alt=LAND_ALT;B.dest=null;
+  B.legDep=0;B._dep=0;B._legDir=0;B._alt=LAND_ALT;B.dest=null;B.queue=null;
   S.landing={t:0,touch:false,q:crew,et:0,lit:false,snd:null}}
 // falls at a steady clip, then the burn brakes it (a cubic: the speeds match where the two meet, and
 // the braking itself eases off near the ground, so it creeps the last stretch and sets down softly)
@@ -7623,7 +7625,27 @@ function drawFormationPreview(){
   fx.slots.forEach(p=>{ctx.beginPath();ctx.arc(p.x,p.y,7,0,Math.PI*2);ctx.moveTo(p.x+Math.cos(fx.face)*9,p.y+Math.sin(fx.face)*9);ctx.lineTo(p.x+Math.cos(fx.face)*14,p.y+Math.sin(fx.face)*14);ctx.stroke()});
   ctx.restore();
 }
-function rightClick(w){
+// v4: shift+right-click queues orders. A unit already walking somewhere keeps going and adds the spot to
+// its queue (u.queue: {x,y} for each leg, plus the formation facing for combat units); when it arrives it
+// takes the next leg (takeLeg). A unit standing still just goes; any order without shift clears the queue.
+const movingOrder=u=>u.state==='move'&&!!u.dest;
+const queueEnd=u=>u.queue&&u.queue.length?u.queue[u.queue.length-1]:u.dest;
+function takeLeg(u){const q=u.queue;if(!q||!q.length){u.queue=null;return false}
+  const n=q.shift();u.state='move';u.dest={x:n.x,y:n.y};
+  if('face' in n){u.formAng=n.face;u.wall=!!n.wall;u.wallAng=n.wallAng;u.pace=n.pace||null}
+  return true}
+// a queued formation is worked out from where the busy units will be at the end of their queues, not
+// where they stand now (moves them there for the call, then puts them back)
+function fromQueueEnds(units,fn){const back=units.map(u=>[u,u.x,u.y]);units.forEach(u=>{const p=queueEnd(u);u.x=p.x;u.y=p.y});
+  try{return fn()}finally{back.forEach(([u,x,y])=>{u.x=x;u.y=y})}}
+// the order fields a queued unit keeps while a new leg is worked out for it (see rightClick, orderFormation)
+const LEG_KEYS=['state','dest','target','following','guard','wall','wallAng','formAng','manning','wallHome','pace','hold','post','queue'];
+const legOf=t=>({x:t.dest.x,y:t.dest.y,face:t.formAng,wall:t.wall,wallAng:t.wallAng,pace:t.pace});
+const queueLegs=saved=>saved.forEach(([t,v])=>{const leg=legOf(t);LEG_KEYS.forEach((k,i)=>{t[k]=v[i]});(t.queue||=[]).push(leg)});
+// a selected unit's route: on to where it's walking, then each queued leg, with a dot at each stop
+function drawRoute(u,col){if(!u.dest)return;const q=u.queue||[];ctx.save();ctx.strokeStyle=col;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(u.x,u.y);ctx.lineTo(u.dest.x,u.dest.y);q.forEach(p=>ctx.lineTo(p.x,p.y));ctx.stroke();
+  if(q.length){ctx.fillStyle=col;[u.dest,...q].forEach(p=>{ctx.beginPath();ctx.arc(p.x,p.y,3,0,Math.PI*2);ctx.fill()})}ctx.restore()}
+function rightClick(w,queue){
   const nowT=performance.now(), dblRC=nowT-lastRC.t<DBL_RC_MS&&Math.hypot(w.x-lastRC.x,w.y-lastRC.y)<DBL_RC_R;
   lastRC={t:nowT,x:w.x,y:w.y};
   // v4: ordering units off the edge of the map sends them to the nearest point on it — so once the way
@@ -7640,7 +7662,8 @@ function rightClick(w){
   if(S.sel.base&&rawT.length===0&&rawH.length===0&&rawBu.length===0){
     if(S.base.locked){note('The Rig is locked while drilling');return}
     const d=bastionDest(w);if(!d){note('The Rig has no way to walk there');return}
-    S.base.dest={x:d.x,y:d.y};if(!d.ok)note('The Rig can’t walk out onto the rift — heading as close as it can. Look for the corridor round.');return;
+    if(queue&&S.base.dest){(S.base.queue||=[]).push({x:d.x,y:d.y});sfx.click();return}
+    S.base.queue=null;S.base.dest={x:d.x,y:d.y};if(!d.ok)note('The Rig can’t walk out onto the rift — heading as close as it can. Look for the corridor round.');return;
   }
   if(rawT.length===0&&rawH.length===0&&rawBu.length===0)return;
   // a severed unit still takes orders — losing power doesn't lose the player control of it,
@@ -7655,6 +7678,9 @@ function rightClick(w){
   // (a selected unit clicked on itself just stays put; the rest of the group guards it)
   const friend=!en&&selT.length?friendlyAt(w):null;
   const guards=friend?selT.filter(t=>t!==friend):[];
+  // shift: units already walking work their new leg out from the end of their queue, and keep their current order
+  const qT=queue&&!en&&!friend?selT.filter(movingOrder):[],qSave=qT.map(t=>[t,LEG_KEYS.map(k=>t[k])]);
+  const qBack=qT.map(t=>{const p=queueEnd(t),b=[t,t.x,t.y];t.x=p.x;t.y=p.y;return b});
   // v4: a group sent to a spot keeps a formation: it lines up there across the way it is heading, as wide
   // as it stands now (so a formation you laid out repeats itself), Paladins in a shield wall at the
   // front, then Mechs, Troopers and the long-range units in ranks behind (see formationSlots)
@@ -7679,7 +7705,7 @@ function rightClick(w){
     if(wallSlot.size&&!wallSlot.has(t)){off={x:off.x-Math.cos(wallFace)*42,y:off.y-Math.sin(wallFace)*42}}
     // a Paladin standing in (or walking to) a shield wall, ordered onto an enemy, goes back to its place after
     const home=en&&t.kind==='brawler'&&t.wall&&(t.dest||t.post)?{x:(t.dest||t.post).x,y:(t.dest||t.post).y,ang:t.wallAng,form:t.formAng,man:t.manning}:(en&&t.wallHome)||null;
-    t.following=false;t.guard=null;t.wall=false;t.pace=null;t.formAng=null;t.manning=null;t.wallHome=null;
+    t.following=false;t.guard=null;t.wall=false;t.pace=null;t.formAng=null;t.manning=null;t.wallHome=null;t.queue=null;
     if(en){t.state='attack';t.target=en;t.dest=null;t.wallHome=home}
     else if(friend){
       if(t===friend){t.state='idle';t.dest=null;t.target=null;t.post={x:t.x,y:t.y};return}
@@ -7696,28 +7722,31 @@ function rightClick(w){
    if(mv.length>1&&!dblRC){const sp=mv.map(troopBaseSpeed), lo=Math.min(...sp), hi=Math.max(...sp);
      if(lo<hi){mv.forEach(t=>{t.pace=lo});S.paceHint=(S.paceHint||0)+1}}}
   if(S.glassB)selT.forEach(t=>{if(t.dest)glassPush(t.dest,(t.r||7)+4)}); // a spot hard against crystal moves just clear of it
+  qBack.forEach(([t,x,y])=>{t.x=x;t.y=y});queueLegs(qSave);if(qT.length)sfx.click();
   if(en&&selT.length){S.attackFx={e:en,t0:performance.now()};if(sfxReady('attackOrder',0.08)){tone(520,0.05,'square',0.05);tone(390,0.08,'square',0.05,0.05)}}
   if(guards.length){
     sfx.click();
   }
 
   if(selH.length){
-    selH.forEach(h=>h.following=false);
+    selH.forEach(h=>{h.following=false;if(!(queue&&movingOrder(h)))h.queue=null});
     if(nearBase){
-      selH.forEach(h=>{h.state='return';h.dest=null;h.autoLoop=false});
+      selH.forEach(h=>{h.state='return';h.dest=null;h.autoLoop=false;h.queue=null});
     }else if(nd){
-      selH.forEach(h=>{h.state='harvest';h.node=nd;h.dest=null;h.autoLoop=false});
+      selH.forEach(h=>{h.state='harvest';h.node=nd;h.dest=null;h.autoLoop=false;h.queue=null});
     }else{
       selH.forEach((h,i)=>{const off=selH.length>1?{x:Math.cos(i*2.1)*14,y:Math.sin(i*2.1)*14}:{x:0,y:0};
-        h.state='move';h.dest={x:w.x+off.x,y:w.y+off.y};h.node=null;h.autoLoop=false});
+        const p={x:w.x+off.x,y:w.y+off.y};if(queue&&movingOrder(h)){(h.queue||=[]).push(p);return}
+        h.state='move';h.dest=p;h.node=null;h.autoLoop=false});
     }
   }
 
   if(selBu.length){
     selBu.forEach((bu,i)=>{
-      bu.following=false;
-      releaseBuilderClaim(bu);
       const off=selBu.length>1?{x:Math.cos(i*2.1)*14,y:Math.sin(i*2.1)*14}:{x:0,y:0};
+      if(queue&&movingOrder(bu)){(bu.queue||=[]).push({x:w.x+off.x,y:w.y+off.y});return}
+      bu.following=false;bu.queue=null;
+      releaseBuilderClaim(bu);
       bu.state='move';bu.dest={x:w.x+off.x,y:w.y+off.y};bu.target=null;
     });
   }
@@ -9503,7 +9532,7 @@ function update(dt){
     const aim=B.riftShove?B.dest:waypointFor(B,B.dest.x,B.dest.y);
     const factor=terrainAt(B.x,B.y)===1?MUD_MULT:1;
     moveToward(B,aim,BASE_SPEED*factor,dt);B.legHoldT=S.t+RIG_LEG_HOLD;
-    if(dist(B,B.dest)<3)B.dest=null;
+    if(dist(B,B.dest)<3){B.dest=B.queue&&B.queue.length?B.queue.shift():null;if(!B.dest)B.queue=null}
   }
   B.x=Math.max(40,Math.min(W-40,B.x));B.y=Math.max(40,Math.min(H-40,B.y));
   updateRiftShield(dt);
@@ -9565,7 +9594,7 @@ function update(dt){
       if(mech||brawl)t.ang=Math.atan2(t.dest.y-t.y,t.dest.x-t.x);
       const aim=waypointFor(t,t.dest.x,t.dest.y);
       moveToward(t,aim,speed*factor,dt);
-      if(dist(t,t.dest)<4||(t._nearDone&&dist(t,t.dest)<44)){t._nearDone=false;t.dest=null;t.pace=null;t.state='idle';if(mech||brawl||t.hold)t.post={x:t.x,y:t.y};if(brawl&&t.wall&&t.wallAng!=null)t.ang=t.wallAng;if(t.formAng!=null)t.ang=t.formAng}
+      if(dist(t,t.dest)<4||(t._nearDone&&dist(t,t.dest)<44)){t._nearDone=false;t.dest=null;t.pace=null;t.state='idle';if(mech||brawl||t.hold)t.post={x:t.x,y:t.y};if(brawl&&t.wall&&t.wallAng!=null)t.ang=t.wallAng;if(t.formAng!=null)t.ang=t.formAng;takeLeg(t)}
     }
     else if(t.state==='attack'){
       if(!t.target||t.target.hp<=0){t.target=null;t.state='idle';if(mech||brawl||t.hold)t.post={x:t.x,y:t.y};
@@ -9682,7 +9711,7 @@ function update(dt){
     if(h.state==='move'&&h.dest){
       const aim=waypointFor(h,h.dest.x,h.dest.y);
       moveToward(h,aim,HARV_SPEED*S.mods.moveSpeedMult*factor,dt);
-      if(dist(h,h.dest)<4){h.dest=null;h.state='idle'}
+      if(dist(h,h.dest)<4){h.dest=null;h.state='idle';takeLeg(h)}
     }
     else if(h.state==='harvest'){const n=h.node;
       if(!n||(n.amt<=0&&h.carry===0)){h.state='idle';h.node=null}
@@ -9737,7 +9766,7 @@ function update(dt){
     if(bu.state==='move'&&bu.dest){
       const aim=waypointFor(bu,bu.dest.x,bu.dest.y);
       moveToward(bu,aim,BUILDER_SPEED*S.mods.moveSpeedMult*factor,dt);
-      if(dist(bu,bu.dest)<4){bu.dest=null;bu.state='idle'}
+      if(dist(bu,bu.dest)<4){bu.dest=null;bu.state='idle';takeLeg(bu)}
     }
     else if(bu.state==='dock'){
       const aim=waypointFor(bu,B.x,B.y);
@@ -11365,7 +11394,8 @@ function draw(){
   S.pings.forEach(pg=>{if(pg.probe)return;const f=pg.t/PING_ENEMY_T;ctx.strokeStyle=C.dat;ctx.lineWidth=2/cam.z;
     ctx.globalAlpha=0.18;ctx.beginPath();ctx.arc(pg.x,pg.y,pg.r,0,Math.PI*2);ctx.stroke();
     ctx.globalAlpha=0.6;ctx.beginPath();ctx.arc(pg.x,pg.y,pg.r,-Math.PI/2,-Math.PI/2+Math.PI*2*f);ctx.stroke();ctx.globalAlpha=1});
-  if(B.dest){ctx.strokeStyle='rgba(94,200,255,0.5)';ctx.setLineDash([6,6]);ctx.beginPath();ctx.moveTo(B.x,B.y);ctx.lineTo(B.dest.x,B.dest.y);ctx.stroke();ctx.setLineDash([])}
+  if(B.dest){ctx.strokeStyle='rgba(94,200,255,0.5)';ctx.setLineDash([6,6]);ctx.beginPath();ctx.moveTo(B.x,B.y);ctx.lineTo(B.dest.x,B.dest.y);(B.queue||[]).forEach(p=>ctx.lineTo(p.x,p.y));ctx.stroke();ctx.setLineDash([]);
+    if(B.queue&&B.queue.length){ctx.fillStyle='rgba(94,200,255,0.7)';[B.dest,...B.queue].forEach(p=>{ctx.beginPath();ctx.arc(p.x,p.y,4,0,Math.PI*2);ctx.fill()})}}
   // hold: a link line between held units backing each other up, and corner brackets on each
   {const hd=S.troops.filter(t=>t.hold&&!t.dest&&t.state!=='attack');ctx.save();ctx.strokeStyle=C.accent;ctx.lineWidth=1.5;ctx.globalAlpha=0.45;ctx.setLineDash([3,4]);ctx.beginPath();
    for(let i=0;i<hd.length;i++)for(let j=i+1;j<hd.length;j++)if(dist(hd[i],hd[j])<HOLD_LINK_R){ctx.moveTo(hd[i].x,hd[i].y);ctx.lineTo(hd[j].x,hd[j].y)}
@@ -11388,7 +11418,7 @@ function draw(){
         ctx.beginPath();ctx.arc(g.x,g.y,guardRadius(g)+9,0,Math.PI*2);ctx.stroke();ctx.setLineDash([])}
     }
     if(t.manning&&!t.dest){const y=t.y-(t.r||7)-9;ctx.fillStyle=C.accent;ctx.globalAlpha=0.9;ctx.fillRect(t.x-6,y+2,12,2.5);ctx.fillRect(t.x-6,y-1,3,3);ctx.fillRect(t.x-1.5,y-1,3,3);ctx.fillRect(t.x+3,y-1,3,3);ctx.globalAlpha=1}
-    if(sel&&t.dest){ctx.strokeStyle='rgba(94,200,255,0.35)';ctx.beginPath();ctx.moveTo(t.x,t.y);ctx.lineTo(t.dest.x,t.dest.y);ctx.stroke()}});
+    if(sel&&t.dest)drawRoute(t,'rgba(94,200,255,0.35)')});
   drawPaladinWall();
   // grenades/artillery shells in flight — a Mech pellet instead draws as a short tracer line
   // trailing back along its flight path, not a dot, so the shotgun spread actually reads as a
@@ -11409,7 +11439,7 @@ function draw(){
     if(h.hp<h.maxHp)hpbar(h.x,h.y-14,16,h.hp/h.maxHp);
     if(h.sanity<SANITY_MAX)sanityBar(h.x,h.y-10,16,h.sanity/SANITY_MAX);
     if(!h.tetherOk)drawCutGlyph(h.x,h.y); if(h.following)drawFollowGlyph(h.x,h.y);
-    if(sel&&h.dest){ctx.strokeStyle='rgba(232,147,92,0.35)';ctx.beginPath();ctx.moveTo(h.x,h.y);ctx.lineTo(h.dest.x,h.dest.y);ctx.stroke()}});
+    if(sel&&h.dest)drawRoute(h,'rgba(232,147,92,0.35)')});
   // builders
   S.builders.forEach(bu=>{if(bu.hidden)return;const sel=S.sel.bu.has(bu.id);if(sel){ctx.strokeStyle=C.builder;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(bu.x,bu.y,bu.r+5,0,Math.PI*2);ctx.stroke()}
     ctx.fillStyle=bu.flashT>0?'#fff':C.builder;ctx.beginPath();ctx.moveTo(bu.x,bu.y-bu.r);ctx.lineTo(bu.x+bu.r,bu.y+bu.r*0.7);ctx.lineTo(bu.x-bu.r,bu.y+bu.r*0.7);ctx.closePath();ctx.fill();
@@ -11417,7 +11447,7 @@ function draw(){
     if(bu.hp<bu.maxHp)hpbar(bu.x,bu.y-14,16,bu.hp/bu.maxHp);
     if(bu.sanity<SANITY_MAX)sanityBar(bu.x,bu.y-10,16,bu.sanity/SANITY_MAX);
     if(!bu.tetherOk)drawCutGlyph(bu.x,bu.y); if(bu.following)drawFollowGlyph(bu.x,bu.y);
-    if(sel&&bu.dest){ctx.strokeStyle='rgba(79,209,197,0.35)';ctx.beginPath();ctx.moveTo(bu.x,bu.y);ctx.lineTo(bu.dest.x,bu.dest.y);ctx.stroke()}});
+    if(sel&&bu.dest)drawRoute(bu,'rgba(79,209,197,0.35)')});
   // fallen units mid-reanimation: a grey husk, with a violet ring closing in on it and the husk
   // flushing violet as the moment it rises gets closer
   S.reanim.forEach(c=>{const p=1-Math.max(0,c.t)/REANIMATE_T, fl=0.75+0.25*Math.sin(performance.now()/45);
