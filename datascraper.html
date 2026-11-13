@@ -248,6 +248,7 @@ body.lowGfx #fogGrain{display:none}
 @media (max-width:720px),(max-height:500px){.tutPanel{top:calc(env(safe-area-inset-top,0px) + 60px);font-size:12px}}
 .branchTag{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)!important;margin-top:-8px!important}
 .menuMeta{display:flex;flex-direction:column;align-items:center;gap:8px;margin:2px 0}
+.menuDbg{display:flex;gap:8px;padding:6px;border:1px dashed #a0522d;border-radius:6px}.menuDbg[hidden]{display:none}
 .metaRow{display:flex;gap:8px;align-items:baseline;font-family:var(--mono)}
 .metaRow .k{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .metaRow .v{font-size:16px;color:var(--condensed)}
@@ -832,6 +833,8 @@ async function run(d){
   </div>
   <button id="tutorialBtn" class="secondary">Tutorial</button>
   <button id="settingsBtn" class="secondary">Settings</button>
+  <!-- debug only (shown while debug mode is on: the ` key, here or in a run): copy the save out to a file, or load one -->
+  <div class="menuDbg" id="menuDbgRow" hidden><button id="dbgSaveBtn" class="secondary">Save to file</button><button id="dbgLoadBtn" class="secondary">Load from file</button><input type="file" id="dbgLoadFile" accept=".json,.txt,application/json,text/plain" hidden></div>
   <!-- Filled in at load from the GitHub API with the actual latest commit on master — the same
        short hash `git push` prints as its destination ref — so it always matches the live build
        with no manual bumping. See the fetch call near the bottom of the main script. -->
@@ -3304,7 +3307,7 @@ function setInvuln(on){dbgInvuln=on;dbgInvBtn.textContent='Invincible units: '+(
 function debugPass(){if(!S)return;
   if(dbgGod){if(S.dat<DBG_DAT)S.dat=DBG_DAT;S.base.hp=S.base.maxHp}
   if(dbgInvuln)for(const a of [S.troops,S.harvesters,S.builders])for(const u of a){u.hp=u.maxHp;if(u.sanity!=null)u.sanity=SANITY_MAX}}
-function setDebugMode(on){debugNoFog=on;dbgBar.hidden=!on;if(!on){if(dbgGod)setGod(false);if(dbgInvuln)setInvuln(false);if(!dbgCards.hidden)dbgCardsShow(false)}msg(on?'Debug on: fog of war off, debug buttons at the top':'Debug off: fog of war back on')}
+function setDebugMode(on){debugNoFog=on;dbgBar.hidden=!on;document.getElementById('menuDbgRow').hidden=!on;if(!on){if(dbgGod)setGod(false);if(dbgInvuln)setInvuln(false);if(!dbgCards.hidden)dbgCardsShow(false)}msg(on?'Debug on: fog of war off, debug buttons at the top':'Debug off: fog of war back on')}
 const dbgSkip=dbgButton('Next map',()=>{
   if(!RUN||!S||S.over||tutorialMap||stopInfo().final){msg('Debug: no next map to skip to');return}
   if(dbgGod&&dbgDatSave)dbgDatSave.S=null;RUN.carry=captureCarry();advanceStop()});
@@ -3647,6 +3650,20 @@ document.getElementById('unlocksBackBtn').onclick=()=>{
 // recording and debug toggles.
 document.getElementById('playBtn').onclick=startRun;
 document.getElementById('resumeRunBtn').onclick=resumeRun;
+// debug: the save as a file — the run in progress, unlocks, audio and voice settings — and back again
+const SAVE_FILE_KEYS=()=>[RUN_SAVE_KEY,META_KEY,AUDIO_KEY,VOX_KEY];
+document.getElementById('dbgSaveBtn').onclick=()=>{if(RUN&&S&&!S.over)liveSave();const d={};SAVE_FILE_KEYS().forEach(k=>{const v=localStorage.getItem(k);if(v!=null)d[k]=v});
+  if(!d[RUN_SAVE_KEY]&&!d[META_KEY]){msg('Nothing saved yet to export');return}
+  const p=n=>String(n).padStart(2,'0'),t=new Date(),a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(d)],{type:'application/json'}));
+  a.download=`astroscraper_${GAME_BRANCH}_save_${t.getFullYear()}-${p(t.getMonth()+1)}-${p(t.getDate())}_${p(t.getHours())}${p(t.getMinutes())}.json`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000)};
+document.getElementById('dbgLoadBtn').onclick=()=>document.getElementById('dbgLoadFile').click();
+document.getElementById('dbgLoadFile').onchange=e=>{const f=e.target.files&&e.target.files[0];e.target.value='';if(!f)return;
+  f.text().then(txt=>{let d;try{d=JSON.parse(txt)}catch(err){alert('That file isn’t an Astroscraper save.');return}
+    const ok=SAVE_FILE_KEYS(),ks=Object.keys(d||{}).filter(k=>ok.includes(k)&&typeof d[k]==='string');
+    if(!ks.length){alert('That file has no Astroscraper '+GAME_BRANCH+' save in it.');return}
+    if(d[RUN_SAVE_KEY]){try{const r=JSON.parse(d[RUN_SAVE_KEY]);if(!r||!r.run)throw 0}catch(err){alert('The run in that file is damaged and can’t be loaded.');return}}
+    if(!confirm('Load this save? It replaces the run'+(ks.includes(META_KEY)?', unlocks':'')+' and settings saved in this browser.'))return;
+    ks.forEach(k=>localStorage.setItem(k,d[k]));RUN=null;location.reload()})};
 // two clicks to restart, so a stray one can't throw a run away
 document.getElementById('pauseRestartBtn').onclick=()=>{const b=document.getElementById('pauseRestartBtn');if(b.dataset.arm){b.dataset.arm='';restartRun();return}
   b.dataset.arm='1';b._tc=tutorial?'Click again to restart the tutorial':'Click again — this run will be lost';setTimeout(()=>{if(b.dataset.arm){b.dataset.arm='';b._tc=tutorial?'Restart tutorial':'Restart run'}},3000)};
@@ -6408,6 +6425,7 @@ cv.addEventListener('dblclick',e=>{
 });
 cv.addEventListener('wheel',e=>{e.preventDefault();const w0=toWorld(e.clientX,e.clientY);cam.z=Math.min(2.2,Math.max(0.35,cam.z*(e.deltaY>0?0.9:1.1)));const w1=toWorld(e.clientX,e.clientY);cam.x+=w0.x-w1.x;cam.y+=w0.y-w1.y;clampCam()},{passive:false});
 addEventListener('keydown',e=>{
+  if(menuOpen&&e.key==='`'&&e.target.tagName!=='INPUT'){setDebugMode(!debugNoFog);return} // (on the menu too: shows the save/load buttons)
   if(menuOpen||e.target.tagName==='INPUT')return; keys[e.key.toLowerCase()]=true; keys[e.key]=true;
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='a'){e.preventDefault();keys.a=false;keys.A=false;selectAllUnitsOfKind('troops');return}
   if(/^Digit[0-9]$/.test(e.code||'')&&!e.altKey){e.preventDefault();const n=+e.code.slice(5);
