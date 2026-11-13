@@ -4024,7 +4024,7 @@ function splinterStep(e,tgt,dt){
         S.shardShots.push({src:e,x:e.x+Math.cos(a)*10,y:e.y+Math.sin(a)*10,vx:Math.cos(a)*SPL_SHOT_SPEED,vy:Math.sin(a)*SPL_SHOT_SPEED,life:SPL_RANGE*1.4/SPL_SHOT_SPEED,dmg:e.dmg,ang:a,spin:rnd(-12,12)});
         if(sfxReady('splshot',0.06))tone(900+Math.random()*300,0.05,'triangle',0.035,0,500)}
       else{e.volley=false;e.regrowT=0}}}
-  if(d>SPL_RANGE*0.85+(tgt.r||12)&&!e.volley){const aim=enemyApproachPoint(e,tgt);moveToward(e,aim,e.speed*enemyRoughFactor(e.x,e.y),dt)}
+  if(d>SPL_RANGE*0.85+(tgt.r||12)&&!e.volley){const aim=enemyApproachPoint(e,tgt);moveToward(e,aim,e.speed*enemyPace(e),dt)}
 }
 // Splinter shards in flight: they hit the first of your units or structures they touch; walls and a
 // facing shield-wall Paladin stop them; rock swallows them.
@@ -4362,7 +4362,7 @@ function spawnHuskCore(p){const hp=Math.round(HUSKCORE_HP*(RUN?stopHpMult():1));
   S.enemies.push({x:p.x,y:p.y,r:5,hp,maxHp:hp,speed:HUSKCORE_SPEED,dmg:0,cd:0,kind:'huskcore',core:true,target:null,aggro:0,home:{x:p.x,y:p.y},ang:rnd(0,Math.PI*2),faceT:9,stunT:0,seed:p.seed+7,life:0})}
 function huskCoreStep(e,dt){e._enemy=true;e.life+=dt;let n=null,nd=Infinity;liveNests().forEach(q=>{const d=dist(q,e);if(d<nd){nd=d;n=q}});
   const B=S.base,to=n||{x:e.x+(e.x-B.x),y:e.y+(e.y-B.y)},aim=n?waypointFor(e,n.x,n.y):to,a=Math.atan2(aim.y-e.y,aim.x-e.x)+Math.sin(e.life*9+e.seed)*0.5;
-  const sp=e.speed*enemyRoughFactor(e.x,e.y)*dt,nx=e.x+Math.cos(a)*sp,ny=e.y+Math.sin(a)*sp;if(nx>10&&ny>10&&nx<W-10&&ny<H-10&&terrainAt(nx,ny)!==2&&!wallAt(nx,ny,true)){e.x=nx;e.y=ny}e.ang=a;
+  const sp=e.speed*enemyPace(e)*dt,nx=e.x+Math.cos(a)*sp,ny=e.y+Math.sin(a)*sp;if(nx>10&&ny>10&&nx<W-10&&ny<H-10&&terrainAt(nx,ny)!==2&&!wallAt(nx,ny,true)){e.x=nx;e.y=ny}e.ang=a;
   if(n&&nd<n.r+16){e.hp=0;e.silent=true;const h=spawnShard(e.x,e.y,'husk','roam');h.home={x:n.x,y:n.y};burst(e.x,e.y,SH_HOT,10,90,0.4);return}
   if(e.life>HUSKCORE_LIFE){e.hp=0;e.silent=true;burst(e.x,e.y,SH_HOT,6,60,0.3)}}
 function drawShard(e){const k=e.shard||'huskcore',t=S.t+e.seed%50,fl=e.flashT>0,sm=x=>x<=0?0:x>=1?1:x*x*(3-2*x);
@@ -4414,7 +4414,7 @@ function lancerStep(e,dt){
     e.charge+=dt;if(sfxReady('lancechg',0.22))tone(220+700*k*k,0.08,'triangle',0.02,0,260+760*k*k);
     if(e.charge>=LANCE_CHARGE){lanceRelease(e,tg);e.charge=0;e.shards=0;e.regrowT=0}
     return}
-  if(d>LANCE_RANGE*0.9)moveToward(e,enemyApproachPoint(e,tg),e.speed*enemyRoughFactor(e.x,e.y),dt);
+  if(d>LANCE_RANGE*0.9)moveToward(e,enemyApproachPoint(e,tg),e.speed*enemyPace(e),dt);
 }
 function lanceRelease(e,tg){const z=lanceZ(1),R=lanceRing(1);
   for(let i=0;i<LANCE_SHARDS;i++){const a=i/LANCE_SHARDS*Math.PI*2+e.spin,sx=e.x+Math.cos(a)*R,sy=e.y+Math.sin(a)*R;
@@ -4490,12 +4490,12 @@ function updateQuaker(e,dt){
     return;
   }
   if(!v||!veinAlive(v)||S.activeVein!==v){ // nothing to wreck: wander home
-    moveToward(e,waypointFor(e,e.home.x,e.home.y),e.speed*0.6*enemyRoughFactor(e.x,e.y),dt);return}
+    moveToward(e,waypointFor(e,e.home.x,e.home.y),e.speed*0.6*enemyPace(e),dt);return}
   if(!e.post)e.post=quakerPost(e,Math.atan2(e.y-v.y,e.x-v.x));
   // shy: something of yours close — bound away round the ring
   const near=S.troops.some(t=>dist(t,e)<QUAKER_SHY_R);
   if(near&&e.jumpT>1.5){const a=Math.atan2(e.y-v.y,e.x-v.x)+(Math.random()<0.5?-1:1)*rnd(0.6,1.1);e.post=quakerPost(e,a);quakerLeap(e,e.post);return}
-  if(dist(e,e.post)>24){moveToward(e,waypointFor(e,e.post.x,e.post.y),e.speed*enemyRoughFactor(e.x,e.y),dt);e.ang=Math.atan2(e.post.y-e.y,e.post.x-e.x);return}
+  if(dist(e,e.post)>24){moveToward(e,waypointFor(e,e.post.x,e.post.y),e.speed*enemyPace(e),dt);e.ang=Math.atan2(e.post.y-e.y,e.post.x-e.x);return}
   e.jumpT-=dt;
   if(e.jumpT<=0)quakerLeap(e,{x:e.x+rnd(-20,20),y:e.y+rnd(-20,20)});
 }
@@ -5832,6 +5832,8 @@ function roughFactor(x,y){const v=terrainAt(x,y),f=(v===1||v===RIFT)?MUD_MULT:1;
 // Enemies are native to the rift — only mud slows them down, so they can't be kited into a rift
 // lobe to buy free time the way a player unit's own mud penalty would.
 function enemyRoughFactor(x,y){return terrainAt(x,y)===1?MUD_MULT:1}
+// ground speed times the wave pack's pace (see updatePacks)
+function enemyPace(e){return enemyRoughFactor(e.x,e.y)*(e._pm||1)}
 // forEnemy: rift doesn't slow enemies (see enemyRoughFactor), so their pathing treats it as
 // ordinary ground — otherwise every enemy funnels into the same narrow plain corridors through the
 // rift-choked Dense Field and arrives in single file.
@@ -5963,12 +5965,15 @@ function enemyApproachPoint(e,tgt){
   return e._flOk?p:waypointFor(e,tgt.x,tgt.y);
 }
 function glassLineHit(x0,y0,x1,y1){const d=Math.hypot(x1-x0,y1-y0),n=Math.max(1,Math.ceil(d/12));for(let i=1;i<n;i++){const t=i/n;if(glassHit(x0+(x1-x0)*t,y0+(y1-y0)*t,6))return true}return false}
+let wideFrame=-1,wideBudget=0;
+function enemyWideOk(u){if(!u._enemy)return true;if(wideFrame!==S.t){wideFrame=S.t;wideBudget=2}return wideBudget-->0}
 function waypointFor(u,tx,ty){
   if(!S.glassFine||u===S.base)return coarseWaypoint(u,tx,ty);
   // hung up (barely moved for a moment while still short of the goal)? search wider, straight to the goal
-  if(!u._enemy&&(!u._sk||S.t-u._sk.t>0.8)){
+  // (v4: enemies too — one pinned against crystal used to stay there for good; a couple of them a frame at most)
+  if(!u._sk||S.t-u._sk.t>0.8){
     u._nearDone=!!(u._sk&&Math.hypot(u.x-u._sk.x,u.y-u._sk.y)<5&&Math.hypot(u.x-tx,u.y-ty)<44); // pressed up against crystal right by the spot: close enough
-    if(u._sk&&Math.hypot(u.x-u._sk.x,u.y-u._sk.y)<5&&Math.hypot(u.x-tx,u.y-ty)>26&&!(u._fwFail&&Math.hypot(u._fwFail.x-tx,u._fwFail.y-ty)<30)){u._wideT=S.t+8;u._fw=null}
+    if(u._sk&&Math.hypot(u.x-u._sk.x,u.y-u._sk.y)<5&&Math.hypot(u.x-tx,u.y-ty)>26&&!(u._fwFail&&Math.hypot(u._fwFail.x-tx,u._fwFail.y-ty)<30)&&enemyWideOk(u)){u._wideT=S.t+8;u._fw=null}
     u._sk={x:u.x,y:u.y,t:S.t};
   }
   if(u._wideT>S.t){
@@ -8298,13 +8303,13 @@ function sfxReady(key,minGap){const t=performance.now()/1000;if(t-(sfxCd[key]??-
 let SND_POS=null;
 const SND_FOCUS=0.55, SND_FADE=0.6, SND_PAN=0.75, SND_FOG=0.45, SND_MIN=0.03;
 function sndAt(x,y,fn){const k=SND_POS;SND_POS={x,y};try{fn()}finally{SND_POS=k}}
-function sndMix(x,y){if(!S||!cam)return {g:1,pan:0,fog:false};const vw=cv.clientWidth||innerWidth,vh=cv.clientHeight||innerHeight,z=cam.z||1;
+function sndMix(x,y){if(!S||!cam)return {g:1,pan:0,fog:false};const vw=Math.max(1,cv.clientWidth||innerWidth||0),vh=Math.max(1,cv.clientHeight||innerHeight||0),z=cam.z||1;
   const dx=(x-cam.x)*z,dy=(y-cam.y)*z,R=0.5*Math.hypot(vw,vh),d=Math.hypot(dx,dy);
   let g=d<=R*SND_FOCUS?1:1/(1+Math.pow((d-R*SND_FOCUS)/(R*SND_FADE),2));
   g*=(1+0.15*Math.max(0,1-d/(R*0.3)))/1.15; // a little louder right where you're looking (the middle is the old volume)
   g*=Math.max(0.65,Math.min(1.15,0.75+0.25*z)); // zoom: up to +15% zoomed right in, down to −35% zoomed right out
   let fog=false;try{fog=!debugNoFog&&!visibleNow({x,y})}catch(e){}if(fog)g*=SND_FOG;
-  return {g,pan:Math.max(-1,Math.min(1,dx/(vw/2)))*SND_PAN,fog}}
+  return {g:Number.isFinite(g)?g:1,pan:(Math.max(-1,Math.min(1,dx/(vw/2)))*SND_PAN)||0,fog}}
 // where a sound plays into: the effects bus, through its own pan/volume (and muffle) when it has a position
 function sndOut(ac){const out=sfxOut(ac);if(!SND_POS)return {node:out,g:1};const m=sndMix(SND_POS.x,SND_POS.y);if(m.g<SND_MIN)return null;
   let node=out;if(m.fog){const lp=ac.createBiquadFilter();lp.type='lowpass';lp.frequency.value=900;lp.connect(node);node=lp}
@@ -8700,16 +8705,65 @@ function hordeStep(e,tgt,dt){
   let ux,uy;
   const f=(d<170||(tgt!==S.base&&d<380))?null:flowDir(e.x,e.y);
   if(f){ux=f.x;uy=f.y}else{ux=(tgt.x-e.x)/(d||1);uy=(tgt.y-e.y)/(d||1)}
-  const wv=Math.sin(S.t*2.3+e.seed)*0.4*Math.min(1,d/200),c=Math.cos(wv),s=Math.sin(wv);[ux,uy]=[ux*c-uy*s,ux*s+uy*c];
+  // v4: jammed against a crystal shard (barely moved for a moment)? side-step round it for a bit
+  if(!e._jk||S.t-e._jk.t>0.6){if(e._jk&&Math.hypot(e.x-e._jk.x,e.y-e._jk.y)<4&&d>reach+20)e._sideT=S.t+rnd(0.6,1.2);e._jk={x:e.x,y:e.y,t:S.t}}
+  const side=e._sideT>S.t?((e.seed||0)%2<1?1.3:-1.3):0;
+  const wv=Math.sin(S.t*2.3+e.seed)*0.4*Math.min(1,d/200)+side,c=Math.cos(wv),s=Math.sin(wv);[ux,uy]=[ux*c-uy*s,ux*s+uy*c];
   const w=wallAt(e.x+ux*(e.r+6),e.y+uy*(e.r+6),true);
   if(w){if(e.cd<=0){damageWall(w,e.dmg*1.5);spark(w.x,w.y,C.enemy,1);e.cd=0.8;wallTouch(w,e)}return}
-  const sp=e.speed*enemyRoughFactor(e.x,e.y)*dt,nx=e.x+ux*sp,ny=e.y+uy*sp;
+  const sp=e.speed*enemyPace(e)*dt,nx=e.x+ux*sp,ny=e.y+uy*sp;
   // (one already inside blocked ground — solid glass — walks out rather than freezing there)
   if(!hordeBlocked(nx,ny)||hordeBlocked(e.x,e.y)){e.x=nx;e.y=ny}else if(!hordeBlocked(nx,e.y))e.x=nx;else if(!hordeBlocked(e.x,ny))e.y=ny;
   e.ang=Math.atan2(uy,ux);
 }
+// v4: a wave moves as a pack instead of trickling in. It musters first: everything that spawned
+// gathers at a rally point just out from where it came (MUSTER_T s, longer for a great wave), then
+// marches together — the ones out front ease off and the stragglers hurry so the pack holds
+// together at its middle's pace. Once the front reaches your defences (within CHARGE_R of the Rig
+// by path, or a member gets into a fight or takes a hit) the pack charges: everyone speeds up, and
+// anyone well behind the front surges to catch up. Getting shot or found while mustering sets
+// them off early. Lancers keep their own timing.
+const MUSTER_T=5, MUSTER_BIG_T=8, MUSTER_R=70, MUSTER_OUT=160, PACK_TICK=0.25,
+  PACK_LEAD=110, PACK_LAG=170, PACK_SLOW=0.55, PACK_HURRY=1.3,
+  PACK_SYNC_PACE=85, PACK_SYNC_MAX=14, CHARGE_R=560, CHARGE_ENGAGE=260, CHARGE_MULT=1.2, SURGE_GAP=320, SURGE_MULT=1.7;
+const PACK_SKIP=new Set(['lancer','nest','huskcore','quaker','saboteur']);
+function formPacks(v,from,srcs,big){
+  const fresh=S.enemies.slice(from).filter(e=>!PACK_SKIP.has(e.kind)&&!e.pack);if(!fresh.length)return;
+  const groups=srcs.map(()=>[]),made=[];
+  fresh.forEach(e=>{let bi=0,bd=Infinity;srcs.forEach((q,i)=>{const d=dist(e,q);if(d<bd){bd=d;bi=i}});groups[bi].push(e)});
+  groups.forEach((m,i)=>{if(!m.length)return;let x=0,y=0;m.forEach(e=>{x+=e.x;y+=e.y});x/=m.length;y/=m.length;
+    const d=Math.hypot(v.x-x,v.y-y)||1,o=Math.min(MUSTER_OUT,d*0.2),r=nearestPlain(x+(v.x-x)/d*o,y+(v.y-y)/d*o);
+    const P={m,rally:{x:r.x,y:r.y},phase:'muster',end:S.t+(big?MUSTER_BIG_T:MUSTER_T),tick:0};
+    m.forEach(e=>{e.pack=P;e._pm=1});made.push(P)});
+  // packs from nearer nests hold back longer, so the whole wave lands at about the same moment
+  updateFlow();const D=made.map(P=>packPathD(P.rally)),Dm=Math.max(...D);
+  made.forEach((P,i)=>{P.end+=Math.min(PACK_SYNC_MAX,(Dm-D[i])/PACK_SYNC_PACE);(S.packs||(S.packs=[])).push(P)});
+}
+function packPathD(e){const B=S.base;if(FLOW.dist){const cx=Math.floor(e.x/TCELL),cy=Math.floor(e.y/TCELL);
+  if(cx>=0&&cy>=0&&cx<TGX&&cy<TGY){const d=FLOW.dist[cy*TGX+cx];if(d<Infinity)return d*TCELL}}return dist(e,B)}
+function updatePacks(dt){if(!S.packs||!S.packs.length)return;
+  if(S.packs.some(P=>P.phase!=='charge')&&!FLOW.dist)updateFlow();
+  S.packs=S.packs.filter(P=>{P.m=P.m.filter(e=>e.hp>0&&e.pack===P);if(!P.m.length)return false;
+    P.tick-=dt;if(P.tick>0)return true;P.tick=PACK_TICK;
+    const hurt=P.m.some(e=>e.hp<e.maxHp), engaged=P.m.some(e=>e.target&&e.target!==S.base&&dist(e,e.target)<CHARGE_ENGAGE);
+    if(P.phase==='muster'){
+      const found=hurt||S.troops.some(t=>dist(t,P.rally)<CHARGE_ENGAGE+MUSTER_R)||dist(S.base,P.rally)<CHARGE_R;
+      if(found){P.phase='charge'}else if(S.t>=P.end){P.phase='march'}else return true}
+    const pd=P.m.map(packPathD),srt=[...pd].sort((a,b)=>a-b),mid=srt[srt.length>>1],front=srt[0];
+    if(P.phase==='march'&&(front<CHARGE_R||hurt||engaged))P.phase='charge';
+    P.m.forEach((e,i)=>{const d=pd[i];
+      e._pm=P.phase==='charge'?(d>front+SURGE_GAP?SURGE_MULT:CHARGE_MULT):(d<mid-PACK_LEAD?PACK_SLOW:d>mid+PACK_LAG?PACK_HURRY:1)});
+    return true});
+}
+// a mustering enemy walks to its rally point and mills about there
+function musterStep(e,dt){const P=e.pack,R=P.rally,d=dist(e,R);
+  if(d>MUSTER_R*0.6){const ux=(R.x-e.x)/d,uy=(R.y-e.y)/d,sp=e.speed*enemyRoughFactor(e.x,e.y)*0.8*dt,nx=e.x+ux*sp,ny=e.y+uy*sp;
+    if(!hordeBlocked(nx,ny)||hordeBlocked(e.x,e.y)){e.x=nx;e.y=ny}else if(!hordeBlocked(nx,e.y))e.x=nx;else if(!hordeBlocked(e.x,ny))e.y=ny;
+    e.ang=Math.atan2(uy,ux)}
+  else{e.faceT-=dt;if(e.faceT<=0){e.ang=rnd(0,Math.PI*2);e.faceT=rnd(0.6,1.6)}}
+}
 function spawnVeinWave(v){
-  const th=veinThreat(v);
+  const th=veinThreat(v),packFrom=S.enemies.length,packSrc=waveSources(v);
   v.waveNo=(v.waveNo||0)+1;v.warnSent=false;const big=v.waveNo%HORDE_BIG_EVERY===0;
   if(S.waveWarn)S.waveWarn.end=S.t;
   // the nests within reach of the vein are what answers the drill: each one swells the wave and
@@ -8733,6 +8787,7 @@ function spawnVeinWave(v){
       if(k>0)nestSpawn(nn,k,'wave',{bigP:th.big}).forEach(e=>{if(rnd(0,1)<th.hunt)e.stabHunter=true});
     });
     const top=feeders[0];
+    formPacks(v,packFrom,feeders.map(nn=>({x:nn.x,y:nn.y})),big);
     banner(`${heavy} pouring out of ${feeders.length>1?feeders.length+' nests':'the nest'} to the ${compassName(Math.atan2(top.y-v.y,top.x-v.x))||'near side'}${why}.${strainMsg}`,'danger');
     sfx.wave();return;
   }
@@ -8744,6 +8799,7 @@ function spawnVeinWave(v){
     spawnEnemy(p.x,p.y,'wave',{bigP:th.big});
     if(rnd(0,1)<th.hunt)S.enemies[S.enemies.length-1].stabHunter=true;
   }
+  formPacks(v,packFrom,packSrc,big);
   banner(`${heavy} incoming from the ${compassName(a)||'near side'}${why}.${strainMsg}`,'danger');
   sfx.wave();
 }
@@ -9948,6 +10004,7 @@ function update(dt){
   const allies=S.troops.concat(S.harvesters).concat(S.builders);
   updateWaveWarn(dt);
   if(S.enemies.some(e=>e.horde))updateFlow();
+  updatePacks(dt);
   const DT0=dt;
   S.enemies.forEach(e=>{
     if(e.kind==='nest')return;
@@ -9971,6 +10028,7 @@ function update(dt){
       }
       return;
     }
+    if(e.pack&&e.pack.phase==='muster'){musterStep(e,dt);return}
     // horde: re-pick a target only a few times a second
     if(e.kind==='lancer'){lancerStep(e,dt);return}
     if(e.kind==='huskcore'){huskCoreStep(e,dt);return}
@@ -10018,7 +10076,7 @@ function update(dt){
     if(tgt)e.ang=Math.atan2(tgt.y-e.y,tgt.x-e.x);
     else{e.faceT-=dt;if(e.faceT<=0){e.ang=rnd(0,Math.PI*2);e.faceT=rnd(1.5,3.5)}}
     if((e.kind==='roam'||e.kind==='brute')&&!tgt){
-      const factor=enemyRoughFactor(e.x,e.y);
+      const factor=enemyPace(e);
       if(e.patrol){
         const P=e.patrol, dest=P.dir>0?P.b:P.a;
         const aim=waypointFor(e,dest.x,dest.y);
@@ -10043,7 +10101,7 @@ function update(dt){
     const probes=[{x:e.x+ux*look,y:e.y+uy*look},{x:e.x+ux*look-uy*perp,y:e.y+uy*look+ux*perp},{x:e.x+ux*look+uy*perp,y:e.y+uy*look-ux*perp}];
     let w=null; for(const pt of probes){w=wallAt(pt.x,pt.y,true); if(w)break}
     if(w){if(e.cd<=0){damageWall(w,e.dmg*1.5);spark(w.x,w.y,C.enemy,2);e.cd=0.8;wallTouch(w,e)}return}
-    const factor=enemyRoughFactor(e.x,e.y);
+    const factor=enemyPace(e);
     moveToward(e,aim,e.speed*factor,dt);
   });
   // enemy separation — crowd pressure must not shove anyone clean through a wall
