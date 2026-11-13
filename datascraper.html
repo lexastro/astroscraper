@@ -7715,7 +7715,8 @@ function updateCradles(dt){
     const dock={x:r.x+6,y:r.y-1,z:40};const c=r.cradle||(r.cradle={x:dock.x,y:dock.y,z:dock.z,target:null,scan:0,beamT:0});
     if(c.target&&(c.target.hp>=c.target.maxHp||c.target.dead||c.target.hp<=0))c.target=null;
     if((c.scan-=dt)<=0){c.scan=0.5;if(!c.target&&r.tetherOk){const j=cradleJobs(r);let best=null,bf=1;j.forEach(o=>{const f=o.hp/o.maxHp;if(f<bf){bf=f;best=o}});c.target=best}}
-    const g=c.target?{x:c.target.x,y:c.target.y,z:10}:dock,dx=g.x-c.x,dy=g.y-c.y,L=Math.hypot(dx,dy);
+    const g=c.target?(()=>{const t=c.target,a=Math.atan2(r.y-t.y,r.x-t.x),R=(t.kind==='stabilizer'?STAB_TOWER_R:(t.r||10))+12;return {x:t.x+Math.cos(a)*R,y:t.y+Math.sin(a)*R,z:t.kind==='stabilizer'?40:12}})():dock, // hangs off to the Relay's side of its target so its scan has room
+      dx=g.x-c.x,dy=g.y-c.y,L=Math.hypot(dx,dy);
     if(L>1){const st=Math.min(L,CRADLE_SPEED*dt);c.x+=dx/L*st;c.y+=dy/L*st}c.z+=(g.z-c.z)*Math.min(1,dt*3);
     c.working=!!c.target&&L<14;if(c.working){const o=c.target;o.hp=Math.min(o.maxHp,o.hp+CRADLE_HPS*dt);c.beamT+=dt}})}
 function updateWallLines(dt){
@@ -8241,6 +8242,16 @@ function drawWardenOrb(x,y,ang,R,t,lit){
     ctx.save();ctx.globalCompositeOperation='lighter';ctx.globalAlpha=0.35*k*vis;ctx.fillStyle=C.builder;ctx.beginPath();ctx.arc(lx,ly,lr*2.2,0,Math.PI*2);ctx.fill();ctx.restore();
     return [lx,ly]}
   return [x+fx*R*0.5,y-R*0.2]}
+// a Warden's repair scan: a fan of teal light from its lens L across target o, its bright edge sweeping
+function drawWardenScan(L,o,x,y,z,beamT){const d={x,y,beamT};
+      const tall=droneTall(o),w=tall?9:Math.max(6,(o.r||10)*0.8),sw=Math.sin(d.beamT*2.4),side=Math.atan2(d.y-o.y,d.x-o.x),nx=tall?1:-Math.sin(side),ny=tall?0:Math.cos(side)*0.6; // on a tower the scan edge runs across the column
+      const cx=o.x+Math.cos(side)*(tall?7:2),cyy=tall?o.y+Math.sin(side)*5-(z+sw*10)*SK_TILT:o.y+sw*w*0.45;
+      const ax=cx+nx*w,ay=cyy+ny*w,bx=cx-nx*w,by=cyy-ny*w;
+      ctx.save();ctx.globalCompositeOperation='lighter';
+      ctx.globalAlpha=0.22+0.08*Math.abs(Math.sin(d.beamT*9));ctx.fillStyle=C.builder;ctx.beginPath();ctx.moveTo(L[0],L[1]);ctx.lineTo(ax,ay);ctx.lineTo(bx,by);ctx.closePath();ctx.fill();
+      ctx.globalAlpha=0.85;ctx.strokeStyle='#bff7f0';ctx.lineWidth=1.1;ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);ctx.stroke();
+      ctx.globalAlpha=0.5+0.4*Math.abs(Math.sin(d.beamT*23));ctx.fillStyle='#bff7f0';ctx.beginPath();ctx.arc(cx+rnd(-2,2)*0.5,cyy,1.5,0,Math.PI*2);ctx.fill();
+      ctx.restore()}
 function drawDrones(back){
   const B=S.base;
   S.drones.forEach(d=>{
@@ -8250,16 +8261,7 @@ function drawDrones(back){
     // a soft shadow on the ground (falling down-right further the higher it flies)
     ctx.fillStyle=`rgba(0,0,0,${Math.max(0.08,0.3-z*0.0016)})`;ctx.beginPath();ctx.ellipse(d.x+3+z*SK_SH*0.5,d.y+4+z*SK_SH*0.5,R*0.9,R*0.55,0,0,Math.PI*2);ctx.fill();
     const L=drawWardenOrb(d.x,cy,ang,R,S.t+d.orbit,!!o);
-    if(o){
-      // the scan: a fan of teal light from the lens across the target, its bright edge sweeping up and down
-      const tall=droneTall(o),w=tall?9:Math.max(6,(o.r||10)*0.8),sw=Math.sin(d.beamT*2.4),side=Math.atan2(d.y-o.y,d.x-o.x),nx=tall?1:-Math.sin(side),ny=tall?0:Math.cos(side)*0.6; // on a tower the scan edge runs across the column
-      const cx=o.x+Math.cos(side)*(tall?7:2),cyy=tall?o.y+Math.sin(side)*5-(z+sw*10)*SK_TILT:o.y+sw*w*0.45;
-      const ax=cx+nx*w,ay=cyy+ny*w,bx=cx-nx*w,by=cyy-ny*w;
-      ctx.save();ctx.globalCompositeOperation='lighter';
-      ctx.globalAlpha=0.22+0.08*Math.abs(Math.sin(d.beamT*9));ctx.fillStyle=C.builder;ctx.beginPath();ctx.moveTo(L[0],L[1]);ctx.lineTo(ax,ay);ctx.lineTo(bx,by);ctx.closePath();ctx.fill();
-      ctx.globalAlpha=0.85;ctx.strokeStyle='#bff7f0';ctx.lineWidth=1.1;ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);ctx.stroke();
-      ctx.globalAlpha=0.5+0.4*Math.abs(Math.sin(d.beamT*23));ctx.fillStyle='#bff7f0';ctx.beginPath();ctx.arc(cx+rnd(-2,2)*0.5,cyy,1.5,0,Math.PI*2);ctx.fill();
-      ctx.restore()}
+    if(o)drawWardenScan(L,o,d.x,d.y,z,d.beamT);
   });
 }
 
@@ -10653,8 +10655,9 @@ function drawRelayMast(r){SKO.x=0;SKO.y=0;SKO.s=1;SKO.lean=[0,0];SKO.shk=[0,0];
   if(S.mods.relayDef==='radar'&&r.tetherOk){ctx.save();ctx.globalCompositeOperation='lighter';const a=S.t*0.9,R=RELAY_RADAR_VISION*0.55,g=ctx.createRadialGradient(r.x,r.y,0,r.x,r.y,R);g.addColorStop(0,'rgba(94,200,255,0.12)');g.addColorStop(1,'rgba(94,200,255,0)');
     ctx.fillStyle=g;ctx.beginPath();ctx.moveTo(r.x,r.y);ctx.arc(r.x,r.y,R,a-0.45,a);ctx.closePath();ctx.fill();ctx.restore()}
   const c=r.cradle;if(c){const sx=c.x,sy=c.y-c.z*SK_TILT;ctx.fillStyle='rgba(0,0,0,0.3)';ctx.beginPath();ctx.arc(c.x+c.z*0.35,c.y+c.z*0.35,2.2,0,Math.PI*2);ctx.fill();
-    if(c.working&&c.target){const tx=c.target.x,ty=c.target.y-(c.target.kind==='stabilizer'?40:c.target.kind==='relay'?20:0);ctx.strokeStyle=C.builder;ctx.globalAlpha=0.35+0.4*Math.abs(Math.sin(c.beamT*18));ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(sx,sy);ctx.lineTo(tx+rnd(-3,3),ty+rnd(-3,3));ctx.stroke();ctx.globalAlpha=1}
-    ctx.save();ctx.translate(sx,sy);ctx.rotate(c.target?Math.atan2(c.target.y-c.y,c.target.x-c.x):0);ctx.fillStyle=C.builder;ctx.strokeStyle='#000';ctx.lineWidth=0.8;ctx.beginPath();ctx.moveTo(4.5,0);ctx.lineTo(-3,-3);ctx.lineTo(-1.5,0);ctx.lineTo(-3,3);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore()}
+    // the Relay's own Warden: faces what it's fixing (or out toward you when idle) and scans it like the swarm does
+    const on=c.working&&c.target,L=drawWardenOrb(sx,sy+Math.sin(S.t*2.3+r.x)*0.8,c.target?Math.atan2(c.target.y-c.y,c.target.x-c.x):Math.PI/2,DRONE_ORB_R,S.t+r.x,!!on);
+    if(on)drawWardenScan(L,c.target,c.x,c.y,c.z||0,c.beamT||0)}
   SKO.s=SK_SCALE}
 // ---- tether cables: hoses. A unit's cable hangs from its anchor's hook to the ground, then lies on the
 // ground as a pooling rope (see stepRope); a Relay's cable is a span between hooks, sagging, drawn as a
