@@ -1252,7 +1252,7 @@ function payDat(cost,what){
 const DRONE_COUNT=4, DRONE_SPEED=170, DRONE_RANGE=760, DRONE_HPS=9, DRONE_WORK_R=18;
 // v4: Stabilizers are tall towers — drones repairing one each work at their own level up it, circling
 // the column there (heights in the tower's own units, 0 at the ground; most drones hover at DRONE_HOVER)
-const STAB_DRONE_LEVELS=[24,100,62,128,44,84], STAB_TOWER_R=10, DRONE_HOVER=6;
+const STAB_DRONE_LEVELS=[24,100,62,128,44,84], STAB_TOWER_R=10, DRONE_HOVER=6, DRONE_FLY_Z=36, DRONE_ORB_R=4.6;
 // Dat Crystal deposits are pickups now: the Rig or any unit that rolls over one scoops up the lot.
 const DAT_PICKUP_R=26;
 // v4: the derelict RIG — a rare find on the Dense Field stops. A mining rig (a long-bodied walker, not a
@@ -2818,7 +2818,7 @@ function bandAt(x,y){if(STOP_BAND)return STOP_SPLIT&&splitRim(x,y)?'rim':STOP_BA
 
 function mkTroop(id,kind){kind=kind||'troop';const baseHp=kind==='artillery'?ARTY_HP:kind==='grenadier'?GREN_HP:kind==='mech'?MECH_HP:kind==='rocket'?ROCKET_HP:kind==='brawler'?BRAWL_HP:kind==='marksman'?MARK_HP:70;const hp=Math.round(baseHp*unitHpMult());const r=kind==='artillery'?ARTY_R:kind==='mech'?MECH_R:kind==='rocket'?ROCKET_R:kind==='brawler'?BRAWL_R:kind==='marksman'?MARK_R:TROOP_R;return {id,kind,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp,maxHp:hp,r,dest:null,target:null,state:'idle',cd:0,ang:-Math.PI/2,mechSide:false,tetherOk:true,severed:false,sanity:SANITY_MAX,trail:null,cableHp:0,cableLen:0,cableMaxed:false,following:false,followAng:0,followDist:0}}
 function mkHarv(id){return {id,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp:50,maxHp:50,r:HARV_R,dest:null,node:null,carry:0,state:'idle',autoLoop:true,hv:0,tetherOk:true,severed:false,sanity:SANITY_MAX,trail:null,cableHp:0,cableLen:0,cableMaxed:false,following:false,followAng:0,followDist:0}}
-function mkDrone(){const a=rnd(0,Math.PI*2);return {x:S.base.x+Math.cos(a)*20,y:S.base.y+Math.sin(a)*20,orbit:a,orbitR:rnd(18,30),target:null,state:'dock',ang:a,beamT:0}}
+function mkDrone(){const a=rnd(0,Math.PI*2);return {x:S.base.x+Math.cos(a)*20,y:S.base.y+Math.sin(a)*20,orbit:a,orbitR:rnd(18,30),idleZ:rnd(55,120),target:null,state:'dock',ang:a,beamT:0}}
 function addDrones(n){for(let i=0;i<n;i++)S.drones.push(mkDrone())}
 function mkBuilder(id){return {id,x:S.base.x+rnd(-30,30),y:S.base.y+rnd(-30,30),hp:40,maxHp:40,r:BUILDER_R,dest:null,state:'idle',autoRepair:true,target:null,tetherOk:true,severed:false,sanity:SANITY_MAX,trail:null,cableHp:0,cableLen:0,cableMaxed:false,following:false,followAng:0,followDist:0}}
 // Stats for the hostile unit a mobile ally becomes if its Sanity ever hits 0 — a notch weaker
@@ -8180,7 +8180,7 @@ function updateDrones(dt){
     if(!d.target&&jobs.length){
       let best=null,bs=Infinity;
       jobs.forEach(j=>{const sc=j.pri*1e5+(load.get(j.o)||0)*450+dist(d,j.o);if(sc<bs){bs=sc;best=j.o}});
-      const nOn=load.get(best)||0;d.target=best;d.state='fly';d.workAng=rnd(0,Math.PI*2);d.workZ=best.kind==='stabilizer'?STAB_DRONE_LEVELS[nOn%STAB_DRONE_LEVELS.length]+rnd(-6,6):0;load.set(best,nOn+1);
+      const nOn=load.get(best)||0;d.target=best;d.state='fly';d.workAng=rnd(0,Math.PI*2);d.workZ=droneTall(best)?STAB_DRONE_LEVELS[nOn%STAB_DRONE_LEVELS.length]+(best===B?16:0)+rnd(-6,6):0;load.set(best,nOn+1);
     }
     // nothing to repair: go and fetch a dropped Dat Crystal that no other drone is already after
     if(!d.target){
@@ -8195,11 +8195,11 @@ function updateDrones(dt){
     }else d.loot=null;
     let gx,gy;
     if(d.loot){gx=d.loot.x;gy=d.loot.y}
-    else if(d.target){const r=(d.target.kind==='stabilizer'?STAB_TOWER_R:(d.target.r||12))+DRONE_WORK_R;d.workAng+=dt*0.8;gx=d.target.x+Math.cos(d.workAng)*r;gy=d.target.y+Math.sin(d.workAng)*r}
-    else{d.orbit+=dt*1.4;gx=B.x+Math.cos(d.orbit)*d.orbitR;gy=B.y+Math.sin(d.orbit)*d.orbitR}
+    else if(d.target){const r=(droneTall(d.target)?STAB_TOWER_R:(d.target.r||12))+DRONE_WORK_R;d.workAng+=dt*0.8;gx=d.target.x+Math.cos(d.workAng)*r;gy=d.target.y+Math.sin(d.workAng)*r}
+    else{d.orbit+=dt*0.6;gx=B.x+Math.cos(d.orbit)*d.orbitR;gy=B.y+Math.sin(d.orbit)*d.orbitR}
     const dx=gx-d.x,dy=gy-d.y,L=Math.hypot(dx,dy);
     if(L>0.5){d.ang=Math.atan2(dy,dx);const st=Math.min(L,DRONE_SPEED*dt);d.x+=dx/L*st;d.y+=dy/L*st}
-    {const wantZ=d.target&&d.target.kind==='stabilizer'&&L<60?d.workZ||0:DRONE_HOVER;d.z=(d.z??DRONE_HOVER)+(wantZ-(d.z??DRONE_HOVER))*Math.min(1,dt*2.2)} // climb to its level as it arrives, back down after
+    {if(d.idleZ==null)d.idleZ=rnd(55,120);const wantZ=d.target?(L<60?(droneTall(d.target)?d.workZ||0:DRONE_HOVER+6):DRONE_FLY_Z):d.loot?(L<40?DRONE_HOVER:DRONE_FLY_Z):d.idleZ;d.z=(d.z??DRONE_HOVER)+(wantZ-(d.z??DRONE_HOVER))*Math.min(1,dt*2.2)} // Wardens: idle ones ring the Rig's column, they cruise at DRONE_FLY_Z and drop to their work level on arrival
     if(d.target&&!needsRepair(d.target))d.target.droneWorkT=0;
     d.state=d.target?(L<10?'repair':'fly'):d.loot?'fly':'dock';
     if(d.loot&&L<12){const o=d.loot,amt=o.amt;
@@ -8210,25 +8210,56 @@ function updateDrones(dt){
       if(o.hp<o.maxHp)o.hp=Math.min(o.maxHp,o.hp+DRONE_HPS*dt)
       if(o.kind==='relay'&&o.state==='cut'){o.reconnectT+=dt;if(o.reconnectT>=RELAY_RECONNECT_T){o.state=null;o.reconnectT=0;msg('Relay tether spliced — reconnecting to the network.')}}
       d.beamT+=dt;
-      if(!S.stabs.includes(o)){o.droneWorkT=(o.droneWorkT||0)+dt;
+      if(!S.stabs.includes(o)&&o!==B){o.droneWorkT=(o.droneWorkT||0)+dt; // the Rig is never given up on as 'stuck' (its job ignores the skip, so drones would jitter at its feet)
+       
         if(o.droneWorkT>DRONE_STUCK_T){o.droneWorkT=0;o.droneSkipUntil=S.t+DRONE_SKIP_T}}
     }
   });
 }
-function drawDrones(){
+// The repair swarm is a flock of Wardens: small floating orbs with one teal lens and two side plates.
+// Idle ones circle the Rig's column at their own heights, looking outward; on a job each one hangs
+// at its level and sweeps a fan of light over what it's fixing. back=true draws only the idle ones
+// on the far side of the Rig (called before the Rig, so its column hides them); the rest draw on top.
+// Stabilizers and the Rig are towers: drones work on them at their own level up the column
+function droneTall(o){return o.kind==='stabilizer'||o===S.base}
+function droneBehindRig(d){const B=S.base;return !d.target&&!d.loot&&d.y<B.y&&Math.abs(d.x-B.x)<40&&Math.abs(d.y-B.y)<40}
+function drawWardenOrb(x,y,ang,R,t,lit){
+  const px=Math.cos(ang+Math.PI/2),py=Math.sin(ang+Math.PI/2)*0.55,fx=Math.cos(ang),fy=Math.sin(ang);
+  const plate=s=>{ctx.save();ctx.translate(x+px*s*R*1.02,y+py*s*R*1.02);ctx.rotate(Math.atan2(py,px));ctx.fillStyle='#8d9aa8';ctx.strokeStyle='#101317';ctx.lineWidth=0.6;ctx.fillRect(-0.7,-R*0.62,1.4,R*1.24);ctx.strokeRect(-0.7,-R*0.62,1.4,R*1.24);ctx.restore()};
+  // the plate on the far side goes behind the body, the near one in front
+  const far=py<0?1:-1;plate(far);
+  const g=ctx.createRadialGradient(x-R*0.38,y-R*0.45,R*0.1,x,y,R);g.addColorStop(0,'#f4f6f8');g.addColorStop(0.55,'#b9c2cc');g.addColorStop(1,'#5d6670');
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,R,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#101317';ctx.lineWidth=0.8;ctx.stroke();
+  // a seam round its middle, bowed toward the viewer
+  ctx.strokeStyle='rgba(60,68,78,0.7)';ctx.lineWidth=0.5;ctx.beginPath();ctx.ellipse(x,y+R*0.12,R*0.97,R*0.32,0,0.1,Math.PI-0.1);ctx.stroke();
+  plate(-far);
+  // the lens, set a little above the middle on its front; it slides out of sight as the orb turns away
+  const vis=Math.max(0,Math.min(1,(fy+0.65)/0.6));if(vis>0){const lx=x+fx*R*0.55,ly=y+fy*R*0.32-R*0.28,lr=R*0.5*(0.55+0.45*vis);
+    ctx.fillStyle='#5d6670';ctx.beginPath();ctx.ellipse(lx,ly,lr*1.25,lr*1.15,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#15191d';ctx.beginPath();ctx.ellipse(lx,ly,lr,lr*0.92,0,0,Math.PI*2);ctx.fill();
+    const k=0.75+0.25*Math.sin(t*5);ctx.fillStyle=lit?'#bff7f0':C.builder;ctx.beginPath();ctx.arc(lx,ly,lr*0.5,0,Math.PI*2);ctx.fill();
+    ctx.save();ctx.globalCompositeOperation='lighter';ctx.globalAlpha=0.35*k*vis;ctx.fillStyle=C.builder;ctx.beginPath();ctx.arc(lx,ly,lr*2.2,0,Math.PI*2);ctx.fill();ctx.restore();
+    return [lx,ly]}
+  return [x+fx*R*0.5,y-R*0.2]}
+function drawDrones(back){
+  const B=S.base;
   S.drones.forEach(d=>{
-    const z=d.z??DRONE_HOVER,sy=d.y-z*SK_TILT; // drawn up the screen by its height, like the towers
-    if(d.state==='repair'&&d.target){const o=d.target,tall=o.kind==='stabilizer',side=Math.atan2(d.y-o.y,d.x-o.x),tx=o.x+(tall?Math.cos(side)*8:0)+rnd(-2,2),ty=o.y+(tall?Math.sin(side)*6-z*SK_TILT:0)+rnd(-2,2);
-      ctx.strokeStyle=C.builder;ctx.globalAlpha=0.35+0.4*Math.abs(Math.sin(d.beamT*18));ctx.lineWidth=1.2;
-      ctx.beginPath();ctx.moveTo(d.x,sy);ctx.lineTo(tx,ty);ctx.stroke();
-      if(tall){ctx.globalAlpha=0.5+0.4*Math.abs(Math.sin(d.beamT*23));ctx.fillStyle='#bff7f0';ctx.beginPath();ctx.arc(tx,ty,1.6,0,Math.PI*2);ctx.fill()}
-      ctx.globalAlpha=1}
-    // a soft shadow on the ground (falling down-right further the higher it flies), the dart above it
-    ctx.fillStyle=`rgba(0,0,0,${Math.max(0.1,0.3-z*0.0012)})`;ctx.beginPath();ctx.arc(d.x+3+z*SK_SH*0.5,d.y+5+z*SK_SH*0.5,2.2,0,Math.PI*2);ctx.fill();
-    ctx.save();ctx.translate(d.x,sy);ctx.rotate(d.ang);
-    ctx.fillStyle=C.builder;ctx.strokeStyle='#000';ctx.lineWidth=0.8;
-    ctx.beginPath();ctx.moveTo(4.5,0);ctx.lineTo(-3,-3);ctx.lineTo(-1.5,0);ctx.lineTo(-3,3);ctx.closePath();ctx.fill();ctx.stroke();
-    ctx.restore();
+    if(!!back!==droneBehindRig(d))return;
+    const z=d.z??DRONE_HOVER,sy=d.y-z*SK_TILT,R=DRONE_ORB_R,bob=Math.sin(S.t*2.3+d.orbit*3)*0.8,cy=sy+bob; // drawn up the screen by its height, like the towers
+    const o=d.state==='repair'?d.target:null,ang=o?Math.atan2(o.y-d.y,o.x-d.x):(!d.target&&!d.loot)?Math.atan2(d.y-B.y,d.x-B.x):d.ang;
+    // a soft shadow on the ground (falling down-right further the higher it flies)
+    ctx.fillStyle=`rgba(0,0,0,${Math.max(0.08,0.3-z*0.0016)})`;ctx.beginPath();ctx.ellipse(d.x+3+z*SK_SH*0.5,d.y+4+z*SK_SH*0.5,R*0.9,R*0.55,0,0,Math.PI*2);ctx.fill();
+    const L=drawWardenOrb(d.x,cy,ang,R,S.t+d.orbit,!!o);
+    if(o){
+      // the scan: a fan of teal light from the lens across the target, its bright edge sweeping up and down
+      const tall=droneTall(o),w=tall?9:Math.max(6,(o.r||10)*0.8),sw=Math.sin(d.beamT*2.4),side=Math.atan2(d.y-o.y,d.x-o.x),nx=tall?1:-Math.sin(side),ny=tall?0:Math.cos(side)*0.6; // on a tower the scan edge runs across the column
+      const cx=o.x+Math.cos(side)*(tall?7:2),cyy=tall?o.y+Math.sin(side)*5-(z+sw*10)*SK_TILT:o.y+sw*w*0.45;
+      const ax=cx+nx*w,ay=cyy+ny*w,bx=cx-nx*w,by=cyy-ny*w;
+      ctx.save();ctx.globalCompositeOperation='lighter';
+      ctx.globalAlpha=0.22+0.08*Math.abs(Math.sin(d.beamT*9));ctx.fillStyle=C.builder;ctx.beginPath();ctx.moveTo(L[0],L[1]);ctx.lineTo(ax,ay);ctx.lineTo(bx,by);ctx.closePath();ctx.fill();
+      ctx.globalAlpha=0.85;ctx.strokeStyle='#bff7f0';ctx.lineWidth=1.1;ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);ctx.stroke();
+      ctx.globalAlpha=0.5+0.4*Math.abs(Math.sin(d.beamT*23));ctx.fillStyle='#bff7f0';ctx.beginPath();ctx.arc(cx+rnd(-2,2)*0.5,cyy,1.5,0,Math.PI*2);ctx.fill();
+      ctx.restore()}
   });
 }
 
@@ -10885,7 +10916,7 @@ function draw(){
   // the Rig: the Needle tower
   drawPOIs(); // wrecks and beacons lie on the ground, under the Rig and units
   // cables run under the Rig's turret, hanging from beneath it
-  const ldg=S.landing&&!S.landing.touch;if(!ldg)drawTethers();drawRigTower(B);drawBolts();drawRigTop(B);if(!ldg)drawTethersFront();drawDrillReadout(B);if(!S.landing)hpbar(B.x,B.y-RIG_TOP-(B._hov||0)*0.5-8,B.r*2,B.hp/B.maxHp);drawRiftMeter(B);
+  const ldg=S.landing&&!S.landing.touch;if(!ldg)drawTethers();drawDrones(true);drawRigTower(B);drawBolts();drawRigTop(B);if(!ldg)drawTethersFront();drawDrillReadout(B);if(!S.landing)hpbar(B.x,B.y-RIG_TOP-(B._hov||0)*0.5-8,B.r*2,B.hp/B.maxHp);drawRiftMeter(B);
   if(WIRELESS_ENABLED){
     const bwt=0.5+0.5*Math.sin(S.t*2.2);
     ctx.strokeStyle=C.cable;ctx.globalAlpha=0.2*bwt;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(B.x,B.y,WIRELESS_TOL_DENSE*S.mods.relayTolMult,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;
