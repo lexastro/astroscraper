@@ -11684,7 +11684,8 @@ function voxSeamBusy(){const m=voxMeter(),X=VOXQ.sx;if(!m)return false;if(voxSea
   return !!(X&&X.m===m&&(X.go||X.inn)&&m.seamDone&&!m.seam&&!X.back)}
 // enemies piled up against the far side of the barrier, the ones that rush in once it's open
 const VOX_SPILL_N=6;
-function voxCrowd(){const B=S.barrier;if(!B||typeof frameAB!=='function')return 0;const far=B.centre+BARRIER_HALF;
+function voxCrowd(){const B=S.barrier;if(!B||B.type===RIFT||typeof frameAB!=='function')return 0; // crystal-wall stops only, not the Rim's rift band
+  const far=B.centre+BARRIER_HALF;
   return S.enemies.reduce((n,e)=>{if(!(e.hp>0)||e.kind==='nest')return n;const a=frameAB(e.x,e.y).a;return n+(a>far&&a<far+700?1:0)},0)}
 function voxSpillTick(){const v=S.activeVein;if(!v||v!==S.breachVein||!v.meter||v.meter.phase!=='drill'||VOXQ.spillS===S)return;
   if(v.drillProg>=0.7*v.richness&&voxCrowd()>=VOX_SPILL_N){VOXQ.spillS=S;voxSay('spillSoon')}}
