@@ -3090,7 +3090,8 @@ function reset(landing){
   {const maze=STOP_BAND==='dense'&&S.barrier;if(maze)denseMaze();
    if(S.barrier&&!tutorialMap){S.routeFixes=ensureBastionRoutes();if(S.routeFixes)console.info('map',mapSeed,': carved',S.routeFixes,'missing Rig route(s)')}
    const glass=STOP_BAND&&!tutorialMap?placeGlass():false; // v4: purple glass formations in the rift
-   if(maze||glass){const keep=rand;rand=seededRng(mapSeed*131+17);terrainCv=buildTerrainCanvas();rand=keep;buildTerrainBlur()}}
+   const routes=STOP_BAND&&!tutorialMap?ensureNestRoutes():null;S.nestRoutes=routes; // v4: a second way from every feeding nest to its vein
+   if(maze||glass||(routes&&routes.carved)){const keep=rand;rand=seededRng(mapSeed*131+17);terrainCv=buildTerrainCanvas();rand=keep;buildTerrainBlur()}}
   startTerrainPaint(true); // the ground paints in the background; a loading screen covers it until the area round the landing is done
   if(STOP_BAND&&stopInfo().final){S.contractAwake=true;const cv=S.veins.find(v=>v.contract);if(cv)raiseMounds(cv,CONTRACT_MOUNDS,'great')}
   rand=Math.random; // map built — live gameplay goes back to unseeded randomness
@@ -5511,6 +5512,42 @@ function ensureBastionRoutes(dry){const B=S.barrier;if(!B||!S.breachSite)return 
   fix(S.base,[S.breachSite,...S.sites.filter(t=>can(t)<bx-BARRIER_HALF)]);
   if(B.out)fix(B.out,[...(B.exitPt?[B.exitPt]:[]),...S.sites.filter(t=>can(t)>bx+BARRIER_HALF)]);
   return fixed}
+// v4: every nest that feeds a vein gets at least two ways to it, so a wave can come at the drill from
+// more than one side instead of filing down a single corridor. For each vein site and each nest within
+// NEST_FEED_R: take the shortest way between them, close off its middle (and a cell either side) and
+// look again; if there's no second way, or it's more than ROUTE_DETOUR× as long, a second corridor is
+// carved — the cheapest line round the first one (a cell clear of it; the last ROUTE_END cells at each end may share), through rock if it must (two tiles wide), never
+// through the barrier, solid glass or the map's rim, and only when it needs ROUTE_MAX_CARVE cells of
+// rock or fewer. Enemy footing: plain, mud and rift all count. Uses no randomness, so the same seed
+// always gives the same map (Resume rebuilds it). dry: only count. Returns {pairs, single, carved}.
+const ROUTE_DETOUR=1.8, ROUTE_MAX_CARVE=40, ROUTE_END=5;
+function ensureNestRoutes(dry){const N=TGX*TGY,B=S.barrier,mask=B?B.mask:null,cov=S.glassCov;
+  const solidG=id=>cov&&cov[id]>=GLASS_BLOCK;
+  const pass=id=>!(mask&&mask[id])&&terrain[id]!==2&&!solidG(id);
+  const cc=q=>Math.max(0,Math.min(TGY-1,Math.floor(q.y/TCELL)))*TGX+Math.max(0,Math.min(TGX-1,Math.floor(q.x/TCELL)));
+  const D4=[[1,0],[-1,0],[0,1],[0,-1]];
+  // cheapest path a→b; cost(id) is Infinity for closed cells
+  const sp=(a,b,cost)=>{const g=new Float32Array(N).fill(Infinity),came=new Int32Array(N).fill(-1),h=new MinHeap();g[a]=0;h.push(a,0);
+    while(!h.empty()){const id=h.pop();if(id===b)break;const x=id%TGX,y=(id-x)/TGX;
+      for(const [dx,dy] of D4){const nx=x+dx,ny=y+dy;if(nx<1||ny<1||nx>=TGX-1||ny>=TGY-1)continue;const n=ny*TGX+nx,c=cost(n);if(c===Infinity)continue;
+        const ng=g[id]+c;if(ng<g[n]){g[n]=ng;came[n]=id;h.push(n,ng)}}}
+    if(g[b]===Infinity)return null;const P=[];for(let id=b;id>=0;id=came[id])P.push(id);return P.reverse()};
+  const walk=n=>pass(n)?(terrain[n]===1||terrain[n]===RIFT?1.3:1):Infinity;
+  const ring=(P,r)=>{const z=new Uint8Array(N);for(let i=ROUTE_END;i<P.length-ROUTE_END;i++){const x=P[i]%TGX,y=(P[i]-x)/TGX;
+    for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){const gx=x+dx,gy=y+dy;if(gx>=0&&gy>=0&&gx<TGX&&gy<TGY)z[gy*TGX+gx]=1}}return z};
+  const sites=[...S.sites,S.contractSite,...(S.hiveSites||[])].filter(Boolean),nests=S.enemies.filter(e=>e.kind==='nest');
+  const out={pairs:0,single:0,carved:0};
+  sites.forEach(st=>nests.forEach(nn=>{if(dist(st,nn)>NEST_FEED_R)return;const a=cc(st),b=cc(nn);
+    const P=sp(a,b,walk);if(!P||P.length<ROUTE_END*2+4)return;out.pairs++;
+    const z1=ring(P,1),P2=sp(a,b,n=>z1[n]?Infinity:walk(n));
+    if(P2&&P2.length<=P.length*ROUTE_DETOUR+6)return;
+    out.single++;if(dry)return;
+    const z2=ring(P,1),C=sp(a,b,n=>{if(z2[n]||(mask&&mask[n])||solidG(n))return Infinity;return terrain[n]===2?7:walk(n)});
+    if(!C)return;const rock=C.filter(n=>terrain[n]===2).length;if(rock>ROUTE_MAX_CARVE)return;
+    C.forEach(id=>{const x=id%TGX,y=(id-x)/TGX;for(let dy=0;dy<=1;dy++)for(let dx=0;dx<=1;dx++){const gx=x+dx,gy=y+dy;const n=gy*TGX+gx;
+      if(gx<TGX-1&&gy<TGY-1&&terrain[n]===2&&!(mask&&mask[n]))terrain[n]=0}});
+    out.carved++}));
+  return out}
 function carveLine(x0,y0,x1,y1,w){
   const d=Math.hypot(x1-x0,y1-y0); const steps=Math.max(1,Math.ceil(d/(TCELL*0.5)));
   for(let i=0;i<=steps;i++){
