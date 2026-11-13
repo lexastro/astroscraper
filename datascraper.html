@@ -11473,7 +11473,7 @@ function frame(ts){requestAnimationFrame(frame); // asked for first, so one bad 
   const gap=ts-lastT,dt=Math.min(0.05,gap/1000||0);lastT=ts;document.body.classList.toggle('inMenu',menuOpen);
   if(TPAINT.loading&&performance.now()-TPAINT.loadT0>25000)showLoading(false);
   const a=performance.now();if(RUN&&!menuOpen)liveSaveTick();if(!TPAINT.loading&&S&&S.landing&&!S.landing.touch&&!menuOpen&&!S.paused)landingTick(dt);else if(!TPAINT.loading){update(dt);tutTick();if(S&&S.landing&&S.landing.touch&&!menuOpen&&!S.paused)emergeTick(dt)}const b=performance.now();if(cv.width>0&&cv.height>0)draw();perfTick(ts,gap||0,b-a,performance.now()-b)}
-// ---------- voice announcer: VESPER (prototype, off by default) ----------
+// ---------- voice announcer: VESPER (on by default, at Standard chattiness) ----------
 // The Rig's onboard operations intelligence. Her voice is pre-rendered clips (ElevenLabs voice
 // "Astrotana", Eleven v4: tools/vox_render.py writes the script from the lines below and packs the
 // takes into vox/vesper.json, tools/vox_align.py cuts long takes into lines), fetched only
@@ -11483,7 +11483,7 @@ function frame(ts){requestAnimationFrame(frame); // asked for first, so one bad 
 // the tutorial, plus the needle drift (the five calls marked VOX), and polls hull and run state twice a second.
 // To remove it: delete this block, those five calls, vox/, tools/vox_render.py and tools/vox_align.py.
 const VOX_KEY='astroscraper.vox';
-let VOX={on:false,vol:0.8,voice:'',chat:2};try{Object.assign(VOX,JSON.parse(localStorage.getItem(VOX_KEY)||'{}'))}catch(e){}
+let VOX={on:true,vol:0.8,voice:'',chat:2};try{Object.assign(VOX,JSON.parse(localStorage.getItem(VOX_KEY)||'{}'))}catch(e){}
 function voxSave(){try{localStorage.setItem(VOX_KEY,JSON.stringify(VOX))}catch(e){}}
 const voxSynth=window.speechSynthesis||null;
 // p: priority (1 critical … 4 chatter); cd: seconds before the same event may speak again.
