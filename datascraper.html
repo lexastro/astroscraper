@@ -10046,7 +10046,11 @@ function rewardTierFor(tier,band){
   if(band==='dense'&&tier==='Legendary'&&Math.random()>REWARD_DENSE_LEGENDARY)return 'Epic';
   return tier;
 }
-const cardOpen=u=>!(u.has&&u.has());
+// v4: a card that only helps one kind of unit (its damage, its fire rate, a kit for it) is only offered
+// while you have at least one of that unit in the field
+const CARD_UNIT={dmg1:'troop',dmg2:'troop',dmg3:'troop',hardscopes:'troop',grenrate1:'grenadier',grenrate2:'grenadier',grensplash1:'grenadier',grensplash2:'grenadier'};
+const cardUnit=u=>u.kit?(KITS[u.kit].kind||'troop'):CARD_UNIT[u.id];
+const cardOpen=u=>{if(u.has&&u.has())return false;const k=cardUnit(u);return !k||unitHave(k)>0};
 function rollRewardCards(tier,band){
   // Hive tier: three cards, all Epic or Legendary (in the Dense Field, Legendary ones are rare)
   if(tier==='Hive'){
