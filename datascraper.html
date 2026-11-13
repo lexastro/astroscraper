@@ -1053,8 +1053,9 @@ const CORE_ENEMY_HP_MULT=1.4; // v4: eased from 1.8
 // included) that gets hit is provoked for PROVOKE_T s and goes for whatever is within PROVOKE_R —
 // they used to stand there taking fire from anything outside their 260 notice range
 const BRUTE_CHARGE=2.1, PROVOKE_T=8, PROVOKE_R=720;
-// v4: Split Hulks come with the risky moments of a drill: when a seam opens, and with the overdrill wave
-const HULK_SEAM={rim:1,dense:1,core:2}, HULK_OVER={rim:1,dense:2,core:2};
+// v4: in the Core, Split Hulks come with the risky moments of a drill: when a seam opens, and with the
+// overdrill wave (nowhere else — they're the Core's)
+const HULK_SEAM={core:2}, HULK_OVER={core:2};
 const BRUTE_R=22, BRUTE_HP=420, BRUTE_SPEED=20, BRUTE_DMG=20, BRUTE_CHANCE=0.05, BRUTE_BURST_MIN=18, BRUTE_BURST_MAX=22;
 // Swarmlings (kind 'swarm'): what a Brute bursts into. Small, quick, individually weak fighters
 // that fight like any wave enemy — they go for your units and structures, not Relays or cables
@@ -2175,7 +2176,7 @@ function openSeam(v){const m=v.meter;
   m.seamDone=true}
 function overdrillChoice(go){const v=S.activeVein,m=v&&v.meter;if(!m||m.over!=='offer')return;
   if(!go){m.over='bank';sfx.click();return}
-  m.over='run';m.overT=0;sfx.wave();shakeScreen(5,0.4);spawnVeinWave(v,{hulks:tutorial||tutorialMap?0:HULK_OVER[v.band]||1});
+  m.over='run';m.overT=0;sfx.wave();shakeScreen(5,0.4);spawnVeinWave(v,{hulks:tutorial||tutorialMap?0:HULK_OVER[v.band]||0});
   banner(`OVERDRILL — hold the needle out of the closing red for ${OVER_T}s for a second reward. Rupture and you lose everything this vein would pay.`,'danger')}
 function beginStrike(v){v.meter={phase:'strike',strip:buildStrip(v),p:rnd(0,1),dir:rnd(0,1)<0.5?1:-1,t:0};updateMeterUI()}
 function strikeReady(){const v=S.activeVein;return !!(v&&v.meter&&v.meter.phase==='strike'&&!S.paused&&!S.tacPause&&!S.rewardChoice&&!S.over)}
@@ -8843,7 +8844,7 @@ function spawnHulks(v,n,src){src=src||waveSources(v)[0];
     spawnEnemy(p.x,p.y,'brute');const e=S.enemies[S.enemies.length-1];e.waveHulk=true;e.aggro=340}}
 // a seam opening draws Split Hulks of its own: a small pack that musters and comes for the Rig
 const HULK_SEAM_D=950;
-function seamHulks(v){const n=HULK_SEAM[v.band]||1,s0=waveSources(v)[0],dd=Math.hypot(s0.x-v.x,s0.y-v.y)||1,k=Math.min(1,HULK_SEAM_D/dd),
+function seamHulks(v){const n=HULK_SEAM[v.band]||0;if(!n)return;const s0=waveSources(v)[0],dd=Math.hypot(s0.x-v.x,s0.y-v.y)||1,k=Math.min(1,HULK_SEAM_D/dd),
     src=nearestPlain(v.x+(s0.x-v.x)*k,v.y+(s0.y-v.y)*k),from=S.enemies.length;
   spawnHulks(v,n,src);formPacks(v,from,[src],false);S.packs.slice(-1).forEach(P=>{if(P.m.some(e=>e.kind==='brute'))P.end=S.t+2});
   msg(`${n>1?n+' Split Hulks are':'A Split Hulk is'} coming for the seam from the ${compassName(Math.atan2(src.y-v.y,src.x-v.x))||'dark'}.`)}
