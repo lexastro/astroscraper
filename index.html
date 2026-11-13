@@ -280,6 +280,23 @@ body.lowGfx #fogGrain{display:none}
 .rewardCard .rcDesc ul.pc li.pro{color:#c9d9bd}.rewardCard .rcDesc ul.pc li.pro::before{content:'+';position:absolute;left:0;color:var(--dat);font-weight:700}
 .rewardCard .rcDesc ul.pc li.con{color:#d9c0bc}.rewardCard .rcDesc ul.pc li.con::before{content:'−';position:absolute;left:0;color:var(--enemy);font-weight:700}
 .rewardCard .rcSwap{display:block;margin-top:6px;font-size:11px;color:var(--accent);line-height:1.35}
+/* v4 card design pass: every card says what it changes. A category (colour --cc, a round badge with its
+   icon over the card's art), an animated picture of the card working (only drawn while the pick is
+   open, when the game is paused), an "applies to" strip naming exactly what gets it, and a big
+   Offensive / Defensive badge on Relay cards. The tier still shows in the outline (--tc). */
+.overlay button.rewardCard.v2{--cc:#a9b4c0;width:204px;padding:0;gap:0;overflow:hidden}
+.rewardCard.v2 .rcTier{padding:8px 10px 7px;border-bottom:none}
+.rewardCard.v2 .rcArt{position:relative;height:112px;background:#121519;border-top:1px solid rgba(255,255,255,.06)}
+.rewardCard.v2 .rcArt canvas.art{width:100%;height:100%;display:block}
+.rewardCard.v2 .rcArt canvas.badge{position:absolute;left:7px;top:7px;width:40px;height:40px;border-radius:50%;background:rgba(11,14,18,.88);border:2px solid var(--cc);box-shadow:0 0 10px -2px var(--cc)}
+.rewardCard.v2 .rcApplies{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 6px;padding:4px 10px;font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#0b0e12;background:var(--cc)}
+.rewardCard.v2 .rcApplies small{font-size:10px;font-weight:600;opacity:.75;letter-spacing:.03em}
+.rewardCard.v2 .rcBody{display:flex;flex-direction:column;gap:6px;padding:9px 11px 13px;flex:1}
+.rewardCard.v2 .rcSlot{display:flex;align-items:center;gap:6px;margin:8px 10px 0;padding:3px 7px;border-radius:4px;font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;width:max-content}
+.rewardCard.v2 .rcSlot.off{background:rgba(255,92,77,.14);color:#ff8a7a;border:1px solid rgba(255,92,77,.5)}
+.rewardCard.v2 .rcSlot.def{background:rgba(94,200,255,.12);color:#8fd6ff;border:1px solid rgba(94,200,255,.45)}
+.rewardCard.v2 .rcSlot + .rcBody{padding-top:6px}
+@media (max-width:560px){.overlay button.rewardCard.v2{width:168px}.rewardCard.v2 .rcArt{height:92px}}
 .overlay button.rewardCard.legendary{animation:legendGlow 2.4s ease-in-out infinite}
 @keyframes legendGlow{0%,100%{box-shadow:0 0 0 1px rgba(0,0,0,.6),0 0 14px -4px var(--tc),0 6px 16px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.05)}
   50%{box-shadow:0 0 0 1px rgba(0,0,0,.6),0 0 24px -2px var(--tc),0 6px 16px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.05)}}
@@ -1111,7 +1128,7 @@ const RELAY_RING_R=36, RELAY_RADAR_VISION=420, CRADLE_RANGE=170, CRADLE_SPEED=15
 const relayMaxHp=()=>Math.round(RELAY_HP*(S.mods.relayOff==='armored'?RELAY_ARMOR_MULT:1));
 const RELAY_CARD_NAMES={sonic:'Sonic Deterrent',tesla:'Electric Surge',armored:'Fortified Relay',walled:'Walled Relay',radar:'Radar Mast',repair:'Repair Cradle'};
 function relaySlotNote(slot,id){const cur=S&&S.mods?S.mods[slot==='off'?'relayOff':'relayDef']:null;
-  return `<span class="rcSwap">${slot==='off'?'⚔ Offensive':'⛨ Defensive'} relay slot${cur&&cur!==id?` · replaces ${RELAY_CARD_NAMES[cur]}`:''}</span>`}
+  return `<span class="rcSwap" data-slot="${slot}" data-rep="${cur&&cur!==id?RELAY_CARD_NAMES[cur]:''}">${slot==='off'?'⚔ Offensive':'⛨ Defensive'} relay slot${cur&&cur!==id?` · replaces ${RELAY_CARD_NAMES[cur]}`:''}</span>`}
 function setRelaySlot(slot,id){
   if(slot==='off'){const old=S.mods.relayOff;if(old===id)return;
     if(old==='sonic')S.mods.energySurgeLevel=0;if(old==='tesla')S.mods.teslaLevel=0;
@@ -7025,7 +7042,7 @@ function showCallChoice(){const ids=shuffled(Object.keys(CALLDOWNS)).slice(0,3);
   document.getElementById('rewardTitle')._tc='Wreck salvaged — choose a call-down';
   const host=document.getElementById('rewardCards');host.innerHTML='';
   cards.forEach((c,i)=>{const btn=document.createElement('button');btn.className='rewardCard';btn.style.setProperty('--tc',C.accent);
-    btn.innerHTML=`<span class="rcTier">Call-down</span><span class="rcName">${CALLDOWNS[ids[i]].icon} ${c.name}</span><span class="rcDesc">${c.desc}</span>`;btn.onclick=()=>pickReward(i);host.appendChild(btn)});
+    buildCardFace(btn,{name:`${CALLDOWNS[ids[i]].icon} ${c.name}`,desc:c.desc,tier:'Call-down'},{cat:'calls',applies:'Charges to call in'});btn.onclick=()=>pickReward(i);host.appendChild(btn)});
   document.getElementById('rerollBtn')._hd=true;document.getElementById('rewardOverlay')._hd=false;sfx.veinDone()}
 // gifts: a free charge of a random call-down you have (nests, big veins and some cards hand these out)
 function giftCall(n,why){const ids=Object.keys(CALLDOWNS).filter(id=>CALLDOWNS[id].unlocked()),got={};for(let i=0;i<(n||1);i++){const id=ids[Math.floor(Math.random()*ids.length)];grantCall(id,1);got[id]=(got[id]||0)+1}
@@ -10084,6 +10101,130 @@ function renderOwnedCards(el,title){const L=S&&S.cards||[];if(!L.length){el._hd=
   const esc=t=>String(t).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
   el.innerHTML=`<div class="ocHead">${title} (${L.length})</div><div class="ocList">`+[...m.values()].reverse().map(c=>{const u=cardById(c.id),d=u?String(u.desc||'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim():'';
     return `<span class="oc" style="--tc:${CARD_TIER_COLOR[c.tier]||'#a9b4c0'}" title="${esc(c.tier+' — '+(d||c.name))}">${esc(u?u.name:c.name)}${c.n>1?`<b>×${c.n}</b>`:''}</span>`}).join('')+'</div>'}
+// ---- v4 card design pass ----
+// Every reward card names what it changes: a category (colour, icon badge, art), an "applies to" strip,
+// and on Relay cards a big Offensive / Defensive slot badge. CARD_INFO maps each card to
+// [category, applies-to text, its own animated art or null for the category's]. The art is drawn on a
+// small canvas per card, only while the pick is on screen (the sim is paused then); the Rig, the
+// Stabilizer and the Relay use the game's own 3D models, everything else small 2D drawings.
+const CARD_CATS={
+  squad:{name:'Squad',col:'#5ec8ff'}, drones:{name:'Repair Drones',col:'#4fd1c5'},
+  relayOff:{name:'Relays',col:'#ff8a7a'}, relayDef:{name:'Relays',col:'#8fd6ff'},
+  rigstab:{name:'Rig & Stabilizers',col:'#c9d1d9'}, rig:{name:'Rig',col:'#e8c25a'},
+  walls:{name:'Walls',col:'#d6a46a'}, cables:{name:'Cables & Tethers',col:'#c98b4a'},
+  calls:{name:'Call-downs',col:'#f2b63c'}, supply:{name:'Supplies',col:'#9ad36a'}};
+const CARD_INFO={
+  dmg1:['squad','Troopers'],dmg2:['squad','Troopers'],dmg3:['squad','Troopers','drills'],
+  grenrate1:['squad','Grenadiers'],grenrate2:['squad','Grenadiers'],grensplash1:['squad','All explosives'],grensplash2:['squad','All explosives'],
+  vis1:['squad','Every unit'],hardscopes:['squad','Troopers'],recruit1:['squad','Now: 3 Troopers'],barracks1:['squad','Squad size'],
+  tactical:['squad','Now: Troopers + Grenadiers'],martyrs:['squad','Every unit'],
+  drones1:['drones','Repair swarm','spare'],swarm2:['drones','Repair swarm','spare'],
+  energySurge1:['relayOff','Every Relay','sonic'],energySurge2:['relayOff','Every Relay','sonic'],energySurge3:['relayOff','Every Relay','sonic'],
+  relayArmored:['relayOff','Every Relay','fortified'],tesla1:['relayOff','Every Relay','tesla'],tesla2:['relayOff','Every Relay','tesla'],
+  relayRadar:['relayDef','Every Relay','radar'],relayWalled:['relayDef','Every Relay','walledRelay'],relayRepair:['relayDef','Every Relay','cradle'],
+  heavyArmour:['rigstab','Rig + every Stabilizer','armour'],pointDefence:['rigstab','Rig + every Stabilizer','pd'],deflector:['rigstab','Rig + every Stabilizer','dome'],
+  riftShield:['rig','Rig only','rift'],overdrive:['rig','Rig drill','overdrive'],
+  siegeRing:['walls','Around the Rig, each drill','siege'],wallTowers:['walls','Every wall end','towers'],podTowers:['walls','Every wall end','pods'],
+  tol1:['cables','Rig + Relays'],cable1:['cables','Every unit cable','spool'],cablehp2:['cables','Every cable'],
+  callDelay:['calls','Every call-down'],callRadius:['calls','Every call-down'],callCrate:['calls','Now: 2 call-downs'],callPrice:['calls','Every call-down'],
+  callEcho:['calls','Every call-down','echo'],callReq:['calls','Each drill'],
+  resupply1:['supply','Now: all stock'],living1:['supply','Living Crystal']};
+const caLerp=(a,b,f)=>a+(b-a)*f,caSm=x=>x*x*(3-2*x),caCl=(x,a,b)=>Math.max(a,Math.min(b,x)),caH=n=>{const x=Math.sin(n*127.1+311.7)*43758.5453;return x-Math.floor(x)},TAU2=Math.PI*2,CA_OL='#0d1014';
+function caRgba(h,a){const n=parseInt(h.slice(1),16);return `rgba(${n>>16},${n>>8&255},${n&255},${a})`}
+function caGlow(x,y,r,col,a){if(a<=0)return;const g=ctx.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,caRgba(col,a));g.addColorStop(1,caRgba(col,0));ctx.save();ctx.globalCompositeOperation='lighter';ctx.fillStyle=g;ctx.fillRect(x-r,y-r,r*2,r*2);ctx.restore()}
+function caSh(x,y,rx,a=0.4){ctx.fillStyle=`rgba(0,0,0,${a})`;ctx.beginPath();ctx.ellipse(x+2,y+1,rx,rx*0.42,0,0,TAU2);ctx.fill()}
+function caRR(x,y,w,h,r,fill,stroke,lw=0.8){ctx.beginPath();if(ctx.roundRect)ctx.roundRect(x,y,w,h,r);else ctx.rect(x,y,w,h);if(fill){ctx.fillStyle=fill;ctx.fill()}if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw;ctx.stroke()}}
+function caLine(pts,col,w){ctx.strokeStyle=col;ctx.lineWidth=w;ctx.beginPath();pts.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.stroke()}
+function caTxt(s,x,y,col,size=8){ctx.fillStyle=col;ctx.font=`700 ${size}px "IBM Plex Mono",monospace`;ctx.textAlign='center';ctx.fillText(s,x,y)}
+// the game's own models, drawn at (x,y) and scale s, with the card's parts switched on for the picture
+function caSk(x,y,s,mods,f){const keep={x:SKO.x,y:SKO.y,s:SKO.s,lean:SKO.lean,shk:SKO.shk},km={};
+  for(const k in mods){km[k]=S.mods[k];S.mods[k]=mods[k]}
+  SKO.x=x;SKO.y=y;SKO.s=s;SKO.lean=[0,0];SKO.shk=[0,0];
+  try{f()}finally{for(const k in km)S.mods[k]=km[k];Object.assign(SKO,keep)}}
+function caRig(x,y,s=0.5,o={}){caSk(x,y,s*1.35,{heavyArmour:!!o.armour,pointDefence:!!o.pd},()=>{const m=rigPieces({dep:1,hov:0,plant:o.laser?1:0,charge:o.laser?1:0,armor:!!o.armour,pd:o.pd?[-2.2,-0.9]:null,dmg:0});skRender(m.P);
+  if(o.laser){const a=skPJ(m.lens),b=skPJ([0,0,0]);ctx.save();ctx.globalCompositeOperation='lighter';ctx.strokeStyle='rgba(255,170,90,0.9)';ctx.lineWidth=2.4*s*2;ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke();ctx.restore();caGlow(b[0],b[1],12,'#ff8a3a',0.7)}
+  skGlow(m.beacon,5,'#ff3a24',0.7)})}
+function caStab(x,y,s=0.55,o={}){caSk(x,y,s*1.3,{heavyArmour:!!o.armour,pointDefence:!!o.pd},()=>{const st={x:0,y:0,pdYaw:[-2.4]};skRender(coreColumnPieces('#a36bff',S.t,0,0,1).concat(stabKitPieces(st)));skGlow([0,0,58],22,'#a36bff',0.3);skGlow([-3,3,152.5],6,'#ff3a24',0.6)})}
+function caRelay(x,y,s=1.6,o={}){caSk(x,y,s,{relayOff:o.off||null,relayDef:o.def||null},()=>{const r={x:0,y:0,tetherOk:true,built:true,hp:1,maxHp:1};skRender(relayMastSolids(r));const lz=o.off==='armored'?33:o.off==='tesla'?49:46.2;skGlow([0,0,lz],7,'#5ec8ff',0.55)})}
+function caWall(x,y,n,s=1,rise=1){ctx.save();ctx.translate(x,y);ctx.scale(s,s);for(let i=0;i<n;i++){const wx=(i-(n-1)/2)*9,h=rise*13;caSh(wx,1,5,0.35);if(h>0.5){caRR(wx-4.5,-h,9,h,1,'#6f7884',CA_OL);caRR(wx-4.5,-h,9,3,1,'#9aa4b0',CA_OL,0.5)}}ctx.restore()}
+function caWallArc(cx,cy,R,a0,a1,n,rise=1){const pts=[];for(let i=0;i<n;i++){const a=caLerp(a0,a1,(i+0.5)/n);pts.push([cx+Math.cos(a)*R,cy+Math.sin(a)*R*0.5])}
+  pts.sort((p,q)=>p[1]-q[1]).forEach(([x,y])=>{const h=11*rise;caSh(x,y,4.5,0.3);if(h>0.5){caRR(x-4,y-h,8,h,1,'#6f7884',CA_OL);caRR(x-4,y-h,8,2.6,1,'#9aa4b0',CA_OL,0.5)}})}
+function caUnit(x,y,a=0,s=1,col='#5ec8ff'){ctx.save();ctx.translate(x,y);ctx.scale(s,s);caSh(0,2,5,0.35);ctx.fillStyle=col;ctx.strokeStyle=CA_OL;ctx.lineWidth=0.8;ctx.beginPath();ctx.arc(0,0,4.6,0,TAU2);ctx.fill();ctx.stroke();caLine([[0,0],[Math.cos(a)*7.5,Math.sin(a)*7.5]],CA_OL,1.7);ctx.restore()}
+function caEnemy(x,y,a=Math.PI,s=1,fl=0){ctx.save();ctx.translate(x,y);ctx.scale(s,s);caSh(0,2,5,0.35);const r=5;ctx.fillStyle=fl?'#ffd0c8':C.enemy;ctx.strokeStyle='#2a0c08';ctx.lineWidth=0.8;ctx.beginPath();ctx.moveTo(Math.cos(a)*r*1.3,Math.sin(a)*r*1.3);ctx.lineTo(Math.cos(a+2.5)*r,Math.sin(a+2.5)*r);ctx.lineTo(Math.cos(a-2.5)*r,Math.sin(a-2.5)*r);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore()}
+function caOrb(x,y,s=1,a=Math.PI/2){drawWardenOrb(x,y,a,3.4*s,0,false)}
+function caPod(x,y,s=1,flame=0){ctx.save();ctx.translate(x,y);ctx.scale(s,s);if(flame){caGlow(0,4,9,'#ffb35a',0.7);ctx.fillStyle='#ffd27a';ctx.beginPath();ctx.moveTo(-2.5,3);ctx.lineTo(0,3+8*flame);ctx.lineTo(2.5,3);ctx.fill()}
+  caRR(-4,-10,8,13,2.5,'#d9dee4',CA_OL);ctx.fillStyle='#f2b63c';ctx.fillRect(-4,-4,8,2);ctx.beginPath();ctx.moveTo(-4,-10);ctx.quadraticCurveTo(0,-17,4,-10);ctx.fillStyle='#a9b6c4';ctx.fill();ctx.strokeStyle=CA_OL;ctx.lineWidth=0.8;ctx.stroke();ctx.restore()}
+function caCrate(x,y,s=1){ctx.save();ctx.translate(x,y);ctx.scale(s,s);caSh(0,1,9,0.4);caRR(-8,-12,16,12,1.5,'#8a6a3e',CA_OL);caRR(-8,-15,16,4,1.5,'#a8834f',CA_OL);caLine([[-8,-12],[8,0]],'#5c4428',1);caLine([[8,-12],[-8,0]],'#5c4428',1);caTxt('◆',0,-3,C.dat,9);ctx.restore()}
+function caCable(a,b,sag,col=C.cable,w=1.4){ctx.strokeStyle='#121416';ctx.lineWidth=w+1;ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.quadraticCurveTo((a[0]+b[0])/2,(a[1]+b[1])/2+sag,b[0],b[1]);ctx.stroke();ctx.strokeStyle=col;ctx.lineWidth=w;ctx.stroke()}
+function caBolt(a,b,t){ctx.save();ctx.globalCompositeOperation='lighter';ctx.strokeStyle='#9fd8ff';ctx.lineWidth=1.4;ctx.beginPath();ctx.moveTo(a[0],a[1]);for(let i=1;i<6;i++){const f=i/6;ctx.lineTo(caLerp(a[0],b[0],f)+(caH(i+Math.floor(t*20))-0.5)*6,caLerp(a[1],b[1],f)+(caH(i*3+Math.floor(t*20))-0.5)*6)}ctx.lineTo(b[0],b[1]);ctx.stroke();ctx.restore();caGlow(b[0],b[1],7,'#9fd8ff',0.5)}
+function caShard(x,y){ctx.fillStyle='#b48bff';ctx.strokeStyle=CA_OL;ctx.lineWidth=0.6;ctx.beginPath();ctx.moveTo(x,y-3);ctx.lineTo(x+1.6,y);ctx.lineTo(x,y+3);ctx.lineTo(x-1.6,y);ctx.closePath();ctx.fill();ctx.stroke();caGlow(x,y,5,'#b48bff',0.4)}
+function caGround(seed){ctx.fillStyle='#16191d';ctx.fillRect(0,0,214,122);for(let i=0;i<26;i++){ctx.fillStyle=caH(seed+i)<0.5?'rgba(255,255,255,0.03)':'rgba(0,0,0,0.22)';ctx.beginPath();ctx.arc(caH(seed*2+i)*214,caH(seed*3+i)*122,1+caH(i)*2.5,0,TAU2);ctx.fill()}}
+// category icons (drawn in a 24-unit box round 0,0) and the art a card uses when it has none of its own
+const CARD_ICON={
+  squad(){caUnit(-3,2,-0.4,1.3);caUnit(4,-3,-0.2,1,'#7fb6e8')},
+  drones(){caOrb(-4,0,1.1);caOrb(4,-3,0.9);caOrb(3,5,0.8)},
+  relayOff(){caRelay(0,10,0.42,{})},relayDef(){caRelay(0,10,0.42,{})},
+  rigstab(){caRig(-4,10,0.09);caStab(5,10,0.11)},rig(){caRig(0,10,0.1,{laser:true})},
+  walls(){ctx.save();ctx.scale(0.55,0.55);caWall(0,10,3);ctx.restore()},
+  cables(){caCable([-8,4],[8,-2],6,C.cable,1.6);ctx.fillStyle='#8d9aa8';ctx.fillRect(-9,2,2,4);ctx.fillRect(7,-4,2,4)},
+  calls(){caPod(0,4,0.75,0.6)},supply(){caCrate(0,6,0.75)}};
+const CARD_CAT_ART={
+  squad(t){caUnit(60,70,0.1);caUnit(76,58,0.1);caUnit(70,86,0.1,1,'#7fb6e8');[0,1,2].forEach(i=>{const f=((t*1.6+i*0.33)%1);caLine([[80+f*60,58+i*14],[86+f*60,58+i*14]],'#ffe9a0',1.4)});caEnemy(170,72,Math.PI,1,((t*1.6)%1)>0.85)},
+  drones(t){caRig(107,104,0.42);for(let i=0;i<4;i++){const a=t*0.6+i*TAU2/4;caOrb(107+Math.cos(a)*22,62+Math.sin(a)*8-i*6,1.1,a+Math.PI)}},
+  relayOff(){caRelay(80,100,1.5)},relayDef(){caRelay(80,100,1.5)},
+  rigstab(){caRig(78,104,0.42);caStab(140,104,0.5)},rig(){caRig(107,100,0.44,{laser:true})},
+  walls(){caWall(107,96,6,1.2)},
+  cables(){caRig(40,104,0.34);caRelay(170,96,1.1);caCable([47,66],[170,52],22)},
+  calls(t){const f=(t*0.7)%1;ctx.strokeStyle=`rgba(242,182,60,${0.4+0.4*Math.sin(t*6)})`;ctx.setLineDash([3,3]);ctx.lineWidth=1;ctx.beginPath();ctx.ellipse(107,92,26,11,0,0,TAU2);ctx.stroke();ctx.setLineDash([]);
+    if(f<0.7)caPod(107,caLerp(-10,88,caSm(f/0.7)),1.3,1);else{caPod(107,88,1.3,0);caGlow(107,92,30*(1-(f-0.7)/0.3),'#ffd27a',0.7*(1-(f-0.7)/0.3))}},
+  supply(){caCrate(107,92,2)}};
+const CARD_ART={
+  armour(t){const f=(t*0.9)%1,hit=f>0.42&&f<0.56;caRig(70,104,0.42,{armour:true});caStab(140,104,0.5,{armour:true});
+    const ex=f<0.45?caLerp(196,156,caSm(f/0.45)):caLerp(156,190,caSm((f-0.45)/0.55));caEnemy(ex,96,Math.PI,1,hit);if(hit){caGlow(154,86,10,'#ffffff',0.6);caTxt('−75%',154,64,'#ffd0c8',9)}},
+  pd(t){caRig(70,104,0.42,{pd:true});caStab(150,104,0.5,{pd:true});const f=(t*0.8)%1,P=u=>[caLerp(210,96,u),caLerp(10,40,u)-Math.sin(u*Math.PI)*20];
+    if(f<0.62)caShard(...P(f));else caGlow(...P(0.62),10,'#ffffff',0.8*(1-(f-0.62)/0.38));if(f>0.5&&f<0.62)caLine([[76,40],P(0.62)],'#ffe9a0',1)},
+  dome(t){caRig(80,104,0.42);ctx.save();ctx.globalCompositeOperation='lighter';ctx.fillStyle='rgba(94,200,255,0.10)';ctx.strokeStyle=`rgba(143,214,255,${0.5+0.3*Math.sin(t*3)})`;ctx.lineWidth=1.2;ctx.beginPath();ctx.ellipse(80,74,32,44,0,Math.PI,0);ctx.lineTo(112,104);ctx.ellipse(80,104,32,10,0,0,Math.PI);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();
+    ctx.save();ctx.globalCompositeOperation='lighter';ctx.strokeStyle='rgba(255,120,220,0.8)';ctx.lineWidth=2.2;ctx.beginPath();ctx.moveTo(196,40);ctx.lineTo(110,62);ctx.stroke();ctx.strokeStyle='rgba(255,120,220,0.18)';ctx.beginPath();ctx.moveTo(110,62);ctx.lineTo(86,68);ctx.stroke();ctx.restore();caGlow(110,62,9,'#ff9adf',0.7);
+    ctx.fillStyle=C.living;ctx.beginPath();ctx.arc(198,40,4,0,TAU2);ctx.fill();caTxt('−85%',150,38,'#ff9adf',8)},
+  rift(t){ctx.fillStyle='#2a1640';ctx.beginPath();ctx.ellipse(107,100,74,16,0,0,TAU2);ctx.fill();ctx.strokeStyle='rgba(190,130,255,0.5)';ctx.lineWidth=1;for(let i=0;i<3;i++){ctx.beginPath();ctx.ellipse(107,100,74-i*14,16-i*3,0,0,TAU2);ctx.stroke()}
+    const x=caLerp(70,140,0.5+0.5*Math.sin(t*0.6));caGlow(x,100,12,'#ffb35a',0.5);caRig(x,92,0.42);const san=0.5+0.5*Math.cos(t*0.6);caRR(160,16,40,6,2,'#0b0e12','#b48bff');caRR(161,17,38*san,4,1.5,'#b48bff');caTxt('SANITY',180,32,'#b48bff',6)},
+  overdrive(t){caRig(107,100,0.44,{laser:true});for(let i=0;i<8;i++){const a=i/8*TAU2+t*2,r=12+((t*1.8+i*0.13)%1)*30;caGlow(107+Math.cos(a)*r,102+Math.sin(a)*r*0.4,3,'#ffb35a',0.6)}caTxt('+40%',165,40,'#ffd27a',10)},
+  siege(t){const rise=caCl(((t*0.5)%1)*2.2,0,1);ctx.strokeStyle='rgba(242,182,60,0.4)';ctx.setLineDash([4,5]);ctx.beginPath();ctx.ellipse(107,96,66,24,0,0,TAU2);ctx.stroke();ctx.setLineDash([]);
+    caWallArc(107,96,66,Math.PI*1.05,Math.PI*1.95,6,rise);caRig(107,100,0.38,{laser:true});caWallArc(107,96,66,Math.PI*0.05,Math.PI*0.95,6,rise)},
+  towers(t){caWall(107,100,6,1.1);[[77,86],[137,86]].forEach(([x,y],i)=>{caRR(x-4,y-14,8,10,2,'#5d6670',CA_OL);const a=Math.PI+Math.sin(t+i)*0.5;caLine([[x,y-11],[x+Math.cos(a)*9,y-11+Math.sin(a)*4]],'#2a3440',2)});caTxt('TURRET',77,62,'#d6a46a',6);caTxt('TURRET',137,62,'#d6a46a',6)},
+  pods(t){caWall(107,100,6,1.1);[[77,86],[137,86]].forEach(([x,y],i)=>{caRR(x-5,y-13,10,9,2,'#6b4b3b',CA_OL);[-2,2].forEach(a=>{ctx.fillStyle='#ff8a5a';ctx.beginPath();ctx.arc(x+a,y-11,1.2,0,TAU2);ctx.fill()});const f=((t*0.9+i*0.5)%1);if(f<0.6){const mx=x+f*18*(i?1:-1),my=y-14-f*60;ctx.fillStyle='#d9dee4';ctx.fillRect(mx-1,my-3,2,5);caGlow(mx,my+3,4,'#ffb35a',0.6)}})},
+  tesla(t){caRelay(56,104,1.5,{off:'tesla'});const es=[[112,84],[150,66],[186,90]],on=((t*1.5)%1)<0.3;es.forEach(([x,y])=>caEnemy(x,y,Math.PI,1,on));if(on){caBolt([56,30],es[0],t);caBolt(es[0],es[1],t+0.1);caBolt(es[1],es[2],t+0.2)}},
+  sonic(t){caRelay(70,104,1.5,{off:'sonic'});const f=(t*0.7)%1;ctx.strokeStyle=`rgba(255,180,120,${(1-f)*0.8})`;ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(70,100,10+f*110,(10+f*110)*0.38,0,0,TAU2);ctx.stroke();
+    [[140,86],[170,100],[150,110]].forEach(([x,y])=>{const p=f>0.45?caSm(caCl((f-0.45)/0.3,0,1))*16:0;caEnemy(x+p,y+p*0.2,Math.PI,1,f>0.45&&f<0.55);if(f>0.5)caTxt('?',x+p,y-10,'#ffd27a',7)})},
+  fortified(t){caRelay(70,100,1.5,{off:'armored'});const sh=((t*2)%1)<0.15;if(sh)caLine([[80,58],[170,64]],'#ffe9a0',1.2);caEnemy(176,66,Math.PI,1,sh);caTxt('3× HP',150,104,'#ff8a7a',8)},
+  radar(t){ctx.fillStyle='rgba(5,7,9,0.7)';ctx.fillRect(0,0,214,122);const a=t*1.2;ctx.save();ctx.globalCompositeOperation='lighter';const g=ctx.createRadialGradient(70,96,0,70,96,120);g.addColorStop(0,'rgba(94,200,255,0.35)');g.addColorStop(1,'rgba(94,200,255,0)');ctx.fillStyle=g;ctx.beginPath();ctx.moveTo(70,96);ctx.ellipse(70,96,120,54,0,a-0.6,a);ctx.closePath();ctx.fill();ctx.restore();
+    [[150,70],[120,108],[176,98]].forEach(([x,y])=>{const ang=Math.atan2((y-96)/0.45,x-70),d=((a-ang)%TAU2+TAU2)%TAU2;if(d<1.6)caEnemy(x,y)});caRelay(70,104,1.5,{def:'radar'})},
+  walledRelay(t){const r=caCl(((t*0.5)%1)*2,0,1);caWallArc(107,92,50,Math.PI*1.05,Math.PI*1.95,5,r);caRelay(107,100,1.4,{def:'walled'});caWallArc(107,92,50,Math.PI*0.05,Math.PI*0.95,5,r)},
+  cradle(t){caRelay(56,104,1.4,{def:'repair'});caWall(166,104,4,1);const f=(t*0.5)%1,x=f<0.3?caLerp(70,146,caSm(f/0.3)):f<0.8?146:caLerp(146,70,caSm((f-0.8)/0.2)),y=f<0.3?caLerp(50,74,caSm(f/0.3)):f<0.8?74:caLerp(74,50,caSm((f-0.8)/0.2));
+    if(f>=0.3&&f<0.8){ctx.save();ctx.globalCompositeOperation='lighter';ctx.fillStyle='rgba(79,209,197,0.28)';const sw=Math.sin(t*5)*5;ctx.beginPath();ctx.moveTo(x+3,y);ctx.lineTo(156,92+sw-6);ctx.lineTo(156,92+sw+6);ctx.closePath();ctx.fill();ctx.restore()}caOrb(x,y,1.3,0)},
+  spare(t){caRig(107,104,0.42);for(let i=0;i<6;i++){const a=t*0.6+i*TAU2/6,pop=i>=4?caCl(((t*0.4)%1)*3,0,1):1;if(pop>0)caOrb(107+Math.cos(a)*24,62+Math.sin(a)*9-(i%3)*6,1.1*pop,a+Math.PI)}caTxt('+',172,40,'#4fd1c5',12)},
+  drills(t){[[54,58],[48,80],[60,100]].forEach(([x,y],i)=>{caUnit(x,y,0.05);const f=((t*2.2+i*0.3)%1);caLine([[x+10+f*90,y],[x+20+f*90,y]],'#ffe9a0',2.2)});caEnemy(176,78,Math.PI,1.2,((t*2.2)%1)>0.8)},
+  echo(t){const f=(t*0.6)%1;[[90,90,0],[140,98,0.3]].forEach(([x,y,d])=>{const g=f-d;if(g<0)return;ctx.strokeStyle='rgba(242,182,60,0.6)';ctx.setLineDash([3,3]);ctx.beginPath();ctx.ellipse(x,y,20,8,0,0,TAU2);ctx.stroke();ctx.setLineDash([]);
+    if(g<0.35)caPod(x,caLerp(-10,y,caSm(g/0.35)),1.1,1);else{const k=1-caCl((g-0.35)/0.4,0,1);caPod(x,y,1.1,0);caGlow(x,y+3,26*k,'#ffd27a',0.6*k)}})},
+  spool(t){caRig(40,104,0.34);const L=60+40*(0.5+0.5*Math.sin(t*0.8));caUnit(46+L*1.4,98,0);ctx.strokeStyle='#121416';ctx.lineWidth=2.4;ctx.beginPath();ctx.moveTo(48,70);ctx.quadraticCurveTo(50,100,60,102);ctx.lineTo(46+L*1.4-4,100);ctx.stroke();ctx.strokeStyle=C.cable;ctx.lineWidth=1.4;ctx.stroke()},
+  trade(t){caCrate(107,92,2);for(let i=0;i<5;i++){const f=((t*0.6+i/5)%1);caTxt('◆',107+(caH(i)-0.5)*60,80-f*50,caRgba('#9ad36a',1-f),9)}}};
+let CARD_VIEWS=[],cardRaf=0;
+function cardArtFrame(now){CARD_VIEWS=CARD_VIEWS.filter(v=>v.cv.isConnected);const vis=CARD_VIEWS.filter(v=>v.cv.offsetParent);if(!vis.length){cardRaf=0;return} // stops once the pick closes
+  const t=now/1000,keep=ctx;try{vis.forEach(v=>{ctx=v.g;v.draw(t)})}finally{ctx=keep}cardRaf=requestAnimationFrame(cardArtFrame)}
+function cardCanvas(cv,draw,once){const dpr=Math.min(2,window.devicePixelRatio||1),w=cv.clientWidth||204,h=cv.clientHeight||112;cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);const g=cv.getContext('2d');
+  if(once){const keep=ctx;ctx=g;try{draw(g,0,dpr,w,h)}finally{ctx=keep}return}
+  CARD_VIEWS.push({cv,g,draw:t=>draw(g,t,dpr,w,h)});if(!cardRaf)cardRaf=requestAnimationFrame(cardArtFrame)}
+// fills a reward button with the new layout; c is the card ({id,name,desc,tier} or a trade / call-down card)
+function buildCardFace(btn,c,o={}){const info=o.info||CARD_INFO[c.id]||null,cat=o.cat||(info?info[0]:'supply'),K=CARD_CATS[cat],applies=o.applies||(info?info[1]:''),art=o.art||(info?info[2]:null);
+  btn.classList.add('v2');btn.style.setProperty('--cc',K.col);
+  btn.innerHTML=`<span class="rcTier">${o.tierLabel||c.tier}</span><span class="rcArt"><canvas class="art" aria-hidden="true"></canvas><canvas class="badge" aria-hidden="true"></canvas></span><span class="rcApplies">${o.catName||K.name}${applies?`<small>· ${applies}</small>`:''}</span><span class="rcBody"><span class="rcName">${c.name}</span><span class="rcDesc">${c.desc}</span></span>`;
+  const note=btn.querySelector('.rcDesc .rcSwap[data-slot]');
+  if(note){const slot=note.dataset.slot,rep=note.dataset.rep;note.remove();const b=document.createElement('span');b.className='rcSlot '+slot;b.textContent=slot==='off'?'⚔ Offensive relay slot':'⛨ Defensive relay slot';btn.insertBefore(b,btn.querySelector('.rcBody'));
+    if(rep){const r=document.createElement('span');r.className='rcSwap';r.textContent='Replaces your '+rep;btn.querySelector('.rcBody').appendChild(r)}}
+  const seed=caH((c.id||c.name||'').length+3)*10,drawArt=CARD_ART[art]||CARD_CAT_ART[cat];
+  cardCanvas(btn.querySelector('canvas.art'),(g,t,dpr,w,h)=>{const k=Math.min(w/214,h/122);g.setTransform(dpr*w/214,0,0,dpr*h/122,0,0);caGround(seed);
+    g.setTransform(dpr*k*1.22,0,0,dpr*k*1.22,dpr*(w/2-107*k*1.22+6*k),dpr*(h-20*k-106*k*1.22));drawArt(t);g.setTransform(dpr,0,0,dpr,0,0);caGlow(w/2,0,w*0.42,K.col,0.06)});
+  cardCanvas(btn.querySelector('canvas.badge'),(g,t,dpr,w,h)=>{g.setTransform(1,0,0,1,0,0);g.clearRect(0,0,g.canvas.width,g.canvas.height);const k=dpr*w/24;g.setTransform(k,0,0,k,g.canvas.width/2,g.canvas.height/2);(o.icon||CARD_ICON[cat])()},true)}
 // Pauses the whole sim (update() bails out while S.rewardChoice is set) and shows the pick.
 function showRewardChoice(tier,band){
   const cards=rollRewardCards(tier,band);
@@ -10097,7 +10238,7 @@ function showRewardChoice(tier,band){
     const btn=document.createElement('button');
     btn.className='rewardCard'+(trade?' trade':'')+(!trade&&c.tier==='Legendary'?' legendary':'');
     btn.style.setProperty('--tc',col);
-    btn.innerHTML=`<span class="rcTier">${trade?'Trade':c.tier}</span><span class="rcName">${c.name}</span><span class="rcDesc">${c.desc}</span>`;
+    if(trade)buildCardFace(btn,c,{cat:'supply',catName:'Trade',applies:`+${c.amt} Dat now`,art:'trade',tierLabel:'Trade'});else buildCardFace(btn,c);
     btn.onclick=()=>pickReward(i);
     host.appendChild(btn);
   });
