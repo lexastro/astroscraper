@@ -1873,7 +1873,7 @@ const UPGRADES={
     {id:'recruit1',name:'Fresh Recruits',desc:'+3 free Troopers, right now.',apply:()=>{spawnFreeTroops(3,'troop')}},
     {id:'energySurge1',name:'Sonic Deterrent I',get desc(){return 'Horn speakers on every Relay: every 10s while drilling they all thump together — enemies reached are shoved back and dazed for 1s.'+relaySlotNote('off','sonic')},has:()=>S.mods.relayOff==='sonic'&&S.mods.energySurgeLevel>=1,apply:()=>{setRelaySlot('off','sonic');S.mods.energySurgeLevel=Math.max(S.mods.energySurgeLevel,1)}},
     {id:'relayArmored',name:'Fortified Relay',get desc(){return 'Every Relay gets an armoured plinth and a turret head: 3× HP, and while tethered it fires like a full Turret.'+relaySlotNote('off','armored')},has:()=>S.mods.relayOff==='armored',apply:()=>{setRelaySlot('off','armored')}},
-    {id:'anchorPod',name:'Anchor Pod',desc:'E now fires a pod at any vein you\'ve found, anywhere on the map. It lands beside the vein and fires Stabilizers into its free hotspots by itself, each one when its hotspot swings out wide and well spread from the others, for a wide steering triangle. Each Stabilizer still uses a charge (or Dat on auto-buy).',has:()=>!!S.mods.anchorPod,apply:()=>{S.mods.anchorPod=true}},
+    {id:'anchorPod',name:'Anchor Pod',desc:'E fires a pod at any vein you have found, anywhere on the map. It lands beside it and fires the Stabilizers itself, each when its hotspot swings out wide and well spread, for a wide steering triangle. Each still uses a charge (or Dat).',has:()=>!!S.mods.anchorPod,apply:()=>{S.mods.anchorPod=true}},
     {id:'heavyArmour',name:'Heavy Armour',desc:'Thick armour on the Rig and every Stabilizer: 30% less damage from everything, 75% less from melee, and melee attackers are knocked back off it.',has:()=>S.mods.heavyArmour,apply:()=>{S.mods.heavyArmour=true}},
     {id:'pointDefence',name:'Point Defence',desc:'Small turrets on the Rig (two) and every Stabilizer (one) that shoot down incoming Splinter shards and Lance volleys before they land. They never fire at enemies themselves.',has:()=>S.mods.pointDefence,apply:()=>{S.mods.pointDefence=true}},
     {id:'relayRadar',name:'Radar Mast',get desc(){return 'A turning radar dish on every Relay: a tethered Relay sees far into the fog around it.'+relaySlotNote('def','radar')},has:()=>S.mods.relayDef==='radar',apply:()=>{setRelaySlot('def','radar')}},
@@ -8490,7 +8490,6 @@ function drawWardenScan(L,o,x,y,z,beamT){const d={x,y,beamT};
       ctx.globalAlpha=0.85;ctx.strokeStyle='#bff7f0';ctx.lineWidth=1.1;ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);ctx.stroke();
       ctx.globalAlpha=0.5+0.4*Math.abs(Math.sin(d.beamT*23));ctx.fillStyle='#bff7f0';ctx.beginPath();ctx.arc(cx+rnd(-2,2)*0.5,cyy,1.5,0,Math.PI*2);ctx.fill();
       ctx.restore()}
-window.__S=()=>S;window.__G=()=>({fireStabilizer,showRewardChoice,podPos,setBuild:m=>{buildMode=m},cam,surveyedVeins});/*TMPHOOK*/
 function drawDrones(back){
   const B=S.base;
   S.drones.forEach(d=>{
@@ -10234,7 +10233,7 @@ const CARD_INFO={
   energySurge1:['relayOff','Every Relay','sonic'],energySurge2:['relayOff','Every Relay','sonic'],energySurge3:['relayOff','Every Relay','sonic'],
   relayArmored:['relayOff','Every Relay','fortified'],tesla1:['relayOff','Every Relay','tesla'],tesla2:['relayOff','Every Relay','tesla'],
   relayRadar:['relayDef','Every Relay','radar'],relayWalled:['relayDef','Every Relay','walledRelay'],relayRepair:['relayDef','Every Relay','cradle'],
-  heavyArmour:['rigstab','Rig + every Stabilizer','armour'],anchorPod:['rigstab','Stabilizers · fired by a pod','anchor'],pointDefence:['rigstab','Rig + every Stabilizer','pd'],deflector:['rigstab','Rig + every Stabilizer','dome'],
+  heavyArmour:['rigstab','Rig + every Stabilizer','armour'],anchorPod:['rigstab','Fired by a pod','anchor'],pointDefence:['rigstab','Rig + every Stabilizer','pd'],deflector:['rigstab','Rig + every Stabilizer','dome'],
   riftShield:['rig','Rig only','rift'],overdrive:['rig','Rig drill','overdrive'],
   siegeRing:['walls','Around the Rig, each drill','siege'],wallTowers:['walls','Every wall end','towers'],podTowers:['walls','Every wall end','pods'],
   tol1:['cables','Rig + Relays'],cable1:['cables','Every unit cable','spool'],cablehp2:['cables','Every cable'],
