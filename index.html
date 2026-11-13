@@ -8166,6 +8166,26 @@ function findRepairTarget(bu){
   return found;
 }
 
+// ---- dropped Dat: a Glitter Spill ----
+// A dropped Dat Crystal is a little spill of green slivers, DAT_SLIVERS per Dat, each twinkling on its own
+// beat over a faint glow, so a bigger drop covers more ground. Picked up, the slivers stream into whoever
+// took it (S.datFx, DAT_STREAM_T seconds).
+const DAT_SLIVERS=4, DAT_STREAM_T=0.35, DAT_L='#e2f7c4', DAT_M='#74b043';
+function datHash(n){const x=Math.sin(n*127.1+311.7)*43758.5453;return x-Math.floor(x)}
+function datSliver(px,py,rot,L,col){ctx.save();ctx.translate(px,py);ctx.rotate(rot);ctx.fillStyle=col;ctx.beginPath();ctx.moveTo(-L,0);ctx.lineTo(0,-0.55);ctx.lineTo(L,0);ctx.lineTo(0,0.55);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore()}
+function datTwinkle(x,y,r,a){ctx.save();ctx.globalCompositeOperation='lighter';ctx.globalAlpha=a;ctx.strokeStyle='#f0ffdc';ctx.lineWidth=r*0.18;ctx.beginPath();ctx.moveTo(x-r,y);ctx.lineTo(x+r,y);ctx.moveTo(x,y-r);ctx.lineTo(x,y+r);ctx.stroke();ctx.restore()}
+function datSpillPts(x,y,amt,s){const n=Math.max(1,Math.round(amt))*DAT_SLIVERS,R=2.5+Math.min(4,amt)*1.6,o=[];
+  for(let i=0;i<n;i++){const a=datHash(s*5+i)*Math.PI*2,r=Math.sqrt(datHash(s+i*13))*R;o.push({x:x+Math.cos(a)*r,y:y+Math.sin(a)*r*0.55,rot:datHash(i+s*2)*Math.PI,L:1.1+datHash(i*3+s)*1.1,ph:datHash(i+s)*Math.PI*2,i})}return {pts:o,R}}
+function drawDatSpill(x,y,amt,s){const {pts,R}=datSpillPts(x,y,amt,s),t=S.t;
+  ctx.save();ctx.globalCompositeOperation='lighter';const gr=ctx.createRadialGradient(x,y,0,x,y,R*1.8);gr.addColorStop(0,'rgba(154,211,106,0.16)');gr.addColorStop(1,'rgba(154,211,106,0)');ctx.fillStyle=gr;ctx.fillRect(x-R*1.8,y-R*1.8,R*3.6,R*3.6);ctx.restore();
+  ctx.strokeStyle='rgba(12,22,8,0.8)';ctx.lineWidth=0.2;
+  pts.forEach(p=>{const tw=Math.max(0,Math.sin(t*3.2+p.ph));datSliver(p.x,p.y,p.rot,p.L,tw>0.85?DAT_L:p.i%3?DAT_M:C.dat);if(tw>0.96)datTwinkle(p.x,p.y-0.4,1.4,(tw-0.96)/0.04*0.9)})}
+// picked up: remember where it lay and who took it; the slivers fly to them
+function datPickupFx(o,amt,who){(S.datFx||(S.datFx=[])).push({x:o.x,y:o.y,amt,s:(o.rot||0)*7.3,who,t0:S.t})}
+function drawDatStreams(){if(!S.datFx||!S.datFx.length)return;S.datFx=S.datFx.filter(f=>S.t-f.t0<DAT_STREAM_T);
+  ctx.strokeStyle='rgba(12,22,8,0.8)';ctx.lineWidth=0.2;
+  S.datFx.forEach(f=>{const u=Math.max(0,S.t-f.t0)/DAT_STREAM_T,w=f.who,tx=w.x,ty=w.y-(w.z||0)*SK_TILT,{pts}=datSpillPts(f.x,f.y,f.amt,f.s);
+    pts.forEach(p=>{const k=Math.min(1,u*(1+p.i*0.04)),e=k*k*(3-2*k),px=p.x+(tx-p.x)*e,py=p.y+(ty-p.y)*e-Math.sin(e*Math.PI)*6,sc=1-e*0.7;datSliver(px,py,p.rot+e*6,p.L*sc,e>0.5?DAT_L:C.dat)})})}
 // ---------- repair drones (v2) ----------
 // Everything the swarm will fly out to fix, best first: Stabilizers (they hold the drill needle),
 // then Relays (network reach — a cut Relay counts even at full HP), Turrets, and the Rig.
@@ -8221,8 +8241,8 @@ function updateDrones(dt){
     if(d.target&&!needsRepair(d.target))d.target.droneWorkT=0;
     d.state=d.target?(L<10?'repair':'fly'):d.loot?'fly':'dock';
     if(d.loot&&L<12){const o=d.loot,amt=o.amt;
-      if(S.shards.includes(o))S.shards=S.shards.filter(x=>x!==o);else o.amt=0;
-      S.dat+=amt;floatText(o.x,o.y-10,'+'+amt,C.dat);sndAt(o.x,o.y,()=>sfx.gather());spark(o.x,o.y,C.dat,3);updateBuildBar();d.loot=null}
+      const sh=S.shards.includes(o);if(sh)S.shards=S.shards.filter(x=>x!==o);else o.amt=0;
+      S.dat+=amt;floatText(o.x,o.y-10,'+'+amt,C.dat);sndAt(o.x,o.y,()=>sfx.gather());if(sh)datPickupFx(o,amt,d);else spark(o.x,o.y,C.dat,3);updateBuildBar();d.loot=null}
     if(d.state==='repair'){
       const o=d.target;
       if(o.hp<o.maxHp)o.hp=Math.min(o.maxHp,o.hp+DRONE_HPS*dt)
@@ -9809,7 +9829,7 @@ function update(dt){
     const looters=S.troops.concat(S.harvesters).concat(S.builders);
     S.shards=S.shards.filter(sh=>{
       const got=looters.some(u=>dist(u,sh)<u.r+10*pickupRangeMult());
-      if(got){S.dat+=sh.amt;floatText(sh.x,sh.y-10,'+'+sh.amt,C.dat);sndAt(sh.x,sh.y,()=>sfx.gather());spark(sh.x,sh.y,C.dat,3);updateBuildBar()}
+      if(got){S.dat+=sh.amt;floatText(sh.x,sh.y-10,'+'+sh.amt,C.dat);sndAt(sh.x,sh.y,()=>sfx.gather());datPickupFx(sh,sh.amt,looters.find(u=>dist(u,sh)<u.r+10*pickupRangeMult()));updateBuildBar()}
       return !got;
     });
   }
@@ -10848,11 +10868,8 @@ function draw(){
     ctx.fillStyle='#0b0e12';ctx.font='500 9px '+css('--mono');ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(n.amt,n.x,n.y)});
   // Dat Crystal shards — scattered fragments dropped by dead enemies, each a tiny triangle at a
   // fixed random rotation so a pile of them reads as scattered debris, not identical icons.
-  S.shards.forEach(sh=>{if(!debugNoFog&&!visible(sh))return;
-    ctx.save();ctx.translate(sh.x,sh.y);ctx.rotate(sh.rot);
-    ctx.fillStyle=C.dat;ctx.globalAlpha=0.9;ctx.beginPath();ctx.moveTo(0,-5);ctx.lineTo(4.5,3.5);ctx.lineTo(-4.5,3.5);ctx.closePath();ctx.fill();
-    ctx.globalAlpha=1;ctx.restore();
-  });
+  S.shards.forEach(sh=>{if(!debugNoFog&&!visible(sh))return;drawDatSpill(sh.x,sh.y,sh.amt,sh.rot*7.3)});
+  drawDatStreams();
   // build ring
   ctx.setLineDash([6,10]);ctx.strokeStyle='rgba(242,182,60,0.35)';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(B.x,B.y,BUILD_R,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
   if(buildMode)S.relays.forEach(r=>{if(!r.built)return;ctx.setLineDash([6,10]);ctx.strokeStyle='rgba(242,182,60,0.35)';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(r.x,r.y,BUILD_R,0,Math.PI*2);ctx.stroke();ctx.setLineDash([])});
