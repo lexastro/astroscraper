@@ -332,6 +332,7 @@ body.lowGfx #fogGrain{display:none}
 .overlay .shopTabs button{background:var(--panel2);color:var(--fg);border:1px solid var(--line);padding:8px 16px}
 .overlay .shopTabs button.on{background:var(--accent);color:#1a1200;border-color:var(--accent)}
 .shopSection[data-sec]:not(.on){display:none}
+#unlocksOverlay{justify-content:flex-start} /* top-aligned, so switching tabs doesn't shift the page */
 /* v4: the Cards tab — every card in the game, by grade; ones you haven't picked in a run yet are dimmed */
 .cardTierHead{font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;margin:14px 0 8px}
 .cardShopGrid{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;max-width:960px}
