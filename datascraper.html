@@ -6822,7 +6822,9 @@ function fabUnit(k){
 // Structures are lobbed from the Rig and stand up the moment they land.
 function landFabShot(sh){
   const w={x:sh.tx,y:sh.ty};
-  if(sh.k==='wallpost'){const L=sh.line;L.posts[sh.end]=true;burst(w.x,w.y,'#8d9aa8',8,100,0.35);shakeScreen(1.5,0.1);sndAt(w.x,w.y,()=>sfx.build());
+  if(sh.k==='wallpost'){const L=sh.line;L.posts[sh.end]=true;burst(w.x,w.y,'#8d9aa8',8,100,0.35);shakeScreen(1.5,0.1);
+    // a Siege Ring's 12 posts all land at once: one quiet thud for the lot, not 12 full ones stacked
+    if(!L.siege)sndAt(w.x,w.y,()=>sfx.build());else if(sfxReady('siegePost',0.3))sndAt(w.x,w.y,()=>{tone(300,0.08,'square',0.03);tone(450,0.1,'square',0.025,0.07)});
     if(L.posts[0]&&L.posts[1]&&L.raiseT0==null)L.raiseT0=S.t;return}
   if(sh.k==='turret'||sh.k==='podturret'){
     const pod=sh.k==='podturret',hp=pod?PODT_HP:TURRET_HP;
@@ -8172,8 +8174,8 @@ function buildSiegeRing(){
     if([p,q].some(o=>o.x<20||o.y<20||o.x>W-20||o.y>H-20))continue;
     if(terrainAt(p.x,p.y)===2&&terrainAt(q.x,q.y)===2)continue;
     if(wallAt(mx,my)||S.wallLines&&S.wallLines.some(L=>!L.slats.every(sl=>sl.dead)&&pointSegDist({x:mx,y:my},{x:L.x0,y:L.y0},{x:L.x1,y:L.y1})<10))continue;
-    if(addWallLine(p,q,true))made++}
-  if(made){tone(200,0.12,'square',0.06,0,420);tone(260,0.12,'square',0.05,0.08,520)}
+    const L=addWallLine(p,q,true);if(L){L.siege=true;made++}}
+  if(made){tone(200,0.12,'square',0.025,0,420);tone(260,0.12,'square',0.02,0.08,520)}
   return made}
 // Bulwark Towers: every landed wall end gets a free Turret lobbed from the Rig, once per end
 // (L.tower marks it, so a tower that's destroyed isn't rebuilt). Ends shared by two walls, or
