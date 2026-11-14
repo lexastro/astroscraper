@@ -332,7 +332,8 @@ body.lowGfx #fogGrain{display:none}
 .overlay .shopTabs button{background:var(--panel2);color:var(--fg);border:1px solid var(--line);padding:8px 16px}
 .overlay .shopTabs button.on{background:var(--accent);color:#1a1200;border-color:var(--accent)}
 .shopSection[data-sec]:not(.on){display:none}
-#unlocksOverlay{justify-content:flex-start} /* top-aligned, so switching tabs doesn't shift the page */
+#unlocksOverlay{justify-content:flex-start}
+.overlay button#unlocksBackBtn{position:absolute;left:24px;top:24px;z-index:3} /* top left, out of the way of the tabs */ /* top-aligned, so switching tabs doesn't shift the page */
 /* v4: the Cards tab — every card in the game, by grade; ones you haven't picked in a run yet are dimmed */
 /* the Cards tab's own row of tabs, one per grade */
 .cardTierTabs{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin:6px 0 12px}
@@ -870,14 +871,15 @@ async function run(d){
   <button id="startRunBtn">Start run</button>
   <div class="menuMeta">
     <button id="openLoadoutBtn" class="secondary">Loadout</button>
-    <button id="openUnlocksBtn" class="secondary">Upgrades</button>
+    <button id="openUnlocksBtn" class="secondary">Shop</button>
     <button id="openPressureBtn" class="secondary" hidden>Pressure</button>
   </div>
   <button id="prepBackBtn" class="secondary">Back</button>
 </div>
 
 <div class="overlay" id="unlocksOverlay" hidden>
-  <h1>Upgrades</h1>
+  <button id="unlocksBackBtn" class="secondary">Back</button>
+  <h1>Shop</h1>
   <div class="shopTabs" id="shopTabs"><button data-tab="cards">Cards</button><button data-tab="units">Units</button><button data-tab="upgrades">Upgrades</button><button data-tab="calls">Call-downs</button></div>
   <div class="shopSection" data-sec="cards">
     <div class="shopHeader"><b>Cards</b><span class="metaRow"><span class="crystalIcon living">❖</span><span class="v" id="cardShopLiving">0</span><span class="crystalIcon condensed">⬢</span><span class="v" id="cardShopCondensed">0</span></span></div>
@@ -899,14 +901,13 @@ async function run(d){
     <p>Spend Condensed Crystal to own a call-down for good. Pick the two you start each run with under Loadout.</p>
     <div class="unlockCards" id="callShopCards"></div>
   </div>
-  <button id="unlocksBackBtn" class="secondary">Back</button>
 </div>
 
 <div class="overlay" id="loadoutOverlay" hidden>
   <h1>Loadout</h1>
   <div class="shopSection">
     <div class="shopHeader"><b>Starting call-downs</b></div>
-    <p>Pick the two call-downs every run starts with. Buy more under Upgrades; the rest can still turn up as cards and wreck finds during a run.</p>
+    <p>Pick the two call-downs every run starts with. Buy more in the Shop; the rest can still turn up as cards and wreck finds during a run.</p>
     <div class="unlockCards" id="loadoutCards"></div>
     <p id="loadoutSummary"></p>
   </div>
@@ -3697,7 +3698,7 @@ function renderLoadout(){
     card.querySelector('button').onclick=()=>{if(on)return;meta.callLoadout=[L[1],id].filter(Boolean);saveMeta();renderLoadout();refreshMenuMeta()};
     host.appendChild(card)});
   const n=Object.keys(CALLDOWNS).filter(callOwned).length;
-  document.getElementById('loadoutSummary')._tc=`Starting with ${L.map(id=>CALLDOWNS[id].name).join(' and ')}.`+(n<=2?' Buy more call-downs under Upgrades to swap these out.':'');
+  document.getElementById('loadoutSummary')._tc=`Starting with ${L.map(id=>CALLDOWNS[id].name).join(' and ')}.`+(n<=2?' Buy more call-downs in the Shop to swap these out.':'');
 }
 document.getElementById('openLoadoutBtn').onclick=()=>{
   document.getElementById('prepOverlay')._hd=true;
@@ -3723,7 +3724,7 @@ document.getElementById('unlocksBackBtn').onclick=()=>{
   refreshMenuMeta();
 };
 // v4: the menu is two screens: the first is Play, Tutorial and Settings; Play opens the Expedition
-// screen (prepOverlay), where you resume or start a run, set the Loadout and shop under Upgrades.
+// screen (prepOverlay), where you resume or start a run, set the Loadout and buy things in the Shop.
 document.getElementById('playBtn').onclick=()=>{document.getElementById('mainMenuOverlay')._hd=true;document.getElementById('prepOverlay')._hd=false;refreshMenuMeta()};
 document.getElementById('prepBackBtn').onclick=()=>{document.getElementById('prepOverlay')._hd=true;document.getElementById('mainMenuOverlay')._hd=false};
 document.getElementById('startRunBtn').onclick=startRun;
@@ -3747,7 +3748,7 @@ const cardSlots=()=>CARD_SLOTS+(meta.cardSlot3?1:0);
 const cardOwned=id=>meta.cardOwn.includes(id);
 function cardLoadout(){const L=[];meta.cardLoadout.forEach(id=>{if(cardOwned(id)&&cardById(id)&&!L.includes(id)&&L.length<cardSlots())L.push(id)});return L}
 function seeCard(c){if(!c||!c.id||tutorialMap||!cardById(c.id)||meta.cardSeen.includes(c.id))return;meta.cardSeen.push(c.id);saveMeta();
-  setTimeout(()=>msg(`New card unlocked: ${cardById(c.id).name} can now be bought under Upgrades → Cards.`),400)}
+  setTimeout(()=>msg(`New card unlocked: ${cardById(c.id).name} can now be bought in the Shop → Cards.`),400)}
 function runCardStart(){if(tutorial||tutorialMap)return;const got=[];
   cardLoadout().forEach(id=>{const u=cardById(id);if(!u||(u.has&&u.has()))return;try{u.apply();noteCard({id,tier:cardTier(id),name:u.name});got.push(u.name)}catch(e){console.warn('starting card failed',id,e)}});
   if(got.length){updateBuildBar();setTimeout(()=>msg(`Starting cards: ${got.join(', ')}.`),80)}}
@@ -3788,7 +3789,7 @@ function renderCardShop(){
 function renderLoadCards(){
   const L=cardLoadout(),n=cardSlots(),host=document.getElementById('loadCardList');host.innerHTML='';
   const owned=ALL_CARDS().filter(c=>cardOwned(c.u.id));
-  document.getElementById('loadCardIntro')._tc=`Pick the ${n===2?'two':'three'} cards every run starts with — they take effect as the Rig lands. Unlock cards by picking them in a run, then buy them under Upgrades → Cards.`;
+  document.getElementById('loadCardIntro')._tc=`Pick the ${n===2?'two':'three'} cards every run starts with — they take effect as the Rig lands. Unlock cards by picking them in a run, then buy them in the Shop → Cards.`;
   owned.forEach(({tier,u})=>{const on=L.includes(u.id),lv=cardLv(u.id);
     const card=document.createElement('div');card.className='unlockCard loadCard'+(on?' unlocked':'');if(!on)card.style.borderColor=CARD_TIER_COLOR[tier];
     card.innerHTML=`<span class="ucName" style="color:${CARD_TIER_COLOR[tier]}">${u.name}</span><span class="ucDesc">${plainDesc(u)}</span><span class="ucPrice">${tierName(tier)}${u.up?` · tier ${lv}/${CARD_UP_MAX}`:''}</span>`+
