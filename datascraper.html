@@ -334,7 +334,11 @@ body.lowGfx #fogGrain{display:none}
 .shopSection[data-sec]:not(.on){display:none}
 #unlocksOverlay{justify-content:flex-start} /* top-aligned, so switching tabs doesn't shift the page */
 /* v4: the Cards tab — every card in the game, by grade; ones you haven't picked in a run yet are dimmed */
-.cardTierHead{font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;margin:14px 0 8px}
+/* the Cards tab's own row of tabs, one per grade */
+.cardTierTabs{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin:6px 0 12px}
+.overlay .cardTierTabs button{background:var(--panel2);color:var(--tc);border:1px solid var(--line);padding:6px 14px;font-family:var(--mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase}
+.overlay .cardTierTabs button.on{border-color:var(--tc);box-shadow:inset 0 -2px 0 var(--tc)}
+.overlay .cardTierTabs button small{color:var(--muted);margin-left:6px;font-size:11px}
 .cardShopGrid{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;max-width:960px}
 .cardShopItem{display:flex;flex-direction:column;gap:6px;align-items:stretch;width:204px}
 .overlay .cardShopItem button.rewardCard{cursor:default;transform:none}
@@ -877,7 +881,7 @@ async function run(d){
   <div class="shopTabs" id="shopTabs"><button data-tab="cards">Cards</button><button data-tab="units">Units</button><button data-tab="upgrades">Upgrades</button><button data-tab="calls">Call-downs</button></div>
   <div class="shopSection" data-sec="cards">
     <div class="shopHeader"><b>Cards</b><span class="metaRow"><span class="crystalIcon living">❖</span><span class="v" id="cardShopLiving">0</span><span class="crystalIcon condensed">⬢</span><span class="v" id="cardShopCondensed">0</span></span></div>
-    <p>Every card in the game. Pick one from a reward during a run to unlock it here, then buy it to put it in your starting loadout and upgrade it. Flawless cards cost Living Crystal; the rest, and every upgrade, cost Condensed. Upgrades count whenever the card is in play.</p>
+    <p>Every card in the game. Pick one from a reward during a run to unlock it here, then buy it to put it in your starting loadout and upgrade it.</p>
     <div id="cardShop"></div>
   </div>
   <div class="shopSection" data-sec="units">
@@ -3750,13 +3754,17 @@ function runCardStart(){if(tutorial||tutorialMap)return;const got=[];
 const plainDesc=u=>String(u.desc||'').replace(/<span class="rc(Swap|Pair)[^"]*"[^>]*>.*?<\/span>/g,'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
 // what the card's text will say one tier up
 function nextTierDesc(u){const lv=meta.cardLv[u.id]|0;meta.cardLv[u.id]=lv+1;try{return plainDesc(u)}finally{if(lv)meta.cardLv[u.id]=lv;else delete meta.cardLv[u.id]}}
+let cardTierTab='Common';
 function renderCardShop(){
   document.getElementById('cardShopLiving')._tc=meta.livingBank;document.getElementById('cardShopCondensed')._tc=meta.condensedBank;
   const ov=document.getElementById('unlocksOverlay'),keepY=ov.scrollTop; // (rebuilding it mustn't jump the page back to the top)
   const host=document.getElementById('cardShop');host.innerHTML='';const all=ALL_CARDS();
-  TIER_ORDER_ALL.filter(t=>UPGRADES[t]).forEach(t=>{const list=all.filter(c=>c.tier===t);if(!list.length)return;
-    const seen=list.filter(c=>meta.cardSeen.includes(c.u.id)).length;
-    const hd=document.createElement('div');hd.className='cardTierHead';hd.style.color=CARD_TIER_COLOR[t];hd.textContent=`${tierName(t)} cards — ${seen}/${list.length} unlocked`;host.appendChild(hd);
+  // a tab per grade (cardTierTab), each saying how many of its cards are unlocked; only the open one's cards show
+  const tiers=TIER_ORDER_ALL.filter(t=>all.some(c=>c.tier===t));if(!tiers.includes(cardTierTab))cardTierTab=tiers[0];
+  const tabs=document.createElement('div');tabs.className='cardTierTabs';host.appendChild(tabs);
+  tiers.forEach(t=>{const list=all.filter(c=>c.tier===t),b=document.createElement('button');b.className=t===cardTierTab?'on':'';b.style.setProperty('--tc',CARD_TIER_COLOR[t]);
+    b.innerHTML=`${tierName(t)}<small>${list.filter(c=>meta.cardSeen.includes(c.u.id)).length}/${list.length}</small>`;b.onclick=()=>{cardTierTab=t;renderCardShop()};tabs.appendChild(b)});
+  [cardTierTab].forEach(t=>{const list=all.filter(c=>c.tier===t);if(!list.length)return;
     const grid=document.createElement('div');grid.className='cardShopGrid';host.appendChild(grid);
     list.forEach(({tier,u})=>{const id=u.id,seenIt=meta.cardSeen.includes(id),own=cardOwned(id),lv=cardLv(id),leg=tier==='Legendary';
       const item=document.createElement('div');item.className='cardShopItem'+(seenIt?'':' locked')+(own?' owned':'');
