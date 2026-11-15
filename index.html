@@ -2224,7 +2224,9 @@ const SEAM_RED_HW0=0.01, SEAM_RED_GROW=0.0012, SEAM_RED_MAX=0.045, SEAM_RED_OFF=
 // (down to OVER_SAFE_MIN of the view either side of the strike), and a wave comes at once. Hold out
 // without rupturing and the vein pays a second reward card; rupture and you lose the lot. The
 // choice banks itself after OVER_OFFER_T.
-const OVER_T=20, OVER_TURB=1.6, OVER_SAFE_MIN=0.38, OVER_OFFER_T=8;
+// (OVER_CALM: how much of the Stabilizers' calming still works through an overdrill's shaking —
+// was 1.6 turbulence with 0.3 calm, which made holding a top band like Flawless almost impossible)
+const OVER_T=20, OVER_TURB=1.25, OVER_CALM=0.6, OVER_SAFE_MIN=0.38, OVER_OFFER_T=8;
 function openSeam(v){const m=v.meter;
   for(let k=0;k<12;k++){const side=Math.random()<0.5?-1:1,x=side*rnd(SEAM_OFF[0],SEAM_OFF[1]),p=m.anchor+x*ZOOM_HALF;
     if([x-SEAM_HW,x,x+SEAM_HW].some(q=>stripAt(m.strip,m.anchor+q*ZOOM_HALF).red))continue;
@@ -2271,7 +2273,7 @@ function updateMeter(v,dt){
   // round), not a fresh random kick every frame, and each healthy Stabilizer calms it (STAB_CALM): with
   // three standing the needle holds close to where it's steered. The spread is set so the swaying
   // covers about what the old jitter did, divided by the calming.
-  {const se=sig/(1+STAB_CALM*stabHold(v)*(m.over==='run'?0.3:1)),sw=se*Math.sqrt(K/2); // (an overdrill shakes through most of the calm)
+  {const se=sig/(1+STAB_CALM*stabHold(v)*(m.over==='run'?OVER_CALM:1)),sw=se*Math.sqrt(K/2); // (an overdrill shakes through most of the calm)
    m.wn=(m.wn||0)-(m.wn||0)*dt/NEEDLE_SWAY_T+sw*Math.sqrt(2*dt/NEEDLE_SWAY_T)*gauss();
    m.x+=(-K*(m.x-m.aim)+m.wn)*dt}
   let here=stripAt(m.strip,m.anchor+m.x*ZOOM_HALF);
