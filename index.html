@@ -3235,14 +3235,20 @@ function knitBarrierSides(breach,west,east){
   bastionAccessFrom(out,[exitPt,...east]);
   S.barrier.out=out;S.barrier.exitPt=exitPt;
 }
+// Cut the gap through the barrier: every barrier cell (in mask) within BREACH_GAP of its line becomes
+// open ground, then the terrain picture is repainted and paths are re-planned. Used when the breach
+// vein is drained, and again when a save from after that is resumed (the map is rebuilt from its seed
+// with the barrier whole, so the gap has to be cut again).
+function carveBreach(B,mask){
+  for(let gy=0;gy<TGY;gy++)for(let gx=0;gx<TGX;gx++){const id=gy*TGX+gx;
+    if(mask[id]&&Math.abs(frameAB(gx*TCELL+TCELL/2,gy*TCELL+TCELL/2).b-B.y)<=BREACH_GAP+TCELL/2){terrain[id]=0;mask[id]=0;if(B.mask)B.mask[id]=0}}
+  if(terrainWorker)startTerrainPaint();else{const keep=rand;rand=seededRng(mapSeed*131+17);terrainCv=buildTerrainCanvas();rand=keep;buildTerrainBlur()}
+  [S.base,...S.troops,...S.enemies].forEach(u=>{u._pg=null;u._path=null;u._blocked=false});
+}
 // The breach vein is drained: blast the barrier open across its line.
 function openBreach(v){
   const B=S.barrier;if(!B||B.open)return;
-  B.open=true;
-  for(let gy=0;gy<TGY;gy++)for(let gx=0;gx<TGX;gx++){const id=gy*TGX+gx;
-    if(B.mask[id]&&Math.abs(frameAB(gx*TCELL+TCELL/2,gy*TCELL+TCELL/2).b-B.y)<=BREACH_GAP+TCELL/2){terrain[id]=0;B.mask[id]=0}}
-  if(terrainWorker)startTerrainPaint();else{const keep=rand;rand=seededRng(mapSeed*131+17);terrainCv=buildTerrainCanvas();rand=keep;buildTerrainBlur()}
-  [S.base,...S.troops,...S.enemies].forEach(u=>{u._pg=null;u._path=null;u._blocked=false});
+  B.open=true;carveBreach(B,B.mask);
   const cx=B.centre, cols=B.type===RIFT?['#b28cff','#8fe3ff']:['#9fe8ff','#e8fbff'];
   for(let i=0;i<14;i++){const q=frameXY(cx+rnd(-BARRIER_HALF,BARRIER_HALF),B.y+rnd(-BREACH_GAP,BREACH_GAP));burst(q.x,q.y,cols[i%2],18,220,0.9)}
   shakeScreen(9,0.7);sfx.win();
@@ -3319,7 +3325,12 @@ function resumeLive(d){const L=d.live;
   menuOpen=false;['mainMenuOverlay','prepOverlay','unlocksOverlay','pressureOverlay','loadoutOverlay','settingsOverlay','stopOverlay'].forEach(id=>document.getElementById(id)._hd=true);
   STOP_BAND=RUN_STOPS[RUN.stop].band;STOP_SPLIT=!!RUN_STOPS[RUN.stop].split;ENTRY_EDGE=L.entry;EXIT_DIR=L.exitDir;
   mapSeed=L.mapSeed;reset();reset(L.spawn);S._spawn=L.spawn;
-  const top=snapDecode(L.snap);for(const k in top)S[k]=top[k];
+  const freshB=S.barrier,top=snapDecode(L.snap);for(const k in top)S[k]=top[k];
+  // the map came back from its seed with the barrier whole: if it had been breached, cut the gap again
+  if(S.barrier&&S.barrier.open&&freshB&&freshB.mask)carveBreach(S.barrier,freshB.mask);
+  // nothing of yours should come back inside rock or a barrier
+  {const inBar=u=>{const cx=Math.floor(u.x/TCELL),cy=Math.floor(u.y/TCELL);if(cx<0||cy<0||cx>=TGX||cy>=TGY)return false;const id=cy*TGX+cx;return terrain[id]===2/*rock*/||(!!S.barrier&&!!S.barrier.mask&&!!S.barrier.mask[id])};
+   [S.base,...S.troops].forEach(u=>{if(u&&inBar(u)){const p=nearestPlain(u.x,u.y);u.x=p.x;u.y=p.y;u.dest=null;u._path=null}})}
   // what's rebuilt rather than stored
   S.veins.forEach(v=>{const src={x:v.mine.x,y:v.mine.y};indexPulse(src,v.contract?VEIN_GLOW_R:Math.max(v.reach||PULSE_REACH,VEIN_GLOW_R));v.pd=src.pd;v.pi=src.pi});
   S.landing=null;S.paused=true;document.getElementById('pauseOverlay')._hd=false;
