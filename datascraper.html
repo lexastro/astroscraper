@@ -5696,7 +5696,9 @@ function pushToast(text,type){
 // reset() (called once at page load, and again on every "Play" launch) fires an initial hint via
 // msg() — suppressed while any menu screen is up front, so no toast is sitting there before the
 // player has even started a run.
-function msg(s){if(menuOpen)return;pushToast(s,inferToastType(s));msgT=S.t;voxHear(s)/*VOX*/}
+// v4: the left-side message cards are switched off for now (TOASTS_ON); banners still show, and Vesper still hears every message
+const TOASTS_ON=false;
+function msg(s){if(menuOpen)return;if(TOASTS_ON)pushToast(s,inferToastType(s));msgT=S.t;voxHear(s)/*VOX*/}
 // Threats and salvage results go to a banner at the top centre of the screen instead of the toast
 // stack: the newest on top, at most BANNER_MAX, each gone after BANNER_LIFE.
 const BANNER_MAX=2, BANNER_LIFE=6500;let bannerLog=[],bannerSeq=0;
