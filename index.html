@@ -3580,7 +3580,8 @@ function debugPass(){if(!S)return;
 function setDebugMode(on){debugNoFog=on;dbgBar.hidden=!on;document.getElementById('menuDbgRow').hidden=!on;if(!on){if(dbgGod)setGod(false);if(dbgInvuln)setInvuln(false);if(!dbgCards.hidden)dbgCardsShow(false)}msg(on?'Debug on: fog of war off, debug buttons at the top':'Debug off: fog of war back on')}
 const dbgSkip=dbgButton('Next map',()=>{
   if(!RUN||!S||S.over||tutorialMap||stopInfo().final){msg('Debug: no next map to skip to');return}
-  if(dbgGod&&dbgDatSave)dbgDatSave.S=null;RUN.carry=captureCarry();advanceStop()});
+  if(dbgGod&&dbgDatSave)dbgDatSave.S=null;RUN.carry=captureCarry();
+  if(RUN.sector){S.paused=true;showSector(RUN.stop+1,`Stop ${RUN.stop+1} skipped (debug)`)}else advanceStop()}); // (with a sector map you pick the next stop on it)
 const dbgGodBtn=dbgButton('God mode: off',()=>setGod(!dbgGod)),dbgInvBtn=dbgButton('Invincible units: off',()=>setInvuln(!dbgInvuln));
 // v4: Give card — a searchable list of every reward card in every tier; click one to apply it right
 // away (the game pauses while the list is open). Cards you already hold, or that can't apply yet, are
