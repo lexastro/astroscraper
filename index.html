@@ -63,6 +63,13 @@ body.lowGfx #fogGrain{display:none}
 .cur{display:flex;align-items:center;gap:4px;font-family:var(--mono);font-size:16px;font-variant-numeric:tabular-nums}
 .cur.dat{color:var(--dat)} .cur.living{color:var(--living)} .cur.condensed{color:var(--condensed)}
 .cur .ci{font-size:14px}
+/* v4: hovering a currency (the HUD's, or any ❖ / ⬢ in the menus) shows what it is, where it comes from and what it buys */
+.curTip{position:fixed;z-index:60;pointer-events:none;width:220px;padding:9px 11px;background:#12161b;border:1px solid var(--line);border-left:3px solid var(--tc);border-radius:6px;box-shadow:0 8px 20px rgba(0,0,0,.5);font-size:12px;line-height:1.4;color:var(--fg);text-align:left}
+.curTip[hidden]{display:none}
+.curTip b{display:block;font-family:var(--mono);font-size:12px;letter-spacing:.04em;color:var(--tc);margin-bottom:4px}
+.curTip span{display:block;color:var(--muted)}.curTip span i{font-style:normal;color:var(--fg)}
+.cur,.crystalIcon,.crystalIcon~.v{cursor:help}
+.hud .cur{pointer-events:auto} /* (the HUD lets clicks through to the map; the currencies take the hover) */
 .bar{height:5px;background:var(--panel2);border-radius:2px;overflow:hidden;margin-top:3px}
 .bar i{display:block;height:100%;background:var(--ally)}
 .bar i.hp{background:var(--accent)}
@@ -3829,6 +3836,19 @@ document.getElementById('dbgLoadFile').onchange=e=>{const f=e.target.files&&e.ta
     if(d[RUN_SAVE_KEY]){try{const r=JSON.parse(d[RUN_SAVE_KEY]);if(!r||!r.run)throw 0}catch(err){alert('The run in that file is damaged and can’t be loaded.');return}}
     if(!confirm('Load this save? It replaces the run'+(ks.includes(META_KEY)?', unlocks':'')+' and settings saved in this browser.'))return;
     ks.forEach(k=>localStorage.setItem(k,d[k]));RUN=null;location.reload()})};
+// v4: the currency panel — hover a currency for its name, where it comes from and what it's for
+const CUR_INFO={
+  dat:{name:'◆ Dat Crystal',col:'--dat',from:'Drained veins, crystal deposits and shards dropped by enemies.',use:'Units, buildings, stock and call-downs in this run. Lost when the run ends.'},
+  living:{name:'❖ Living Crystal',col:'--living',from:'Rare: only some veins yield it, the contract vein most of all.',use:'Unit unlocks, Flawless cards and the third card slot. Kept between runs.'},
+  condensed:{name:'⬢ Condensed Crystal',col:'--condensed',from:'Every vein you drain.',use:'Upgrades, call-downs, cards and card upgrades. Kept between runs.'}};
+{const tip=document.createElement('div');tip.className='curTip';tip.hidden=true;document.body.appendChild(tip);let on=null;
+  const kindOf=el=>{if(!el||!el.closest)return null;const c=el.closest('.cur,.crystalIcon')||(el.classList&&el.classList.contains('v')&&el.previousElementSibling&&el.previousElementSibling.classList.contains('crystalIcon')?el.previousElementSibling:null);
+    if(!c)return null;return ['dat','living','condensed'].find(k=>c.classList.contains(k))||null};
+  addEventListener('pointermove',e=>{const k=e.pointerType==='touch'?null:kindOf(e.target);if(!k){if(on){tip.hidden=true;on=null}return}
+    if(k!==on){const I=CUR_INFO[k];on=k;tip.style.setProperty('--tc',`var(${I.col})`);tip.innerHTML=`<b>${I.name}</b><span><i>From:</i> ${I.from}</span><span><i>For:</i> ${I.use}</span>`;tip.hidden=false}
+    const w=tip.offsetWidth,h=tip.offsetHeight;let x=e.clientX+14,y=e.clientY+16;if(x+w>innerWidth-8)x=e.clientX-w-10;if(y+h>innerHeight-8)y=e.clientY-h-12;
+    tip.style.left=Math.max(8,x)+'px';tip.style.top=Math.max(8,y)+'px'},{passive:true});
+  addEventListener('pointerdown',()=>{if(on){tip.hidden=true;on=null}},{passive:true})}
 // two clicks to restart, so a stray one can't throw a run away
 document.getElementById('pauseRestartBtn').onclick=()=>{const b=document.getElementById('pauseRestartBtn');if(b.dataset.arm){b.dataset.arm='';restartRun();return}
   b.dataset.arm='1';b._tc=tutorial?'Click again to restart the tutorial':'Click again — this run will be lost';setTimeout(()=>{if(b.dataset.arm){b.dataset.arm='';b._tc=tutorial?'Restart tutorial':'Restart run'}},3000)};
