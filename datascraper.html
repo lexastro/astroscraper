@@ -409,6 +409,21 @@ body.lowGfx #fogGrain{display:none}
 .bar i.hp.low{background:var(--enemy);animation:pulseLow 1s ease-in-out infinite}
 @keyframes pulseLow{0%,100%{opacity:1}50%{opacity:.5}}
 .overlay{animation:fadeIn .18s ease}
+/* v4: the sector map — pick the next stop */
+#sectorOverlay p{max-width:66ch}
+.secMain{display:flex;gap:16px;align-items:flex-start;justify-content:center;flex-wrap:wrap;width:min(1120px,100%)}
+#secMap{flex:1 1 520px;max-width:780px;min-width:0;background:var(--panel);border:1px solid var(--line);border-radius:6px}
+#secMap .sn{cursor:pointer;outline:none}#secMap .sn:focus-visible .snRing{stroke:#fff;stroke-width:2.5}
+.secBrief{flex:0 1 300px;min-width:240px;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.secBrief .k{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase}
+.secBrief h2{margin:0;font-size:18px;font-weight:600}
+.secBrief p{color:#b9c2cc;max-width:none;font-size:13px}
+.secBrief .row{font-size:13px;color:#b9c2cc}
+.secBrief .row>b{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:500;margin-bottom:4px}
+.secBrief .fog{color:var(--muted);font-style:italic}
+.secChip{display:inline-block;font:11px var(--mono);padding:2px 7px;border-radius:10px;border:1px solid var(--c);color:var(--c);margin:0 4px 4px 0}
+@keyframes secPulse{50%{opacity:.3}}.secPulse{animation:secPulse 1.6s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){.secPulse{animation:none}}
 #loadOverlay{background:#0b0e12;z-index:40}
 .loadBox{display:flex;flex-direction:column;align-items:center;gap:12px;font-family:var(--mono);color:var(--fg)}
 .loadBox b{font-size:15px;letter-spacing:.08em;text-transform:uppercase}
@@ -833,6 +848,10 @@ async function run(d){
 <div class="overlay" id="loadOverlay" hidden><div class="loadBox"><b>Surveying the ground</b><div class="loadBar"><i id="loadFill"></i></div><span id="loadSub">mapping rock, rift and crystal…</span></div></div>
 <div class="overlay" id="stopOverlay" hidden>
   <h1 id="stopTitle"></h1><p id="stopText"></p><button id="stopBtn">Continue</button>
+</div>
+<div class="overlay" id="sectorOverlay" hidden>
+  <h1 id="secTitle">Sector map</h1><p id="secText"></p>
+  <div class="secMain"><svg id="secMap" viewBox="0 0 760 360" role="img" aria-label="Sector map"></svg><div class="secBrief" id="secBrief" aria-live="polite"></div></div>
 </div>
 
 <div class="overlay" id="pauseOverlay" hidden>
@@ -3092,6 +3111,8 @@ function reset(landing){
       if(STOP_BAND==='rim')for(let t=0;t<1500&&S.sites.length<want;t++){const m=ZONE_R+60,q={x:rnd(m,W-m),y:rnd(m,H-m)};
         if(ok2(q,VEIN_SAME_BAND_GAP*f*(t<400?0.75:t<900?0.55:0.4)))S.sites.push({x:q.x,y:q.y,band:STOP_BAND,richness:Math.round(rnd(r[0],r[1])),vein:null})}}
   }
+  if(STOP_BAND){const f=(stopGround('rich')?1.35:1)*(stopGround('calm')?0.85:1); // v4: the stop's ground (sector map)
+    if(f!==1)[...S.sites,S.breachSite].forEach(t=>{if(t)t.richness=Math.round(t.richness*f)})}
   S.crackNet=genCrackNet([...S.sites,S.contractSite,...(S.breachSite?[S.breachSite]:[])]);
   // Which sites start with a live vein (and how far along each is) is part of the map, decided
   // here before the spawn is known — so choosing the spawn never reshuffles them. The veins themselves are created once the terrain is final (below).
@@ -3160,7 +3181,7 @@ function reset(landing){
    if(!open.vein&&(tutorialMap||!S.veins.some(v=>!v.contract&&dist(v,S.base)<1100)))emergeVein(open,{ripeT:0,opening:true})}}
   for(let i=0;i<STRAY_COUNT;i++){const st={x:0,y:0,live:true,t:0};S.strays.push(st);placeStray(st)}
   // v2: every roaming enemy comes from a nest (see NEST)
-  if(!tutorialMap)(STOP_BAND?(STOP_SPLIT?['rim','dense']:[STOP_BAND]):Object.keys(NEST_START)).forEach(band=>{const st=NEST_START[band], nn=STOP_BAND?Math.round(STOP_NESTS[band]*(STOP_SPLIT?0.6:1)):st.n;
+  if(!tutorialMap)(STOP_BAND?(STOP_SPLIT?['rim','dense']:[STOP_BAND]):Object.keys(NEST_START)).forEach(band=>{const st=NEST_START[band], nn=STOP_BAND?Math.round(STOP_NESTS[band]*(STOP_SPLIT?0.6:1)*sectorNestMult()):st.n;
     for(let i=0;i<nn;i++){const r=rand();const size=r<st.mix[0]?'small':r<st.mix[0]+st.mix[1]?'medium':'large';placeNest(size,band)}});
 
   // v4: nests dug in around the breach, between it and where you land
@@ -3283,7 +3304,7 @@ function pressureNote(){return RUN&&RUN.pressure&&RUN.pressure.ids.length?` Pres
 // Pressure and Loadout, and everything carried into the stop (cards, Dat, units, call-downs, kits).
 // Resume (main menu) rebuilds that stop from there. It's cleared when the run ends.
 const RUN_SAVE_KEY='astroscraper_v4_run';
-function saveRun(carry){if(!RUN||tutorialMap)return;try{localStorage.setItem(RUN_SAVE_KEY,JSON.stringify({v:1,t:Date.now(),run:{stop:RUN.stop,pressure:RUN.pressure,loadout:RUN.loadout,exit:RUN.exit,stats:RUN.stats||{}},carry:carry||null}))}catch(e){}}
+function saveRun(carry){if(!RUN||tutorialMap)return;try{localStorage.setItem(RUN_SAVE_KEY,JSON.stringify({v:1,t:Date.now(),run:{stop:RUN.stop,pressure:RUN.pressure,loadout:RUN.loadout,exit:RUN.exit,stats:RUN.stats||{},sector:RUN.sector||null,path:RUN.path||null},carry:carry||null}))}catch(e){}}
 // v4: the live save — the whole stop as it stands, so Resume puts you back mid-fight. The map itself is
 // built again from its seed (same spawn, same stop directions), then everything that changes in play is
 // laid back over it: units, enemies, veins and the drill, walls, Relays, Turrets, Stabilizers, nests,
@@ -3320,7 +3341,7 @@ let liveSaveAt=0;
 function liveSave(){if(!RUN||tutorialMap||!S||S.over||S.rewardChoice||(S.landing&&!S.landing.touch)||menuOpen||TPAINT.loading||!S._spawn)return;
   try{const top={};for(const k of Object.keys(S)){if(k[0]==='_'||SNAP_SKIP.has(k))continue;top[k]=S[k]}
     let fog=null;try{fog=fogC.toDataURL()}catch(e){}
-    const d={v:2,t:Date.now(),run:{stop:RUN.stop,pressure:RUN.pressure,loadout:RUN.loadout,exit:RUN.exit,stats:RUN.stats||{}},carry:RUN.stopCarry||null,
+    const d={v:2,t:Date.now(),run:{stop:RUN.stop,pressure:RUN.pressure,loadout:RUN.loadout,exit:RUN.exit,stats:RUN.stats||{},sector:RUN.sector||null,path:RUN.path||null},carry:RUN.stopCarry||null,
       live:{mapSeed,spawn:S._spawn,entry:ENTRY_EDGE,exitDir:EXIT_DIR,cam:{x:cam.x,y:cam.y,z:cam.z},fog,snap:snapEncode(top)}};
     localStorage.setItem(RUN_SAVE_KEY,JSON.stringify(d));liveSaveAt=performance.now()}catch(e){console.warn('live save failed',e)}}
 function liveSaveTick(){if(performance.now()-liveSaveAt>LIVE_SAVE_T*1000)liveSave()}
@@ -3328,8 +3349,8 @@ addEventListener('pagehide',liveSave);addEventListener('beforeunload',liveSave);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')liveSave()});
 // build the same stop again and lay the saved state over it
 function resumeLive(d){const L=d.live;
-  RUN={stop:d.run.stop,carry:null,pressure:d.run.pressure||{ids:[],bonus:0},loadout:d.run.loadout||callLoadout(),exit:d.run.exit,stopCarry:d.carry||null,stats:d.run.stats||{}};
-  menuOpen=false;['mainMenuOverlay','prepOverlay','unlocksOverlay','pressureOverlay','loadoutOverlay','settingsOverlay','stopOverlay'].forEach(id=>document.getElementById(id)._hd=true);
+  RUN={stop:d.run.stop,carry:null,pressure:d.run.pressure||{ids:[],bonus:0},loadout:d.run.loadout||callLoadout(),exit:d.run.exit,stopCarry:d.carry||null,stats:d.run.stats||{},sector:d.run.sector||null,path:d.run.path||null};
+  menuOpen=false;['mainMenuOverlay','prepOverlay','unlocksOverlay','pressureOverlay','loadoutOverlay','settingsOverlay','stopOverlay','sectorOverlay'].forEach(id=>document.getElementById(id)._hd=true);
   STOP_BAND=RUN_STOPS[RUN.stop].band;STOP_SPLIT=!!RUN_STOPS[RUN.stop].split;ENTRY_EDGE=L.entry;EXIT_DIR=L.exitDir;
   mapSeed=L.mapSeed;reset();reset(L.spawn);S._spawn=L.spawn;
   const freshB=S.barrier,top=snapDecode(L.snap);for(const k in top)S[k]=top[k];
@@ -3350,13 +3371,13 @@ function loadRunSave(){try{const d=JSON.parse(localStorage.getItem(RUN_SAVE_KEY)
 function clearRunSave(){try{localStorage.removeItem(RUN_SAVE_KEY)}catch(e){}}
 function resumeRun(){const d=loadRunSave();if(!d)return;
   if(d.v===2&&d.live){try{resumeLive(d);return}catch(e){console.warn('live resume failed, going back to the start of the stop',e)}}
-  RUN={stop:d.run.stop,carry:d.carry,pressure:d.run.pressure||{ids:[],bonus:0},loadout:d.run.loadout||callLoadout(),exit:d.run.exit,stats:d.run.stats||{}};
-  menuOpen=false;['mainMenuOverlay','prepOverlay','unlocksOverlay','pressureOverlay','loadoutOverlay','settingsOverlay','stopOverlay'].forEach(id=>document.getElementById(id)._hd=true);
+  RUN={stop:d.run.stop,carry:d.carry,pressure:d.run.pressure||{ids:[],bonus:0},loadout:d.run.loadout||callLoadout(),exit:d.run.exit,stats:d.run.stats||{},sector:d.run.sector||null,path:d.run.path||null};
+  menuOpen=false;['mainMenuOverlay','prepOverlay','unlocksOverlay','pressureOverlay','loadoutOverlay','settingsOverlay','stopOverlay','sectorOverlay'].forEach(id=>document.getElementById(id)._hd=true);
   buildStop(d.carry);msg(`Run resumed — back at the start of stop ${RUN.stop+1} of ${RUN_STOPS.length}.`)}
 // Restart (pause menu): a fresh run with the same Pressure (already paid for, so not charged again)
 function restartRun(){const p=RUN&&RUN.pressure;document.getElementById('pauseOverlay')._hd=true;
   if(tutorial||tutorialMap){startTutorial();return}
-  if(!RUN)return;clearRunSave();RUN={stop:0,carry:null,pressure:p||{ids:[],bonus:0},loadout:callLoadout()};buildStop(null)}
+  if(!RUN)return;clearRunSave();RUN={stop:0,carry:null,pressure:p||{ids:[],bonus:0},loadout:callLoadout()};RUN.sector=genSector();RUN.path=[];showSector(0,'Sector map')}
 function buildStop(carry){
   STOP_BAND=RUN_STOPS[RUN.stop].band;STOP_SPLIT=!!RUN_STOPS[RUN.stop].split;
   pickStopDirs();
@@ -3367,16 +3388,129 @@ function buildStop(carry){
   applyCarry(carry);
   // a fresh run: the loadout comes charged, and the Rig lands (later stops start with it already down)
   if(!carry){runCallStart().forEach(id=>grantCall(id,CALL_LOADOUT_CHARGES));beginLanding();runCardStart()}
-  saveRun(carry);
+  saveRun(carry);grantStopBonus();
+  if(curNode()&&curNode().type==='hive')setTimeout(()=>msg('A Hive stop: two Mega nests have dug in here. Break them for Blooded cards and salvage.'),120);
   const st=stopInfo();
   if(RUN.stop===0&&pressureNote())setTimeout(()=>msg(pressureNote().trim()),50);
   msg(st.final?`Stop ${RUN.stop+1} of ${RUN_STOPS.length} — the heart of the Core. The contract vein is here and already stirring: take bearings from stray energy to triangulate it, then drain it.`:
     `Stop ${RUN.stop+1} of ${RUN_STOPS.length} — ${stopTitle(st)}. You've landed on the ${EDGE_WORD[ENTRY_EDGE]} edge. A ${S.barrier&&S.barrier.type===RIFT?'band of rift':'wall of crystal'} cuts the way ${EDGE_WORD[EXIT_DIR]}: find the breach vein in front of it and drain it to break through.`);
 }
+// ---------- v4: the sector map ----------
+// A run's stops are laid out as a small branching map: every stop but the last offers a choice of
+// two or three, joined by lines, so a choice now limits where you can go next. Each stop has its
+// ground (SECTOR_GROUND: richer veins, fewer or more nests, thicker glass) and a bonus, and on the
+// Dense Field some are Hive stops with two Mega nests instead of one. You see the stops you can reach
+// in full, only the kind of stop one column further, and just the zone beyond that. You pick at the
+// start of a run and each time a stop is cleared; the map is saved with the run (RUN.sector, RUN.path).
+const SECTOR_GROUND={
+  rich:{name:'Rich veins',good:true,desc:'Veins here hold about a third more.'},
+  calm:{name:'Quiet ground',good:true,desc:'Fewer nests than usual, but the veins run a little leaner.'},
+  brood:{name:'Brood ground',good:false,desc:'More nests than usual. Its supply cache makes up for it.'},
+  glass:{name:'Glass-choked',good:false,desc:'Much more crystal glass to wind your way through.'}};
+const SECTOR_TYPE={
+  drill:{name:'Drill stop',col:'#d7dde5',desc:'Find the breach vein by the wall and drain it to break through. Drain other veins on the way for cards.'},
+  hive:{name:'Hive stop',col:HIVE_COL,desc:'Two Mega nests have dug in here instead of one: hive veins ringed by brood mounds. Break them for Blooded cards and salvage.'},
+  contract:{name:'The contract',col:'#f2b63c',desc:'The heart of the Core. The contract vein waits here, with its guardian.'}};
+const SECTOR_CALLS=['orbital','stasis','emp','droppod','bulwark','carpet','minefield','overclock','gravity','decoy'];
+const SECTOR_BAND={rim:{name:'Rim',col:'#5ec8ff'},split:{name:'Rim / Dense edge',col:'#8fa8ff'},dense:{name:'Dense Field',col:'#b48bff'},core:{name:'Core',col:'#ff5c4d'}};
+const sectorBandKey=st=>st.split?'split':st.band, sectorDat=ci=>50+40*ci;
+function genSector(){const R=Math.random,cols=[];
+  RUN_STOPS.forEach((st,ci)=>{const n=st.final?1:ci===0?2:3,col=[];let hive=false;
+    for(let i=0;i<n;i++){
+      if(st.final){col.push({type:'contract',ground:[],bonus:null,next:[]});continue}
+      let type='drill';if(st.band==='dense'&&!st.split&&!hive&&R()<0.4){type='hive';hive=true} // (the Rim / Dense edge has too few Dense sites for two hives)
+      const pool=['rich','calm','brood',...(st.band==='dense'?['glass']:[])],ground=[pool.splice(Math.floor(R()*pool.length),1)[0]];
+      if(R()<0.35){const p2=pool.filter(g=>!(g==='calm'&&ground.includes('brood'))&&!(g==='brood'&&ground.includes('calm')));if(p2.length)ground.push(p2[Math.floor(R()*p2.length)])}
+      const bonus=ground.includes('brood')?'card':['dat','card','call','unit'][Math.floor(R()*4)];
+      col.push({type,ground,bonus,call:SECTOR_CALLS[Math.floor(R()*SECTOR_CALLS.length)],next:[]})}
+    cols.push(col)});
+  // links: each stop reaches the nearest one or two of the next column, and no two links cross
+  const at=(L,i)=>L.length===1?0.5:i/(L.length-1);
+  for(let ci=0;ci<cols.length-1;ci++){const A=cols[ci],B=cols[ci+1];
+    A.forEach((a,i)=>{const c=at(A,i)*(B.length-1);a.next=[...new Set([Math.floor(c),Math.ceil(c)])];
+      if(a.next.length===1&&B.length>1&&R()<0.55){const x=a.next[0]+(R()<0.5?-1:1);if(x>=0&&x<B.length)a.next.push(x)}});
+    for(let k=1;k<A.length;k++){const mx=Math.max(...A[k-1].next);A[k].next=A[k].next.filter(j=>j>=mx);if(!A[k].next.length)A[k].next=[mx]}
+    B.forEach((b,j)=>{if(A.some(a=>a.next.includes(j)))return;let bi=0,bd=9;A.forEach((a,i)=>{const d=Math.abs(at(A,i)-at(B,j));if(d<bd){bd=d;bi=i}});A[bi].next.push(j)});
+    A.forEach(a=>a.next.sort((x,y)=>x-y))}
+  return {cols}}
+function curNode(){const sc=RUN&&RUN.sector,p=RUN&&RUN.path;return sc&&p&&p[RUN.stop]!=null&&sc.cols[RUN.stop]?sc.cols[RUN.stop][p[RUN.stop]]||null:null}
+function stopGround(k){const n=curNode();return !!(n&&n.ground&&n.ground.includes(k))}
+function sectorNestMult(){return (stopGround('brood')?1.35:1)*(stopGround('calm')?0.7:1)}
+function sectorBonusText(n,ci){switch(n.bonus){
+  case 'dat':return `+${sectorDat(ci)} Dat on landing`;
+  case 'card':return 'Supply cache: the first vein you drain pays an extra card';
+  case 'call':return `A free call-down: 2 charges of ${CALLDOWNS[n.call]?CALLDOWNS[n.call].name:'a call-down'}`;
+  case 'unit':return 'A Paladin joins you on landing';default:return ''}}
+// the chosen stop's bonus, given as it's built (a stop rebuilt from its start gives it again, as the
+// carried state it's rebuilt from was taken before it)
+function grantStopBonus(){const n=curNode();if(!n||!n.bonus)return;
+  if(n.bonus==='dat')S.dat+=sectorDat(RUN.stop);
+  else if(n.bonus==='card')S.bonusPick=true;
+  else if(n.bonus==='call')grantCall(n.call,2);
+  else if(n.bonus==='unit'){const a=rnd(0,Math.PI*2),u=mkTroop(Date.now()+77,'brawler');u.x=S.base.x+Math.cos(a)*(S.base.r+14);u.y=S.base.y+Math.sin(a)*(S.base.r+14);S.troops.push(u);guardBastion(u)}
+  updateBuildBar();setTimeout(()=>msg(`Stop bonus: ${sectorBonusText(n,RUN.stop)}.`),80)}
+let secCol=0,secSel=null;
+// the column being chosen from, and what you can see: in full up to it, the kind of stop one
+// further (the contract is always known), and just the zone beyond
+function secSight(ci){return ci<=secCol?'full':ci===secCol+1||RUN_STOPS[ci].final?'type':'band'}
+function secReach(){const sc=RUN.sector;return secCol===0?sc.cols[0].map((_,i)=>i):sc.cols[secCol-1][RUN.path[secCol-1]].next.slice()}
+function showSector(col,title){secCol=col;const r=secReach();secSel=r[0];
+  if(S)S.paused=true;
+  document.getElementById('secTitle')._tc=title;
+  document.getElementById('secText')._tc=col===0?`A run is ${RUN_STOPS.length} stops, each deeper and tougher than the last. Pick where to land first. You can see the stops within reach in full, what kind of stop lies one further, and only the zone beyond that.`
+    :`Everything you have comes with you, and enemies get tougher the deeper you go. Pick your next stop: stop ${col+1} of ${RUN_STOPS.length}.`;
+  document.getElementById('sectorOverlay')._hd=false;renderSector()}
+function secIcon(t,c){
+  if(t==='drill')return `<path d="M0 -9 L7 0 L0 9 L-7 0Z" fill="none" stroke="${c}" stroke-width="2"/><circle r="2.2" fill="${c}"/>`;
+  if(t==='hive')return `<circle r="10" fill="none" stroke="${c}" stroke-width="1.6" stroke-dasharray="3 2.4"/><circle r="6" fill="none" stroke="${c}" stroke-width="1.8"/><circle r="2.6" fill="${c}"/>`;
+  if(t==='contract')return `<path d="${[0,1,2,3,4,5].map(q=>{const a=q*Math.PI/3-Math.PI/2;return (q?'L':'M')+(Math.cos(a)*10).toFixed(1)+' '+(Math.sin(a)*10).toFixed(1)}).join('')}Z" fill="none" stroke="${c}" stroke-width="2"/><circle r="3.5" fill="${c}"/>`;
+  return `<text text-anchor="middle" dy=".35em" fill="${c}" font-family="IBM Plex Mono,monospace" font-size="13" font-weight="600">?</text>`}
+function renderSector(){const sc=RUN.sector,svg=document.getElementById('secMap'),reach=new Set(secReach()),nc=sc.cols.length,cw=620/(nc-1);
+  const P=(ci,i)=>{const n=sc.cols[ci].length;return {x:70+cw*ci,y:40+280*(n===1?0.5:0.1+0.8*i/(n-1))}};
+  const onPath=(ci,i)=>ci<secCol&&RUN.path[ci]===i;
+  let h='';
+  RUN_STOPS.forEach((st,ci)=>{const B=SECTOR_BAND[sectorBandKey(st)],x0=ci===0?0:70+cw*(ci-0.5),x1=ci===nc-1?760:70+cw*(ci+0.5);
+    h+=`<rect x="${x0}" y="0" width="${x1-x0}" height="360" fill="${B.col}" opacity="${ci%2?0.05:0.025}"/>`
+      +`<text x="${(x0+x1)/2}" y="22" text-anchor="middle" fill="${B.col}" font-family="IBM Plex Mono,monospace" font-size="10.5" letter-spacing="1.5" font-weight="600">${B.name.toUpperCase()}</text>`
+      +`<text x="${70+cw*ci}" y="348" text-anchor="middle" fill="#7f8b98" font-family="IBM Plex Mono,monospace" font-size="10">STOP ${ci+1}</text>`});
+  // the landing, and the links
+  const lp={x:22,y:180};h+=`<path d="M22 173 L29 180 L22 187 L15 180Z" fill="${secCol===0?'#f2b63c':'#3a4654'}"/>`;
+  sc.cols[0].forEach((n,i)=>{const b=P(0,i),hot=secCol===0||onPath(0,i);h+=`<line x1="${lp.x}" y1="${lp.y}" x2="${b.x}" y2="${b.y}" stroke="${hot?'#f2b63c':'#2f3a46'}" stroke-width="${hot?2:1.2}" ${secCol===0?'stroke-dasharray="4 4"':''}/>`});
+  sc.cols.forEach((col,ci)=>col.forEach((n,i)=>n.next.forEach(j=>{const a=P(ci,i),b=P(ci+1,j);
+    const taken=onPath(ci,i)&&(onPath(ci+1,j)||(ci+1===secCol&&false)),live=ci===secCol-1&&RUN.path[ci]===i&&reach.has(j),dim=secSight(ci+1)==='band'&&secSight(ci)==='band';
+    h+=`<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="${taken||live?'#f2b63c':'#3a4654'}" stroke-width="${taken?2.4:live?2:1.2}" ${live?'stroke-dasharray="4 4"':''} opacity="${dim?0.4:1}"/>`})));
+  // the stops
+  sc.cols.forEach((col,ci)=>col.forEach((n,i)=>{const p=P(ci,i),sg=secSight(ci),B=SECTOR_BAND[sectorBandKey(RUN_STOPS[ci])],T=SECTOR_TYPE[n.type],
+    done=onPath(ci,i),passed=ci<secCol&&!done,can=ci===secCol&&reach.has(i),showT=sg!=='band',c=done?'#f2b63c':showT?T.col:B.col,r=n.type==='contract'?21:17;
+    h+=`<g class="sn" data-c="${ci}" data-i="${i}" transform="translate(${p.x},${p.y})" opacity="${passed||(ci===secCol&&!can)?0.3:1}" tabindex="${can||ci>secCol?0:-1}" role="button" aria-label="Stop ${ci+1}: ${showT?T.name:B.name}">`;
+    if(can)h+=`<circle r="${r+7}" fill="none" stroke="#f2b63c" stroke-width="1.5" class="secPulse"/>`;
+    if(secSel===i&&ci===secCol||secSel&&secSel.c===ci&&secSel.i===i)h+=`<circle r="${r+4}" fill="none" stroke="#d7dde5" stroke-width="1.5"/>`;
+    h+=`<circle class="snRing" r="${r}" fill="${done?'#2a2416':'#141a21'}" stroke="${c}" stroke-width="1.6" ${sg==='band'?'stroke-dasharray="3 3"':''}/>`+(showT?secIcon(n.type,c):secIcon('?',B.col));
+    if(sg==='full'&&n.ground.some(g=>!SECTOR_GROUND[g].good))h+=`<circle cx="${r*0.72}" cy="${-r*0.72}" r="4.5" fill="#ff5c4d" stroke="#141a21" stroke-width="1.5"/>`;
+    if(sg==='full'&&n.ground.some(g=>SECTOR_GROUND[g].good))h+=`<circle cx="${-r*0.72}" cy="${-r*0.72}" r="4.5" fill="#9ad36a" stroke="#141a21" stroke-width="1.5"/>`;
+    h+='</g>'}));
+  svg.innerHTML=h;
+  svg.querySelectorAll('.sn').forEach(g=>{const ci=+g.dataset.c,i=+g.dataset.i;if(ci<secCol||ci===secCol&&!reach.has(i))return;
+    const go=()=>{secSel=ci===secCol?i:{c:ci,i};renderSector()};
+    g.addEventListener('click',go);g.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();e.stopPropagation();go()}})});
+  renderSecBrief()}
+function renderSecBrief(){const el=document.getElementById('secBrief'),sc=RUN.sector,ci=typeof secSel==='number'?secCol:secSel.c,i=typeof secSel==='number'?secSel:secSel.i,
+    n=sc.cols[ci][i],sg=secSight(ci),B=SECTOR_BAND[sectorBandKey(RUN_STOPS[ci])],T=SECTOR_TYPE[n.type],can=ci===secCol;
+  const esc=t=>String(t).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+  if(sg==='band'){el.innerHTML=`<div class="k" style="color:${B.col}">${B.name} · stop ${ci+1}</div><h2>Unknown stop</h2><p class="fog">Too far off to make out. You'll see what kind of stop it is once you're two stops away.</p>`;return}
+  let h=`<div class="k" style="color:${T.col}">${B.name} · stop ${ci+1}</div><h2>${T.name}</h2><p>${T.desc}</p>`;
+  if(sg==='type'&&n.type!=='contract'){el.innerHTML=h+`<p class="fog">Its ground and bonus come into view once it's within reach.</p>`;return}
+  if(n.ground.length)h+=`<div class="row"><b>Ground</b>${n.ground.map(g=>{const G=SECTOR_GROUND[g];return `<span class="secChip" style="--c:${G.good?'#9ad36a':'#ff5c4d'}">${G.name}</span>`}).join('')}<div>${n.ground.map(g=>SECTOR_GROUND[g].desc).join(' ')}</div></div>`;
+  if(n.bonus)h+=`<div class="row"><b>Bonus</b>${esc(sectorBonusText(n,ci))}.</div>`;
+  if(can)h+=`<button id="secGoBtn" type="button">${secCol===0?'Land here':'Travel here'}</button>`;
+  el.innerHTML=h;const b=document.getElementById('secGoBtn');if(b)b.onclick=()=>sectorTravel(i)}
+function sectorTravel(i){RUN.path[secCol]=i;document.getElementById('sectorOverlay')._hd=true;sfx.click();
+  if(secCol===0)buildStop(null);else advanceStop()}
 // walked off the east edge with the way open
 function finishStop(){
   if(!RUN||!S.barrier||!S.barrier.open)return;
   RUN.carry=captureCarry();S.paused=true;
+  if(RUN.sector){showSector(RUN.stop+1,`Stop ${RUN.stop+1} cleared`);return}
   const next=RUN_STOPS[RUN.stop+1];
   document.getElementById('stopTitle')._tc=`Stop ${RUN.stop+1} cleared`;
   document.getElementById('stopText')._tc=`Next: stop ${RUN.stop+2} of ${RUN_STOPS.length} — ${stopTitle(next)}${next.final?', where the contract vein waits':''}. You'll arrive on its ${EDGE_WORD[EDGE_OPP[EXIT_DIR]]} edge. Everything you have comes with you; enemies there are tougher.`;
@@ -3563,8 +3697,8 @@ function startRun(){
   meta.condensedBank-=pressureCost(ids);saveMeta();
   RUN={stop:0,carry:null,pressure:{ids,bonus:pressureBonus(ids)},loadout:callLoadout()};
   menuOpen=false;
-  ['mainMenuOverlay','prepOverlay','unlocksOverlay','pressureOverlay','loadoutOverlay','settingsOverlay','stopOverlay'].forEach(id=>document.getElementById(id)._hd=true);
-  buildStop(null);
+  ['mainMenuOverlay','prepOverlay','unlocksOverlay','pressureOverlay','loadoutOverlay','settingsOverlay','stopOverlay','sectorOverlay'].forEach(id=>document.getElementById(id)._hd=true);
+  RUN.sector=genSector();RUN.path=[];showSector(0,'Sector map');
 }
 // Shared by every "spend Living Crystal to permanently unlock X" unit — Artillery, Grenadier,
 // and whatever else joins them later. Rendered as shop cards on the separate Unlocks panel
@@ -5128,8 +5262,9 @@ function updateMounds(dt){
 // the map already made room and cracks for a vein; that site never hosts an ordinary vein again.
 function pickHiveSites(starts){
   const out=[];
-  HIVE_BANDS.forEach(band=>{
-    const pool=S.sites.filter(st=>st.band===band&&!starts.some(p=>p.site===st));
+  // (a Hive stop on the sector map gets two, well apart)
+  HIVE_BANDS.flatMap(b=>b==='dense'&&curNode()&&curNode().type==='hive'?[b,b]:[b]).forEach(band=>{
+    const pool=S.sites.filter(st=>st.band===band&&!starts.some(p=>p.site===st)&&!out.some(o=>dist(o,st)<1500));
     if(!pool.length)return;
     let far=pool.filter(st=>dist(st,S.base)>=HIVE_BASE_CLEAR);
     // v4: on the Dense Field stops the hive (and its mounds) sit well inland too
@@ -6090,7 +6225,7 @@ function placeGlass(){
   };
   const cand=[];for(let id=0;id<N;id++)if(terrain[id]===RIFT)cand.push(id);
   if(!cand.length)return false;
-  const seeds=Math.round(cand.length*GLASS_DENSITY/3.5);let made=0;
+  const seeds=Math.round(cand.length*GLASS_DENSITY/3.5*(stopGround('glass')?1.7:1));let made=0;
   const shards=S.glassShards;
   for(let n=0;n<seeds*10&&made<seeds;n++){
     const start=cand[Math.floor(rand()*cand.length)];if(!ok(start))continue;
@@ -6886,6 +7021,7 @@ cv.addEventListener('dblclick',e=>{
 });
 cv.addEventListener('wheel',e=>{e.preventDefault();const w0=toWorld(e.clientX,e.clientY);cam.z=Math.min(2.2,Math.max(0.35,cam.z*(e.deltaY>0?0.9:1.1)));const w1=toWorld(e.clientX,e.clientY);cam.x+=w0.x-w1.x;cam.y+=w0.y-w1.y;clampCam()},{passive:false});
 addEventListener('keydown',e=>{
+  if(!document.getElementById('sectorOverlay').hidden)return; // v4: the sector map is up
   if(menuOpen&&e.key==='`'&&e.target.tagName!=='INPUT'){setDebugMode(!debugNoFog);return} // (on the menu too: shows the save/load buttons)
   if(menuOpen||e.target.tagName==='INPUT')return; keys[e.key.toLowerCase()]=true; keys[e.key]=true;
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='a'){e.preventDefault();keys.a=false;keys.A=false;selectAllUnitsOfKind('troops');return}
@@ -10112,6 +10248,7 @@ function update(dt){
         }
         if(v.hive)tail=` The Mega nest is broken.${salvageFab()}`+tail;
         msg(`${v.hive?'Hive vein':'Vein'} drained at ${tierName(tier)} grade — +${datEarned} Dat Crystal and +${condensedEarned} Condensed Crystal.${tail}`);
+        if(S.bonusPick){S.bonusPick=false;v.bonus=(v.bonus||0)+1;msg('The supply cache adds an extra card.')}
         shakeScreen(4,0.3);S.rewardQueue=[];for(let i=0;i<(v.bonus||0);i++)S.rewardQueue.push({tier:rewardTierFor(tier,v.band),band:v.band});showRewardChoice(rewardTierFor(tier,v.band),v.band);
       }
     }
