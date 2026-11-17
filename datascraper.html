@@ -334,6 +334,25 @@ body.lowGfx #fogGrain{display:none}
 .unlockCard.unlocked{border-color:var(--ally)}
 .unlockCard.unlocked .ucIcon{color:var(--ally)}
 .shopSection{display:flex;flex-direction:column;align-items:center;gap:10px}
+/* v4: How to play */
+#howtoOverlay{z-index:30}
+.htBox{width:min(600px,100%);display:flex;flex-direction:column;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px 16px;text-align:left;box-shadow:0 16px 40px rgba(0,0,0,.55)}
+.htTop{display:flex;align-items:center;gap:10px}
+.htKicker{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+.htStep{font-family:var(--mono);font-size:11px;color:var(--muted);flex:1}
+.overlay button.htX{background:none;border:0;color:var(--muted);font-size:22px;line-height:1;padding:0 4px}
+.overlay button.htX:hover{color:var(--fg)}
+.htArtWrap{position:relative;width:100%;aspect-ratio:214/122;border-radius:6px;overflow:hidden;background:#121519;border:1px solid rgba(255,255,255,.06)}
+.htArtWrap canvas{width:100%;height:100%;display:block}
+#howtoOverlay h2{margin:4px 0 0;font-family:var(--mono);font-weight:500;font-size:19px;color:var(--fg)}
+#howtoOverlay p{max-width:none;margin:0;font-size:14px;line-height:1.55;color:#c3cad2;min-height:4.6em}
+#howtoOverlay p b{color:var(--fg)}
+#howtoOverlay kbd{font-family:var(--mono);font-size:12px;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 5px;background:var(--panel2);color:var(--fg)}
+.htNav{display:flex;align-items:center;gap:10px;margin-top:4px}
+.htDots{flex:1;display:flex;justify-content:center;gap:6px}
+.overlay .htDots button{width:9px;height:9px;padding:0;border-radius:50%;background:var(--line);border:0}
+.overlay .htDots button.on{background:var(--accent)}
+@media (max-width:560px){#howtoOverlay p{font-size:13px}}
 /* v4: the shop's tabs, along the top; only the open tab's section shows */
 .shopTabs{position:sticky;top:-24px;z-index:2;display:flex;flex-wrap:wrap;justify-content:center;gap:6px;padding:8px;margin:-4px 0 4px;background:rgba(5,7,10,.92);border-bottom:1px solid var(--line);width:min(920px,100%)}
 .overlay .shopTabs button{background:var(--panel2);color:var(--fg);border:1px solid var(--line);padding:8px 16px}
@@ -854,8 +873,19 @@ async function run(d){
   <div class="secMain"><svg id="secMap" viewBox="0 0 760 360" role="img" aria-label="Sector map"></svg><div class="secBrief" id="secBrief" aria-live="polite"></div></div>
 </div>
 
+<!-- v4: How to play — the game in a few animated steps; shown on a player's first run, and from the pause menu -->
+<div class="overlay" id="howtoOverlay" hidden>
+  <div class="htBox" role="dialog" aria-labelledby="htTitle">
+    <div class="htTop"><span class="htKicker">How to play</span><span class="htStep" id="htStep"></span><button id="htClose" class="htX" aria-label="Close">×</button></div>
+    <div class="htArtWrap" id="htArtWrap"></div>
+    <h2 id="htTitle"></h2>
+    <p id="htText"></p>
+    <div class="htNav"><button id="htPrev" class="secondary">Back</button><div class="htDots" id="htDots"></div><button id="htNext">Next</button></div>
+  </div>
+</div>
+
 <div class="overlay" id="pauseOverlay" hidden>
-  <h1>Paused</h1><p>The game is frozen — nothing is moving, drilling, or spawning.</p><button id="pauseResumeBtn">Resume</button><button id="pauseRestartBtn" class="secondary">Restart run</button><div class="ownedCards" id="pauseCards"></div>
+  <h1>Paused</h1><p>The game is frozen — nothing is moving, drilling, or spawning.</p><button id="pauseResumeBtn">Resume</button><button id="pauseRestartBtn" class="secondary">Restart run</button><button id="pauseHowtoBtn" class="secondary">How to play</button><div class="ownedCards" id="pauseCards"></div>
 </div>
 
 <div class="overlay" id="drillSelectOverlay" hidden>
@@ -1595,7 +1625,7 @@ function loadMeta(){
         // every stored tier, whatever the key — listing them by hand here silently dropped any
         // upgrade added later (Rapid Loaders / Magnetic Collectors) on every page reload
         upgrades:Object.fromEntries(Object.entries(mu).map(([k,v])=>[k,v|0])),
-        recordingConsent:m.recordingConsent===true?true:m.recordingConsent===false?false:undefined,
+        recordingConsent:m.recordingConsent===true?true:m.recordingConsent===false?false:undefined,howtoSeen:!!m.howtoSeen,
         // v4: call-downs bought in the shop, and the two picked to start every run with (checked against CALLDOWNS in callLoadout)
         calls:Array.isArray(m.calls)?m.calls.filter(x=>typeof x==='string'):[],callLoadout:Array.isArray(m.callLoadout)?m.callLoadout.filter(x=>typeof x==='string').slice(0,2):[],
         // v4: the card shop — cards picked at least once in a run (cardSeen), bought (cardOwn), their upgrade tiers (cardLv),
@@ -3395,7 +3425,8 @@ function buildStop(carry){
   reset(spawn);S._spawn=spawn;RUN.stopCarry=carry||null;
   applyCarry(carry);
   // a fresh run: the loadout comes charged, and the Rig lands (later stops start with it already down)
-  if(!carry){runCallStart().forEach(id=>grantCall(id,CALL_LOADOUT_CHARGES));beginLanding();runCardStart()}
+  if(!carry){runCallStart().forEach(id=>grantCall(id,CALL_LOADOUT_CHARGES));beginLanding();runCardStart();
+    if(!meta.howtoSeen&&!tutorial&&!tutorialMap)setTimeout(()=>{if(RUN&&S&&!S.over&&!howtoOpen())openHowTo('first')},700)} // a player's first run opens How to play
   saveRun(carry);grantStopBonus();
   if(curNode()&&curNode().type==='hive')setTimeout(()=>msg('A Hive stop: two Mega nests have dug in here. Break them for Blooded cards and salvage.'),120);
   const st=stopInfo();
@@ -4153,6 +4184,87 @@ const CUR_INFO={
     const w=tip.offsetWidth,h=tip.offsetHeight;let x=e.clientX+14,y=e.clientY+16;if(x+w>innerWidth-8)x=e.clientX-w-10;if(y+h>innerHeight-8)y=e.clientY-h-12;
     tip.style.left=Math.max(8,x)+'px';tip.style.top=Math.max(8,y)+'px'},{passive:true});
   addEventListener('pointerdown',()=>{if(on){tip.hidden=true;on=null}},{passive:true})}
+// ---- v4: HOW TO PLAY ----
+// The whole game in HOWTO steps, each with a little animated scene drawn with the card-art pieces (in the
+// cards' 214×122 space). It opens by itself the first time a player starts a run (meta.howtoSeen), and
+// from the pause menu any time after. The game stays paused while it's up.
+const htMeter=(x,y,w,h,bands,np,o={})=>{caRR(x-1,y-1,w+2,h+2,2,'#0b0e12',CA_OL);ctx.fillStyle=caRgba('#ff5c4d',0.55);ctx.fillRect(x,y,w,h);
+  ctx.fillStyle='#1f2a33';ctx.fillRect(x+4,y,w-8,h);bands.forEach(([a,b,c])=>{ctx.fillStyle=c;ctx.fillRect(x+a*w,y,(b-a)*w,h)});
+  if(o.seam){const [a,b]=o.seam;ctx.strokeStyle='#6ff0ff';ctx.lineWidth=1.2;ctx.strokeRect(x+a*w,y-2,(b-a)*w,h+4);ctx.fillStyle=caRgba('#6ff0ff',0.3);ctx.fillRect(x+a*w,y,(b-a)*w,h)}
+  const nx=x+np*w;ctx.strokeStyle='#fff';ctx.lineWidth=1.6;ctx.beginPath();ctx.moveTo(nx,y-3);ctx.lineTo(nx,y+h+2);ctx.stroke();ctx.fillStyle='#fff';ctx.beginPath();ctx.moveTo(nx,y-1);ctx.lineTo(nx-3,y-6);ctx.lineTo(nx+3,y-6);ctx.fill()};
+const htKey=(k,x,y,down)=>{caRR(x-7,y-7+(down?1:0),14,13,2.5,down?'#f2b63c':'#2a313a',CA_OL);caTxt(k,x,y+3+(down?1:0),down?'#1a1200':'#e6ebf0',8)};
+const htVein=(x,y,r,t)=>{caGlow(x,y,r,'#be64ff',0.32+0.08*Math.sin(t*2.4));for(let i=0;i<7;i++){const a=i*0.9+0.3,d=r*0.35*(0.4+caH(i+3));caShard(x+Math.cos(a)*d,y+Math.sin(a)*d*0.6)}};
+const htCrack=pts=>{caLine(pts,'#07090b',2.6);caLine(pts,'#2b333c',0.9)};
+const htAlong=(pts,f)=>{let L=0;const seg=[];for(let i=1;i<pts.length;i++){const d=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]);seg.push(d);L+=d}
+  let want=f*L;for(let i=0;i<seg.length;i++){if(want<=seg[i]){const u=want/seg[i];return [caLerp(pts[i][0],pts[i+1][0],u),caLerp(pts[i][1],pts[i+1][1],u)]}want-=seg[i]}return pts[pts.length-1]};
+const HOWTO=[
+  {title:'Your goal',
+   text:'You command the <b>Rig</b>, a walking mining laser, and its crew. Drill crystal <b>veins</b> and pick a <b>card</b> from each to grow stronger. Break through each stop, and drain the <b>contract vein</b> in the Core to win the run.',
+   art(t){htVein(107,88,46,t);caRig(107,104,0.42,{laser:true});for(let i=0;i<6;i++){const f=(t*0.35+i/6)%1;caTxt('◆',107+(caH(i+1)-0.5)*90,96-f*70,caRgba('#9ad36a',1-f),8)}}},
+  {title:'Find a vein',
+   text:'The ground is cracked, and veins send <b>pulses of light</b> out through the cracks. Follow a pulse <b>upstream</b> to its source. Send Troopers ahead (select, then <b>right-click</b>) or fire a Probe (<kbd>G</kbd>) to look further.',
+   art(t){const P=[[16,108],[52,92],[86,98],[120,72],[150,66],[186,40]];htCrack(P);htCrack([[86,98],[96,118]]);htCrack([[120,72],[116,46]]);htVein(186,40,34,t);
+     for(let k=0;k<2;k++){const f=((t*0.45+k*0.5)%1),[x,y]=htAlong([...P].reverse(),f);caGlow(x,y,9,'#e3b6ff',0.9*(1-f*0.6))}
+     const g=(t*0.12)%1,[ux,uy]=htAlong(P,g*0.85);caUnit(ux,uy-4,0,1);caUnit(ux-9,uy+3,0,1)}},
+  {title:'Pin the Stabilizers',
+   text:'Press <kbd>E</kbd> and click the <b>glowing hotspots</b> that drift inside a vein. Each one pins a <b>Stabilizer</b>: the first tells you the vein’s grade, and three of them make a triangle you steer the drill with.',
+   art(t){const f=(t*0.2)%1,cx=110,cy=70,hs=[[62,84],[160,86],[118,44]];htVein(cx,cy,52,t);caRig(cx,112,0.3);
+     hs.forEach(([x,y],i)=>{const s0=0.12+i*0.22,u=(f-s0)/0.12,dx=Math.sin(t*1.3+i*2)*4,dy=Math.cos(t*1.1+i)*3;
+       if(u>=1)caStab(x,y+4,0.26);else{caGlow(x+dx,y+dy,9,'#be64ff',0.85);if(u>0){const px=caLerp(cx,x,u),py=caLerp(cy+20,y,u)-Math.sin(u*Math.PI)*24;caGlow(px,py,5,'#8fe3ff',0.8);ctx.fillStyle='#c9d1d9';ctx.beginPath();ctx.arc(px,py,2.4,0,TAU2);ctx.fill()}}});
+     if(f>0.78){ctx.globalAlpha=Math.min(1,(f-0.78)*8);ctx.strokeStyle='#f2b63c';ctx.setLineDash([3,3]);ctx.lineWidth=1;ctx.beginPath();hs.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));ctx.closePath();ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1}
+     htKey('E',16,16,f%0.22<0.05)}},
+  {title:'Lock on and strike',
+   text:'Select the Rig (<kbd>Z</kbd>) and <b>right-click</b> the vein’s mining point to walk it over. Press <kbd>F</kbd> to lock on: a needle sweeps the meter. Press <kbd>F</kbd> again to stop it on the <b>best band</b>. Never on <b>red</b>.',
+   art(t){const f=(t*0.28)%1,stop=0.62,bands=[[0.14,0.2,'#5ec8ff'],[0.3,0.35,'#5ec8ff'],[0.47,0.53,'#be64ff'],[0.62,0.66,'#ff5c4d'],[0.72,0.78,'#5ec8ff'],[0.86,0.9,'#ff5c4d']];
+     const sw=f<stop?0.5+0.46*Math.sin(f/stop*Math.PI*3.5):0.5;htMeter(18,40,178,20,bands,f<stop?sw:0.5);htKey('F',107,92,f>=stop&&f<stop+0.06);
+     if(f>=stop){caTxt('STRIKE!',107,30,caRgba('#f2b63c',Math.min(1,(f-stop)*8)),10);caGlow(107,50,22,'#be64ff',0.5*(1-(f-stop)/(1-stop)))}
+     caTxt('▲ best band',107,72,'#be64ff',7)}},
+  {title:'Steer the drill',
+   text:'While it drills, the needle drifts. Drag the <b>gold weight</b> on the steering pad to hold it on your band. A <b>cyan seam</b> opens partway: hold the needle in it for a bonus reward, but keep off the red sliver inside it.',
+   art(t){const w=Math.sin(t*0.9)*0.8,np=0.5+w*0.36;htMeter(14,18,186,16,[[0.38,0.62,'#be64ff']],np,{seam:[0.8,0.95]});ctx.fillStyle='#ff5c4d';ctx.fillRect(14+0.86*186,18,3,16);
+     const cx=107,cy=86,T=[[cx-34,cy+20],[cx+34,cy+20],[cx,cy-26]];ctx.fillStyle=caRgba('#f2b63c',0.14);ctx.strokeStyle='#f2b63c';ctx.lineWidth=1;ctx.beginPath();T.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));ctx.closePath();ctx.fill();ctx.stroke();
+     T.forEach(([x,y])=>{ctx.fillStyle='#dfe6ee';ctx.beginPath();ctx.arc(x,y,2.4,0,TAU2);ctx.fill()});const wx=cx+w*26,wy=cy+4;caGlow(wx,wy,9,'#f2b63c',0.5);ctx.fillStyle='#f2b63c';ctx.strokeStyle=CA_OL;ctx.beginPath();ctx.arc(wx,wy,4.2,0,TAU2);ctx.fill();ctx.stroke();
+     ctx.fillStyle='#e6ebf0';ctx.beginPath();ctx.moveTo(wx+3,wy+3);ctx.lineTo(wx+3,wy+12);ctx.lineTo(wx+6,wy+9);ctx.lineTo(wx+10,wy+10);ctx.closePath();ctx.fill()}},
+  {title:'Hold the line',
+   text:'Drilling wakes the nests, and <b>waves</b> come for the Rig and Stabilizers. <kbd>Space</kbd> pauses so you can plan. Build Turrets and walls (<kbd>B</kbd>), deploy units (<kbd>U</kbd>), and call in strikes (<kbd>C</kbd>). <b>Right-click and drag</b> to set a line of units.',
+   art(t){caRig(42,104,0.34,{laser:true});for(let y=44;y<=104;y+=12)caWall(128,y,1,1);
+     [[96,56],[100,74],[96,92]].forEach(([x,y],i)=>{caUnit(x,y,0,1);const f=((t*2+i*0.33)%1);caLine([[x+6+f*60,y],[x+12+f*60,y]],'#ffe9a0',1.8)});
+     for(let i=0;i<5;i++){const f=((t*0.25+i/5)%1),x=caLerp(214,136,Math.min(1,f*1.3)),y=50+((i*23)%56),hit=f>0.72;if(f<0.95)caEnemy(x,y,Math.PI,1,hit&&((t*8)%1>0.5))}}},
+  {title:'Take your reward',
+   text:'Drain a vein and you pick one of three <b>cards</b>, an upgrade for the rest of the run, or sell it for Dat. Any card you pick is <b>unlocked in the Shop</b>, where you can buy it to start future runs with.',
+   art(t){const f=(t*0.3)%1,cols=['#5ec8ff','#be64ff','#f2b63c'];cols.forEach((c,i)=>{const pick=i===1&&f>0.45,x=58+i*49,y=64-(pick?Math.min(1,(f-0.45)*6)*12:Math.sin(t*1.5+i)*2);
+     ctx.save();ctx.translate(x,y);ctx.rotate((i-1)*0.08);caRR(-19,-28,38,54,4,'#1f2024',c,pick?2:1.2);caGlow(0,-10,12,c,0.5);caRR(-13,10,26,3,1,caRgba(c,0.7));caRR(-13,16,18,3,1,'rgba(255,255,255,0.15)');ctx.restore();
+     if(pick)caGlow(x,y,40,c,0.25*Math.min(1,(f-0.45)*4))});caTxt('+ unlocked in the Shop',107,114,caRgba('#9ad36a',f>0.55?1:0),8)}},
+  {title:'Break through and move on',
+   text:'Each stop has a <b>barrier</b> of crystal or rift. Drain the <b>breach vein</b> in front of it to open the way, then walk the Rig off that edge. Choose your next stop on the <b>sector map</b>, and push on to the Core.',
+   art(t){const f=(t*0.18)%1,brk=f>0.35;htVein(70,96,26,t);
+     for(let i=0;i<6;i++){const y=14+i*18,gap=brk&&i>=2&&i<=3,o=gap?Math.min(1,(f-0.35)*5):0;if(o>=1)continue;ctx.globalAlpha=1-o;ctx.fillStyle=i%2?'#8c5bd6':'#a77af0';ctx.strokeStyle=CA_OL;ctx.lineWidth=0.8;
+       ctx.beginPath();ctx.moveTo(146+(i%2)*4,y-2+(gap?-o*8:0));ctx.lineTo(162,y+4);ctx.lineTo(154+(i%3)*2,y+20+(gap?o*8:0));ctx.lineTo(140,y+12);ctx.closePath();ctx.fill();ctx.stroke();ctx.globalAlpha=1}
+     if(brk){const u=Math.min(1,(f-0.45)/0.5);if(u>0)caRig(caLerp(70,226,u),78,0.3);else caRig(70,78,0.3,{laser:true});caTxt('→',196,70,caRgba('#f2b63c',0.6+0.4*Math.sin(t*5)),14)}else caRig(70,78,0.3,{laser:true})}},
+];
+let htI=0,htFrom=null,htWasPaused=false;
+function htRender(){const st=HOWTO[htI],wrap=document.getElementById('htArtWrap');
+  document.getElementById('htStep')._tc=`${htI+1} / ${HOWTO.length}`;document.getElementById('htTitle')._tc=st.title;document.getElementById('htText').innerHTML=st.text;
+  document.getElementById('htPrev').style.visibility=htI?'visible':'hidden';document.getElementById('htNext')._tc=htI===HOWTO.length-1?(htFrom==='first'?'Start playing':'Done'):'Next';
+  const dots=document.getElementById('htDots');dots.innerHTML='';HOWTO.forEach((_,i)=>{const b=document.createElement('button');b.className=i===htI?'on':'';b.setAttribute('aria-label','Step '+(i+1));b.onclick=()=>{htI=i;htRender()};dots.appendChild(b)});
+  wrap.innerHTML='<canvas aria-hidden="true"></canvas>';
+  cardCanvas(wrap.firstChild,(g,t,dpr,w,h)=>{g.setTransform(dpr*w/214,0,0,dpr*h/122,0,0);caGround(htI*7+3);st.art(t)})}
+// from: 'first' (the first run), or 'pause' (the pause menu's button)
+function openHowTo(from){if(!S)return;htFrom=from;htI=0;htWasPaused=!!S.paused;S.paused=true;
+  if(from==='first'){meta.howtoSeen=true;saveMeta()}
+  document.getElementById('pauseOverlay')._hd=true;document.getElementById('howtoOverlay')._hd=false;htRender()}
+function closeHowTo(){document.getElementById('howtoOverlay')._hd=true;document.getElementById('htArtWrap').innerHTML='';
+  if(htFrom==='pause'){document.getElementById('pauseOverlay')._hd=false;S.paused=true}else S.paused=htWasPaused;htFrom=null}
+const howtoOpen=()=>!document.getElementById('howtoOverlay').hidden;
+document.getElementById('htClose').onclick=closeHowTo;
+document.getElementById('htPrev').onclick=()=>{if(htI>0){htI--;htRender()}};
+document.getElementById('htNext').onclick=()=>{if(htI<HOWTO.length-1){htI++;htRender()}else closeHowTo()};
+document.getElementById('pauseHowtoBtn').onclick=()=>openHowTo('pause');
+// while it's up it takes the keyboard: ← → to page, Esc / Enter to close at the end; nothing reaches the game
+addEventListener('keydown',e=>{if(!howtoOpen())return;e.stopImmediatePropagation();
+  if(e.key==='ArrowRight'||e.key==='Enter'){e.preventDefault();document.getElementById('htNext').click()}
+  else if(e.key==='ArrowLeft'){e.preventDefault();document.getElementById('htPrev').click()}
+  else if(e.key==='Escape'){e.preventDefault();closeHowTo()}},true);
 // two clicks to restart, so a stray one can't throw a run away
 document.getElementById('pauseRestartBtn').onclick=()=>{const b=document.getElementById('pauseRestartBtn');if(b.dataset.arm){b.dataset.arm='';restartRun();return}
   b.dataset.arm='1';b._tc=tutorial?'Click again to restart the tutorial':'Click again — this run will be lost';setTimeout(()=>{if(b.dataset.arm){b.dataset.arm='';b._tc=tutorial?'Restart tutorial':'Restart run'}},3000)};
