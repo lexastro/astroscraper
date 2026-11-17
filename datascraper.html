@@ -12508,6 +12508,8 @@ function draw(){
     if(!alive)drawCutGlyph(de.x,de.y);
     if(de.hp<de.maxHp)hpbar(de.x,de.y-20,22,de.hp/de.maxHp);
   });
+  // the Mega Nest's mountain goes down before the Rig and units, so they're drawn over it (see the enemy pass)
+  S.enemies.forEach(e=>{if(e.kind==='nest'&&e.mega&&(debugNoFog||e.seen))drawNest(e)});
   // the Rig: the Needle tower
   drawLava(); // magma the Shieldbearer breathed, on the ground under everything
   drawPOIs(); // wrecks and beacons lie on the ground, under the Rig and units
@@ -12588,7 +12590,7 @@ function draw(){
   drawRig();drawStrand();positionPoiBtns();
   // enemies (only visible)
     drawSmears();
-  S.enemies.forEach(e=>{if(e.kind==='nest'){if(debugNoFog||e.seen)drawNest(e);return}
+  S.enemies.forEach(e=>{if(e.kind==='nest'){if(!e.mega&&(debugNoFog||e.seen))drawNest(e);return}
     if(e.kind==='quaker'){if(debugNoFog||visible(e))drawQuaker(e);return}
     if(e.horde){if(e.x<x0-10||e.x>x1+10||e.y<y0-10||e.y>y1+10||(!debugNoFog&&!visible(e)))return; // horde: one baked glass splinter each
       drawSwarm(e);return}
