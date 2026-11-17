@@ -7067,8 +7067,33 @@ function spoolTrail(u,anchor){
   }
   const last=u.trail[u.trail.length-1];
   if(dist(last,u)>=CABLE_SEG_MIN)u.trail.push({x:u.x,y:u.y});
+  tautenTrail(u);
   u.cableLen=trailLen(u.trail);
 }
+// v4: a cable takes up its own slack. Without this a unit that weaves about (dodging, chasing) leaves a
+// zig-zag that only reels in if it walks back over the same ground, so cables grew long and tangled.
+// Every TAUT_TICK each bend creeps toward the straight run between its neighbours at TAUT_SPEED, and is
+// dropped once it's (nearly) straight; a bend never moves where the cable would cut through rock, so a
+// cable still wraps round corners. Only the cable changes: the unit at its end isn't moved.
+// And about once a RELAY_T, a cable much longer than the shortest walkable route from its anchor to the unit (say,
+// still wrapped the far way round a rock the unit came back past) is re-laid along that route.
+const TAUT_TICK=0.1, TAUT_SPEED=120, TAUT_DROP=3, RELAY_T=1, RELAY_SLACK=1.25;
+function relayTrail(u){const T=u.trail,a=T[0],last=T[T.length-1],tot=trailLen(T)+dist(last,u),st=dist(a,u);
+  if(tot<=st*1.4+60)return; // (cheap test first: nearly straight already)
+  const P=astar(a.x,a.y,u.x,u.y);if(!P||P.length<2)return;
+  // string-pull the route down to its corners
+  const pts=[{x:a.x,y:a.y}];let i=0;while(i<P.length-1){let j=P.length-1;while(j>i+1&&!lineClear(P[i].x,P[i].y,P[j].x,P[j].y))j--;pts.push({x:P[j].x,y:P[j].y});i=j}
+  pts.pop(); // (the last point is the unit itself)
+  const L=trailLen(pts)+dist(pts[pts.length-1],u);if(tot>L*RELAY_SLACK+40){u.trail=pts}}
+function tautenTrail(u){let T=u.trail;if(!T||T.length<2)return;
+  const now=S.t,dt=Math.min(0.5,now-(u._tautT==null?now:u._tautT));if(u._tautT!=null&&dt<TAUT_TICK)return;u._tautT=now;
+  if(T.length>=3&&now-(u._relayT||0)>=RELAY_T){u._relayT=now;relayTrail(u);T=u.trail}
+  const step=TAUT_SPEED*dt;
+  for(let i=1;i<T.length;i++){const a=T[i-1],b=i+1<T.length?T[i+1]:u,p=T[i];
+    const vx=b.x-a.x,vy=b.y-a.y,L2=vx*vx+vy*vy,t=L2>0?Math.max(0,Math.min(1,((p.x-a.x)*vx+(p.y-a.y)*vy)/L2)):0,cx=a.x+vx*t,cy=a.y+vy*t,d=Math.hypot(p.x-cx,p.y-cy);
+    if(d<=TAUT_DROP){if(lineClear(a.x,a.y,b.x,b.y)){T.splice(i,1);i--}continue}
+    const k=Math.min(1,step/d),nx=p.x+(cx-p.x)*k,ny=p.y+(cy-p.y)*k;
+    if(lineClear(a.x,a.y,nx,ny)&&lineClear(nx,ny,b.x,b.y)){p.x=nx;p.y=ny}}}
 // Keeps a unit from paying out more cable than MAX_CABLE_LEN: once its deployed trail plus its
 // live run back to the last trail point hits the cap, it's pulled back to exactly that length —
 // a hard stop, not a snap to the anchor. Runs after movement, before severing.
