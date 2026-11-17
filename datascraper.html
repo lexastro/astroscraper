@@ -3558,10 +3558,12 @@ function sectorTravel(i){RUN.path[secCol]=i;document.getElementById('sectorOverl
 // slopes; it can't be hurt while any of them stands, and while it lives it grows a new one into an
 // empty slot out of sight every MEGA_REGROW_T. Bringing it down pays Blooded cards and salvage, and
 // opens the way on (S.megaDone): walk the Rig off the far edge, as after a breach.
-// it erupts: every MEGA_ERUPT_T (less as its nests fall) a pack pours out of the pit at your nearest unit;
+// it attacks in waves: an ASSAULT (MEGA_ASSAULT_T) of eruptions every MEGA_ASSAULT_GAP, each a pack out of the pit at
+// your nearest unit (bigger as its nests fall), then a LULL of MEGA_LULL_T with none (and its own patrols held back,
+// what's left of the swarm pulling back to the pit) to go after its crystals and nests;
 // MEGA_GLASS pink crystals sit in its rim (targets any unit can shoot, Rocketeers hardest): each that shatters
 // tears MEGA_GLASS_DMG of its health away, its nests or not
-const MEGA_ERUPT_T=20, MEGA_ERUPT_MIN=11, MEGA_ERUPT_N=7, MEGA_BROOD_CAP=45, MEGA_GLASS=6, MEGA_GLASS_R=268, MEGA_GLASS_HP=600, MEGA_GLASS_DMG=0.12, MEGA_GLASS_ROCKET=1.5;
+const MEGA_ASSAULT_T=40, MEGA_ASSAULT_GAP=6, MEGA_LULL_T=30, MEGA_ERUPT_N=10, MEGA_BROOD_CAP=80, MEGA_GLASS=6, MEGA_GLASS_R=268, MEGA_GLASS_HP=600, MEGA_GLASS_DMG=0.12, MEGA_GLASS_ROCKET=1.5;
 const MEGA_MAP=0.9, MEGA_NESTS=0.5, MEGA_ROCK=195, MEGA_CLEAR=900, MEGA_SLOTS=8, MEGA_SLOT_R=335, MEGA_REGROW_T=90, MEGA_SPR_R=330;
 function megaStop(){const n=curNode();return !!(n&&n.type==='nest'&&STOP_BAND==='dense'&&!STOP_SPLIT)}
 // the arena: a wide clearing round the mountain, and broad lanes out to the landing side, the exit and both flanks
@@ -3573,7 +3575,7 @@ function raiseMega(){const c=S.megaSite,m=makeNest(c.x,c.y,'mega');m.mega=true;m
   for(let i=0;i<MEGA_SLOTS;i++){const a=a0+i/MEGA_SLOTS*Math.PI*2+rnd(-0.12,0.12),p=nearestPlain(c.x+Math.cos(a)*MEGA_SLOT_R,c.y+Math.sin(a)*MEGA_SLOT_R);
     const sl={x:p.x,y:p.y,size:i%2?'large':'medium',nest:null};sl.nest=makeNest(p.x,p.y,sl.size);sl.nest.megaSlot=true;S.megaSlots.push(sl)}
   // the crystals, in the gaps between its nests
-  S.megaGlass=[];S.megaEruptT=MEGA_ERUPT_T*0.6;const gaps=[0,1,2,3,4,5,6,7].sort(()=>rnd(-1,1)).slice(0,MEGA_GLASS);
+  S.megaGlass=[];S.megaPhase='lull';S.megaPhaseT=MEGA_LULL_T;S.megaEruptT=0;const gaps=[0,1,2,3,4,5,6,7].sort(()=>rnd(-1,1)).slice(0,MEGA_GLASS);
   gaps.forEach(gi=>{const a=a0+(gi+0.5)/MEGA_SLOTS*Math.PI*2;const x=c.x+Math.cos(a)*MEGA_GLASS_R,y=c.y+Math.sin(a)*MEGA_GLASS_R*0.88,hp=Math.round(MEGA_GLASS_HP*stopHpMult());
     const g={x,y,r:26,hp,maxHp:hp,kind:'nest',size:'crystal',band:STOP_BAND||'dense',core:false,speed:0,dmg:0,cd:0,aggro:0,ang:0,faceT:9,stunT:0,target:null,home:{x,y},patrolT:1e9,growT:0,defendCd:0,lastHp:hp,hitT:-99,seen:true,ph:0,megaGlass:true,seed:Math.floor(rnd(1,1e6))};
     S.enemies.push(g);S.megaGlass.push(g)})}
@@ -3585,19 +3587,32 @@ function shellPing(m){spark(m.x+rnd(-m.r,m.r)*0.6,m.y+rnd(-m.r,m.r)*0.6,'#ff9ad8
     banner(`The Mega Nest shrugs off the hit: ${k} nest${k===1?'':'s'} on its slopes still hold${k===1?'s':''} it together. Destroy them first.`,'warning')}}
 function updateMega(dt){const m=S.megaNest;if(!m||m.hp<=0||!S.enemies.includes(m))return;
   if(!S.megaIntro&&visible(m)){S.megaIntro=true;banner(`The Mega Nest. Destroy the ${megaSlotsLeft()} nests dug into its slopes to crack it open. Shatter the pink crystals in its rim (Rocketeers do it fastest): each one tears a chunk out of it.`,'danger')}
-  if(S.megaIntro){S.megaEruptT-=dt;
-    if(S.megaEruptT<=0){const dead=MEGA_SLOTS-megaSlotsLeft();S.megaEruptT=Math.max(MEGA_ERUPT_MIN,MEGA_ERUPT_T-1.2*dead)*rnd(0.85,1.15);megaErupt(m,MEGA_ERUPT_N+2*dead)}}
+  if(S.megaIntro){if(!S.megaPhase){S.megaPhase='lull';S.megaPhaseT=MEGA_LULL_T} // (a save from before the waves)
+    S.megaPhaseT-=dt;if(S.megaPhase==='lull')megaBurrow(m);
+    if(S.megaPhase==='lull'&&S.megaPhaseT<=0){S.megaPhase='assault';S.megaPhaseT=MEGA_ASSAULT_T;S.megaEruptT=0;{const P=megaAttackPatrol(m);S.enemies.forEach(e=>{if(e.nest===m&&e.hp>0){e.patrol=P;e.aggro=700;e.recall=false}})} // (any of the swarm still on its way home turns round)
+      if(S.megaHeld){const k=S.megaHeld;S.megaHeld=0;nestSpawn(m,k,'roam').forEach(e=>{e.nest=m;e.patrol=megaAttackPatrol(m);e.aggro=700})} // (and what burrowed comes back out)
+      
+      if(m.seen)banner('The Mega Nest is attacking!','danger')}
+    else if(S.megaPhase==='assault'){S.megaEruptT-=dt;
+      if(S.megaEruptT<=0){const dead=MEGA_SLOTS-megaSlotsLeft();S.megaEruptT=MEGA_ASSAULT_GAP*rnd(0.85,1.15);megaErupt(m,MEGA_ERUPT_N+3*dead)}
+      if(S.megaPhaseT<=0){S.megaPhase='lull';S.megaPhaseT=MEGA_LULL_T;megaRecall(m);if(m.seen)banner(`The attack ebbs: ${MEGA_LULL_T}s until the next.`,'success')}}}
   if(megaSlotsLeft()<MEGA_SLOTS){S.megaRegrowT-=dt;
     if(S.megaRegrowT<=0){const sl=S.megaSlots.find(q=>!slotLive(q)&&!visible(q));
       if(sl){sl.nest=makeNest(sl.x,sl.y,'medium');sl.nest.megaSlot=true;S.megaRegrowT=MEGA_REGROW_T;if(m.seen)banner('A new nest has grown on the Mega Nest\'s slopes.','danger')}else S.megaRegrowT=5}}}
+// the lull: what's left of its swarm heads home and burrows back into the pit (held there, it comes out
+// again with the next attack), so the rim is clear to fight over
+function megaRecall(m){S.enemies.forEach(e=>{if(e.nest!==m||e.hp<=0)return;const a=Math.atan2(e.y-m.y,e.x-m.x),q=nearestPlain(m.x+Math.cos(a)*215,m.y+Math.sin(a)*215);
+  e.target=null;e.aggro=0;e.recall=true;e.patrol={a:q,b:q,dir:1}})}
+function megaBurrow(m){let k=0;S.enemies=S.enemies.filter(e=>{if(e.recall&&e.nest===m&&e.hp>0&&!e.target&&dist(e,m)<300){k++;if(rnd(0,1)<0.3)spark(e.x,e.y,HIVE_COL,3);return false}return true});S.megaHeld=(S.megaHeld||0)+k}
+// at whatever of yours is nearest, the Rig included
+function megaAttackPatrol(m){const marks=[S.base,...S.troops.filter(t=>t.hp>0)];let o=marks[0],od=Infinity;marks.forEach(q=>{const d=dist(q,m);if(d<od){od=d;o=q}});
+  return {a:{x:m.x,y:m.y},b:{x:o.x+rnd(-80,80),y:o.y+rnd(-80,80)},dir:1}}
 function megaErupt(m,n){let brood=0;for(const e of S.enemies)if(e.nest===m&&e.hp>0)brood++;
-  n=Math.min(n,MEGA_BROOD_CAP-brood);if(n<=0)return;
-  // at whatever of yours is nearest, the Rig included
-  const marks=[S.base,...S.troops.filter(t=>t.hp>0)];let o=marks[0],od=Infinity;marks.forEach(q=>{const d=dist(q,m);if(d<od){od=d;o=q}});
-  const patrol={a:{x:m.x,y:m.y},b:{x:o.x+rnd(-80,80),y:o.y+rnd(-80,80)},dir:1};
-  nestSpawn(m,nestScaled(m,n),'roam').forEach(e=>{e.nest=m;e.patrol=patrol;e.aggro=700});
+  n=Math.min(nestScaled(m,n),MEGA_BROOD_CAP-brood);if(n<=0)return;
+  const patrol=megaAttackPatrol(m);
+  nestSpawn(m,n,'roam').forEach(e=>{e.nest=m;e.patrol=patrol;e.aggro=700});
   burst(m.x,m.y-10,'#ff6a4a',40,240,0.8);burst(m.x,m.y-10,HIVE_COL,24,180,0.7);
-  if(visible(m)){shakeScreen(5,0.5);sndAt(m.x,m.y,()=>sfx.wave());if(!S.eruptMsg||S.t-S.eruptMsg>60){S.eruptMsg=S.t;banner('The Mega Nest erupts: a swarm pours out of its pit.','danger')}}}
+  if(visible(m)){shakeScreen(5,0.5);sndAt(m.x,m.y,()=>sfx.wave());}}
 // a rim crystal is destroyed (any unit can do it; Rocketeers' rockets hit it ROCKET_VS_BIG times as hard,
 // as on any nest, and MEGA_GLASS_ROCKET times that again)
 function megaGlassShattered(g){const m=S.megaNest;burst(g.x,g.y-20,'#ffd0ef',40,260,0.9);burst(g.x,g.y-20,'#ff6fd8',30,200,0.8);shakeScreen(9,0.6);sndAt(g.x,g.y,()=>sfx.explode());
@@ -5471,6 +5486,7 @@ function updateNests(dt){
         n.defendCd=NEST_DEFEND_CD;
       }}
     n.defendCd-=dt; n.lastHp=n.hp;
+    if(n.mega&&S.megaPhase==='lull')n.patrolT+=dt; // (the Mega Nest holds its patrols in a lull)
     // patrols: a pack walks out to a point and back, for as long as it lives
     n.patrolT-=dt;
     if(n.patrolT<=0){const PT=PATROL_TUNE[n.band]&&STOP_BAND===n.band?PATROL_TUNE[n.band]:null;
@@ -12726,7 +12742,7 @@ function hud(){
     const cv=S.veins.find(v=>v.contract);
     if(RUN&&!stopInfo().final){
       $('hObjK')._tc=`Stop ${RUN.stop+1}/${RUN_STOPS.length} · ${STOP_SPLIT?'Rim / Dense':STOP_BAND==='rim'?'Rim':STOP_BAND==='dense'?'Dense':'Core'}`;
-      $('hObj')._tc=ready?'ready to drill — press F':S.barrier&&S.barrier.open||S.megaDone?`way open — head ${EDGE_WORD[EXIT_DIR]}`:S.megaNest?(megaShelled()?`destroy its nests (${megaSlotsLeft()} left)`:'destroy the Mega Nest'):S.breachVein&&S.breachVein.seen?'drain the breach vein':'find the breach vein';
+      $('hObj')._tc=ready?'ready to drill — press F':S.barrier&&S.barrier.open||S.megaDone?`way open — head ${EDGE_WORD[EXIT_DIR]}`:S.megaNest?(megaShelled()?`destroy its nests (${megaSlotsLeft()} left)`:'destroy the Mega Nest')+(S.megaIntro&&S.megaPhase?(S.megaPhase==='assault'?' · ATTACKING':` · lull ${Math.ceil(S.megaPhaseT)}s`):''):S.breachVein&&S.breachVein.seen?'drain the breach vein':'find the breach vein';
       $('hObjBar')._sw=(100*RUN.stop/(RUN_STOPS.length-1))+'%';
     }else{
     $('hObjK')._tc=S.contractAwake?(RUN?`Stop ${RUN.stop+1}/${RUN_STOPS.length} · Contract`:'Contract vein'):'Veins';
