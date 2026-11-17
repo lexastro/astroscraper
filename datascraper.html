@@ -3460,12 +3460,14 @@ function grantStopBonus(){const n=curNode();if(!n||!n.bonus)return;
 let secCol=0,secSel=null;
 // the column being chosen from, and what you can see: in full up to it, the kind of stop one
 // further (the contract is always known), and just the zone beyond
-function secSight(ci){return ci<=secCol?'full':ci===secCol+1||RUN_STOPS[ci].final?'type':'band'}
+// v4: the fog is off for now (SECTOR_FOG): every stop on the map shows in full, ground and bonus and all
+const SECTOR_FOG=false;
+function secSight(ci){return !SECTOR_FOG||ci<=secCol?'full':ci===secCol+1||RUN_STOPS[ci].final?'type':'band'}
 function secReach(){const sc=RUN.sector;return secCol===0?sc.cols[0].map((_,i)=>i):sc.cols[secCol-1][RUN.path[secCol-1]].next.slice()}
 function showSector(col,title){secCol=col;const r=secReach();secSel=r[0];
   if(S)S.paused=true;
   document.getElementById('secTitle')._tc=title;
-  document.getElementById('secText')._tc=col===0?`A run is ${RUN_STOPS.length} stops, each deeper and tougher than the last. Pick where to land first. You can see the stops within reach in full, what kind of stop lies one further, and only the zone beyond that.`
+  document.getElementById('secText')._tc=col===0?`A run is ${RUN_STOPS.length} stops, each deeper and tougher than the last. Pick where to land first.${SECTOR_FOG?' You can see the stops within reach in full, what kind of stop lies one further, and only the zone beyond that.':''}`
     :`Everything you have comes with you, and enemies get tougher the deeper you go. Pick your next stop: stop ${col+1} of ${RUN_STOPS.length}.`;
   document.getElementById('sectorOverlay')._hd=false;renderSector()}
 function secIcon(t,c){
