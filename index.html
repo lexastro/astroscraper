@@ -7048,11 +7048,17 @@ function mechEngage(t,range,speed,dt){
 // distance (capped at FLANK_MAX_R). That point slides in as the enemy closes, so a group fans out
 // into a broad front that wraps around the target rather than queueing behind its leader. Inside
 // FLANK_MIN_D, or whenever the flanking line isn't open ground, it paths straight in as before.
-const FLANK_ANGLE=0.95, FLANK_R_FRAC=0.6, FLANK_MAX_R=340, FLANK_MIN_D=90, FLANK_RECHECK=0.3;
+const FLANK_ANGLE=0.95, FLANK_R_FRAC=0.6, FLANK_MAX_R=340, FLANK_MIN_D=90, FLANK_RECHECK=0.3, FLANK_STUCK_BAN=6;
 function enemyApproachPoint(e,tgt){
   if(e.flank===undefined)e.flank=rnd(-1,1);
   const d=dist(e,tgt);
   if(d<FLANK_MIN_D)return waypointFor(e,tgt.x,tgt.y);
+  // v4: the flank line is checked down its middle only, so a body can still catch on a glass shard beside it, and
+  // a flanker never asked the pathfinder (which knows how to get unstuck): one that's barely moved for a moment
+  // gives up flanking for FLANK_STUCK_BAN and paths in properly (they used to stand against Dense glass for good).
+  // "Barely moved" is measured as getting no closer to the target, since one jammed on glass jitters on the spot
+  if(!e._flSk||S.t-e._flSk.t>1.2){if(e._flSk&&e._flOk&&e._flSk.d-d<10)e._flBan=S.t+FLANK_STUCK_BAN;e._flSk={d,t:S.t}}
+  if(e._flBan>S.t)return waypointFor(e,tgt.x,tgt.y);
   const R=Math.min(FLANK_MAX_R,d*FLANK_R_FRAC), a=Math.atan2(e.y-tgt.y,e.x-tgt.x)+e.flank*FLANK_ANGLE;
   const p={x:tgt.x+Math.cos(a)*R,y:tgt.y+Math.sin(a)*R};
   // Re-checked a few times a second rather than every frame — a couple of line tests per enemy.
@@ -7075,7 +7081,8 @@ function waypointFor(u,tx,ty){
     u._sk={x:u.x,y:u.y,t:S.t};
   }
   if(u._wideT>S.t){
-    if(!u._fw||Math.hypot(u._fwG.x-tx,u._fwG.y-ty)>30){u._fw=fineAstar(u.x,u.y,tx,ty,700)||[];u._fwG={x:tx,y:ty};u._fwI=0;if(!u._fw.length){u._fwFail={x:tx,y:ty};u._wideT=0}} // no way through at all: stop searching for this spot
+    // (v4: a way round that loops out past the first search's window gets a second, wider search before giving up)
+    if(!u._fw||Math.hypot(u._fwG.x-tx,u._fwG.y-ty)>30){u._fw=fineAstar(u.x,u.y,tx,ty,700)||fineAstar(u.x,u.y,tx,ty,1500)||[];u._fwG={x:tx,y:ty};u._fwI=0;if(!u._fw.length){u._fwFail={x:tx,y:ty};u._wideT=0}} // no way through at all: stop searching for this spot
     while(u._fwI<u._fw.length&&Math.hypot(u.x-u._fw[u._fwI].x,u.y-u._fw[u._fwI].y)<10)u._fwI++;
     if(u._fwI<u._fw.length)return u._fw[u._fwI];
   }
