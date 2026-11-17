@@ -12549,12 +12549,12 @@ function riftPuffSprite(){
 }
 // ---- the rift glitches ----
 // v4: over the rift the air looks corrupted: hard pixels drifting up and skipping sideways, torn scanlines
-// that flash and slide, embers splitting into red and cyan, and now and then a patch of the rift floor
+// that flash and slide, embers splitting into red and cyan, a few rare motes that blink from spot to spot, and now and then a patch of the rift floor
 // flickering out of place. Every particle is a pure function of time and its rift cell (nothing stored),
 // a few per cell, more toward the Core, fewer when zoomed out. They all share one hiccup: every
 // GL_HIC_T seconds the whole rift skips a beat together. Only when you're zoomed right in on the rift does
 // the hiccup also tint the screen (GL_FLASH_Z and up, scaled by how much of the view is rift).
-const GL_HIC_T=3.7,GL_FLASH_Z=1.6,GL_BAND={rim:0.5,dense:1,core:1.25};
+const GL_HIC_T=3.7,GL_FLASH_Z=1.6,GL_MOTES=0.8,GL_BAND={rim:0.5,dense:1,core:1.25};
 function glh(a,b,c){let h=(a*73856093)^(b*19349663)^((c||0)*83492791);h=Math.imul(h^(h>>>15),2246822507);h=Math.imul(h^(h>>>13),3266489909);h^=h>>>16;return (h>>>0)/4294967296}
 const riftHiccup=t=>{const p=t%GL_HIC_T;return p<0.09?1:p>1.9&&p<1.94?0.6:0};
 let glEmberC=null;function glEmberSprite(){if(glEmberC)return glEmberC;const c=document.createElement('canvas');c.width=c.height=32;const x=c.getContext('2d'),g=x.createRadialGradient(16,16,0,16,16,16);
@@ -12591,6 +12591,11 @@ function drawRiftGlitch(x0,y0,x1,y1){
       for(let s=0;s<3;s++){const yy=y+s*1.6*px,ww=w*(1-s*0.3);if(!riftAt(x+ww/2,yy))continue;ctx.fillStyle=`rgba(210,130,255,${a*(1-s*0.25)})`;ctx.fillRect(x,yy,ww,0.7*px);
         ctx.fillStyle=`rgba(90,230,255,${a*0.45})`;ctx.fillRect(x-2-v*3,yy+0.4*px,ww*0.7,0.5*px)}
       if(glh(id,k*5+i,46)<0.4){ctx.fillStyle=`rgba(255,255,255,${a})`;ctx.fillRect(x+w*glh(id,k,47),y,2*px,0.7*px)}}
+    // static motes (rare): dust that blinks from spot to spot, a brief streak between, as if frames are skipped
+    for(let i=0,N=n(GL_MOTES,5);i<N;i++){const per=0.8+glh(id,i,61)*0.9,ph=glh(id,i,62)*per,k=Math.floor((t+ph)/per),u=((t+ph)%per)/per,[bx,by]=spot(i,0,63),dr=(t*3+i*7)%14;
+      const P=j=>[bx+(glh(id,i*97+j,65)-0.5)*14+Math.sin(t*0.4+i)*3,by+(glh(i*97+j,id,66)-0.5)*10-dr],[x,y]=P(k),[qx,qy]=P(k-1);if(!riftAt(x,y))continue;
+      if(u<0.08){const a=1-u/0.08;ctx.strokeStyle=`rgba(200,150,255,${a*0.6})`;ctx.lineWidth=0.6*px;ctx.beginPath();ctx.moveTo(qx,qy);ctx.lineTo(x,y);ctx.stroke();ctx.fillStyle=`rgba(255,255,255,${a})`;ctx.fillRect(x-px,y-px,2*px,2*px)}
+      else{const fl=0.35+0.4*glh(id,i*13+Math.floor(t*20),67)+0.25*Math.sin(t*3+i);ctx.fillStyle=`rgba(190,140,255,${fl})`;ctx.fillRect(x-0.6*px,y-0.6*px,1.2*px,1.2*px)}}
     // chromatic embers
     for(let i=0,N=n(2.5,4);i<N;i++){const life=3+glh(id,i,51)*3,ph=glh(id,i,52)*life,u=((t+ph)%life)/life,k=Math.floor((t+ph)/life);const[bx,by]=spot(i,k,53);
       const x=bx+Math.sin(u*6+i)*3,y=by-u*26,a=Math.sin(u*Math.PI)*0.85,sp=(0.6+H*4+(glh(id,i*17+Math.floor(t*4),k)<0.08?3:0))*px,r=3*px;
