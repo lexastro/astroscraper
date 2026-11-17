@@ -843,7 +843,7 @@ async function run(d){
 <div class="help" id="help" hidden>
   <button id="helpClose" aria-label="Close">×</button>
   <b>The run:</b> three stops, one map in each zone, each deeper and tougher than the last — the Rim, the Dense Field, and the Core's heart where the contract vein waits. A barrier (rift on the Rim, a crystal wall deeper in) cuts every map: drain the <b>breach vein</b> in front of it to break through, then walk the Rig off the far edge — which side that is changes from map to map, and you arrive on the opposite one. Everything you have carries on to the next stop.<br>
-<b>Healing:</b> units inside the Rig's dashed ring slowly regain health (Relays don't heal anyone). <b>Unit limits:</b> up to 5 Grenadiers, 4 Rocketeers (rockets that hit nests and Quakers 4× as hard) and 3 Mechs at once (the button shows how many you have). <b>Stock &amp; troopers:</b> nothing refills on its own any more — every fabricator, Stabilizer and Probe has a free stock, and once it's empty each use costs Dat (the price shows on the button). You have 6 Trooper slots (3 filled for free at the start — the button shows how many you have against the limit) and 8 Paladin slots (4 free to start); each new Trooper or Paladin costs Dat, and right-clicking any build button buys another charge of it (or switch <b>Auto-buy</b> on to buy automatically when a stock runs out). Salvage from Large nests and Mega nests can raise the limit. <b>Wrecks</b> (derelict scrapers) lie hidden on every map, some beyond the barrier — park the Rig on one for 8s (or send units to stand on it — slower) to salvage it (it draws an ambush): Dat, refilled stocks, drones, a barracks module (+1 Trooper limit) or a few free units of a kind you haven't unlocked yet (they join you, but only the Unlocks panel lets you build more). <b>Quakers</b> — big stone blocks — lumber in while you drill, keep their distance and slam the ground to jolt the drill needle and shake your Stabilizers: send units out to kill them.<br>
+<b>Healing:</b> units inside the Rig's dashed ring slowly regain health (Relays don't heal anyone). <b>Unit limits:</b> up to 5 Grenadiers, 4 Rocketeers (rockets that hit nests and Quakers 4× as hard) and 3 Mechs at once (the button shows how many you have). <b>Stock &amp; troopers:</b> nothing refills on its own any more — every fabricator, Stabilizer and Probe has a free stock, and once it's empty each use costs Dat (the price shows on the button). You have 6 Trooper slots (3 filled for free at the start — the button shows how many you have against the limit) and 8 Paladin slots (4 free to start); each new Trooper or Paladin costs Dat, and right-clicking any build button buys another charge of it (or switch <b>Auto-buy</b> on to buy automatically when a stock runs out). Salvage from Large nests and Mega nests can raise the limit. <b>Wrecks</b> (derelict scrapers) lie hidden on every map, some beyond the barrier — park the Rig on one for 8s (or send units to stand on it — slower) to salvage it (it draws an ambush): Dat, refilled stocks, drones, a barracks module (+1 Trooper limit) or a few free units of a kind you haven't unlocked yet (they join you, but only the Unlocks panel lets you build more). <b>Quakers</b> — big stone blocks — lumber in while you drill, keep their distance and slam the ground to jolt the drill needle and shake your Stabilizers: send units out to kill them. In the Dense Field (and the Core) waves bring three more: a <b>Choir</b>, a humming glass fork that hangs back and ties the Echoes round it together with red threads, so damage on one is shared by all of them until you break the fork; a <b>Fracture</b>, which glows hotter as you hurt it and bursts when it dies or reaches your line, leaving glass on the ground that slows and cuts your units; and on great waves a <b>Burrower</b>, a crack of light that runs under your walls and comes up beside a Stabilizer or the Rig to bite. It can't be hit underground, but it's rooted while it bites.<br>
 <b>Goal:</b> the ground is cracked all over: <b>follow the pulses of energy</b> running through the cracks back to their source to find a vein, then park the Rig on its glowing centre and press <kbd>F</kbd> to lock on. Veins <b>emerge, ripen</b> a tier at a time, then go unstable and <b>collapse</b> — and new ones emerge elsewhere. Glowing <b>stray pockets</b> give a bearing toward the nearest vein when a unit reaches one; two bearings from different angles triangulate it. Locking on starts the <b>strike</b> at once: press <kbd>F</kbd> again to stop the needle on a good band of the strip (the thin sliver is a tier above the vein; red ruptures it) — the meter zooms in on where you hit and the drill starts; the first wave arrives about 20s later. While it drills, the needle drifts; Stabilizers hold it steady, and the tier you're paid is where it spends most of its time. If it drifts into the red, the vein ruptures and damages the Rig. Drain veins for rewards — after 3, the contract vein stirs: it gives off no pulses, so triangulate it with bearings from stray pockets, then drain it to win. In the heart of the Core the contract vein is guarded by <b>the Shieldbearer</b>: its slab shields stop direct fire from in front (lobbed rounds, rockets and call-downs come over the top), it opens them to breathe magma, and its chest is bare while it does. Flank it, crack the shields off, and bring it down before you can drill the contract.<br>
   <b>Controls:</b> drag to select · right-click to move/attack · right-click a friendly unit or building with combat units selected to <b>guard</b> it (escort it, fight off anything that comes near, then fall back) · <kbd>Ctrl</kbd>+<kbd>A</kbd> select all your units · <kbd>Z</kbd> select the Rig · <kbd>B</kbd> build menu · <kbd>U</kbd> units menu · <kbd>C</kbd> call-downs · <kbd>F</kbd> lock on to a vein / strike · <kbd>H</kbd> jump the camera to the Rig · <kbd>WASD</kbd> or middle-drag to pan, scroll to zoom<br>
   <b>Touch:</b> tap to select · three-finger tap to deselect · tap empty ground/an enemy/a wall to move/attack/man it · drag to pan · pinch to zoom · double-tap a unit to select all of its kind · hold still then drag: box-select (nothing selected) or lay out a formation (units selected) · hold on a friendly unit or building with units selected to guard it · hold a build button to buy another charge · the round buttons by the minimap: ⏸ tactical pause, ⌂ back to the Rig, ✕ cancel what you're placing, and your control groups (save one with ⧉ while units are selected)<br>
@@ -5167,6 +5167,131 @@ function drawBossBreath(e){if(!(e.st==='breath'||(e.st==='close'&&e.stT>BOSS_OPE
   ctx.restore()}
 function updateBoss(dt){bossWatch();updateLava(dt)}
 
+// ---------- Dense Field: the Choir, the Fracture and the Burrower ----------
+// Three glass enemies that come with drilling waves in the Dense Field (and the Core, with its extra health).
+// Choir (kind 'choir'): a humming tuning fork that hangs back behind its pack. Red threads tie it to up to
+//   CHOIR_LINKS nearby Echoes; while it lives, damage to any linked Echo is split evenly across the whole
+//   choir, and linked Echoes move CHOIR_HASTE faster. Fragile: kill the fork and the threads snap.
+// Fracture (kind 'fracture'): a heavy cracked cluster that glows hotter as it's hurt and walks for your line.
+//   Dead, or on reaching a wall or a unit, it bursts: FRAC_DMG to everything of yours in FRAC_BURST_R,
+//   FRAC_WALL to wall slats, and a field of glass caltrops (S.caltrops) that slows your units and chips them.
+// Burrower: underground (S.burrows, not in S.enemies, so nothing can target it) it's a crack of light
+//   running through the ground toward a Stabilizer or the Rig. It surfaces beside it as a ring of jaws
+//   (kind 'burrower' in S.enemies), rooted, bites for BUR_BITE_T seconds, then dives and comes up again.
+const CHOIR_HP=60,CHOIR_R=8,CHOIR_SPEED=46,CHOIR_LINK_R=140,CHOIR_LINKS=6,CHOIR_BACK=110,CHOIR_HASTE=1.2,CHOIR_FROM=3,
+  FRAC_HP=200,FRAC_R=12,FRAC_SPEED=30,FRAC_DMG=22,FRAC_BURST_R=60,FRAC_WALL=40,FRAC_FROM=4,CAL_T=10,CAL_SLOW=0.5,CAL_DPS=3,
+  BUR_HP=140,BUR_R=11,BUR_SPEED=70,BUR_BITE=9,BUR_BITE_T=3,BUR_EMERGE=0.5,BUR_RESURF=6;
+const denseHp=(base,core)=>Math.round(base*(core?CORE_ENEMY_HP_MULT:1)*(RUN?stopHpMult():1));
+function spawnChoir(x,y){const core=bandAt(x,y)==='core',hp=denseHp(CHOIR_HP,core);
+  S.enemies.push({x,y,r:CHOIR_R,hp,maxHp:hp,speed:CHOIR_SPEED,dmg:0,cd:0,kind:'choir',core,target:null,aggro:1e9,home:{x,y},ang:rnd(0,Math.PI*2),faceT:9,stunT:0,links:[],linkCd:0,seed:rnd(0,100)})}
+function spawnFracture(x,y){const core=bandAt(x,y)==='core',hp=denseHp(FRAC_HP,core);
+  S.enemies.push({x,y,r:FRAC_R,hp,maxHp:hp,speed:FRAC_SPEED*(RUN&&pressureOn('frenzy')?1.15:1),dmg:0,cd:0,kind:'fracture',core,target:null,aggro:1e9,home:{x,y},ang:rnd(0,Math.PI*2),faceT:9,stunT:0,seed:rnd(0,100)})}
+function spawnBurrow(x,y){const core=bandAt(x,y)==='core',hp=denseHp(BUR_HP,core);(S.burrows||(S.burrows=[])).push({x,y,hp,maxHp:hp,core,readyT:S.t+2,last:null,trailT:0})}
+// one Choir, Fractures and a Burrower join a drilling wave, from where the wave comes
+function denseSpecials(v,feeders,big){if(v.band!=='dense'&&v.band!=='core')return;
+  const top=feeders.length?feeders.reduce((p,q)=>NEST[q.size].feed>NEST[p.size].feed?q:p):null,a=v.waveDir;
+  let src;if(top){const d=dist(top,v)||1;src={x:top.x+(v.x-top.x)/d*(top.r+40),y:top.y+(v.y-top.y)/d*(top.r+40)}}else src={x:v.x+Math.cos(a)*WAVE_SPAWN_DIST,y:v.y+Math.sin(a)*WAVE_SPAWN_DIST};
+  const at=()=>nearestPlain(Math.max(30,Math.min(W-30,src.x+rnd(-50,50))),Math.max(30,Math.min(H-30,src.y+rnd(-50,50))));
+  if(v.waveNo>=CHOIR_FROM){const p=at();spawnChoir(p.x,p.y)}
+  if(v.waveNo>=FRAC_FROM)for(let i=0;i<(big?2:1);i++){const p=at();spawnFracture(p.x,p.y)}
+  if(big){const p=at();spawnBurrow(p.x,p.y)}}
+// Choir: what it can link (Echoes and Big Echoes; not the horde's swarmlings)
+const choirLinkable=x=>x.hp>0&&(x.kind==='wave'||x.kind==='roam')&&!x.horde;
+function choirStep(e,tgt,dt){
+  if((e.linkCd-=dt)<=0){e.linkCd=0.5;const c=[];S.enemies.forEach(x=>{if(choirLinkable(x)){const d=dist(e,x);if(d<CHOIR_LINK_R)c.push([d,x])}});
+    c.sort((p,q)=>p[0]-q[0]);e.links=c.slice(0,CHOIR_LINKS).map(p=>p[1]);e.links.forEach(x=>{x.choir=e;x.linkT=S.t+0.8})}
+  e.links=e.links.filter(x=>x.hp>0);e.ang=Math.atan2(tgt.y-e.y,tgt.x-e.x);
+  if(e.links.length){let cx=0,cy=0;e.links.forEach(x=>{cx+=x.x;cy+=x.y});cx/=e.links.length;cy/=e.links.length;
+    const d=Math.hypot(tgt.x-cx,tgt.y-cy)||1,dx=cx-(tgt.x-cx)/d*CHOIR_BACK,dy=cy-(tgt.y-cy)/d*CHOIR_BACK;
+    if(Math.hypot(dx-e.x,dy-e.y)>14)moveToward(e,waypointFor(e,dx,dy),e.speed*enemyPace(e),dt)}
+  else if(dist(e,tgt)>240)moveToward(e,enemyApproachPoint(e,tgt),e.speed*enemyPace(e),dt)}
+// damage on a linked Echo is split across every live member of its choir
+function choirShare(e,d){const c=e.choir;if(!(e.linkT>S.t)||!c||c.hp<=0||!S.enemies.includes(c))return false;
+  const m=c.links.filter(x=>x.hp>0&&x.linkT>S.t);if(m.length<2)return false;const k=d/m.length;
+  m.forEach(x=>{x._share=true;damageEnemy(x,k);x._share=false});return true}
+// Fracture: burst on contact (or on death, from the deaths pass)
+function fractureBurst(e){const R=FRAC_BURST_R;
+  burst(e.x,e.y,'#ff6a4d',26,190,0.6);burst(e.x,e.y,'#ffd0c0',10,120,0.4);shakeScreen(4,0.25);sndAt(e.x,e.y,()=>sfx.explode());
+  const mine=[S.base].concat(S.troops,S.harvesters,S.builders,S.turrets.filter(t=>t.built),S.relays.filter(r=>r.built&&r.hp>0),S.stabs.filter(st=>st.built&&st.hp>0),S.depots.filter(de=>de.built&&de.hp>0));
+  mine.forEach(u=>{const r=u===S.base?BASE_R:(u.r||10);if(dist(u,e)>R+r)return;u.hp-=structHit(u,u.kind?allyHit(u,FRAC_DMG):FRAC_DMG,'blast',e);u.lastHitBy='enemy';hitFlash(u)});
+  (S.wallLines||[]).forEach(L=>L.slats.forEach(sl=>{if(!sl.dead&&dist(sl,e)<R)damageWall(sl,FRAC_WALL)}));
+  (S.caltrops||(S.caltrops=[])).push({x:e.x,y:e.y,r:R,t0:S.t,end:S.t+CAL_T,seed:Math.floor(rnd(0,1e4))});
+  (S.fracFx||(S.fracFx=[])).push({x:e.x,y:e.y,t0:S.t})}
+function inCaltrops(x,y){return S.caltrops.some(c=>S.t<c.end&&Math.hypot(x-c.x,(y-c.y)/0.75)<c.r)}
+function updateCaltrops(dt){if(S.caltrops&&S.caltrops.length){S.caltrops=S.caltrops.filter(c=>S.t<c.end);
+    S.troops.concat(S.harvesters,S.builders).forEach(u=>{if(u.hp>0&&inCaltrops(u.x,u.y)){u.hp-=CAL_DPS*dt;u.lastHitBy='enemy';if(Math.random()<dt*2)spark(u.x,u.y,'#ff8a7a',1)}})}
+  if(S.fracFx&&S.fracFx.length)S.fracFx=S.fracFx.filter(f=>S.t-f.t0<0.8)}
+// Burrower, underground: run for a Stabilizer (one it hasn't just bitten, if it can) or the Rig
+function burrowTarget(b){let best=null,bd=Infinity;S.stabs.forEach(st=>{if(!st.built||st.hp<=0||st===b.last)return;const d=dist(b,st);if(d<bd){bd=d;best=st}});
+  if(!best&&b.last&&S.stabs.includes(b.last)&&b.last.hp>0)best=b.last;return best||S.base}
+function updateBurrows(dt){if(!S.burrows||!S.burrows.length){if(S.burrowTrail&&S.burrowTrail.length)S.burrowTrail=S.burrowTrail.filter(p=>S.t-p.t<8);return}
+  const T=S.burrowTrail||(S.burrowTrail=[]);
+  S.burrows=S.burrows.filter(b=>{const tg=burrowTarget(b),reach=(tg===S.base?BASE_R:16)+BUR_R+4,d=dist(b,tg);b.ang=Math.atan2(tg.y-b.y,tg.x-b.x);
+    if(d>reach){const s=Math.min(d-reach,BUR_SPEED*dt);b.x+=Math.cos(b.ang)*s;b.y+=Math.sin(b.ang)*s}
+    if((b.trailT-=dt)<=0){b.trailT=0.07;T.push({x:b.x+Math.sin(S.t*9+b.x)*2,y:b.y+Math.cos(S.t*7+b.y)*2,t:S.t})}
+    if(d<=reach+2&&S.t>=b.readyT){const p=nearestPlain(b.x,b.y);
+      S.enemies.push({x:p.x,y:p.y,r:BUR_R,hp:b.hp,maxHp:b.maxHp,speed:0,dmg:BUR_BITE,cd:BUR_EMERGE,kind:'burrower',core:b.core,target:tg,aggro:0,home:{x:p.x,y:p.y},ang:b.ang,faceT:9,stunT:0,upT:S.t,biteEnd:S.t+BUR_EMERGE+BUR_BITE_T,seed:rnd(0,100)});
+      burst(p.x,p.y,'#a070e0',14,120,0.5);burst(p.x,p.y,'#ff6a4d',8,90,0.4);shakeScreen(3,0.25);sndAt(p.x,p.y,()=>tone(80,0.35,'sawtooth',0.06,0,40));
+      if(!S.burrowSeen){S.burrowSeen=true;msg('A Burrower came up under your wall! It\'s rooted while it bites: send someone back.')}
+      return false}
+    return true});
+  S.burrowTrail=T.filter(p=>S.t-p.t<8)}
+// Burrower, surfaced: rooted, bites what it came for (or whatever of yours is closest), then dives
+function burrowerStep(e,dt){let tg=e.target;
+  if(!tg||tg.hp<=0||(tg!==S.base&&!S.stabs.includes(tg)&&!S.troops.includes(tg))){tg=null;let bd=e.r+40;[S.base].concat(S.troops,S.stabs.filter(st=>st.built&&st.hp>0)).forEach(u=>{const d=dist(u,e)-(u===S.base?BASE_R:(u.r||12));if(d<bd){bd=d;tg=u}});e.target=tg}
+  if(tg)e.ang=Math.atan2(tg.y-e.y,tg.x-e.x);
+  if(tg&&S.t-e.upT>BUR_EMERGE&&S.t<e.biteEnd&&dist(e,tg)<=e.r+(tg===S.base?BASE_R:(tg.r||16))+10&&e.cd<=0){
+    tg.hp-=structHit(tg,tg.kind?allyHit(tg,BUR_BITE*0.5,e):BUR_BITE*0.5,'melee',e);tg.lastHitBy='enemy';hitFlash(tg);spark(tg.x,tg.y,C.enemy,2);e.cd=0.5;e.atkT=S.t;
+    if(tg===S.base){shakeScreen(2,0.12);sndAt(tg.x,tg.y,()=>sfx.damage())}}
+  if(S.t>=e.biteEnd+0.4){(S.burrows||(S.burrows=[])).push({x:e.x,y:e.y,hp:e.hp,maxHp:e.maxHp,core:e.core,readyT:S.t+BUR_RESURF,last:e.target===S.base?null:e.target,trailT:0});
+    burst(e.x,e.y,'#a070e0',10,90,0.4);e.hp=0;e.silent=true}}
+
+// ---- drawing (the glass-spire kit) ----
+const dzSM=x=>x<=0?0:x>=1?1:x*x*(3-2*x);
+function dzRing(x,y,r,col,a,lw){ctx.save();ctx.globalAlpha=a;ctx.strokeStyle=col;ctx.lineWidth=lw||1;ctx.beginPath();ctx.ellipse(x,y,r,r*0.6,0,0,Math.PI*2);ctx.stroke();ctx.restore()}
+function drawChoir(e){glUse();const t=S.t,v=Math.sin(t*38)*0.05,x=e.x,y=e.y,red=e.core?'#ff2a2a':C.enemy;
+  const tines=[-1,1].map(k=>{const bx=x+k*4.2;return glFaces([bx,y,5],[bx+k*0.4+v*30,y,30],3.6,0.5,0)});
+  const legs=[0,1,2].map(k=>{const a=k/3*Math.PI*2+Math.PI/2;return glFaces([x,y,6],[x+Math.cos(a)*7,y+Math.sin(a)*5,0],2.2,0.5,a)});
+  glSpires(legs,{col:GL_DARK});glassCore(x,y,7,3,red,e.flashT>0,0.6,tines,e.core?GL_CORE:[130,20,30]);
+  for(let k=0;k<3;k++){const f=((t*1.25+k/3)%1),q=glPJ([x,y,22]);dzRing(q[0],q[1],4+f*30,'#ff6a4d',0.45*(1-f),1)}
+  if(e.hp<e.maxHp)hpbar(x,y-30,e.r*2+6,e.hp/e.maxHp)}
+// the red threads from every Choir to its pack, drawn under the enemies
+function drawChoirThreads(){const t=S.t;S.enemies.forEach(e=>{if(e.kind!=='choir'||!e.links||!e.links.length||(!debugNoFog&&!visible(e)))return;const a=glPJ([e.x,e.y,10]);
+  ctx.save();ctx.globalCompositeOperation='lighter';
+  e.links.forEach((x,i)=>{if(!(x.hp>0)||!(x.linkT>t))return;const b=glPJ([x.x,x.y,6]),mx=(a[0]+b[0])/2+Math.sin(t*5+i)*4,my=(a[1]+b[1])/2+Math.cos(t*4+i)*4;
+    ctx.strokeStyle='rgba(255,80,60,0.5)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.quadraticCurveTo(mx,my,b[0],b[1]);ctx.stroke();
+    const k=(t*1.5+i*0.3)%1,qx=(1-k)*(1-k)*a[0]+2*(1-k)*k*mx+k*k*b[0],qy=(1-k)*(1-k)*a[1]+2*(1-k)*k*my+k*k*b[1];ctx.fillStyle='rgba(255,200,170,0.55)';ctx.beginPath();ctx.arc(qx,qy,1.3,0,Math.PI*2);ctx.fill()});
+  ctx.restore()})}
+function drawFracture(e){glUse();const t=S.t,x=e.x,y=e.y,heat=Math.max(0,Math.min(1,1-e.hp/e.maxHp));
+  const sp=glCluster(x,y,e.ang,{n:9,r:8,h:20,lean:0.22,w:9,seed:33,off:0.3,sway:t*3});
+  glSpires(sp,{col:[70+heat*80|0,14,20]});glGlow([x,y,10],18+heat*10,0.35+heat*0.6,heat>0.7?'255,140,80':'255,60,40');
+  ctx.save();ctx.globalCompositeOperation='lighter';ctx.strokeStyle=`rgba(255,${150+heat*90|0},120,${0.25+heat*0.75})`;ctx.lineWidth=0.8;
+  for(let k=0;k<6;k++){const a=k/6*Math.PI*2+0.4;let p=glPJ([x,y,10]);ctx.beginPath();ctx.moveTo(p[0],p[1]);for(let s=1;s<4;s++){const r=s*3.6,aa=a+(glHash(k,s,9)-0.5)*1.2;p=glPJ([x+Math.cos(aa)*r,y+Math.sin(aa)*r,10+s*3]);ctx.lineTo(p[0],p[1])}ctx.stroke()}ctx.restore();
+  if(e.flashT>0)glSpires(sp,{ghost:'rgba(255,255,255,.7)'});
+  if(e.hp<e.maxHp)hpbar(x,y-30,e.r*2+8,e.hp/e.maxHp)}
+function drawBurrower(e){glUse();const t=S.t,x=e.x,y=e.y,open=dzSM((t-e.upT)/0.4)*(1-dzSM((t-e.biteEnd)/0.4)),red=e.core?'#ff2a2a':C.enemy;
+  const sp=glCluster(x,y,t*0.3,{n:8,r:6+open*3,h:10+open*12,lean:0.1+0.45*open,w:6,seed:21,off:0,sway:t*4});
+  ctx.fillStyle='rgba(0,0,0,.5)';ctx.beginPath();ctx.ellipse(x,y,12+open*6,7+open*3,0,0,Math.PI*2);ctx.fill();
+  glassCore(x,y,2+open*8,3.6,red,e.flashT>0,0.7,sp,e.core?GL_CORE:[150,25,35]);
+  if(e.hp<e.maxHp)hpbar(x,y-28,e.r*2+6,e.hp/e.maxHp)}
+// on the ground: the Burrowers' cracks (and the fin of the one making it), the caltrop fields, the burst shards
+function drawDenseGround(x0,y0,x1,y1){const t=S.t;
+  if(S.burrowTrail&&S.burrowTrail.length){const T=S.burrowTrail;ctx.save();ctx.lineCap='round';
+    for(let i=1;i<T.length;i++){const a=T[i-1],b=T[i];if(b.t-a.t>0.2||Math.hypot(b.x-a.x,b.y-a.y)>30)continue;if(b.x<x0-20||b.x>x1+20||b.y<y0-20||b.y>y1+20)continue;if(!debugNoFog&&!visible(b))continue;
+      const age=t-b.t;ctx.globalCompositeOperation='source-over';ctx.strokeStyle=`rgba(0,0,0,${0.5*Math.min(1,(8-age)/2)})`;ctx.lineWidth=2.2;ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();
+      if(age<1.6){ctx.globalCompositeOperation='lighter';ctx.strokeStyle=`rgba(255,90,60,${0.9*(1-age/1.6)})`;ctx.lineWidth=1.3;ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke()}}
+    ctx.restore()}
+  (S.burrows||[]).forEach(b=>{if(b.x<x0-20||b.x>x1+20||b.y<y0-20||b.y>y1+20||(!debugNoFog&&!visible(b)))return;glUse();const ang=b.ang||0;
+    const sp=[0,1].map(k=>{const bx=b.x-Math.cos(ang)*k*6,by=b.y-Math.sin(ang)*k*6;return glFaces([bx,by,0],[bx+Math.cos(ang)*3,by+Math.sin(ang)*3,7-k*2+Math.sin(t*12+k)],3.5,0.5,ang)});glSpires(sp,{col:GL_DEEP});
+    for(let i=0;i<4;i++){const a=ang+Math.PI+(glHash(i,Math.floor(t*12),1)-0.5)*1.6,r=4+glHash(i,Math.floor(t*12),2)*7;ctx.fillStyle='rgba(160,85,235,.6)';ctx.fillRect(b.x+Math.cos(a)*r,b.y+Math.sin(a)*r*0.7-1,1.6,1.6)}});
+  (S.caltrops||[]).forEach(c=>{if(c.x<x0-c.r||c.x>x1+c.r||c.y<y0-c.r||c.y>y1+c.r)return;const k=Math.min(1,(t-c.t0)/0.3)*Math.min(1,(c.end-t)/0.6);if(k<=0)return;glUse();
+    const sp=[];for(let i=0;i<46;i++){const a=glHash(i,1,c.seed)*Math.PI*2,r=Math.sqrt(glHash(i,2,c.seed))*c.r,px=c.x+Math.cos(a)*r,py=c.y+Math.sin(a)*r*0.75;sp.push(glFaces([px,py,0],[px+(glHash(i,3,c.seed)-0.5)*2,py,2.5+glHash(i,4,c.seed)*3],2.2,0.5,a))}
+    ctx.globalAlpha=k;ctx.fillStyle='rgba(120,20,30,.18)';ctx.beginPath();ctx.ellipse(c.x,c.y,c.r,c.r*0.75,0,0,Math.PI*2);ctx.fill();glSpires(sp,{col:[160,30,40]});
+    for(let i=0;i<6;i++){const a=glHash(i,Math.floor(t*3),8)*Math.PI*2,r=glHash(i,Math.floor(t*3),9)*c.r,tw=Math.sin(t*9+i);if(tw>0.6){ctx.fillStyle=`rgba(255,220,210,${(tw-0.6)*2*k})`;ctx.fillRect(c.x+Math.cos(a)*r-0.8,c.y+Math.sin(a)*r*0.75-0.8,1.6,1.6)}}
+    ctx.globalAlpha=1});
+  (S.fracFx||[]).forEach(f=>{const k=Math.min(1,(t-f.t0)/0.7);glUse();const sp=[];for(let i=0;i<16;i++){const a=i/16*Math.PI*2,r=8+k*FRAC_BURST_R*(0.6+glHash(i,9,9)*0.4);sp.push(glShard(f.x+Math.cos(a)*r,f.y+Math.sin(a)*r*0.75,Math.sin(k*Math.PI)*16,a,7,2.4,1))}
+    ctx.globalAlpha=1-k*0.6;glSpires(sp,{col:[200,50,50]});ctx.globalAlpha=1})}
+
 // ---- what each one is and does ----
 // Stalker: slow and tall, its arms reach STALK_REACH past an ordinary enemy's, so it hits the unit
 //   behind the front rank or the one manning a wall; each lunge is telegraphed (claws spread, core flares).
@@ -6754,7 +6879,7 @@ function terrainAt(x,y){
   return terrain[cy*TGX+cx];
 }
 // Movement slowdown for anything that isn't the Rig — mud and rift both count as rough ground.
-function roughFactor(x,y){const v=terrainAt(x,y),f=(v===1||v===RIFT)?MUD_MULT:1;return S.smears&&S.smears.length&&inSmear(x,y)?f*SMEAR_SLOW:f}
+function roughFactor(x,y){const v=terrainAt(x,y);let f=(v===1||v===RIFT)?MUD_MULT:1;if(S.caltrops&&S.caltrops.length&&inCaltrops(x,y))f*=CAL_SLOW;return S.smears&&S.smears.length&&inSmear(x,y)?f*SMEAR_SLOW:f}
 // Enemies are native to the rift — only mud slows them down, so they can't be kited into a rift
 // lobe to buy free time the way a player unit's own mud penalty would.
 function enemyRoughFactor(x,y){return terrainAt(x,y)===1?MUD_MULT:1}
@@ -9196,7 +9321,7 @@ function revealCircle(x,y,r){
   fogX.fillStyle=g;fogX.beginPath();fogX.arc(x/FOG_S,y/FOG_S,r/FOG_S,0,Math.PI*2);fogX.fill();
 }
 // src: who fired, for direct fire only (the Shieldbearer's shields stop it from in front)
-function damageEnemy(e,d,src){if(e.boss&&src&&bossBlock(e,src,d))return;if(e.mega&&megaShelled()){shellPing(e);return}if(e.markT>0)d*=SPOT_MULT;e.hp-=d;hitFlash(e);spark(e.x,e.y,C.accent,2)}
+function damageEnemy(e,d,src){if(e.boss&&src&&bossBlock(e,src,d))return;if(e.mega&&megaShelled()){shellPing(e);return}if(!e._share&&e.choir&&choirShare(e,d))return;if(e.markT>0)d*=SPOT_MULT;e.hp-=d;hitFlash(e);spark(e.x,e.y,C.accent,2)}
 // Grenadier round: travels to where the target is right now (not a lead/intercept shot) and
 // explodes there, splashing every enemy within GREN_SPLASH_R of the landing point.
 // Shared by Grenadier rounds and the Big Guns artillery shell — opts lets a shell carry its own
@@ -9767,6 +9892,7 @@ function spawnVeinWave(v,o){
   {const top=feeders.length?feeders.reduce((p,q)=>NEST[q.size].feed>NEST[p.size].feed?q:p):null,a=v.waveDir;
     if(top){const d=dist(top,v)||1;spawnLancers(v,{x:top.x+(v.x-top.x)/d*(top.r+30),y:top.y+(v.y-top.y)/d*(top.r+30)})}
     else spawnLancers(v,{x:v.x+Math.cos(a)*WAVE_SPAWN_DIST,y:v.y+Math.sin(a)*WAVE_SPAWN_DIST})}
+  denseSpecials(v,feeders,big);
   // (v4: a share of each wave used to spawn out past the most-strained Stabilizer, from a side the
   // warning never showed — removed, so a wave only ever comes from where it was warned)
   const strainMsg='';
@@ -11024,6 +11150,7 @@ function update(dt){
       }
       return;
     }
+    if(e.kind==='burrower'){burrowerStep(e,dt);return}
     if(e.pack&&e.pack.phase==='muster'){musterStep(e,dt);return}
     // horde: re-pick a target only a few times a second
     if(e.kind==='lancer'){lancerStep(e,dt);return}
@@ -11069,6 +11196,7 @@ function update(dt){
     e.target=tgt;
     if(e.horde&&tgt){e._tT=S.t+rnd(0.25,0.45);hordeStep(e,tgt,dt);return}
     if(e.kind==='splinter'&&tgt){splinterStep(e,tgt,dt);return}
+    if(e.kind==='choir'&&tgt){choirStep(e,tgt,dt);return}
     if(e.shard&&tgt&&shardStep(e,tgt,dt))return;
     // face whoever they're engaging; otherwise idle fidget with a random heading
     if(tgt)e.ang=Math.atan2(tgt.y-e.y,tgt.x-e.x);
@@ -11088,6 +11216,7 @@ function update(dt){
     }
     const reach=e.r+(tgt.r||12)+4;
     if(dist(e,tgt)<=reach&&!wallBetween(e,tgt,true)){
+      if(e.kind==='fracture'){e.hp=0;return} // a Fracture bursts on whatever it reaches
       if(e.cd<=0){
         tgt.hp-=structHit(tgt,allyHit(tgt,e.dmg,e),'melee',e); tgt.lastHitBy='enemy'; hitFlash(tgt); spark(tgt.x,tgt.y,C.enemy,2); e.cd=0.8; e.atkT=S.t;
         if(tgt===B){shakeScreen(3,0.15);sndAt(tgt.x,tgt.y,()=>sfx.damage())}
@@ -11098,9 +11227,9 @@ function update(dt){
     const dx=aim.x-e.x,dy=aim.y-e.y,L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L,look=e.r+6,perp=e.r*0.6;
     const probes=[{x:e.x+ux*look,y:e.y+uy*look},{x:e.x+ux*look-uy*perp,y:e.y+uy*look+ux*perp},{x:e.x+ux*look+uy*perp,y:e.y+uy*look-ux*perp}];
     let w=null; for(const pt of probes){w=wallAt(pt.x,pt.y,true); if(w)break}
-    if(w){if(e.cd<=0){damageWall(w,e.dmg*1.5);spark(w.x,w.y,C.enemy,2);e.cd=0.8;wallTouch(w,e)}return}
+    if(w){if(e.kind==='fracture'){e.hp=0;return}if(e.cd<=0){damageWall(w,e.dmg*1.5);spark(w.x,w.y,C.enemy,2);e.cd=0.8;wallTouch(w,e)}return}
     const factor=enemyPace(e);
-    moveToward(e,aim,e.speed*factor,dt);
+    moveToward(e,aim,e.speed*factor*(e.linkT>S.t?CHOIR_HASTE:1),dt);
   });
   // enemy separation — crowd pressure must not shove anyone clean through a wall
   // (sort-and-sweep on x: only pairs whose x gap is under the largest possible overlap are checked)
@@ -11123,6 +11252,7 @@ function update(dt){
     if(e.silent)return false;
     if(e.boss){bossDied(e);return false}
     stat('kills');
+    if(e.kind==='fracture')fractureBurst(e);
     if(e.shard==='colossus'){S.nodes.push({x:e.x,y:e.y,amt:COL_DAT,max:COL_DAT,found:true});burst(e.x,e.y,SH_HOT,34,200,0.8);burst(e.x,e.y,'#1a0a0c',26,150,0.9);shakeScreen(6,0.4);sndAt(e.x,e.y,()=>sfx.explode());msg(`Colossus down — it dropped ${COL_DAT} Dat.`);return false}
     if(e.shard==='husk')bruteDeaths.push({x:e.x,y:e.y,husk:true,seed:e.seed});
     if(e.kind==='quaker'){S.nodes.push({x:e.x,y:e.y,amt:QUAKER_DAT,max:QUAKER_DAT,found:true});burst(e.x,e.y,'#c9a46b',26,170,0.7);sndAt(e.x,e.y,()=>sfx.kill());msg(`Quaker down — it dropped ${QUAKER_DAT} Dat.`);return false}
@@ -11196,7 +11326,7 @@ function update(dt){
   S.tracers=S.tracers.filter(t=>(t.t-=dt)>0);
   if(!S.shardShots)S.shardShots=[];updateShardShots(dt);
   if(!S.lances)S.lances=[];updateLances(dt);updatePointDefence(dt);
-  if(!S.fires)S.fires=[];if(!S.kits)S.kits={};updateKitEffects(dt);updateFieldRelays(dt);updateBoss(dt);
+  if(!S.fires)S.fires=[];if(!S.kits)S.kits={};updateKitEffects(dt);updateFieldRelays(dt);updateBoss(dt);updateBurrows(dt);updateCaltrops(dt);
   if(!S.smears)S.smears=[];updateSmears();
   S._nadeBirth=[]; // projectiles launched by an explosion (cluster bomblets) join after this pass
   S.nades=S.nades.filter(n=>{n.t+=dt;if(n.track&&n.track.hp>0&&S.enemies.includes(n.track)){n.tx=n.track.x;n.ty=n.track.y}const pt=Math.min(1,n.t/n.dur);n.x=n.x0+(n.tx-n.x0)*pt;n.y=n.y0+(n.ty-n.y0)*pt;if(pt>=1){explodeNade(n);return false}return true});
@@ -12511,7 +12641,7 @@ function draw(){
   // the Mega Nest's mountain goes down before the Rig and units, so they're drawn over it (see the enemy pass)
   S.enemies.forEach(e=>{if(e.kind==='nest'&&e.mega&&(debugNoFog||e.seen))drawNest(e)});
   // the Rig: the Needle tower
-  drawLava(); // magma the Shieldbearer breathed, on the ground under everything
+  drawLava();drawDenseGround(x0,y0,x1,y1); // Burrower cracks, caltrops; magma the Shieldbearer breathed, on the ground under everything
   drawPOIs(); // wrecks and beacons lie on the ground, under the Rig and units
   // cables run under the Rig's turret, hanging from beneath it
   const ldg=S.landing&&!S.landing.touch;if(!ldg)drawTethers();drawDrones(true);drawRigTower(B);drawBolts();drawRigTop(B);if(!ldg)drawTethersFront();drawDrillReadout(B);if(!S.landing)hpbar(B.x,B.y-RIG_TOP-(B._hov||0)*0.5-8,B.r*2,B.hp/B.maxHp);drawRiftMeter(B);
@@ -12589,7 +12719,7 @@ function draw(){
     ctx.globalAlpha=1});
   drawRig();drawStrand();positionPoiBtns();
   // enemies (only visible)
-    drawSmears();
+    drawSmears();drawChoirThreads();
   S.enemies.forEach(e=>{if(e.kind==='nest'){if(!e.mega&&(debugNoFog||e.seen))drawNest(e);return}
     if(e.kind==='quaker'){if(debugNoFog||visible(e))drawQuaker(e);return}
     if(e.horde){if(e.x<x0-10||e.x>x1+10||e.y<y0-10||e.y>y1+10||(!debugNoFog&&!visible(e)))return; // horde: one baked glass splinter each
@@ -12599,6 +12729,9 @@ function draw(){
     if(e.shard||e.kind==='huskcore'){if(e.x>x0-90&&e.x<x1+90&&e.y>y0-90&&e.y<y1+90)drawShard(e);return}
     if(e.kind==='brute'){if(e.x>x0-90&&e.x<x1+90&&e.y>y0-90&&e.y<y1+90)drawBrute(e);return}
     if(e.kind==='swarm'){if(e.x>x0-30&&e.x<x1+30&&e.y>y0-30&&e.y<y1+30)drawSwarmling(e);return}
+    if(e.kind==='choir'){drawChoir(e);return}
+    if(e.kind==='fracture'){drawFracture(e);return}
+    if(e.kind==='burrower'){drawBurrower(e);return}
     if(e.kind==='splinter'){drawSplinter(e);if(e.hp<e.maxHp)hpbar(e.x,e.y-e.r-10,e.r*2+4,e.hp/e.maxHp);return}
     if(e.kind==='wave'||e.kind==='roam'){drawEcho(e);if(e.hp<e.maxHp)hpbar(e.x,e.y-e.r-14,e.r*2+4,e.hp/e.maxHp);return}
     if(e.kind==='lancer'){drawLancer(e);return}
