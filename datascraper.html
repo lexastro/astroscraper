@@ -1483,7 +1483,7 @@ function updateRig(dt){
   const v=r.vein;
   if(!r.seen&&visible(r)){r.seen=true;v.seen=true;v.mine.found=true;msg(`A derelict mining rig, stranded in the rift with its Stabilizers still pinned. Link it with a Relay and spend ${RIG_DAT} Dat to bring it online (button, or G) — then its vein can be drilled.`);updateBuildBar()}
   if(S.activeVein===v){
-    if(!rigLinked()){if(!v.paused){v.paused=true;v.rigCut=true;banner('The derelict rig has lost its Relay link — drilling is paused until it is reconnected.','danger')}}
+    if(!rigLinked()){if(!v.paused){v.paused=true;v.rigCut=true;banner('Derelict rig cut off — drilling paused.','danger')}}
     else if(v.rigCut){v.paused=false;v.rigCut=false;msg('Derelict rig link restored — drilling resumes.')}
   }
   // its distress signal: every so often, until someone has found it, a ping and a bearing — and a pulsing
@@ -2261,13 +2261,13 @@ function openSeam(v){const m=v.meter;
   for(let k=0;k<12;k++){const side=Math.random()<0.5?-1:1,x=side*rnd(SEAM_OFF[0],SEAM_OFF[1]),p=m.anchor+x*ZOOM_HALF;
     if([x-SEAM_HW,x,x+SEAM_HW].some(q=>stripAt(m.strip,m.anchor+q*ZOOM_HALF).red))continue;
     m.seam={x,hw:SEAM_HW,t:Math.max(SEAM_LIFE,SEAM_LIFE_FRAC*v.richness/(DRILL_RATE*S.mods.drillRateMult)),hold:0,rx:rnd(-SEAM_RED_OFF,SEAM_RED_OFF)*SEAM_HW,rhw:SEAM_RED_HW0,age:0};
-    banner(`A SEAM has opened on the drill meter, off to the ${side<0?'left':'right'} — steer the needle into it for ${SEAM_HOLD}s before it closes and the vein pays a second reward. Mind the red sliver growing inside it.`,'success');
+    banner(`SEAM open — ${side<0?'left':'right'}. Hold the needle in it ${SEAM_HOLD}s; avoid the red sliver.`,'success');
     tone(1320,0.12,'sine',0.06);tone(1760,0.2,'sine',0.05,0.1);if(!tutorial&&!tutorialMap)seamHulks(v);return}
   m.seamDone=true}
 function overdrillChoice(go){const v=S.activeVein,m=v&&v.meter;if(!m||m.over!=='offer')return;
   if(!go){m.over='bank';sfx.click();return}
   m.over='run';m.overT=0;sfx.wave();shakeScreen(5,0.4);spawnVeinWave(v,{hulks:tutorial||tutorialMap?0:HULK_OVER[v.band]||0});
-  banner(`OVERDRILL — hold the needle out of the closing red for ${OVER_T}s for a second reward. Rupture and you lose everything this vein would pay.`,'danger')}
+  banner(`OVERDRILL — stay out of the red for ${OVER_T}s. A rupture loses everything.`,'danger')}
 function beginStrike(v){v.meter={phase:'strike',strip:buildStrip(v),p:rnd(0,1),dir:rnd(0,1)<0.5?1:-1,t:0};updateMeterUI()}
 function strikeReady(){const v=S.activeVein;return !!(v&&v.meter&&v.meter.phase==='strike'&&!S.paused&&!S.tacPause&&!S.rewardChoice&&!S.over)}
 function doStrike(){
@@ -2292,7 +2292,7 @@ function updateMeter(v,dt){
   if(m.phase!=='drill'||v.paused)return;
   if(m.over==='offer'){m.offerT=(m.offerT??OVER_OFFER_T)-dt;if(m.offerT<=0)m.over='bank'}
   if(m.over==='run'){m.overT+=dt;m.safe=1-(1-OVER_SAFE_MIN)*Math.min(1,m.overT/OVER_T);
-    if(m.overT>=OVER_T){m.over='won';v.bonus=(v.bonus||0)+1;banner('Overdrill held! The vein pays a second reward.','success');stat('overdrills');sfx.win();burst(v.mine.x,v.mine.y,C.accent,36,200,0.9)}}
+    if(m.overT>=OVER_T){m.over='won';v.bonus=(v.bonus||0)+1;banner('Overdrill held! Second reward.','success');stat('overdrills');sfx.win();burst(v.mine.x,v.mine.y,C.accent,36,200,0.9)}}
   const sv=steerState(v), K=(METER_K_BASE+METER_K_STAB*stabHold(v))*(1+0.5*sv.sh.auth)*(1-STEER_WOBBLE*sv.L), sig=METER_TURB[m.anchorTier]*(m.over==='run'?OVER_TURB:1);
   // v4: the Stabilizers take a while to bring the needle round — it's pulled toward m.aim, which
   // only catches up with where the weight points over STEER_LAG seconds, so a last-second swing
@@ -2316,7 +2316,7 @@ function updateMeter(v,dt){
   // for RED_GRACE seconds; get the needle out in time and it drains away again (RED_RECOVER × as
   // fast). No yield is earned while the needle sits in the red.
   if(here.red){
-    if(!m.inRed){m.inRed=true;banner('ALARM — the drill needle is in the red! Steer it back out before the vein ruptures.','danger')}
+    if(!m.inRed){m.inRed=true;banner('ALARM — needle in the red! Steer out.','danger')}
     m.redT=(m.redT||0)+dt;
     m.alarmT=(m.alarmT||0)-dt;if(m.alarmT<=0){m.alarmT=0.3;m.alarmHi=!m.alarmHi;tone(m.alarmHi?980:740,0.13,'square',0.07)}
     if(m.redT>=RED_GRACE){ruptureVein(v,'The drill needle stayed in the red too long — the vein ruptured!');return}
@@ -2330,7 +2330,7 @@ function updateMeter(v,dt){
   for(const t in m.share){m.share[t]+=((t===here.tier?1:0)-m.share[t])*k;if(m.share[t]>bs){bs=m.share[t];best=t}}
   // v4: say so the moment the payout changes — a slip is loud (it's easy to miss while you're fighting)
   if(best!==m.yieldTier){const down=tierRank(best)<tierRank(m.yieldTier);
-    if(down){banner(`YIELD SLIPPED to ${tierName(best)} — steer the needle back onto the ${tierName(m.yieldTier)} band!`,'danger');tone(660,0.16,'triangle',0.08,0,440);tone(520,0.22,'triangle',0.07,0.17,330)}
+    if(down){voxHear(`YIELD SLIPPED to ${tierName(best)}`);/* (no banner: the meter shows it) */tone(660,0.16,'triangle',0.08,0,440);tone(520,0.22,'triangle',0.07,0.17,330)}
     else{msg(`Yield climbed to ${tierName(best)}.`);tone(660,0.12,'sine',0.06,0,880);tone(880,0.18,'sine',0.05,0.12,1175)}}
   m.yieldTier=best;
   // drifting: the needle sits on a lower band than the one being paid, so the yield is about to slip
@@ -2343,7 +2343,7 @@ function updateMeter(v,dt){
   if(!m.seamDone&&!m.seam&&!m.over&&v.drillProg>=m.seamAt*v.richness)openSeam(v);
   if(m.seam){const sm=m.seam;
     if(Math.abs(m.x-sm.x)<=sm.hw){sm.hold+=dt;sm.inT=(sm.inT||0)+dt;if(sm.inT>0.5){sm.inT=0;tone(1320+440*sm.hold/SEAM_HOLD,0.05,'sine',0.03)}}
-    if(sm.hold>=SEAM_HOLD){m.seam=null;m.seamDone=true;v.bonus=(v.bonus||0)+1;banner('Seam tapped! The vein will pay a second reward.','success');stat('seams');sfx.win();burst(v.mine.x,v.mine.y,'#6ff0ff',30,180,0.8)}
+    if(sm.hold>=SEAM_HOLD){m.seam=null;m.seamDone=true;v.bonus=(v.bonus||0)+1;banner('Seam tapped! Second reward.','success');stat('seams');sfx.win();burst(v.mine.x,v.mine.y,'#6ff0ff',30,180,0.8)}
     else if(sm.t<=0){m.seam=null;m.seamDone=true;msg('The seam closed.')}}
 }
 // A failed strike or a needle that drifts into the red: the vein blows. The Rig takes a hit
@@ -2363,7 +2363,7 @@ function ruptureVein(v,why){
   if(v.contract){v.drillProg=0;v.crackedT=CRACKED_T}else collapseVein(v,true);
   burst(v.x,v.y,C.enemy,46,260,1.0); burst(v.x,v.y,'#ffb36b',24,200,0.7);
   sndAt(v.x,v.y,()=>sfx.explode()); shakeScreen(12,0.7);
-  banner(`${why} The Rig took ${dmg} damage, and ${v.contract?`the contract vein needs ${CRACKED_T}s to settle before it can be struck again`:'the vein has collapsed'}.`,'danger');
+  banner(`Vein ruptured! The Rig took ${dmg} damage${v.contract?` — strike again in ${CRACKED_T}s`:''}.`,'danger');
   updateMeterUI(true); updateBuildBar();
 }
 // Draws the drill meter panel (called every frame from hud()). The view is a window onto the
@@ -2698,7 +2698,7 @@ function updateVeinLife(dt){
     if(!v.seen)return;
     // v4: only the vein the Rig is sitting on warns that it's unstable (once, whether it turns while
     // you're there or you roll onto one already turning); the rest go unstable quietly
-    if(isUnstable(v)&&!v.unstableWarned&&dist(S.base,v.mine)<BASE_R+18){v.unstableWarned=true;banner('The vein under the Rig has gone unstable — it will collapse soon.','danger')}
+    if(isUnstable(v)&&!v.unstableWarned&&dist(S.base,v.mine)<BASE_R+18){v.unstableWarned=true;banner('The vein under the Rig is unstable — it will collapse soon.','danger')}
   });
   // spent veins linger as dark cracks, then free their site and queue a replacement
   // (the replacement's countdown starts the moment a vein dies, not once it's finished fading)
@@ -3022,14 +3022,14 @@ function corruptUnit(u,type,label,reason){
     S.enemies.forEach(e=>{if(dist(e,u)<=MARTYR_R)damageEnemy(e,MARTYR_DMG)});
     S.troops.concat(S.harvesters).concat(S.builders).forEach(a=>{if(a!==u&&dist(a,u)<=MARTYR_R){a.hp-=MARTYR_DMG;a.lastHitBy='martyr';hitFlash(a)}});
     if(dist(S.base,u)<=MARTYR_R){S.base.hp-=MARTYR_DMG;hitFlash(S.base)}
-    banner(fallen?`${label} detonated as it rose again!`:`${label} lost its mind and detonated!`,'danger');
+    banner(`${label} detonated!`,'danger');
     burst(u.x,u.y,C.enemy,24,180,0.6);sndAt(u.x,u.y,()=>sfx.explode());shakeScreen(7,0.35);
     return;
   }
   const st=CORRUPT_STATS[type];
   S.enemies.push({x:u.x,y:u.y,r:st.r,hp:st.hp,maxHp:st.hp,speed:st.speed,dmg:st.dmg,cd:0,kind:'corrupted',unit:type,seed:Math.floor(Math.random()*9999),
     target:null,aggro:1e9,home:{x:u.x,y:u.y},ang:rnd(0,Math.PI*2),faceT:rnd(1,3),stunT:0});
-  banner(fallen?`${label} has risen again — corrupted and hostile!`:`${label} lost its mind and turned hostile!`,'danger');
+  banner(fallen?`${label} rose again — hostile!`:`${label} turned hostile!`,'danger');
   burst(u.x,u.y,C.zone,16,130,0.5);sndAt(u.x,u.y,()=>sfx.sever());shakeScreen(5,0.25);
 }
 // Death by enemy hands isn't the end: a unit an enemy kills lies still for REANIMATE_T, then rises
@@ -4309,7 +4309,7 @@ function tutSpawnDemo(again){
   const v=emergeVein(site,{ripeT:0,guards:false});v.tutDemo=true;v.seen=true;v.mine.found=true;
   v.ripeT=ripePeakT(v)+1; v.lifeBonus=Math.max(0,left-(UNSTABLE_T-1)); // already unstable, with `left` seconds to go
   tutorial.demo=v;
-  if(again)banner('It collapsed — another vein nearby has just gone unstable. Be quicker this time!','danger');
+  if(again)banner('Vein collapsed — another nearby is now unstable.','danger');
 }
 // The deep-zone lessons: the Rig and its Troopers are set down on a corridor just inside the
 // Dense Field, with a wreck out in the rift far enough away that it takes two Relays to reach.
@@ -4825,14 +4825,14 @@ function spawnBoss(v){const hp=Math.round(BOSS_HP*(RUN?stopHpMult():1));
     ang:rnd(0,BTAU),stunT:0,seed:Math.floor(rnd(1,9e5)),o:1,vent:0,st:'emerge',stT:BOSS_EMERGE_T,sh:[BOSS_SHIELD_HP,BOSS_SHIELD_HP],brkT:[-9,-9],breathCd:3,wk:0,vein:v,t0:S.t};
   e.da=e.ang;S.enemies.push(e);S.bossSpawned=true;
   shakeScreen(9,1.2);sndAt(e.x,e.y,()=>{sfx.explode();tone(70,1.6,'sawtooth',0.07,0,40)});
-  banner('The Shieldbearer climbs out of the contract vein. It guards the vein: bring it down before you can drill.','danger')}
+  banner('The Shieldbearer guards the contract vein — bring it down.','danger')}
 function bossWatch(){if(S.bossSpawned)return;const v=S.veins.find(x=>x.contract&&veinAlive(x));if(!v)return;
   const near=r=>dist(S.base,v.mine)<r||S.troops.some(u=>u.hp>0&&dist(u,v.mine)<r);
   if((v.mine.found&&near(BOSS_WAKE_R))||near(260))spawnBoss(v)}
 function bossShieldBreak(e,i){if(e.sh[i]<=0&&e.brkT[i]>0)return;e.sh[i]=0;e.brkT[i]=S.t;const a=e.da+(i?1:-1)*0.9,p={x:e.x+Math.cos(a)*55,y:e.y+Math.sin(a)*55};
   burst(p.x,p.y,BSL2,22,170,0.8);burst(p.x,p.y,BM,14,140,0.6);shakeScreen(6,0.4);sndAt(p.x,p.y,()=>{noiseCrack(0.25,0.12,500);tone(120,0.5,'square',0.05,0,50)});
   (S.bossDebris||(S.bossDebris=[])).push({x:p.x,y:p.y,ang:e.da+(i?0.4:-0.4),t0:S.t,seed:i?23:11,cc:{}});
-  banner(`The Shieldbearer's ${i?'right':'left'} shield cracks off. That side is open.`,'info')}
+  }
 // does this hit break on a shield? Direct fire only (callers pass src); it chips the shield it hits
 function bossBlock(e,src,d){if(e.st==='emerge')return true;
   if(e.o>0.5)return false;let rel=Math.atan2(src.y-e.y,src.x-e.x)-e.da;rel=Math.atan2(Math.sin(rel),Math.cos(rel));if(Math.abs(rel)>BOSS_ARC)return false;
@@ -4847,7 +4847,7 @@ function bossStep(e,dt){e.stunT=0;e.kbx=0;e.kby=0;e.cd-=dt;
   if(e.st==='emerge'){e.stT-=dt;e.o=1;if(e.stT<=0){e.st='walk';e.o=1}return}
   const f=e.hp/e.maxHp;
   if(f<BOSS_CRACK_AT&&e.sh[0]>0&&e.sh[1]>0)bossShieldBreak(e,e.sh[0]<e.sh[1]?0:1);
-  if(f<BOSS_ENRAGE&&!e.enraged){e.enraged=true;[0,1].forEach(i=>{if(e.sh[i]>0)bossShieldBreak(e,i)});banner('The Shieldbearer is bare and burning: it breathes far more often now.','danger')}
+  if(f<BOSS_ENRAGE&&!e.enraged){e.enraged=true;[0,1].forEach(i=>{if(e.sh[i]>0)bossShieldBreak(e,i)});banner('Shieldbearer exposed — it breathes more often now.','danger')}
   const rage=e.enraged?1.5:1;
   // target: the nearest of yours inside its aggro range, but it won't follow you far from the vein
   let tgt=null,bd=e.aggro;bossTargets().forEach(u=>{if(u.hp<=0)return;const d=dist(u,e);if(d<bd&&dist(u,e.home)<BOSS_LEASH+BOSS_AGGRO*0.6){bd=d;tgt=u}});e.target=tgt;
@@ -4882,7 +4882,7 @@ function bossDied(e){const v=e.vein;S.bossDone=true;
   for(let i=0;i<7;i++){const a=rnd(0,BTAU),r=rnd(10,70);addLava(e.x+Math.cos(a)*r,e.y+Math.sin(a)*r,rnd(16,28))}
   [0,1].forEach(i=>{if(e.sh[i]>0)(S.bossDebris||(S.bossDebris=[])).push({x:e.x+Math.cos(e.da+(i?1:-1)*0.9)*55,y:e.y+Math.sin(e.da+(i?1:-1)*0.9)*55,ang:e.da,t0:S.t,seed:i?23:11,cc:{}})});
   shakeScreen(14,1);sndAt(e.x,e.y,()=>{sfx.explode();tone(60,1.4,'sawtooth',0.08,0.1,30)});stat('kills');
-  banner(`The Shieldbearer falls! The contract vein is open, and it left ${BOSS_DAT} Dat.`,'info')}
+  banner(`Shieldbearer down! The contract vein is open (+${BOSS_DAT} Dat).`,'info')}
 function drawBoss(e){const t=S.t+e.seed%50,dmg=Math.max(0,Math.min(1,1-e.hp/e.maxHp)),sh=[e.sh[0]/BOSS_SHIELD_HP,e.sh[1]/BOSS_SHIELD_HP],
     brk=[0,1].map(i=>{const u=(S.t-e.brkT[i])/0.6;return u>=0&&u<1?u:0});
   let al=1;if(e.st==='emerge'){const u=1-e.stT/BOSS_EMERGE_T;al=Math.min(1,Math.max(0,(u-0.25)/0.6));
@@ -5053,7 +5053,7 @@ function colossusSlam(e){const fx=e.x+Math.cos(e.ang)*(e.r+10),fy=e.y+Math.sin(e
   for(const rr of [8,28,48,66])for(let i=0;i<12;i++){const a=i/12*Math.PI*2,w=wallAt(fx+Math.cos(a)*rr,fy+Math.sin(a)*rr);if(w)hit.add(w)}
   hit.forEach(w=>damageWall(w,COL_WALL_DMG));e.ringAt=S.t;e.rx=fx;e.ry=fy;burst(fx,fy,'#3a0910',16,170,0.5);shakeScreen(5,0.3);sndAt(fx,fy,()=>sfx.explode())}
 function spawnColossus(v){const c0=waveSources(v)[0],cd=Math.hypot(v.x-c0.x,v.y-c0.y)||1,c={x:c0.x+(v.x-c0.x)/cd*70,y:c0.y+(v.y-c0.y)/cd*70},p=nearestPlain(Math.max(60,Math.min(W-60,c.x)),Math.max(60,Math.min(H-60,c.y)));spawnShard(p.x,p.y,'colossus','wave');
-  banner(`A Colossus is coming from the ${compassName(Math.atan2(p.y-v.y,p.x-v.x))||'dark'}. Its trail slows your units and its fists hit everything round them — burst its three cores.`,'danger');sfx.wave()}
+  banner(`A Colossus is coming from the ${compassName(Math.atan2(p.y-v.y,p.x-v.x))||'dark'} — burst its three cores.`,'danger');sfx.wave()}
 // the smear a Colossus leaves: slows your units while it lasts
 function updateSmears(){if(S.smears.length&&S.t-S.smears[0].t>SMEAR_LIFE)S.smears=S.smears.filter(p=>S.t-p.t<=SMEAR_LIFE)}
 function inSmear(x,y){const M=S.smears;for(let i=0;i<M.length;i++){const dx=M[i].x-x,dy=M[i].y-y;if(dx*dx+dy*dy<SMEAR_R*SMEAR_R)return true}return false}
@@ -5165,7 +5165,7 @@ function spawnQuaker(v){
   const core=bandAt(p.x,p.y)==='core', hp=Math.round(QUAKER_HP*(core?CORE_ENEMY_HP_MULT:1)*stopHpMult());
   S.enemies.push({x:p.x,y:p.y,r:QUAKER_R,hp,maxHp:hp,speed:QUAKER_SPEED,dmg:0,cd:0,kind:'quaker',core,target:null,aggro:0,home:{x:p.x,y:p.y},
     ang:rnd(0,Math.PI*2),faceT:9,stunT:0,vein:v,ring:rnd(QUAKER_STANDOFF[0],QUAKER_STANDOFF[1]),post:null,jumpT:rnd(4,7),air:0,airT:0,from:null,land:null});
-  banner(`A Quaker is lumbering in from the ${compassName(a)||'dark'} — it keeps its distance and pounds the ground to throw your drill off. Send units out to kill it.`,'danger');
+  banner(`A Quaker is lumbering in from the ${compassName(a)||'dark'} — send units to kill it.`,'danger');
   sfx.wave();
 }
 function quakerPost(e,ang){const v=e.vein;return nearestPlain(Math.max(60,Math.min(W-60,v.x+Math.cos(ang)*e.ring)),Math.max(60,Math.min(H-60,v.y+Math.sin(ang)*e.ring)))}
@@ -5181,7 +5181,7 @@ function quakeAt(e){
   if(m&&m.phase==='drill'){const sv=steerState(v), away=m.x-sv.target;m.x+=(away?Math.sign(away):(Math.random()<0.5?-1:1))*QUAKER_KICK*f}
   veinStabs(v).forEach(st=>{st.hp-=structHit(st,QUAKER_STAB_DMG*f,'blast');st.lastHitBy='enemy';hitFlash(st)});
   S.quakes.push({x:v.x,y:v.y,r:0,t:0,soft:true});
-  if(!S.quakeMsg){S.quakeMsg=true;banner('A Quaker\'s landing jolted the drill needle and shook the Stabilizers — kill it before it throws the drill into the red.','danger')}
+  if(!S.quakeMsg){S.quakeMsg=true;banner('A Quaker jolted the drill — kill it!','danger')}
 }
 function updateQuaker(e,dt){
   const v=e.vein;
@@ -5323,7 +5323,6 @@ function updateNests(dt){
       if(n.growT<=0){
         const ns=NEST_SIZES[NEST_SIZES.indexOf(n.size)+1], M=NEST[ns], f=n.hp/n.maxHp;
         n.size=ns;n.r=M.r;n.maxHp=Math.round(M.hp*stopHpMult());n.hp=Math.round(n.maxHp*f);n.lastHp=n.hp;n.growT=M.growT||0;
-        if(n.seen)banner(`A nest has grown into a ${M.name}.`,'danger');
       }}
   });
   // new Small nests sprout in the fog
@@ -5340,11 +5339,11 @@ function nestDestroyed(n){stat('nests');if(n.mega)megaDied(n);
   let extra='';
   if(n.size!=='small'){
     Object.keys(FABS).forEach(k=>{const st=S.fab[k];if(st.n<FABS[k].charges){st.n++;if(st.n>=FABS[k].charges)st.rt=0}});
-    extra=' Every fabricator gains a charge.';
+    extra=' +1 fabricator charge.';
   }
   if(n.size==='large'||n.mega)extra+=salvageFab();
-  if(n.size!=='small')extra+=` You recovered a free ${giftCall(1)}.`;
-  banner(`${N.name} destroyed — drive over its Dat to collect it.${extra}`,'success');
+  if(n.size!=='small')extra+=` Free ${giftCall(1)}.`;
+  banner(`${N.name} destroyed — collect its Dat.${extra}`,'success');
   updateBuildBar();
 }
 // Salvage: a few free units of a kind you haven't unlocked yet (one Mech, two of anything else),
@@ -5378,8 +5377,7 @@ function updateMounds(dt){
       if(sl.nest&&sl.nest.hp>0&&S.enemies.includes(sl.nest)){sl.regrowT=MOUND_REGROW_T;return}
       if(visible(sl))return; // nothing regrows while you're watching
       sl.regrowT-=dt;
-      if(sl.regrowT<=0){sl.nest=makeNest(sl.x,sl.y,sl.size);sl.nest.hiveVein=v;sl.regrowT=MOUND_REGROW_T;
-        if(v.seen)banner(`A ${NEST[sl.size].name.toLowerCase()} has regrown around the ${v.contract?'contract vein':'hive'}.`,'danger')}
+      if(sl.regrowT<=0){sl.nest=makeNest(sl.x,sl.y,sl.size);sl.nest.hiveVein=v;sl.regrowT=MOUND_REGROW_T;}
     });
   });
 }
@@ -5904,7 +5902,7 @@ function spawnOffZonePatrol(){
     const p=nearestPlain(Math.max(20,Math.min(W-20,sx+px*lat+Math.cos(a)*dep)),Math.max(20,Math.min(H-20,sy+py*lat+Math.sin(a)*dep)));
     spawnEnemy(p.x,p.y,'wave');
   }
-  banner('A patrol has spotted your mining operation and is closing in.','danger');
+  banner('A patrol has spotted you.','danger');
   sfx.wave();
 }
 // Gameplay announcements render as a dismissible toast stack (see .toasts in the CSS) instead of
@@ -6903,7 +6901,7 @@ function cableLenPass(units){
     // path as an enemy chewing through it, which leaves the unit free to walk itself back.
     if(u.cableLen>maxCableLen){
       severUnit(u);
-      banner('A cable stretched too far and snapped — a unit has gone dark.','danger');
+      voxHear('A cable stretched too far and snapped');
       sndAt(u.x,u.y,()=>sfx.sever());
       return;
     }
@@ -6958,7 +6956,7 @@ function cableSeverPass(allUnits,dt){
       anySevered=true;
     }
   });
-  if(anySevered){banner('A cable was severed — a unit has gone dark.','danger');sfx.sever()}
+  if(anySevered){voxHear('A cable was severed');sfx.sever()}
 }
 
 // ---------- input ----------
@@ -8172,7 +8170,7 @@ function nearestBank(x,y){for(let r=1;r<=80;r++)for(let a=0;a<16;a++){const an=a
 function updateRiftShield(dt){const B=S.base;if(!S.mods.riftShield)return;if(B.riftSan==null){B.riftSan=1;B.riftOk=true}
   if(terrainAt(B.x,B.y)===RIFT){B.riftSan=Math.max(0,B.riftSan-RIFT_DRAIN*dt);
     if(B.riftSan<=0&&!B.riftShove){B.riftShove=true;B.riftOk=false;const g=nearestBank(B.x,B.y);B.dest={x:g.x,y:g.y};B._path=null;B._pg=null;B.locked=false;
-      banner("The Rig's Sanity ran dry over the rift — it is falling back to solid ground to recover.",'danger')}}
+      banner('The Rig lost its nerve over the rift — falling back.','danger')}}
   else{B.riftShove=false;B.riftSan=Math.min(1,B.riftSan+RIFT_FILL*dt);if(!B.riftOk&&B.riftSan>=RIFT_REARM){B.riftOk=true;msg('Rift Shielding has recovered — the Rig can cross rifts again.')}}}
 
 // ---------- the Rig: the Needle, a laser mining tower ----------
@@ -9424,7 +9422,7 @@ function startWaveWarn(v,lead){
   const big=nextWaveBig(v), src=waveSources(v);
   S.waveWarn={src,t0:S.t,end:S.t+Math.max(0.5,lead),big};
   const c=src[0],side=compassName(Math.atan2(c.y-v.y,c.x-v.x))||'near side';
-  if(big)banner(`The ground is shaking to the ${side}: a great wave is coming in ${Math.round(lead)}s.`,'danger');
+  if(big)banner(`Great wave from the ${side} in ${Math.round(lead)}s!`,'danger');
   sfx.rumble(1);
 }
 function updateWaveWarn(dt){
@@ -9563,7 +9561,7 @@ function spawnVeinWave(v,o){
   // (v4: a share of each wave used to spawn out past the most-strained Stabilizer, from a side the
   // warning never showed — removed, so a wave only ever comes from where it was warned)
   const strainMsg='';
-  const heavy=big?'A great wave, a whole brood,':th.tier==='Legendary'?'A huge wave':th.tier==='Epic'?'A heavy wave':'Wave';
+  const heavy=big?'Great wave':th.tier==='Legendary'?'Huge wave':th.tier==='Epic'?'Heavy wave':'Wave';
   const why=th.tier==='Epic'||th.tier==='Legendary'?` — the ${tierName(th.tier)} yield is drawing them in`:'';
   if(feeders.length){
     let left=n;
@@ -9573,7 +9571,7 @@ function spawnVeinWave(v,o){
     });
     const top=feeders[0];
     formPacks(v,packFrom,feeders.map(nn=>({x:nn.x,y:nn.y})),big);
-    banner(`${heavy} pouring out of ${feeders.length>1?feeders.length+' nests':'the nest'} to the ${compassName(Math.atan2(top.y-v.y,top.x-v.x))||'near side'}${why}.${strainMsg}`,'danger');
+    banner(`${heavy} incoming from the ${compassName(Math.atan2(top.y-v.y,top.x-v.x))||'near side'}!`,'danger');
     sfx.wave();return;
   }
   const a=v.waveDir, sx=v.x+Math.cos(a)*WAVE_SPAWN_DIST, sy=v.y+Math.sin(a)*WAVE_SPAWN_DIST;
@@ -9585,7 +9583,7 @@ function spawnVeinWave(v,o){
     if(rnd(0,1)<th.hunt)S.enemies[S.enemies.length-1].stabHunter=true;
   }
   formPacks(v,packFrom,packSrc,big);
-  banner(`${heavy} incoming from the ${compassName(a)||'near side'}${why}.${strainMsg}`,'danger');
+  banner(`${heavy} incoming from the ${compassName(a)||'near side'}!`,'danger');
   sfx.wave();
 }
 // A Trooper round: hits its target, then carries on along the same line to full range, hitting up to
@@ -10357,7 +10355,7 @@ function update(dt){
           const p=nearestPlain(Math.max(20,Math.min(W-20,sx+rnd(-100,100))),Math.max(20,Math.min(H-20,sy+rnd(-100,100))));
           spawnEnemy(p.x,p.y,'saboteur');S.enemies[S.enemies.length-1].sabTarget=target;
         }
-        banner(target.kind==='stabilizer'||S.stabs.includes(target)?'A saboteur swarm is creeping in on one of your Stabilizers.':'A saboteur swarm is massing on one of your Relays.','danger');
+        banner(target.kind==='stabilizer'||S.stabs.includes(target)?'Saboteurs heading for a Stabilizer.':'Saboteurs heading for a Relay.','danger');
         sfx.saboteurs();
       }
     }
@@ -10937,7 +10935,7 @@ function update(dt){
     }
     burst(p.x,p.y,SH_HOT,30,220,0.8);burst(p.x,p.y,SH_HOT2,12,120,0.5);
     shakeScreen(7,0.4);
-    banner('A Brute has burst apart — a swarm is pouring out of the wreckage!','danger');
+    
   });
   S.turrets.forEach(t=>{if(t.hp<=0&&!t.quiet){burst(t.x,t.y,C.accent,10,110,0.5);sndAt(t.x,t.y,()=>sfx.relayDown())}});
   S.turrets=S.turrets.filter(t=>t.hp>0);
@@ -10945,19 +10943,19 @@ function update(dt){
   // anchoring for anyone) until a repair-mode builder brings its HP back above zero.
   S.relays.forEach(r=>{
     if(r.hp<=0){
-      if(!r.wasDestroyed){r.wasDestroyed=true;r.tetherOk=false;r.trail=null;r.cableLen=0;r.cableMaxed=false;r.state=null;r.reconnectT=0;banner('A Relay was destroyed — repair it to bring it back online.','danger');burst(r.x,r.y,C.cable,10,110,0.5);sndAt(r.x,r.y,()=>sfx.relayDown());shakeScreen(4,0.2)}
+      if(!r.wasDestroyed){r.wasDestroyed=true;r.tetherOk=false;r.trail=null;r.cableLen=0;r.cableMaxed=false;r.state=null;r.reconnectT=0;banner('Relay destroyed — repair it.','danger');burst(r.x,r.y,C.cable,10,110,0.5);sndAt(r.x,r.y,()=>sfx.relayDown());shakeScreen(4,0.2)}
     } else if(r.wasDestroyed)r.wasDestroyed=false;
   });
   // a destroyed Depot stays put too — it just stops accepting deposits until repaired.
   S.depots.forEach(de=>{
     if(de.hp<=0){
-      if(!de.wasDestroyed){de.wasDestroyed=true;banner('A Depot was destroyed — repair it before harvesters can drop off there again.','danger');burst(de.x,de.y,C.dat,10,110,0.5);sndAt(de.x,de.y,()=>sfx.relayDown());shakeScreen(4,0.2)}
+      if(!de.wasDestroyed){de.wasDestroyed=true;banner('Depot destroyed — repair it.','danger');burst(de.x,de.y,C.dat,10,110,0.5);sndAt(de.x,de.y,()=>sfx.relayDown());shakeScreen(4,0.2)}
     } else if(de.wasDestroyed)de.wasDestroyed=false;
   });
   // a destroyed Stabilizer is gone for good — its hotspot comes loose and starts drifting again
   S.stabs.forEach(st=>{if(st.hp<=0){if(st.hot)st.hot.stab=null;
     {const m=st.vein&&st.vein.meter;if(m&&m.phase==='drill'&&(st.lastStrain||0)>0.1){m.x-=(st.steerDir||0)*STRAIN_KICK*st.lastStrain;shakeScreen(5,0.3)}}
-    if(!st.silent){burst(st.x,st.y,C.zone,14,130,0.5);sndAt(st.x,st.y,()=>sfx.relayDown());shakeScreen(3,0.2);banner('A Stabilizer was destroyed — the drill needle is slipping!','danger')}}});
+    if(!st.silent){burst(st.x,st.y,C.zone,14,130,0.5);sndAt(st.x,st.y,()=>sfx.relayDown());shakeScreen(3,0.2);banner('Stabilizer destroyed — the needle is slipping!','danger')}}});
   S.stabs=S.stabs.filter(st=>st.hp>0);
   // units killed by an enemy go down and, a moment later, get back up corrupted
   debugPass();
@@ -12666,16 +12664,16 @@ const VOX_VARS={tier:['common','rare','epic','legendary','hive'],side:['left','r
 // game text → event (first match wins; checked against every msg(), banner() and note()).
 // A capture group, if the pattern has one, is the {tier}/{side} fill-in.
 const VOX_HEAR=[
-  [/^YIELD SLIPPED to (\w+)/,'slip'],[/^Yield climbed to (\w+)/,'climb'],[/A SEAM has opened .*off to the (left|right)/,'seamOpen'],
+  [/^YIELD SLIPPED to (\w+)/,'slip'],[/^Yield climbed to (\w+)/,'climb'],[/^SEAM open — (left|right)/,'seamOpen'],
   [/^Seam tapped!/,'seamTapped'],[/^The seam closed/,'seamClosed'],[/^Vein tapped — /,'tapped'],[/^OVERDRILL — /,'overdrill'],[/^Overdrill held!/,'overWon'],
   [/^Stop \d+ of \d+ — the heart of the Core/,'stopFinal'],[/^Stop \d+ of \d+/,'stop'],
-  [/the way \w+ is open/,'breach'],[/gone unstable/,'unstable'],[/^A vein has collapsed/,'collapse'],
-  [/STRIKE!/,'ready'],[/^JACKPOT/,'jackpot'],[/^Struck at/,'struck'],[/drill needle is in the red/,'red'],
+  [/the way \w+ is open/,'breach'],[/is unstable|now unstable/,'unstable'],[/^A vein has collapsed/,'collapse'],
+  [/STRIKE!/,'ready'],[/^JACKPOT/,'jackpot'],[/^Struck at/,'struck'],[/needle in the red/,'red'],
   [/The Rig took \d+ damage/,'rupture'],[/drained at \w+ (?:tier|grade)/,'drained'],
-  [/ground is shaking/,'greatWave'],[/pouring out of|incoming from/,'wave'],[/patrol has spotted/,'patrol'],
-  [/A Colossus is coming/,'colossus'],[/A Quaker is lumbering/,'quaker'],[/destroyed — drive over its Dat/,'nest'],
-  [/cable .*(snapped|severed)/,'cable'],[/A Relay was destroyed/,'lostRelay'],[/A Stabilizer was destroyed/,'lostStab'],
-  [/turned hostile|corrupted and hostile|detonated/,'turned'],[/^Distress signal/,'distress'],
+  [/^Great wave from/,'greatWave'],[/pouring out of|incoming from/,'wave'],[/patrol has spotted/,'patrol'],
+  [/A Colossus is coming/,'colossus'],[/A Quaker is lumbering/,'quaker'],[/destroyed — collect its Dat/,'nest'],
+  [/cable .*(snapped|severed)/,'cable'],[/^Relay destroyed/,'lostRelay'],[/^Stabilizer destroyed/,'lostStab'],
+  [/turned hostile|— hostile!|detonated!/,'turned'],[/^Distress signal/,'distress'],
   [/Need ◆|costs ◆|need ◆/,'noDat'],[/(Trooper|\w+) limit \d+/,'cap'],
 ];
 // spoken guidance for each tutorial step, by its title
