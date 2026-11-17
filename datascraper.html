@@ -3740,6 +3740,10 @@ const dbgSkip=dbgButton('Next map',()=>{
   if(!RUN||!S||S.over||tutorialMap||stopInfo().final){msg('Debug: no next map to skip to');return}
   if(dbgGod&&dbgDatSave)dbgDatSave.S=null;RUN.carry=captureCarry();
   if(RUN.sector){S.paused=true;showSector(RUN.stop+1,`Stop ${RUN.stop+1} skipped (debug)`)}else advanceStop()}); // (with a sector map you pick the next stop on it)
+// restart this stop from how you arrived (same stop on the sector map, a freshly rolled map), to try a change
+const dbgRestart=dbgButton('Restart stop',()=>{
+  if(!RUN||!S||tutorialMap){msg('Debug: no stop to restart');return}
+  if(dbgGod&&dbgDatSave)dbgDatSave.S=null;S.over=null;document.getElementById('overlay')._hd=true;buildStop(RUN.stopCarry||null)});
 const dbgGodBtn=dbgButton('God mode: off',()=>setGod(!dbgGod)),dbgInvBtn=dbgButton('Invincible units: off',()=>setInvuln(!dbgInvuln));
 // v4: Give card — a searchable list of every reward card in every tier; click one to apply it right
 // away (the game pauses while the list is open). Cards you already hold, or that can't apply yet, are
