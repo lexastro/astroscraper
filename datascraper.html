@@ -11505,13 +11505,14 @@ function shuffled(arr){const a=[...arr];for(let i=a.length-1;i>0;i--){const j=Ma
 // A Common reward has no tier below it, so all 3 just come from the Common pool as before.
 // Reward tier by depth: the Rim never offers Legendary rewards (a Legendary or Hive drain pays out at
 // Epic) and only lets an Epic through REWARD_RIM_EPIC of the time (else it's Rare); in the Dense
-// Field a Legendary drain stays Legendary only REWARD_DENSE_LEGENDARY of the time (else Epic), and a
-// Hive's Legendary cards are as rare. The Core is unchanged.
+// Field a Hive's Legendary cards turn up only REWARD_DENSE_LEGENDARY of the time (a Legendary drain pays
+// Legendary, though). The Core is unchanged.
 const REWARD_RIM_EPIC=0.45, REWARD_DENSE_LEGENDARY=0.15;
 function rewardTierFor(tier,band){
   if(band==='rim'&&STOP_SPLIT&&tier==='Epic')return 'Epic'; // ...except the split stop's Rim half, whose veins can ripen to Epic
   if(band==='rim'&&(tier==='Epic'||tier==='Legendary'||tier==='Hive'))return 'Rare'; // v4: nothing above Rare comes out of the Rim
-  if(band==='dense'&&tier==='Legendary'&&Math.random()>REWARD_DENSE_LEGENDARY)return 'Epic';
+  // (v4: a Flawless vein drained in the Dense Field always pays Flawless cards now; it used to drop to Pure
+  // REWARD_DENSE_LEGENDARY of the time. A Hive pick still keeps its Flawless cards rare there: see rollRewardCards)
   return tier;
 }
 // v4: a card that only helps one kind of unit (its damage, its fire rate, a kit for it) is only offered
