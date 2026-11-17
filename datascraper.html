@@ -1399,6 +1399,9 @@ function payDat(cost,what){
 // turrets and the Rig itself. Repairs are free (v4).
 // They fly, so the current (all-melee) enemies can't touch them, and they ignore terrain.
 const DRONE_COUNT=4, DRONE_SPEED=170, DRONE_RANGE=760, DRONE_HPS=9, DRONE_WORK_R=18;
+// v4: the Rig mends far slower than anything else: drones patch it at RIG_DRONE_MULT of their usual rate,
+// and with no enemy near it repairs itself at RIG_SELF_REPAIR HP a second
+const RIG_DRONE_MULT=0.15, RIG_SELF_REPAIR=0.3;
 // v4: Stabilizers are tall towers — drones repairing one each work at their own level up it, circling
 // the column there (heights in the tower's own units, 0 at the ground; most drones hover at DRONE_HOVER)
 const STAB_DRONE_LEVELS=[24,100,62,128,44,84], STAB_TOWER_R=10, DRONE_HOVER=6, DRONE_FLY_Z=36, DRONE_ORB_R=3.6;
@@ -9635,7 +9638,7 @@ function updateDrones(dt){
       S.dat+=amt;floatText(o.x,o.y-10,'+'+amt,C.dat);sndAt(o.x,o.y,()=>sfx.gather());if(sh)datPickupFx(o,amt,d);else spark(o.x,o.y,C.dat,3);updateBuildBar();d.loot=null}
     if(d.state==='repair'){
       const o=d.target;
-      if(o.hp<o.maxHp)o.hp=Math.min(o.maxHp,o.hp+DRONE_HPS*dt)
+      if(o.hp<o.maxHp)o.hp=Math.min(o.maxHp,o.hp+DRONE_HPS*(o===B?RIG_DRONE_MULT:1)*dt)
       if(o.kind==='relay'&&o.state==='cut'){o.reconnectT+=dt;if(o.reconnectT>=RELAY_RECONNECT_T){o.state=null;o.reconnectT=0;msg('Relay tether spliced — reconnecting to the network.')}}
       d.beamT+=dt;
       if(!S.stabs.includes(o)&&o!==B){o.droneWorkT=(o.droneWorkT||0)+dt; // the Rig is never given up on as 'stuck' (its job ignores the skip, so drones would jitter at its feet)
@@ -10768,7 +10771,7 @@ function update(dt){
   if(S.breachVein&&!S.breachVein.introduced&&S.breachVein.seen){S.breachVein.introduced=true;
     msg('The breach vein — drain it to break through the barrier. Its nests will answer the drill.')}
   if(RUN&&(S.barrier&&S.barrier.open||S.megaDone)&&frameAB(B.x,B.y).a>W-250&&!S.over){finishStop();return}
-  if(!S.enemies.some(e=>dist(e,B)<400))B.hp=Math.min(B.maxHp,B.hp+2*dt);
+  if(!S.enemies.some(e=>dist(e,B)<400))B.hp=Math.min(B.maxHp,B.hp+RIG_SELF_REPAIR*dt);
   if(B.pingCd>0)B.pingCd=Math.max(0,B.pingCd-dt);
   if(S.pingRing){S.pingRing.t+=dt;if(S.pingRing.t>=S.pingRing.dur)S.pingRing=null}
   if(S.pings.length)S.pings=S.pings.filter(pg=>(pg.t-=dt)>0);
