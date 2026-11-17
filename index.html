@@ -805,7 +805,7 @@ async function run(d){
       <button id="bStab" data-mode="stabilizer"><span class="icon">◈</span><span>Stabilizer</span><span class="cost" id="cStab">●●●</span><span class="key">E</span></button>
       <button id="bPing"><span class="icon">◬</span><span id="bPingLabel">Probe</span><span class="cost" id="cProbe">●●●</span><span class="key">G</span></button>
       <button id="bFoldBuild" class="folderBtn" data-folder="build" title="Turrets, walls and Relays (B; then T · Q · R)"><span class="icon">▦</span><span>Build ▴</span><span class="cost" id="cFoldBuild"></span><span class="key">B</span></button>
-      <button id="bFoldUnits" class="folderBtn" data-folder="units" title="Deploy units (U)"><span class="icon">▲</span><span>Units ▴</span><span class="cost" id="cFoldUnits"></span><span class="key">U</span></button>
+      <button id="bFoldUnits" class="folderBtn" data-folder="units" title="Deploy units (U, then a number)"><span class="icon">▲</span><span>Units ▴</span><span class="cost" id="cFoldUnits"></span><span class="key">U</span></button>
       <button id="bCall" style="display:none" title="One-shot strikes and drops, called in anywhere you can see or your network reaches"><span class="icon">⇣</span><span>Call-down</span><span class="cost" id="cCall"></span><span class="key">C</span></button>
       <button id="bRig" hidden><span class="icon">⛭</span><span id="bRigLabel">Power the Derelict Rig</span><span class="cost" id="cRig"></span><span class="key">Y</span></button>
       <button id="bStrand" hidden><span class="icon">⚑</span><span>Take on Squad</span><span class="cost" id="cStrand"></span><span class="key">Y</span></button>
@@ -7524,6 +7524,8 @@ addEventListener('keydown',e=>{
   if(/^Digit[0-9]$/.test(e.code||'')&&!e.altKey){e.preventDefault();const n=+e.code.slice(5);
     // v4: while the call-down row is up, 1–9 and 0 pick a call-down instead of a control group
     if(callMenuOpen&&!e.ctrlKey&&!e.metaKey){const id=callIds()[(n+9)%10];if(id&&!e.repeat)tryCall(id);return}
+    // v4: and while the Units folder is open (U), they deploy the unit with that number
+    if(buildFolder==='units'&&!e.ctrlKey&&!e.metaKey){const k=unitFoldKeys()[(n+9)%10];if(k&&!e.repeat)fabUnit(k);return}
     if(e.ctrlKey||e.metaKey)assignGroup(n);else if(!e.repeat)recallGroup(n);return}
   if(e.key.toLowerCase()==='q')setBuild(buildMode==='wall'?null:'wall'); else if(e.key.toLowerCase()==='t')setBuild(buildMode==='turret'?null:'turret'); else if(e.key.toLowerCase()==='r')setBuild(buildMode==='relay'?null:'relay'); else if(e.key.toLowerCase()==='e')setBuild(buildMode==='stabilizer'?null:'stabilizer'); else if(e.key.toLowerCase()==='m'&&fabUnlocked('podturret'))setBuild(buildMode==='podturret'?null:'podturret');
   else if(e.key==='Escape'){if(!document.getElementById('drillSelectOverlay').hidden){closeDrillSelect()}else if(callMode||callMenuOpen){callMode=null;toggleCallMenu(false)}else if(probeMode){setProbeMode(false)}else if(pingMode){setPingMode(false)}else if(buildMode||prodMenuOpen){setBuild(null);closeProdMenu()}else if(buildFolder){setFolder(null)}else togglePause()} else if(e.key.toLowerCase()==='b'){setFolder(buildFolder==='build'?null:'build');sfx.click()} // v4: B opens the Build folder; Z selects the Rig
@@ -7704,6 +7706,8 @@ function useFab(k){
 }
 function updateFabs(dt){} // v4: no timed refills (see FAB_DAT)
 // Units walk straight out of the Rig.
+// the units in the Units folder you can deploy, in the order they're numbered
+const unitFoldKeys=()=>[...document.querySelectorAll('#fold_units button[data-unit]')].map(b=>b.dataset.unit).filter(fabUnlocked);
 function fabUnit(k){
   if(!S||S.over||menuOpen)return;
   if(!fabUnlocked(k))return;
@@ -7836,6 +7840,8 @@ function updateBuildBar(){
     b._ds=false;b.classList.toggle('dry',S.fab[k].n<=0);
     document.getElementById('cf_'+k)._tc=fabPips(k);
   });
+  {let num=0;document.querySelectorAll('#buildBar button[data-unit]').forEach(b=>{ // number the units you can deploy, 1–9 then 0 (see the key handler)
+    if(!b._kn){b._kn=document.createElement('span');b._kn.className='key num';b.appendChild(b._kn)}const on=fabUnlocked(b.dataset.unit);if(on)num++;b._kn.textContent=on&&num<=10?String(num%10):''})}
   document.querySelectorAll('#buildBar button[data-unit]').forEach(b=>{
     const k=b.dataset.unit;
     b._hd=!fabUnlocked(k);
