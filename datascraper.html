@@ -11675,6 +11675,7 @@ function terrainKinds(){const K=new Uint8Array(TGX*TGY),B=S.barrier;
   for(let i=0;i<K.length;i++){const v=terrain[i];K[i]=(S.glass&&S.glass[i])?5:v===1?1:v===RIFT?3:v===2?((B&&B.type===2&&B.mask&&B.mask[i])?4:2):0}return K}
 function startTerrainPaint(loading){
   if(!terrainWorker||!S.crackNet)return;
+  loading=loading||TPAINT.loading; // (a repaint while the loading screen is up, e.g. a resumed save cutting its breach again, keeps the loading screen tracking it)
   const id=++TPAINT.id;TPAINT.items=null;TPAINT.buckets=null;TPAINT.got=0;TPAINT.done=new Set();TPAINT.on=true;TPAINT.NTX=Math.ceil(W/TP_TS);TPAINT.todo=TPAINT.NTX*Math.ceil(H/TP_TS);
   const sites=(S.crackSites||[]).filter(Boolean).map(st=>({x:st.x,y:st.y,ang:st.knotAng||[]}));
   const shards=(S.glassShards||[]).map(sh=>({x:sh.x,y:sh.y,r:sh.r}));
