@@ -3081,6 +3081,7 @@ function unitLabel(u,type){
   return 'A fallen '+(u.kind==='grenadier'?'Grenadier':u.kind==='artillery'?'Artillery Piece':u.kind==='mech'?'Mech':u.kind==='rocket'?'Rocketeer':u.kind==='brawler'?'Paladin':u.kind==='marksman'?'Marksman':'Trooper');
 }
 function queueReanimation(u,type){
+  /*VOX*/if(S.troops.includes(u)||SQUAD_CLS[type])squadDown(u);
   S.reanim.push({x:u.x,y:u.y,r:u.r,ang:u.ang||0,type,label:unitLabel(u,type),t:REANIMATE_T});
 }
 function updateReanimation(dt){
@@ -7297,6 +7298,7 @@ function severUnit(u){
     u.state='cut';u.cutT=S.t;u.tetherOk=false;u.trail=null;u.cableLen=0;u.cableMaxed=false;
   } else {
     u.severed=true;u.tetherOk=false;u.trail=null;u.cableLen=0;u.cableMaxed=false;
+    /*VOX*/if(S.troops.includes(u))squadSay(u,'cut');
   }
 }
 // Enemies opportunistically chew through any cable they wander near, independent of whatever
@@ -7779,6 +7781,7 @@ function holdSelected(){
   const sel=[...S.sel.troops].map(id=>S.troops.find(t=>t.id===id)).filter(Boolean);
   if(!sel.length){note('Select Troopers or Paladins');return}
   const release=sel.every(t=>t.hold);
+  /*VOX*/if(!release)squadSay(squadSpeaker(sel),'hold');
   sel.forEach(t=>{t.hold=!release;t.queue=null;t.wallHome=null;t.following=false;t.guard=null;t.dest=null;t.target=null;t.pace=null;t.state='idle';t.post={x:t.x,y:t.y}});
   sfx.click();updateBuildBar();
 }
@@ -8835,7 +8838,7 @@ function rightClick(w,queue){
   // only its Sanity meter (and eventually the unit) if it stays dark too long
   const selT=rawT, selH=rawH, selBu=rawBu;
   const en=S.enemies.find(e=>visible(e)&&(dist(e,w0)<e.r+10||e.megaGlass&&dist(e,{x:w0.x,y:w0.y+45})<55)); // (a rim crystal's blades stand up above where it sits)
-  {const wl=!en&&selT.length?wallLineAt(w):null;if(wl){manWall(wl,selT);return}}
+  {const wl=!en&&selT.length?wallLineAt(w):null;/*VOX*/if(selT.length)squadOrder(selT,en,wl);if(wl){manWall(wl,selT);return}}
   const nd=S.nodes.find(n=>n.found&&dist(n,w)<28);
   const nearBase=dist(S.base,w)<S.base.r+40;
 
@@ -9358,7 +9361,7 @@ function revealCircle(x,y,r){
   fogX.fillStyle=g;fogX.beginPath();fogX.arc(x/FOG_S,y/FOG_S,r/FOG_S,0,Math.PI*2);fogX.fill();
 }
 // src: who fired, for direct fire only (the Shieldbearer's shields stop it from in front)
-function damageEnemy(e,d,src){if(e.boss&&src&&bossBlock(e,src,d))return;if(e.mega&&megaShelled()){shellPing(e);return}if(!e._share&&e.choir&&choirShare(e,d))return;if(e.markT>0)d*=SPOT_MULT;e.hp-=d;hitFlash(e);spark(e.x,e.y,C.accent,2)}
+function damageEnemy(e,d,src){if(e.boss&&src&&bossBlock(e,src,d))return;if(e.mega&&megaShelled()){shellPing(e);return}if(!e._share&&e.choir&&choirShare(e,d))return;if(e.markT>0)d*=SPOT_MULT;e.hp-=d;/*VOX*/if(src&&src.kind==='marksman'&&e.hp<=0&&e.hp+d>0)squadSay(src,'kill');hitFlash(e);spark(e.x,e.y,C.accent,2)}
 // Grenadier round: travels to where the target is right now (not a lead/intercept shot) and
 // explodes there, splashing every enemy within GREN_SPLASH_R of the landing point.
 // Shared by Grenadier rounds and the Big Guns artillery shell — opts lets a shell carry its own
@@ -9383,8 +9386,10 @@ function explodeNade(n){
   }
   const splashR=n.splashR!=null?n.splashR:GREN_SPLASH_R*S.mods.grenSplashMult;
   const dmg=n.dmg!=null?n.dmg:GREN_DMG*S.mods.troopDmgMult;
+  /*VOX*/const sqBig=n.style==='javelin'?S.enemies.filter(e=>e.hp>0&&isBigTarget(e)):null;
   S.enemies.forEach(e=>{if(dist(e,{x:n.tx,y:n.ty})<=splashR+(e.kind==='nest'?e.r*0.6:0)){damageEnemy(e,n.vsBig!==1&&isBigTarget(e)?dmg*n.vsBig*(e.megaGlass&&n.style==='javelin'?MEGA_GLASS_ROCKET:1):n.kit==='flak'&&!e.horde?dmg*FLAK_BIG:dmg);
     if(n.kit==='cryo'&&e.kind!=='nest')e.slowT=CRYO_T}});
+  /*VOX*/if(sqBig)squadBigKill(sqBig.filter(e=>e.hp<=0),n);
   if(n.kit==='fire')S.fires.push({x:n.tx,y:n.ty,r:splashR*0.9,t:FIRE_T});
   if(n.kit==='cluster'&&!n.sub)for(let i=0;i<CLUSTER_N;i++){const a=i/CLUSTER_N*Math.PI*2+0.6,d=rnd(22,34);launchProjectile({x:n.tx,y:n.ty},{x:n.tx+Math.cos(a)*d,y:n.ty+Math.sin(a)*d},{speed:160,minDur:0.3,dmg:dmg*CLUSTER_DMG,splashR:splashR*0.6,color:'#ffd28a',sub:true,kit:'cluster'})}
   burst(n.tx,n.ty,n.color||C.enemy,n.big?22:14,n.big?170:140,n.big?0.55:0.4);
@@ -9968,6 +9973,7 @@ function troopPierce(t,best,range,dm,pierce){
     if(along<=L-2||along>range)return;const off=Math.abs(rx*uy-ry*ux);if(off<(e.r||8)+2)hits.push({e,along})});
   hits.sort((a,b)=>a.along-b.along);
   const n=Math.min(pierce??TROOP_PIERCE,hits.length);for(let i=0;i<n;i++)damageEnemy(hits[i].e,dm,t);
+  /*VOX*/if(t.kind==='marksman'&&n>=2)squadSay(t,'special');
   return n?hits[n-1].e:best;
 }
 // A shield-wall Paladin's shove: knocks back and stuns everything in a cone in front of it.
@@ -10885,7 +10891,7 @@ function update(dt){
     if(rock&&t.paintT>0){const c=t.paintTgt;
       if(!c||c.hp<=0||!(S.enemies.includes(c)||c.megaGlass)||dist(t,c)>range*(kit==='flak'&&S.mods.relayDef==='radar'?2.5:1.25)){t.paintT=0;t.paintTgt=null;t.cd=Math.min(t.cd,0.4)}
       else{t.ang=Math.atan2(c.y-t.y,c.x-t.x);t.paintT-=dt;
-        if(t.paintT<=0){t.paintT=0;t.paintTgt=null;t.shotT=S.t;const m=gunMuzzle(t,10);
+        if(t.paintT<=0){t.paintT=0;t.paintTgt=null;t.shotT=S.t;const m=gunMuzzle(t,10);/*VOX*/squadSay(t,'launch');
           launchProjectile(m,c,{speed:ROCKET_PROJ_SPEED,minDur:1.1,dmg:ROCKET_DMG*S.mods.troopDmgMult,splashR:ROCKET_SPLASH_R*(kit==='flak'?FLAK_R:1),color:kit==='flak'?'#c7d0da':ROCKET_COLOR,big:true,vsBig:kit==='flak'?FLAK_BIG:ROCKET_VS_BIG,style:'javelin',track:c,kit});
           if(kit==='cluster'&&S.mods.relayOff==='armored')S.relays.forEach(r=>{if(r.built&&r.tetherOk&&r.hp>0&&dist(r,c)<TURRET_RANGE*1.6)launchProjectile({x:r.x,y:r.y-14},c,{speed:ROCKET_PROJ_SPEED,minDur:0.9,dmg:ROCKET_DMG*0.6,splashR:ROCKET_SPLASH_R,color:ROCKET_COLOR,big:true,style:'javelin',track:c})});
           if(sfxReady('jav',0.1)){noiseCrack(0.12,0.07,700);tone(180,0.5,'sawtooth',0.04,0.15,520)}}}}
@@ -10919,12 +10925,12 @@ function update(dt){
         S.enemies.forEach(e=>{if(!e.horde||e.hp<=0)return;const d=dist(e,t);if(d>=sd)return;if(d>range&&!rr.some(r=>dist(r,e)<RELAY_RADAR_VISION))return;sd=d;sw=e});if(sw){best=sw;bd=Math.min(sd,range-1)}}
       if(ord){best=ord;bd=dist(t,ord)}
       if(best){
-        if(gren){if(!t.volley&&(t.pods??GREN_PODS)>=GREN_PODS){t.volley=true;t.volT=0;t.volTgt=best;t.volAt=null}t.cd=0.2}
+        if(gren){if(!t.volley&&(t.pods??GREN_PODS)>=GREN_PODS){t.volley=true;t.volT=0;t.volTgt=best;t.volAt=null;/*VOX*/squadSay(t,S.enemies.filter(e=>e.hp>0&&dist(e,best)<90).length>=6?'crowd':'volley')}t.cd=0.2}
         else if(brawl){t.ang=Math.atan2(best.y-t.y,best.x-t.x);
           // the spear swings back first (PAL_WIND); the jab lands when it comes forward (see the wind-up tick above)
           if(!(t.jabT>0)){t.jabT=PAL_WIND;t.jabTgt=best;sndAt(t.x,t.y,()=>sfx.spearSwing())}t.cd=BRAWL_CD/squadFireRateMult()}
-        else if(rock){t.ang=Math.atan2(best.y-t.y,best.x-t.x);if(!(t.paintT>0)){t.paintT=ROCKET_PAINT;t.paintTgt=best}t.cd=ROCKET_CD/squadFireRateMult()}
-        else if(arty){launchProjectile(t,best,{speed:ARTY_PROJ_SPEED,dmg:ARTY_DMG,splashR:ARTY_SPLASH_R,color:C.condensed,big:true});t.cd=ARTY_CD}
+        else if(rock){t.ang=Math.atan2(best.y-t.y,best.x-t.x);if(!(t.paintT>0)){t.paintT=ROCKET_PAINT;t.paintTgt=best;/*VOX*/if(isBigTarget(best))squadSay(t,'paint')}t.cd=ROCKET_CD/squadFireRateMult()}
+        else if(arty){launchProjectile(t,best,{speed:ARTY_PROJ_SPEED,dmg:ARTY_DMG,splashR:ARTY_SPLASH_R,color:C.condensed,big:true});/*VOX*/squadSay(t,'shell');t.cd=ARTY_CD}
         else if(brk){t.ang=Math.atan2(best.y-t.y,best.x-t.x);t.punchN=(t.punchN||0)+1;t.punchSide=!t.punchSide;t.punchT=S.t;t.hay=t.punchN%BRK_HAY_EVERY===0;
           damageEnemy(best,BRK_DMG*S.mods.troopDmgMult,t);S.enemies.forEach(e=>{if(e!==best&&e.hp>0&&e.kind!=='nest'&&dist(e,best)<BRK_SPLASH_R)damageEnemy(e,BRK_SPLASH*S.mods.troopDmgMult)});
           if(t.hay)S.enemies.forEach(e=>{if(e.hp<=0||e.kind==='nest'||e.kind==='quaker'||dist(e,best)>BRK_HAY_R)return;const dx=e.x-t.x,dy=e.y-t.y,d=Math.hypot(dx,dy)||1,k=(e.kind==='brute'||e.shard==='colossus'?0.35:1)*BRK_HAY_KB;
@@ -13208,7 +13214,7 @@ function voxPump(){if(!VOX.on||VOXQ.cur||!VOXQ.q.length)return;const now=perform
   if(!VOXQ.q.length)return;if(now<VOXQ.gapT){setTimeout(voxPump,(VOXQ.gapT-now)*1000+20);return}
   // first lines after switching on can arrive before the pack has: give it a moment
   if(VOXP.state==='loading'&&now-VOXQ.q[0].t<1.5){setTimeout(voxPump,150);return}
-  const it=VOXQ.q.shift();VOXQ.cur=it;
+  const it=VOXQ.q.shift();VOXQ.cur=it;squadHalt();
   let ended=false;const end=()=>{if(ended)return;ended=true;if(VOXQ.cur===it)VOXQ.cur=null;voxDuck(false);VOXQ.gapT=performance.now()/1000+0.6;setTimeout(voxPump,650)};
   voxDuck(true);
   if(voxPlayClip(it,end))return;
@@ -13297,6 +13303,98 @@ if(VOX.on)voxLoadPack();
   chat.onchange=()=>{VOX.chat=+chat.value;voxSave()};
   test.onclick=()=>{voxStopAll();VOXQ.gapT=0;const k=['wave','ready','hullHalf','jackpot','drained'][Math.floor(Math.random()*5)];VOXQ.last[k]=-999;
     voxSay(k,k==='wave'?VOX_DIRS[Math.floor(Math.random()*8)]:null,true)};
+})();
+// ---------- unit barks: the squad on the radio ----------
+// Each unit class has its own recorded voice (vox/squad.json, packed by tools/squad_pack.py from
+// vox/squad-lines.json). Barks go through a radio filter — except the Trooper's, whose voice already
+// has the radio in it — and pan to where the unit is. One bark at a time, never over Vesper, and each
+// kind of bark has its own cooldown per class so a busy fight doesn't turn into chatter.
+const SQUAD_KEY='astroscraper.squad';
+let SQUAD={on:true,vol:0.7};try{Object.assign(SQUAD,JSON.parse(localStorage.getItem(SQUAD_KEY)||'{}'))}catch(e){}
+function squadSave(){try{localStorage.setItem(SQUAD_KEY,JSON.stringify(SQUAD))}catch(e){}}
+const SQUAD_PACK_V=1; // bump whenever vox/squad.json is re-packed
+const SQP={state:'none',clips:null,ids:{},bufs:{},nodes:null,cur:null,gapT:0,last:{},lastId:{},sel:new Set(),hp:new Map(),sRef:null};
+const SQUAD_CLS={troop:'trooper',brawler:'paladin',marksman:'marksman',grenadier:'grenadier',rocket:'rocketeer',mech:'mech',artillery:'artillery'};
+// per bark: [chattiness that allows it (Vesper's setting: 1 Essential … 3 Chatty), cooldown per class (s),
+// feedback for something you just did (1: plays wherever the unit is) or a call from the field (0: only
+// when it's in view or selected), the recorded category it uses (if not its own name)]
+const SQUAD_CAT={select:[2,2.5,1],move:[2,3,1],attack:[2,3,1],hold:[2,3,1],big:[2,3,1],small:[2,3,1],
+  cut:[1,4,0],down:[1,6,0],fire:[2,15,0],paint:[2,12,0],launch:[3,12,0],kill:[2,20,0],special:[2,14,0],
+  crowd:[2,15,0,'special'],volley:[3,15,0,'attack'],shell:[3,16,0,'special']};
+const SQUAD_ALIAS={'paladin:hold':['paladin:special']}; // the Paladin has two ways of saying it holds
+function squadLoad(){if(SQP.state!=='none'||!SQUAD.on)return;SQP.state='loading';
+  fetch('vox/squad.json?v='+SQUAD_PACK_V).then(r=>r.ok?r.json():Promise.reject(r.status)).then(j=>{SQP.clips=j.clips;SQP.ids={};
+    Object.keys(j.clips).forEach(id=>{const k=id.replace(/:\d+$/,'');(SQP.ids[k]||=[]).push(id)});SQP.state='ready'})
+    .catch(e=>{SQP.state='failed';console.info('unit voices: no pack',e)})}
+function squadIds(cls,cat){const k=cls+':'+cat;return (SQP.ids[k]||[]).concat(...(SQUAD_ALIAS[k]||[]).map(a=>SQP.ids[a]||[]))}
+// the radio: band-limited and lightly driven, with a squelch tick either side of the line
+function squadNodes(b){if(SQP.nodes&&SQP.nodes.ac===b.ac)return SQP.nodes;const ac=b.ac;
+  const vol=ac.createGain();vol.connect(b.master);const pan=ac.createStereoPanner?ac.createStereoPanner():null;if(pan)pan.connect(vol);const out=pan||vol;
+  const hp=ac.createBiquadFilter();hp.type='highpass';hp.frequency.value=320;
+  const pk=ac.createBiquadFilter();pk.type='peaking';pk.frequency.value=1900;pk.gain.value=5;pk.Q.value=0.9;
+  const lp=ac.createBiquadFilter();lp.type='lowpass';lp.frequency.value=3300;
+  const ws=ac.createWaveShaper(),cv=new Float32Array(512);for(let i=0;i<512;i++){const x=i/511*2-1;cv[i]=Math.tanh(2.2*x)/Math.tanh(2.2)}ws.curve=cv;
+  hp.connect(pk);pk.connect(lp);lp.connect(ws);ws.connect(out);
+  const n=Math.floor(ac.sampleRate*0.05),nb=ac.createBuffer(1,n,ac.sampleRate),d=nb.getChannelData(0);for(let i=0;i<n;i++)d[i]=(Math.random()*2-1)*(1-i/n)*0.22;
+  SQP.nodes={ac,vol,pan,out,radio:hp,noise:nb};return SQP.nodes}
+function squadTick(N,t){const s=N.ac.createBufferSource(),f=N.ac.createBiquadFilter();s.buffer=N.noise;f.type='bandpass';f.frequency.value=2400;s.connect(f);f.connect(N.out);s.start(t)}
+function squadHalt(){const c=SQP.cur;SQP.cur=null;if(c&&c.src)try{c.src.stop()}catch(e){}}
+function squadDone(it){if(SQP.cur!==it)return;SQP.cur=null;SQP.gapT=performance.now()/1000+1.2}
+// u: the unit talking; what: a SQUAD_CAT key. True if it's going to speak.
+function squadSay(u,what){
+  if(!SQUAD.on||SQP.state!=='ready'||!u||typeof S==='undefined'||!S||S.over||menuOpen||document.hidden)return false;
+  const cls=SQUAD_CLS[u.kind||'troop'],C=SQUAD_CAT[what];if(!cls||!C||C[0]>VOX.chat)return false;
+  const now=performance.now()/1000;if(SQP.cur||now<SQP.gapT||VOXQ.cur)return false; // one at a time, and never over Vesper
+  if(TPAINT.loading||(S.landing&&!S.landing.touch))return false;
+  const ck=cls+':'+what;if(now-(SQP.last[ck]??-99)<C[1])return false;
+  const ids=squadIds(cls,C[3]||what);if(!ids.length)return false;
+  const m=sndMix(u.x,u.y);if(!C[2]&&!S.sel.troops.has(u.id)&&m.g<0.5)return false;
+  let id=ids[Math.floor(Math.random()*ids.length)];if(ids.length>1&&id===SQP.lastId[ck])id=ids[(ids.indexOf(id)+1)%ids.length];
+  const b=audioBus();if(!b)return false;
+  SQP.last[ck]=now;SQP.lastId[ck]=id;const it={id};SQP.cur=it;
+  const play=buf=>{if(SQP.cur!==it)return;const N=squadNodes(b),ac=b.ac,t=ac.currentTime+0.03,src=ac.createBufferSource();src.buffer=buf;
+    // a unit left dark too long starts to come apart: its voice drags lower and slower as its Sanity drains
+    const sf=u.severed&&u.sanity!=null?Math.max(0,u.sanity/SANITY_MAX):1;src.playbackRate.value=sf<0.6?0.8+sf/3:1;
+    src.connect(cls==='trooper'?N.out:N.radio);
+    N.vol.gain.setValueAtTime(SQUAD.vol*Math.max(0.55,Math.min(1,m.g)),t);if(N.pan)N.pan.pan.setValueAtTime(m.pan*0.8,t);
+    squadTick(N,t);src.start(t+0.04);it.src=src;src.onended=()=>{if(SQP.cur===it)squadTick(N,ac.currentTime);squadDone(it)};
+    setTimeout(()=>squadDone(it),buf.duration*1000/src.playbackRate.value+1500)};
+  if(SQP.bufs[id])play(SQP.bufs[id]);
+  else try{const bin=atob(SQP.clips[id]),u8=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);
+    b.ac.decodeAudioData(u8.buffer).then(buf=>{SQP.bufs[id]=buf;play(buf)},()=>squadDone(it))}catch(e){squadDone(it);return false}
+  return true}
+// who answers for a group: the class with the most units in it
+function squadSpeaker(us){us=us.filter(t=>t&&SQUAD_CLS[t.kind||'troop']);if(!us.length)return null;const n={};us.forEach(t=>{const k=t.kind||'troop';n[k]=(n[k]||0)+1});
+  const k=Object.keys(n).sort((a,b)=>n[b]-n[a])[0];return us.find(t=>(t.kind||'troop')===k)}
+// a right-click order: move, attack (a Rocketeer in the group speaks up for a big target), or man a wall
+function squadOrder(us,en,wall){if(!SQUAD.on||!us.length)return;
+  if(en&&isBigTarget(en)){const r=us.find(t=>t.kind==='rocket');if(r&&squadSay(r,'big'))return}
+  const u=squadSpeaker(us);if(!u)return;squadSay(u,wall?'hold':en?(u.kind==='rocket'?'small':'attack'):'move')}
+// a unit fell and will rise against us: a Trooper close by calls it
+function squadDown(u){if(!SQUAD.on||!S||!S.troops)return;const t=S.troops.find(x=>x!==u&&(x.kind||'troop')==='troop'&&x.hp>0&&dist(x,u)<500);if(t)squadSay(t,'down')}
+// a Javelin finished off a nest, Quaker or Colossus: the nearest Rocketeer claims it
+function squadBigKill(dead,n){if(!dead.length)return;let best=null,bd=1e9;
+  S.troops.forEach(t=>{if(t.kind==='rocket'&&t.hp>0){const d=dist(t,{x:n.tx,y:n.ty});if(d<bd){bd=d;best=t}}});if(best)squadSay(best,'kill')}
+// watched rather than hooked: who just got selected, and who's taking hits
+setInterval(()=>{if(!SQUAD.on||SQP.state!=='ready'||typeof S==='undefined'||!S||!S.sel)return;
+  if(S!==SQP.sRef){SQP.sRef=S;SQP.sel=new Set(S.sel.troops);SQP.hp=new Map();return}
+  const fresh=[];S.sel.troops.forEach(id=>{if(!SQP.sel.has(id))fresh.push(id)});SQP.sel=new Set(S.sel.troops);
+  if(fresh.length){const u=squadSpeaker(fresh.map(id=>S.troops.find(t=>t.id===id)));if(u)squadSay(u,'select')}},150);
+setInterval(()=>{if(!SQUAD.on||SQP.state!=='ready'||typeof S==='undefined'||!S||!S.troops||S!==SQP.sRef)return;let hit=null;
+  S.troops.forEach(t=>{const p=SQP.hp.get(t.id);if(p!=null&&t.hp<p-1&&t.lastHitBy==='enemy'&&!hit)hit=t;SQP.hp.set(t.id,t.hp)});
+  if(hit)squadSay(hit,'fire')},400);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)squadHalt()});
+if(SQUAD.on)squadLoad();
+// Settings rows, under the announcer's
+(function squadSettings(){const vs=document.getElementById('voxSettings');if(!vs)return;
+  const box=document.createElement('div');box.className='volRows';box.id='squadSettings';
+  box.innerHTML='<label class="volRow"><span>Unit voices</span><button id="squadOn" class="secondary" style="flex:1;padding:4px 8px"></button></label>'+
+    '<label class="volRow"><span>Units vol</span><input type="range" id="squadVol" min="0" max="100"></label>';
+  vs.after(box);const on=box.querySelector('#squadOn'),vol=box.querySelector('#squadVol');
+  const paint=()=>{on._tc=SQUAD.on?'On':'Off';vol.disabled=!SQUAD.on};
+  vol.value=Math.round(SQUAD.vol*100);paint();
+  on.onclick=()=>{SQUAD.on=!SQUAD.on;squadSave();paint();if(SQUAD.on){startAudioEngine();squadLoad()}else squadHalt()};
+  vol.oninput=()=>{SQUAD.vol=vol.value/100;squadSave()};
 })();
 // ---------- end voice announcer ----------
 reset();refreshMenuMeta();requestAnimationFrame(frame);

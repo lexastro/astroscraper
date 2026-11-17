@@ -1,0 +1,327 @@
+{
+ "trooper": {
+  "voice": "Jv89UNBgtPzfva7G7wjH",
+  "lines": [
+   [
+    "select",
+    "[alert] Trooper here."
+   ],
+   [
+    "move",
+    "[crisp] Moving out."
+   ],
+   [
+    "attack",
+    "[urgent] Engaging!"
+   ],
+   [
+    "hold",
+    "[steady] Holding the line."
+   ],
+   [
+    "fire",
+    "[urgent, raised voice] Contact! Taking fire!"
+   ],
+   [
+    "cut",
+    "[panicked] Lost the line! I'm dark!"
+   ],
+   [
+    "down",
+    "[shouting] Man down!"
+   ]
+  ],
+  "extra": [
+   [
+    "select2",
+    "[crisp] Go ahead."
+   ],
+   [
+    "move2",
+    "[alert] On my way."
+   ],
+   [
+    "attack2",
+    "[urgent] Opening fire!"
+   ],
+   [
+    "hold2",
+    "[steady] Dug in."
+   ]
+  ]
+ },
+ "paladin": {
+  "voice": "cIigP5EjHYo8XpYmPr57",
+  "lines": [
+   [
+    "select",
+    "[calm, deep] Shield ready."
+   ],
+   [
+    "move",
+    "[calm] Advancing."
+   ],
+   [
+    "attack",
+    "[determined] Into them."
+   ],
+   [
+    "hold",
+    "[firm] They don't pass."
+   ],
+   [
+    "fire",
+    "[calm, low] Let them come."
+   ],
+   [
+    "cut",
+    "[grim] Power's gone. I'm still standing."
+   ],
+   [
+    "special",
+    "[firm, quiet] Nothing gets past this shield."
+   ]
+  ],
+  "extra": [
+   [
+    "select2",
+    "[calm, deep] I'm here."
+   ],
+   [
+    "move2",
+    "[calm] On the move."
+   ],
+   [
+    "attack2",
+    "[determined] Break them."
+   ]
+  ]
+ },
+ "marksman": {
+  "voice": "HJz0aYf976Mg0Y20eQtT",
+  "lines": [
+   [
+    "select",
+    "[quiet, dry] Watching."
+   ],
+   [
+    "move",
+    "[dry] Finding a new perch."
+   ],
+   [
+    "attack",
+    "[calm] Taking the shot."
+   ],
+   [
+    "special",
+    "[quietly pleased] Three in a row. One round."
+   ],
+   [
+    "kill",
+    "[dry] Clean hit."
+   ],
+   [
+    "fire",
+    "[tense, low] They've spotted me."
+   ],
+   [
+    "cut",
+    "[quiet, uneasy] I've lost the line."
+   ]
+  ],
+  "extra": [
+   [
+    "select2",
+    "[quiet, dry] Scope's up."
+   ],
+   [
+    "move2",
+    "[dry] Relocating."
+   ],
+   [
+    "attack2",
+    "[calm] Got them in my sights."
+   ]
+  ]
+ },
+ "grenadier": {
+  "voice": "rjty24Jy7SUlDF3k79kb",
+  "lines": [
+   [
+    "select",
+    "[eager] Got a crowd for me?"
+   ],
+   [
+    "move",
+    "[cheerful] On the move!"
+   ],
+   [
+    "attack",
+    "[gleeful, shouting] Fire in the hole!"
+   ],
+   [
+    "special",
+    "[delighted] Look at them all bunched up!"
+   ],
+   [
+    "fire",
+    "[annoyed] Hey! Watch it!"
+   ],
+   [
+    "cut",
+    "[nervous laugh] Uh, my line's cut. That's bad."
+   ]
+  ],
+  "extra": [
+   [
+    "select2",
+    "[eager] Who needs blowing up?"
+   ],
+   [
+    "move2",
+    "[cheerful] Coming through!"
+   ],
+   [
+    "attack2",
+    "[gleeful] Here comes the boom!"
+   ]
+  ]
+ },
+ "rocketeer": {
+  "voice": "rAhCVcm2tH9L4MQrSH64",
+  "lines": [
+   [
+    "select",
+    "[confident] Point me at something big."
+   ],
+   [
+    "big",
+    "[excited] Now that's a target."
+   ],
+   [
+    "small",
+    "[mildly bored] Bit small for me, but sure."
+   ],
+   [
+    "paint",
+    "[focused] Painting it."
+   ],
+   [
+    "launch",
+    "[fierce] Javelin out!"
+   ],
+   [
+    "kill",
+    "[smug] Scratch one."
+   ],
+   [
+    "cut",
+    "[urgent] Line's cut! I'm blind out here!"
+   ]
+  ],
+  "extra": [
+   [
+    "select2",
+    "[confident] Javelin's loaded."
+   ],
+   [
+    "move",
+    "[casual] On my way."
+   ],
+   [
+    "move2",
+    "[confident] Moving. Find me something worth a rocket."
+   ],
+   [
+    "fire",
+    "[annoyed, urgent] Hey! I'm the one with the rockets!"
+   ]
+  ]
+ },
+ "mech": {
+  "voice": "qvAXQvpVmAgtg3SDJjNo",
+  "lines": [
+   [
+    "select",
+    "[calm, procedural] Systems green."
+   ],
+   [
+    "move",
+    "[matter-of-fact] Walking."
+   ],
+   [
+    "attack",
+    "[steady] Engaging. Opening up."
+   ],
+   [
+    "fire",
+    "[calm] Taking fire. Armour's holding."
+   ],
+   [
+    "cut",
+    "[tense] Lost the tether. Running on reserve."
+   ]
+  ],
+  "extra": [
+   [
+    "select2",
+    "[calm] Pilot here."
+   ],
+   [
+    "move2",
+    "[matter-of-fact] Moving out. Watch your feet."
+   ],
+   [
+    "attack2",
+    "[steady] Weapons hot."
+   ],
+   [
+    "hold",
+    "[procedural] Holding position. Locked down."
+   ]
+  ]
+ },
+ "artillery": {
+  "voice": "cLPIRWpN75hEpRgDs78T",
+  "lines": [
+   [
+    "select",
+    "[crisp] Battery ready."
+   ],
+   [
+    "move",
+    "[brisk] Relocating the gun."
+   ],
+   [
+    "attack",
+    "[formal] Fire mission received."
+   ],
+   [
+    "special",
+    "[crisp] Rounds out. Splash in five."
+   ],
+   [
+    "fire",
+    "[alarmed] We're exposed! Need cover!"
+   ],
+   [
+    "cut",
+    "[grim] Lost the line. Guns are silent."
+   ]
+  ],
+  "extra": [
+   [
+    "select2",
+    "[crisp] Gun crew standing by."
+   ],
+   [
+    "move2",
+    "[brisk] Moving the battery."
+   ],
+   [
+    "attack2",
+    "[formal] Target logged. Firing."
+   ]
+  ]
+ }
+}
