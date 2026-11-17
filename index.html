@@ -3099,6 +3099,7 @@ function reset(landing){
     S.sites.forEach(t=>{t.band=bandAt(t.x,t.y);const rr=STOP_RICH[t.band];t.richness=Math.round(rnd(rr[0],rr[1]))});
     S.contractSite.band=STOP_BAND;
     if(st.final){const cp=frameXY(rnd(W*0.72,W-450),rnd(H*0.25,H*0.75));S.contractSite.x=cp.x;S.contractSite.y=cp.y;S.sites=S.sites.filter(t=>dist(t,S.contractSite)>900)}
+    else if(megaStop()){S.sites=[];S.clusters=[];S.megaSite={x:W/2,y:H/2};S.contractSite.x=W/2;S.contractSite.y=H/2} // v4: the Mega Nest stop: no veins, no wall
     else{const bs=S.breachSite=pickBreachSite(), bx=W*BARRIER_X, f=MAP_SIZE_BY_BAND[STOP_BAND]||1, want=STOP_BAND==='rim'?RIM_VEINS:S.sites.length;
       const ok=(t,gap)=>dist(t,bs)>1100*f&&Math.abs(frameAB(t.x,t.y).a-bx)>ZONE_R+BARRIER_HALF+200&&!S.sites.some(o=>o!==t&&dist(o,t)<gap);
       S.sites=S.sites.filter(t=>ok(t,0)).slice(0,want);
@@ -3150,10 +3151,11 @@ function reset(landing){
   S.rigSite=tutorialMap?null:pickRigSite(startPicks);
   const allSites=[...S.sites,S.contractSite,...S.hiveSites,...(S.breachSite?[S.breachSite]:[]),...(S.rigSite?[S.rigSite]:[])];
   allSites.forEach(v=>clearDisk(v.x,v.y,ZONE_R+40));
-  if(S.breachSite&&S.breachSite.mega)clearDisk(S.breachSite.x,S.breachSite.y,MEGA_ROOM);
+  if(S.megaSite)megaArena();
   ensureConnectivity([{x:S.base.x,y:S.base.y},...allSites.map(v=>({x:v.x,y:v.y})),...S.clusters.map(([x,y])=>({x,y})),...riftPockets]);
   closeHoles(S.base.x,S.base.y);
   ensureBastionAccess(allSites.map(v=>({x:v.x,y:v.y})));
+  if(S.megaSite)paintDisk(S.megaSite.x,S.megaSite.y,MEGA_ROCK,2); // the mountain itself is solid
   // v4: the barrier goes down last, then each side of it is knitted together on its own
   if(S.breachSite){paintBarrier(S.breachSite);const bx=S.barrier.centre;
     const pts=[...S.sites,...S.hiveSites,S.contractSite].map(v=>({x:v.x,y:v.y}));
@@ -3172,8 +3174,8 @@ function reset(landing){
   if(!STOP_BAND||stopInfo().final)emergeVein(S.contractSite,{contract:true});
   startPicks.forEach(p=>emergeVein(p.site,{ripeT:p.ripeT,haze:p.haze}));
   S.hiveSites.forEach(st=>{const v=emergeVein(st,{hive:true,ripeT:ripeStart(2)});raiseMounds(v,HIVE_MOUNDS,'mound')});
-  S.breachVein=S.breachSite?emergeVein(S.breachSite,{breach:true,hive:!!S.breachSite.mega,ripeT:ripeStart(2)}):null;
-  if(S.breachSite&&S.breachSite.mega)raiseMega(S.breachVein);
+  S.breachVein=S.breachSite?emergeVein(S.breachSite,{breach:true,ripeT:ripeStart(2)}):null;
+  if(S.megaSite&&!tutorialMap)raiseMega();
   if(S.rigSite)makeRig(S.rigSite);
   makeStrand();
   // the opening vein: if no starting vein is close to the landing, a fresh one emerges at the
@@ -3187,7 +3189,7 @@ function reset(landing){
     for(let i=0;i<nn;i++){const r=rand();const size=r<st.mix[0]?'small':r<st.mix[0]+st.mix[1]?'medium':'large';placeNest(size,band)}});
 
   // v4: nests dug in around the breach, between it and where you land
-  if(S.breachSite&&!S.breachSite.mega&&!tutorialMap){const g=STOP_GUARDS[Math.min(RUN.stop,STOP_GUARDS.length-1)],bs=S.breachSite;
+  if(S.breachSite&&!tutorialMap){const g=STOP_GUARDS[Math.min(RUN.stop,STOP_GUARDS.length-1)],bs=S.breachSite;
     const bc=frameAB(bs.x,bs.y); // (laid out in the stop's own frame: back toward where you land)
     g.forEach((size,i)=>{const a=Math.PI+(i-(g.length-1)/2)*0.9+rnd(-0.2,0.2), rr=rnd(450,700);
       const m=STOP_BAND==='dense'?NEST_DENSE_EDGE:150;const w=frameXY(Math.max(m,Math.min(W-m,bc.a+Math.cos(a)*rr)),Math.max(m,Math.min(H-m,bc.b+Math.sin(a)*rr)));
@@ -3227,7 +3229,6 @@ function stopHpMult(){return RUN?STOP_HP[RUN.stop]:1}
 // (v4: it used to sit in the middle third, right in front of the landing)
 function pickBreachSite(){
   // (when the exit turns off to the side the breach sits across the stop from where you land)
-  if(megaStop()){const bx=W*BARRIER_X,q=frameXY(bx-BARRIER_HALF-rnd(660,720),H*rnd(0.42,0.58));return {x:q.x,y:q.y,band:STOP_BAND,richness:MEGA_RICHNESS,vein:null,mega:true}}
   const bx=W*BARRIER_X, a=bx-BARRIER_HALF-rnd(380,620), side=canEntry();
   const b=side==='left'?rnd(H*0.45,H*0.85):side==='right'?rnd(H*0.15,H*0.55):rnd(H*0.15,H*0.85), q=frameXY(a,b), x=q.x, y=q.y;
   const r=STOP_RICH[STOP_BAND];
@@ -3393,12 +3394,11 @@ function buildStop(carry){
   // a fresh run: the loadout comes charged, and the Rig lands (later stops start with it already down)
   if(!carry){runCallStart().forEach(id=>grantCall(id,CALL_LOADOUT_CHARGES));beginLanding();runCardStart()}
   saveRun(carry);grantStopBonus();
-  if(curNode()&&curNode().type==='nest')setTimeout(()=>msg('A Mega Nest stop: the hive in the middle of this map is the way through. Break all its great mounds to crack the Hive Heart\'s glass shell, then kill the Heart to shatter the wall. Or drain its Blooded vein while the Heart still beats, for a far bigger payout.'),120);
   if(curNode()&&curNode().type==='hive')setTimeout(()=>msg('A Hive stop: two Mega nests have dug in here. Break them for Blooded cards and salvage.'),120);
   const st=stopInfo();
   if(RUN.stop===0&&pressureNote())setTimeout(()=>msg(pressureNote().trim()),50);
-  msg(st.final?`Stop ${RUN.stop+1} of ${RUN_STOPS.length} — the heart of the Core. The contract vein is here and already stirring: take bearings from stray energy to triangulate it, then drain it.`:
-    `Stop ${RUN.stop+1} of ${RUN_STOPS.length} — ${stopTitle(st)}. You've landed on the ${EDGE_WORD[ENTRY_EDGE]} edge. A ${S.barrier&&S.barrier.type===RIFT?'band of rift':'wall of crystal'} cuts the way ${EDGE_WORD[EXIT_DIR]}: ${megaStop()?'the Mega Nest in front of it is the key':'find the breach vein in front of it and drain it to break through'}.`);
+  msg(megaStop()?`Stop ${RUN.stop+1} of ${RUN_STOPS.length} — the Mega Nest. No veins here and no wall: just the hive, a mountain of it in the middle of the map, with nests dug into its slopes. Destroy every nest on it to crack it open, then bring the Mega Nest down. When it falls the way ${EDGE_WORD[EXIT_DIR]} is open.`:st.final?`Stop ${RUN.stop+1} of ${RUN_STOPS.length} — the heart of the Core. The contract vein is here and already stirring: take bearings from stray energy to triangulate it, then drain it.`:
+    `Stop ${RUN.stop+1} of ${RUN_STOPS.length} — ${stopTitle(st)}. You've landed on the ${EDGE_WORD[ENTRY_EDGE]} edge. A ${S.barrier&&S.barrier.type===RIFT?'band of rift':'wall of crystal'} cuts the way ${EDGE_WORD[EXIT_DIR]}: find the breach vein in front of it and drain it to break through.`);
 }
 // ---------- v4: the sector map ----------
 // A run's stops are laid out as a small branching map: every stop but the last offers a choice of
@@ -3415,7 +3415,7 @@ const SECTOR_GROUND={
 const SECTOR_TYPE={
   drill:{name:'Drill stop',col:'#d7dde5',desc:'Find the breach vein by the wall and drain it to break through. Drain other veins on the way for cards.'},
   hive:{name:'Hive stop',col:HIVE_COL,desc:'Two Mega nests have dug in here instead of one: hive veins ringed by brood mounds. Break them for Blooded cards and salvage.'},
-  nest:{name:'Mega Nest',col:'#ff6fd8',desc:'A smaller, crowded map with one huge hive where the breach vein would be: a Blooded vein ringed by great brood mounds, and the Hive Heart sealed in glass beside it. Break every mound to crack the shell, then kill the Heart to shatter the wall (its vein dies with it). Or drain the vein while the Heart still beats, for Blooded cards, an extra card and salvage.'},
+  nest:{name:'Mega Nest',col:'#ff6fd8',desc:'A smaller map given over to one fight: a Mega Nest the size of a mountain in the middle of it, with nests dug into its slopes. No veins and no wall. Destroy every nest on it to crack it open, then bring it down for Blooded cards and salvage. Its fall opens the way on.'},
   contract:{name:'The contract',col:'#f2b63c',desc:'The heart of the Core. The contract vein waits here, with its guardian.'}};
 const SECTOR_CALLS=['orbital','stasis','emp','droppod','bulwark','carpet','minefield','overclock','gravity','decoy'];
 const SECTOR_BAND={rim:{name:'Rim',col:'#5ec8ff'},split:{name:'Rim / Dense edge',col:'#8fa8ff'},dense:{name:'Dense Field',col:'#b48bff'},core:{name:'Core',col:'#ff5c4d'}};
@@ -3426,6 +3426,7 @@ function genSector(){const R=Math.random,cols=[];
       if(st.final){col.push({type:'contract',ground:[],bonus:null,next:[]});continue}
       let type='drill';if(st.band==='dense'&&!st.split&&!hive&&R()<0.4){type='hive';hive=true} // (the Rim / Dense edge has too few Dense sites for two hives)
       else if(st.band==='dense'&&!st.split&&!nest&&R()<0.5){type='nest';nest=true}
+      if(type==='nest'){col.push({type,ground:R()<0.5?['glass']:[],bonus:['dat','call','unit'][Math.floor(R()*3)],call:SECTOR_CALLS[Math.floor(R()*SECTOR_CALLS.length)],next:[]});continue} // (no veins: no vein ground or supply cache)
       const pool=['rich','calm','brood',...(st.band==='dense'?['glass']:[])],ground=[pool.splice(Math.floor(R()*pool.length),1)[0]];
       if(R()<0.35){const p2=pool.filter(g=>!(g==='calm'&&ground.includes('brood'))&&!(g==='brood'&&ground.includes('calm')));if(p2.length)ground.push(p2[Math.floor(R()*p2.length)])}
       const bonus=ground.includes('brood')?'card':['dat','card','call','unit'][Math.floor(R()*4)];
@@ -3515,40 +3516,89 @@ function renderSecBrief(){const el=document.getElementById('secBrief'),sc=RUN.se
 function sectorTravel(i){RUN.path[secCol]=i;document.getElementById('sectorOverlay')._hd=true;sfx.click();
   if(secCol===0)buildStop(null);else advanceStop()}
 // ---------- v4: the Mega Nest stop ----------
-// A sector-map stop type in the Dense Field: a smaller map (MEGA_MAP) where the breach vein is a huge
-// hive. Its Blooded vein (a hive vein) sits in a wide room ringed by MEGA_MOUNDS great brood mounds,
-// with the Hive Heart (a nest of its own, the biggest there is) dug in beside it. The Heart's glass
-// shell turns every hit while any mound in the ring stands (and mounds regrow out of sight while the
-// vein lives). Two ways through: kill the Heart, which shatters the wall but kills its vein too, or
-// drain the vein while the Heart still beats, which opens the wall, kills the Heart and pays Blooded
-// rewards, an extra card and salvage.
-const MEGA_MAP=0.9, MEGA_NESTS=0.85, MEGA_RICHNESS=72, MEGA_ROOM=340, MEGA_MOUNDS=7, MEGA_MOUND_R=[480,640], MEGA_HEART_D=210;
+// A sector-map stop type in the Dense Field, given over to one fight: a smaller map (MEGA_MAP) with no
+// veins and no wall, and a Mega Nest the size of a mountain in the middle of it (a nest of its own,
+// kind 'nest', size 'mega', standing on solid rock). MEGA_SLOTS regular nests are dug into its
+// slopes; it can't be hurt while any of them stands, and while it lives it grows a new one into an
+// empty slot out of sight every MEGA_REGROW_T. Bringing it down pays Blooded cards and salvage, and
+// opens the way on (S.megaDone): walk the Rig off the far edge, as after a breach.
+const MEGA_MAP=0.9, MEGA_NESTS=0.5, MEGA_ROCK=195, MEGA_CLEAR=900, MEGA_SLOTS=8, MEGA_SLOT_R=335, MEGA_REGROW_T=90, MEGA_SPR_R=330;
 function megaStop(){const n=curNode();return !!(n&&n.type==='nest'&&STOP_BAND==='dense'&&!STOP_SPLIT)}
-function raiseMega(v){if(!v)return;v.mega=true;v.bonus=(v.bonus||0)+1;
-  raiseMounds(v,MEGA_MOUNDS,'great',MEGA_MOUND_R);
-  // the Heart: beside the vein, on the side toward the wall
-  const f=frameAB(v.x,v.y),w=frameXY(f.a+MEGA_HEART_D,f.b),p=nearestPlain(w.x,w.y);
-  const h=makeNest(p.x,p.y,'heart');h.heart=true;h.megaVein=v;S.heart=h;S.megaVein=v}
-function heartAlive(){const h=S.heart;return !!(h&&h.hp>0&&S.enemies.includes(h))}
-function heartShelled(){const v=S.megaVein;return !!(v&&v.moundSlots&&v.moundSlots.some(sl=>sl.nest&&sl.nest.hp>0&&S.enemies.includes(sl.nest)))}
-function shellPing(h){spark(h.x+rnd(-h.r,h.r),h.y+rnd(-h.r,h.r),'#ff9ad8',2);
-  if(!S.shellMsgT||S.t-S.shellMsgT>25){S.shellMsgT=S.t;const left=S.megaVein.moundSlots.filter(sl=>sl.nest&&sl.nest.hp>0&&S.enemies.includes(sl.nest)).length;
-    banner(`The Hive Heart's glass shell turns the hit: ${left} great mound${left===1?'':'s'} still hold${left===1?'s':''} it up.`,'warning')}}
-function heartDied(h){const v=h.megaVein||S.megaVein;
-  burst(h.x,h.y,'#ff6fd8',60,280,1.1);burst(h.x,h.y,HIVE_COL,40,200,0.9);shakeScreen(12,0.9);
-  if(S.megaDrained){msg('The Hive Heart dies with its vein. The Mega Nest is finished.');return}
-  if(v&&veinAlive(v)){if(S.activeVein===v){S.base.locked=false;S.activeVein=null;setBuild(null);v.meter=null;v.prepT=0}collapseVein(v,true);updateMeterUI(true);updateBuildBar();burst(v.x,v.y,C.enemy,30,160,0.8)}
-  openBreach(v,`The Hive Heart is dead. Its death-scream shatters the crystal wall, and its Blooded vein bleeds out and dies with it. The way ${EDGE_WORD[EXIT_DIR]} is open: walk the Rig off the ${EDGE_WORD[EXIT_DIR]} edge to move on.`)}
-function drawHeartShell(h){const t=S.t,R=h.r*1.9,n=12;
-  ctx.save();ctx.globalAlpha=0.55+0.15*Math.sin(t*1.7);ctx.lineWidth=2.2;
-  for(let i=0;i<n;i++){const a0=i/n*Math.PI*2+t*0.12,a1=a0+Math.PI*2/n*0.86,rr=R*(0.94+0.06*Math.sin(i*2.3+t));
-    ctx.beginPath();ctx.moveTo(h.x+Math.cos(a0)*rr,h.y+Math.sin(a0)*rr);ctx.lineTo(h.x+Math.cos((a0+a1)/2)*(rr+9),h.y+Math.sin((a0+a1)/2)*(rr+9));ctx.lineTo(h.x+Math.cos(a1)*rr,h.y+Math.sin(a1)*rr);
-    ctx.lineTo(h.x+Math.cos((a0+a1)/2)*(rr-10),h.y+Math.sin((a0+a1)/2)*(rr-10));ctx.closePath();
-    ctx.fillStyle='rgba(255,111,216,0.16)';ctx.fill();ctx.strokeStyle='#ff9ad8';ctx.stroke()}
-  ctx.restore()}
+// the arena: a wide clearing round the mountain, and broad lanes out to the landing side, the exit and both flanks
+function megaArena(){const c=S.megaSite;clearDisk(c.x,c.y,MEGA_CLEAR);
+  [[300,H/2],[W-80,H/2],[W/2,260],[W/2,H-260]].forEach(([a,b])=>{const q=frameXY(a,b);carveLine(c.x,c.y,q.x,q.y,3)});
+  const ex=frameXY(W-60,H/2),bs={x:S.base.x,y:S.base.y};ensureConnectivity([bs,c,ex])}
+function raiseMega(){const c=S.megaSite,m=makeNest(c.x,c.y,'mega');m.mega=true;m.seen=true;S.megaNest=m;S.megaSlots=[];S.megaRegrowT=MEGA_REGROW_T;
+  const a0=rnd(0,Math.PI*2);
+  for(let i=0;i<MEGA_SLOTS;i++){const a=a0+i/MEGA_SLOTS*Math.PI*2+rnd(-0.12,0.12),p=nearestPlain(c.x+Math.cos(a)*MEGA_SLOT_R,c.y+Math.sin(a)*MEGA_SLOT_R);
+    const sl={x:p.x,y:p.y,size:i%2?'large':'medium',nest:null};sl.nest=makeNest(p.x,p.y,sl.size);sl.nest.megaSlot=true;S.megaSlots.push(sl)}}
+const slotLive=sl=>!!(sl.nest&&sl.nest.hp>0&&S.enemies.includes(sl.nest));
+function megaSlotsLeft(){return (S.megaSlots||[]).filter(slotLive).length}
+function megaShelled(){return megaSlotsLeft()>0}
+function shellPing(m){spark(m.x+rnd(-m.r,m.r)*0.6,m.y+rnd(-m.r,m.r)*0.6,'#ff9ad8',2);
+  if(!S.shellMsgT||S.t-S.shellMsgT>25){S.shellMsgT=S.t;const k=megaSlotsLeft();
+    banner(`The Mega Nest shrugs off the hit: ${k} nest${k===1?'':'s'} on its slopes still hold${k===1?'s':''} it together. Destroy them first.`,'warning')}}
+function updateMega(dt){const m=S.megaNest;if(!m||m.hp<=0||!S.enemies.includes(m))return;
+  if(!S.megaIntro&&visible(m)){S.megaIntro=true;banner(`The Mega Nest. Destroy the ${megaSlotsLeft()} nests dug into its slopes to crack it open.`,'danger')}
+  if(megaSlotsLeft()<MEGA_SLOTS){S.megaRegrowT-=dt;
+    if(S.megaRegrowT<=0){const sl=S.megaSlots.find(q=>!slotLive(q)&&!visible(q));
+      if(sl){sl.nest=makeNest(sl.x,sl.y,'medium');sl.nest.megaSlot=true;S.megaRegrowT=MEGA_REGROW_T;if(m.seen)banner('A new nest has grown on the Mega Nest\'s slopes.','danger')}else S.megaRegrowT=5}}}
+function megaDied(m){S.megaDone=true;
+  burst(m.x,m.y,'#ff6fd8',80,360,1.3);burst(m.x,m.y,HIVE_COL,60,280,1.1);burst(m.x,m.y-80,'#ffb36b',40,220,0.9);shakeScreen(14,1.1);sfx.win();
+  banner(`The Mega Nest is down! The way ${EDGE_WORD[EXIT_DIR]} is open: walk the Rig off the ${EDGE_WORD[EXIT_DIR]} edge to move on.`,'success');
+  // Blooded cards: a pick, and one more
+  setTimeout(()=>{if(S.over)return;S.rewardQueue=[{tier:'Hive',band:'dense'}];showRewardChoice(rewardTierFor('Hive','dense'),'dense')},600)}
+// The mountain: terraced rock rising to a crown of crimson glass spires, split by glowing fissures,
+// with burrows at the foot where its nests dig in. Drawn once to canvases (height drawn upward,
+// the same top-down cheat the nests use), the fissures and crown pulsing.
+function buildMegaSprite(m){const R=MEGA_SPR_R,HT=Math.round(R*0.95),PAD=70,w=2*(R+PAD),h=2*(R+PAD)+HT,ox=R+PAD,oy=R+PAD+HT,rr=seededRng(Math.floor(m.x*7+m.y*13)+5);
+  const mk=()=>{const c=document.createElement('canvas');c.width=w;c.height=h;return c};const base=mk(),light=mk(),bx=base.getContext('2d'),lx=light.getContext('2d');
+  const ph=[rr()*6,rr()*6,rr()*6,rr()*6],L=18;
+  const rad=(a,t)=>R*Math.pow(1-t,0.8)*(1+0.13*Math.sin(3*a+ph[0]+t*1.2)+0.08*Math.sin(5*a+ph[1]-t)+0.05*Math.sin(11*a+ph[2])+0.03*Math.sin(19*a+ph[3]+t*3));
+  const lift=t=>HT*Math.pow(t,0.85), drift=t=>R*0.06*Math.sin(t*2.5+ph[1]);
+  const poly=(c,t,sc,dx,dy)=>{c.beginPath();for(let k=0;k<=72;k++){const a=k/72*Math.PI*2,r=rad(a,t)*sc;const x=ox+drift(t)+Math.cos(a)*r+dx,y=oy-lift(t)+Math.sin(a)*r*0.82+dy;k?c.lineTo(x,y):c.moveTo(x,y)}c.closePath()};
+  // the ground shadow, thrown down and to the right
+  bx.fillStyle='rgba(0,0,0,0.5)';bx.beginPath();bx.ellipse(ox+R*0.25,oy+R*0.12,R*1.18,R*0.9,0,0,Math.PI*2);bx.fill();
+  // the terraces, base to peak
+  for(let i=0;i<L;i++){const t=i/L,top=lift(t);
+    poly(bx,t,1,5,7);bx.fillStyle='rgba(4,2,3,0.55)';bx.fill();
+    const cy=oy-top,g=bx.createLinearGradient(ox-R,cy-R*0.8,ox+R,cy+R*0.8),k=0.55+0.6*t;
+    g.addColorStop(0,`rgb(${Math.round(92*k)},${Math.round(38*k)},${Math.round(44*k)})`);
+    g.addColorStop(0.55,`rgb(${Math.round(48*k)},${Math.round(20*k)},${Math.round(26*k)})`);
+    g.addColorStop(1,`rgb(${Math.round(20*k)},${Math.round(9*k)},${Math.round(12*k)})`);
+    poly(bx,t,1,0,0);bx.fillStyle=g;bx.fill();
+    bx.lineWidth=1.6;bx.strokeStyle='rgba(255,170,160,0.10)';bx.stroke();
+    poly(bx,t,0.97,2,3);bx.lineWidth=2.2;bx.strokeStyle='rgba(0,0,0,0.28)';bx.stroke()}
+  // red glass outcrops scattered over the slopes
+  for(let k=0;k<26;k++){const a=rr()*Math.PI*2,t=rr()*0.75,r=rad(a,t)*(0.55+0.4*rr()),x=ox+drift(t)+Math.cos(a)*r,y=oy-lift(t)+Math.sin(a)*r*0.82,S2=4+rr()*9;
+    bx.fillStyle=`rgba(${150+rr()*60|0},${20+rr()*20|0},${30+rr()*20|0},0.9)`;bx.beginPath();bx.moveTo(x-S2*0.5,y);bx.lineTo(x,y-S2*1.6);bx.lineTo(x+S2*0.5,y);bx.closePath();bx.fill();
+    bx.fillStyle='rgba(255,210,210,0.35)';bx.beginPath();bx.moveTo(x-S2*0.15,y-S2*0.3);bx.lineTo(x,y-S2*1.5);bx.lineTo(x+S2*0.05,y-S2*0.3);bx.closePath();bx.fill()}
+  // the fissures: from the summit down the flanks, glowing
+  lx.lineCap=lx.lineJoin='round';
+  for(let k=0;k<9;k++){let a=k/9*Math.PI*2+rr()*0.5;lx.beginPath();
+    for(let j=0;j<=12;j++){const t=0.92-j/12*0.92;a+=(rr()-0.5)*0.22;const r=rad(a,t)*0.92,x=ox+drift(t)+Math.cos(a)*r,y=oy-lift(t)+Math.sin(a)*r*0.82;j?lx.lineTo(x,y):lx.moveTo(x,y)}
+    lx.strokeStyle='rgba(255,60,48,0.95)';lx.lineWidth=2.6;lx.stroke();lx.strokeStyle='rgba(255,190,150,0.8)';lx.lineWidth=0.9;lx.stroke()}
+  // the summit's glow
+  const sg=lx.createRadialGradient(ox+drift(1),oy-HT,0,ox+drift(1),oy-HT,R*0.45);sg.addColorStop(0,'rgba(255,70,60,0.85)');sg.addColorStop(1,'rgba(255,40,40,0)');lx.fillStyle=sg;lx.fillRect(0,0,w,h);
+  // the crown: a nest's spires, big, on the peak
+  const crown=buildNestSprite({x:m.x+1,y:m.y+1,r:R*0.3});
+  return {w,h,ox,oy,HT,base,light,crown,cx:ox+drift(1),cy:oy-HT+R*0.05}}
+function drawMegaNest(m){
+  if(!m._spr)m._spr=buildMegaSprite(m);
+  const sp=m._spr,x0=m.x-sp.ox,y0=m.y-sp.oy,beat=0.55+0.45*Math.pow(0.5+0.5*Math.sin(S.t*1.4),3);
+  ctx.drawImage(sp.base,x0,y0);
+  ctx.save();ctx.globalCompositeOperation='lighter';ctx.globalAlpha=Math.min(1,beat+(m.flashT>0?0.5:0));ctx.drawImage(sp.light,x0,y0);ctx.restore();
+  const cr=sp.crown,E=cr.E,cx=x0+sp.cx,cy=y0+sp.cy;
+  ctx.drawImage(cr.base,cx-E,cy-E);
+  ctx.save();ctx.globalCompositeOperation='lighter';ctx.globalAlpha=beat;ctx.drawImage(cr.light,cx-E,cy-E);ctx.restore();
+  ctx.drawImage(cr.top,cx-E,cy-E);
+  // while its nests stand: a faint pink sheen over the slopes
+  if(megaShelled()){ctx.save();ctx.globalAlpha=0.18+0.08*Math.sin(S.t*2);ctx.strokeStyle='#ff9ad8';ctx.lineWidth=3;ctx.setLineDash([14,10]);ctx.lineDashOffset=-S.t*20;
+    ctx.beginPath();ctx.ellipse(m.x,m.y,MEGA_SPR_R*1.02,MEGA_SPR_R*0.84,0,0,Math.PI*2);ctx.stroke();ctx.restore()}
+  if(m.hp<m.maxHp)hpbar(m.x,m.y-sp.HT-40,200,m.hp/m.maxHp)}
 // walked off the east edge with the way open
 function finishStop(){
-  if(!RUN||!S.barrier||!S.barrier.open)return;
+  if(!RUN||!(S.barrier&&S.barrier.open||S.megaDone))return;
   RUN.carry=captureCarry();S.paused=true;
   if(RUN.sector){showSector(RUN.stop+1,`Stop ${RUN.stop+1} cleared`);return}
   const next=RUN_STOPS[RUN.stop+1];
@@ -5144,7 +5194,7 @@ const NEST={
   large: {name:'Large nest', hp:1300,r:38,patrolT:38,patrolN:[4,6],brood:11,guards:6,defend:5,feed:1.6,dat:70},
   mound: {name:'Brood mound',hp:550, r:26,patrolT:40,patrolN:[3,4],brood:7, guards:4,defend:3,feed:1.1,dat:30},
   great: {name:'Great brood mound',hp:900,r:32,patrolT:35,patrolN:[4,5],brood:9,guards:5,defend:4,feed:1.4,dat:45},
-  heart: {name:'Hive Heart',hp:3200,r:50,patrolT:26,patrolN:[4,6],brood:14,guards:6,defend:6,feed:2,dat:160},
+  mega:  {name:'Mega Nest',hp:9000,r:200,patrolT:20,patrolN:[5,7],brood:16,guards:8,defend:6,feed:2,dat:300},
 };
 const NEST_BAND_MULT={rim:1,dense:1.5,core:1.7}; // brood/patrol/guard counts scale with depth
 const NEST_START={rim:{n:6,mix:[0.7,0.3]},dense:{n:6,mix:[0.3,0.5]},core:{n:4,mix:[0,0.4]}}; // mix: small, medium share (rest large)
@@ -5211,9 +5261,10 @@ function patrolPoint(n,PT){
 }
 function updateNests(dt){
   if(tutorialMap)return;
+  if(S.megaNest)updateMega(dt);
   liveNests().forEach(n=>{
     const N=NEST[n.size];
-    if(n.heart&&heartShelled()&&n.hp<n.lastHp){n.hp=n.lastHp;shellPing(n)} // (damage that went round damageEnemy)
+    if(n.mega&&megaShelled()&&n.hp<n.lastHp){n.hp=n.lastHp;shellPing(n)} // (damage that went round damageEnemy)
     if(!n.seen&&visible(n)&&n.hiveVein){n.seen=true}
     if(!n.seen&&visible(n)){n.seen=true;msg(`${N.name} spotted — its patrols roam this area. Destroy it for Dat${n.size==='small'?'':n.size==='medium'?' and fabricator charges':', fabricator charges and salvage'}.`)}
     // struck: rally defenders (on a cooldown, and not past a ceiling on its living brood)
@@ -5251,7 +5302,7 @@ function updateNests(dt){
 }
 // A destroyed nest drops a Dat deposit to collect; Medium ones also kick a charge back into every
 // fabricator, Large ones give up salvage too (free units of a locked kind, or spare drones).
-function nestDestroyed(n){stat('nests');if(n.heart)heartDied(n);
+function nestDestroyed(n){stat('nests');if(n.mega)megaDied(n);
   const N=NEST[n.size], amt=Math.round(N.dat*(n.band==='core'?2:n.band==='dense'?1.5:1));
   S.nodes.push({x:n.x,y:n.y,amt,max:amt,found:true});
   burst(n.x,n.y,'#ff5c4d',36,200,0.8);burst(n.x,n.y,C.dat,14,120,0.6);shakeScreen(6,0.35);
@@ -5260,7 +5311,7 @@ function nestDestroyed(n){stat('nests');if(n.heart)heartDied(n);
     Object.keys(FABS).forEach(k=>{const st=S.fab[k];if(st.n<FABS[k].charges){st.n++;if(st.n>=FABS[k].charges)st.rt=0}});
     extra=' Every fabricator gains a charge.';
   }
-  if(n.size==='large'||n.heart)extra+=salvageFab();
+  if(n.size==='large'||n.mega)extra+=salvageFab();
   if(n.size!=='small')extra+=` You recovered a free ${giftCall(1)}.`;
   banner(`${N.name} destroyed — drive over its Dat to collect it.${extra}`,'success');
   updateBuildBar();
@@ -5290,8 +5341,6 @@ function raiseMounds(v,count,size,R){
 function updateMounds(dt){
   S.veins.forEach(v=>{
     if(!v.moundSlots||!veinAlive(v))return;
-    if(v.mega&&!v.hiveIntro&&visible(v)){v.hiveIntro=true;
-      msg('The Mega Nest: a Blooded vein ringed by great brood mounds, with the Hive Heart beside it in its glass shell. The shell holds while any mound stands.')}
     if(v.hive&&!v.hiveIntro&&visible(v)){v.hiveIntro=true;
       msg('A Mega nest: a hive vein ringed by brood mounds. Its waves pour out of every mound still standing — break them first. Drain it for Hive-tier rewards and salvage.')}
     v.moundSlots.forEach(sl=>{
@@ -5786,13 +5835,13 @@ function buildNestSprite(n){
   return {r:n.r,E,base,light,top};
 }
 function drawNest(n){
+  if(n.mega){drawMegaNest(n);return}
   if(!n._spr||n._spr.r!==n.r)n._spr=buildNestSprite(n);
   const sp=n._spr,E=sp.E,fl=n.flashT>0,beat=0.55+0.45*Math.pow(0.5+0.5*Math.sin(S.t*2.1+n.ph),3)+0.12*Math.sin(S.t*5.3+n.ph);
   ctx.drawImage(sp.base,n.x-E,n.y-E);
   ctx.save();ctx.globalCompositeOperation='lighter';ctx.globalAlpha=Math.max(0,Math.min(1,beat));ctx.drawImage(sp.light,n.x-E,n.y-E);ctx.restore();
   ctx.drawImage(sp.top,n.x-E,n.y-E);
   if(fl){ctx.save();ctx.globalCompositeOperation='lighter';ctx.globalAlpha=0.6;ctx.drawImage(sp.top,n.x-E,n.y-E);ctx.restore()}
-  if(n.heart&&heartShelled())drawHeartShell(n);
   if(n.hp<n.maxHp)hpbar(n.x,n.y-n.r-10,n.r*2+8,n.hp/n.maxHp);
 }
 // Where the player's actual mining is happening right now — the average position of harvesters
@@ -8909,7 +8958,7 @@ function revealCircle(x,y,r){
   fogX.fillStyle=g;fogX.beginPath();fogX.arc(x/FOG_S,y/FOG_S,r/FOG_S,0,Math.PI*2);fogX.fill();
 }
 // src: who fired, for direct fire only (the Shieldbearer's shields stop it from in front)
-function damageEnemy(e,d,src){if(e.boss&&src&&bossBlock(e,src,d))return;if(e.heart&&heartShelled()){shellPing(e);return}if(e.markT>0)d*=SPOT_MULT;e.hp-=d;hitFlash(e);spark(e.x,e.y,C.accent,2)}
+function damageEnemy(e,d,src){if(e.boss&&src&&bossBlock(e,src,d))return;if(e.mega&&megaShelled()){shellPing(e);return}if(e.markT>0)d*=SPOT_MULT;e.hp-=d;hitFlash(e);spark(e.x,e.y,C.accent,2)}
 // Grenadier round: travels to where the target is right now (not a lead/intercept shot) and
 // explodes there, splashing every enemy within GREN_SPLASH_R of the landing point.
 // Shared by Grenadier rounds and the Big Guns artillery shell — opts lets a shell carry its own
@@ -10285,7 +10334,6 @@ function update(dt){
       else{
         S.drained++;
         if(v.breach)openBreach(v);
-        if(v.mega&&heartAlive()){S.megaDrained=true;S.heart.hp=0}
         let tail=' Follow the energy to the next vein when ready.';
         if(!S.contractAwake&&!STOP_BAND&&S.drained>=TRIANGULATE_AT){
           S.contractAwake=true;
@@ -10293,7 +10341,7 @@ function update(dt){
           {const cv=S.veins.find(x=>x.contract);if(cv)raiseMounds(cv,CONTRACT_MOUNDS,'great')}
           tail=' The contract vein has stirred deep in the zone — it gives off no pulses, so take bearings from stray energy pockets to triangulate it.';
         }
-        if(v.hive)tail=` The ${v.mega?'Mega Nest is broken and the Hive Heart withers with its vein':'Mega nest is broken'}.${salvageFab()}`+tail;
+        if(v.hive)tail=` The Mega nest is broken.${salvageFab()}`+tail;
         msg(`${v.hive?'Hive vein':'Vein'} drained at ${tierName(tier)} grade — +${datEarned} Dat Crystal and +${condensedEarned} Condensed Crystal.${tail}`);
         if(S.bonusPick){S.bonusPick=false;v.bonus=(v.bonus||0)+1;msg('The supply cache adds an extra card.')}
         shakeScreen(4,0.3);S.rewardQueue=[];for(let i=0;i<(v.bonus||0);i++)S.rewardQueue.push({tier:rewardTierFor(tier,v.band),band:v.band});showRewardChoice(rewardTierFor(tier,v.band),v.band);
@@ -10331,7 +10379,7 @@ function update(dt){
   // v4: walking off the east edge once the barrier is open moves on to the next stop
   if(S.breachVein&&!S.breachVein.introduced&&S.breachVein.seen){S.breachVein.introduced=true;
     msg('The breach vein — drain it to break through the barrier. Its nests will answer the drill.')}
-  if(RUN&&S.barrier&&S.barrier.open&&frameAB(B.x,B.y).a>W-250&&!S.over){finishStop();return}
+  if(RUN&&(S.barrier&&S.barrier.open||S.megaDone)&&frameAB(B.x,B.y).a>W-250&&!S.over){finishStop();return}
   if(!S.enemies.some(e=>dist(e,B)<400))B.hp=Math.min(B.maxHp,B.hp+2*dt);
   if(B.pingCd>0)B.pingCd=Math.max(0,B.pingCd-dt);
   if(S.pingRing){S.pingRing.t+=dt;if(S.pingRing.t>=S.pingRing.dur)S.pingRing=null}
@@ -12455,7 +12503,7 @@ function hud(){
     const cv=S.veins.find(v=>v.contract);
     if(RUN&&!stopInfo().final){
       $('hObjK')._tc=`Stop ${RUN.stop+1}/${RUN_STOPS.length} · ${STOP_SPLIT?'Rim / Dense':STOP_BAND==='rim'?'Rim':STOP_BAND==='dense'?'Dense':'Core'}`;
-      $('hObj')._tc=ready?'ready to drill — press F':S.barrier&&S.barrier.open?`way open — head ${EDGE_WORD[EXIT_DIR]}`:S.megaVein?(!S.megaVein.seen?'find the Mega Nest':heartShelled()?'break the great mounds':'kill the Heart or drain the vein'):S.breachVein&&S.breachVein.seen?'drain the breach vein':'find the breach vein';
+      $('hObj')._tc=ready?'ready to drill — press F':S.barrier&&S.barrier.open||S.megaDone?`way open — head ${EDGE_WORD[EXIT_DIR]}`:S.megaNest?(megaShelled()?`destroy its nests (${megaSlotsLeft()} left)`:'destroy the Mega Nest'):S.breachVein&&S.breachVein.seen?'drain the breach vein':'find the breach vein';
       $('hObjBar')._sw=(100*RUN.stop/(RUN_STOPS.length-1))+'%';
     }else{
     $('hObjK')._tc=S.contractAwake?(RUN?`Stop ${RUN.stop+1}/${RUN_STOPS.length} · Contract`:'Contract vein'):'Veins';
