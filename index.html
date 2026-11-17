@@ -4093,10 +4093,12 @@ const CUR_INFO={
   living:{name:'❖ Living Crystal',col:'--living',from:'Rare: only some veins yield it, the contract vein most of all.',use:'Unit unlocks, Flawless cards and the third card slot. Kept between runs.'},
   condensed:{name:'⬢ Condensed Crystal',col:'--condensed',from:'Every vein you drain.',use:'Upgrades, call-downs, cards and card upgrades. Kept between runs.'}};
 {const tip=document.createElement('div');tip.className='curTip';tip.hidden=true;document.body.appendChild(tip);let on=null;
-  const kindOf=el=>{if(!el||!el.closest)return null;const c=el.closest('.cur,.crystalIcon')||(el.classList&&el.classList.contains('v')&&el.previousElementSibling&&el.previousElementSibling.classList.contains('crystalIcon')?el.previousElementSibling:null);
+  // (owned cards on the pause menu and the reward pick use the same panel: an .oc with data-tip set)
+  const kindOf=el=>{if(!el||!el.closest)return null;const oc=el.closest('.oc[data-tip]');if(oc)return oc;const c=el.closest('.cur,.crystalIcon')||(el.classList&&el.classList.contains('v')&&el.previousElementSibling&&el.previousElementSibling.classList.contains('crystalIcon')?el.previousElementSibling:null);
     if(!c)return null;return ['dat','living','condensed'].find(k=>c.classList.contains(k))||null};
   addEventListener('pointermove',e=>{const k=e.pointerType==='touch'?null:kindOf(e.target);if(!k){if(on){tip.hidden=true;on=null}return}
-    if(k!==on){const I=CUR_INFO[k];on=k;tip.style.setProperty('--tc',`var(${I.col})`);tip.innerHTML=`<b>${I.name}</b><span><i>From:</i> ${I.from}</span><span><i>For:</i> ${I.use}</span>`;tip.hidden=false}
+    if(k!==on){on=k;if(typeof k==='string'){const I=CUR_INFO[k];tip.style.setProperty('--tc',`var(${I.col})`);tip.innerHTML=`<b>${I.name}</b><span><i>From:</i> ${I.from}</span><span><i>For:</i> ${I.use}</span>`}
+      else{tip.style.setProperty('--tc',k.style.getPropertyValue('--tc')||'#a9b4c0');tip.innerHTML=`<b>${k.dataset.tn}</b><span><i>${k.dataset.tt}</i>${k.dataset.tip?' · '+k.dataset.tip:''}</span>`}tip.hidden=false}
     const w=tip.offsetWidth,h=tip.offsetHeight;let x=e.clientX+14,y=e.clientY+16;if(x+w>innerWidth-8)x=e.clientX-w-10;if(y+h>innerHeight-8)y=e.clientY-h-12;
     tip.style.left=Math.max(8,x)+'px';tip.style.top=Math.max(8,y)+'px'},{passive:true});
   addEventListener('pointerdown',()=>{if(on){tip.hidden=true;on=null}},{passive:true})}
@@ -11147,7 +11149,7 @@ function renderOwnedCards(el,title){const L=S&&S.cards||[];if(!L.length){el._hd=
   const m=new Map();L.forEach(c=>{const k=(c.id||c.name)+'|'+c.tier;const e=m.get(k);if(e)e.n++;else m.set(k,{...c,n:1})});
   const esc=t=>String(t).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
   el.innerHTML=`<div class="ocHead">${title} (${L.length})</div><div class="ocList">`+[...m.values()].reverse().map(c=>{const u=cardById(c.id),d=u?String(u.desc||'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim():'';
-    return `<span class="oc" style="--tc:${CARD_TIER_COLOR[c.tier]||'#a9b4c0'}" title="${esc(tierName(c.tier)+' — '+(d||c.name))}">${esc(u?u.name:c.name)}${c.n>1?`<b>×${c.n}</b>`:''}</span>`}).join('')+'</div>'}
+    return `<span class="oc" style="--tc:${CARD_TIER_COLOR[c.tier]||'#a9b4c0'}" data-tn="${esc(u?u.name:c.name)}" data-tt="${esc(tierName(c.tier))}" data-tip="${esc(d)}">${esc(u?u.name:c.name)}${c.n>1?`<b>×${c.n}</b>`:''}</span>`}).join('')+'</div>'}
 // ---- v4 card design pass ----
 // Every reward card names what it changes: a category (colour, icon badge, art), an "applies to" strip,
 // and on Relay cards a big Offensive / Defensive slot badge. CARD_INFO maps each card to
