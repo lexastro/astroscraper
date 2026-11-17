@@ -12575,7 +12575,7 @@ function riftPuffSprite(){
 // a few per cell, more toward the Core, fewer when zoomed out. They all share one hiccup: every
 // GL_HIC_T seconds the whole rift skips a beat together. Only when you're zoomed right in on the rift does
 // the hiccup also tint the screen (GL_FLASH_Z and up, scaled by how much of the view is rift).
-const GL_HIC_T=3.7,GL_FLASH_Z=1.6,GL_MOTES=0.8,GL_BAND={rim:0.5,dense:1,core:1.25};
+const GL_HIC_T=3.7,GL_FLASH_Z=1.6,GL_MOTES=0.8,GL_BRIGHT=0.75,GL_BAND={rim:0.5,dense:1,core:1.25};
 function glh(a,b,c){let h=(a*73856093)^(b*19349663)^((c||0)*83492791);h=Math.imul(h^(h>>>15),2246822507);h=Math.imul(h^(h>>>13),3266489909);h^=h>>>16;return (h>>>0)/4294967296}
 const riftHiccup=t=>{const p=t%GL_HIC_T;return p<0.09?1:p>1.9&&p<1.94?0.6:0};
 let glEmberC=null;function glEmberSprite(){if(glEmberC)return glEmberC;const c=document.createElement('canvas');c.width=c.height=32;const x=c.getContext('2d'),g=x.createRadialGradient(16,16,0,16,16,16);
@@ -12587,7 +12587,7 @@ function drawRiftGlitch(x0,y0,x1,y1){
   const gx0=Math.max(0,Math.floor(x0/TCELL)),gx1=Math.min(TGX-1,Math.floor(x1/TCELL)),gy0=Math.max(0,Math.floor(y0/TCELL)),gy1=Math.min(TGY-1,Math.floor(y1/TCELL));
   const riftAt=(x,y)=>{const gx=Math.floor(x/TCELL),gy=Math.floor(y/TCELL);return gx>=0&&gy>=0&&gx<TGX&&gy<TGY&&terrain[gy*TGX+gx]===RIFT};
   const ember=glEmberSprite(),ts=terrainCv?terrainCv.width/W:1;let riftN=0,cells=0;
-  ctx.save();
+  ctx.save();ctx.globalAlpha=GL_BRIGHT;
   for(let gy=gy0;gy<=gy1;gy++)for(let gx=gx0;gx<=gx1;gx++){cells++;const id=gy*TGX+gx;if(terrain[id]!==RIFT)continue;riftN++;
     const cx=gx*TCELL,cy=gy*TCELL,bk=(GL_BAND[bandAt(cx+TCELL/2,cy+TCELL/2)]||1)*zk;
     // a spot in this cell for particle i in its k-th life (kept off the cell's outer rim on the rift's edge)
@@ -12596,10 +12596,10 @@ function drawRiftGlitch(x0,y0,x1,y1){
     // a patch of the rift floor flickering out of place
     for(let i=0,N=n(0.3,1);i<N&&terrainCv;i++){const per=0.9+glh(id,i,21)*1.4,ph=glh(id,i,22)*per,u=(t+ph)%per,k=Math.floor((t+ph)/per);if(u>0.32)continue;
       const[x,y]=spot(i,k,23),w=6+glh(id,k*3+i,24)*22,h=2+glh(id,k*3+i,25)*6;if(!riftAt(x+w,y+h))continue;const dx=(glh(id,k,26)-0.5)*30,dy=(glh(id,k,27)-0.5)*6,fl=Math.floor(u*25)%3;
-      ctx.globalCompositeOperation='source-over';ctx.globalAlpha=fl===2?0.4:0.95;ctx.drawImage(terrainCv,(x+dx)*ts,(y+dy)*ts,w*ts,h*ts,x,y,w,h);
+      ctx.globalCompositeOperation='source-over';ctx.globalAlpha=(fl===2?0.4:0.95)*GL_BRIGHT;ctx.drawImage(terrainCv,(x+dx)*ts,(y+dy)*ts,w*ts,h*ts,x,y,w,h);
       ctx.globalCompositeOperation='lighter';ctx.fillStyle=fl?'rgba(200,110,255,0.25)':'rgba(80,220,255,0.25)';ctx.fillRect(x,y,w,h);ctx.fillStyle='rgba(255,255,255,0.5)';ctx.fillRect(x,y,w,0.5*px);
       if(glh(id,k,28)<0.5){ctx.fillStyle='rgba(255,80,200,.5)';ctx.fillRect(x+w,y+h*0.3,4+glh(id,k,29)*10,0.6*px)}}
-    ctx.globalCompositeOperation='lighter';ctx.globalAlpha=1;
+    ctx.globalCompositeOperation='lighter';ctx.globalAlpha=GL_BRIGHT;
     // pixel drift
     for(let i=0,N=n(4,2);i<N;i++){const life=2.5+glh(id,i,31)*2,ph=glh(id,i,32)*life,u=((t+ph)%life)/life,k=Math.floor((t+ph)/life);const[bx,by]=spot(i,k,33);
       const step=Math.floor(u*life/0.3),jx=Math.round((glh(id,i*31+step,k)-0.5)*2)*3*px*(glh(id,i*31+step+50,k)<0.35?1:0),x=bx+jx+H*(glh(id,i,k+9)-0.5)*10,y=by-u*18;
@@ -12620,13 +12620,13 @@ function drawRiftGlitch(x0,y0,x1,y1){
     // chromatic embers
     for(let i=0,N=n(2.5,4);i<N;i++){const life=3+glh(id,i,51)*3,ph=glh(id,i,52)*life,u=((t+ph)%life)/life,k=Math.floor((t+ph)/life);const[bx,by]=spot(i,k,53);
       const x=bx+Math.sin(u*6+i)*3,y=by-u*26,a=Math.sin(u*Math.PI)*0.85,sp=(0.6+H*4+(glh(id,i*17+Math.floor(t*4),k)<0.08?3:0))*px,r=3*px;
-      ctx.globalAlpha=a;ctx.drawImage(ember,x-r,y-r,r*2,r*2);ctx.globalAlpha=1;
+      ctx.globalAlpha=(a)*GL_BRIGHT;ctx.drawImage(ember,x-r,y-r,r*2,r*2);ctx.globalAlpha=GL_BRIGHT;
       ctx.fillStyle=`rgba(255,70,90,${a*0.7})`;ctx.fillRect(x+sp-0.6*px,y-0.6*px,1.2*px,1.2*px);ctx.fillStyle=`rgba(70,230,255,${a*0.7})`;ctx.fillRect(x-sp-0.6*px,y-0.6*px,1.2*px,1.2*px);
       ctx.fillStyle=`rgba(255,255,255,${a})`;ctx.fillRect(x-0.5*px,y-0.5*px,px,px)}
   }
   // the hiccup tints the screen only when you're zoomed right in and the view is mostly rift
   if(H&&z>GL_FLASH_Z&&cells){const k=Math.min(1,(z-GL_FLASH_Z)/0.5)*Math.max(0,(riftN/cells-0.4)/0.6);
-    if(k>0){ctx.globalCompositeOperation='lighter';ctx.globalAlpha=1;ctx.fillStyle=`rgba(140,60,255,${0.05*k})`;ctx.fillRect(x0,y0,x1-x0,y1-y0)}}
+    if(k>0){ctx.globalCompositeOperation='lighter';ctx.globalAlpha=GL_BRIGHT;ctx.fillStyle=`rgba(140,60,255,${0.05*k})`;ctx.fillRect(x0,y0,x1-x0,y1-y0)}}
   ctx.restore()}
 function drawRiftSmoke(x0,y0,x1,y1){
   if(!terrain||!terrain.length)return;
