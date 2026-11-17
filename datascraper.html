@@ -3233,7 +3233,7 @@ function reset(landing){
   for(let i=0;i<STRAY_COUNT;i++){const st={x:0,y:0,live:true,t:0};S.strays.push(st);placeStray(st)}
   // v2: every roaming enemy comes from a nest (see NEST)
   if(!tutorialMap)(STOP_BAND?(STOP_SPLIT?['rim','dense']:[STOP_BAND]):Object.keys(NEST_START)).forEach(band=>{const st=NEST_START[band], nn=STOP_BAND?Math.round(STOP_NESTS[band]*(STOP_SPLIT?0.6:1)*sectorNestMult()*(megaStop()?MEGA_NESTS:1)):st.n;
-    for(let i=0;i<nn;i++){const r=rand();const size=r<st.mix[0]?'small':r<st.mix[0]+st.mix[1]?'medium':'large';placeNest(size,band)}});
+    for(let i=0;i<nn;i++){const r=rand();const size=r<st.mix[0]?'small':r<st.mix[0]+st.mix[1]?'medium':'large';placeNest(size,band,false,STOP_BAND&&stopGround('glass')&&i%2===0)}});
 
   // v4: nests dug in around the breach, between it and where you land
   if(S.breachSite&&!tutorialMap){const g=STOP_GUARDS[Math.min(RUN.stop,STOP_GUARDS.length-1)],bs=S.breachSite;
@@ -5613,7 +5613,10 @@ function makeNest(x,y,size){
 // A spot in the band clear of the Rig, vein sites and other nests (and, for one sprouting
 // mid-run, out of everyone's sight). null if nothing fits.
 const NEST_DENSE_EDGE=520, NEST_DENSE_SITE_GAP=520;
-function placeNest(size,band,hidden){
+// v4: on Glass-choked ground (sector map) every other nest sits only NEST_GLASS_SITE_GAP out from a vein room,
+// so the waves aren't all a long march through the glass
+const NEST_GLASS_SITE_GAP=160;
+function placeNest(size,band,hidden,near){
   const sites=[...S.sites,S.contractSite,...(S.hiveSites||[]),S.rigSite].filter(Boolean), nests=liveNests();
   // v4: on the Dense Field stops nests sit well inland, away from the map's edges
   const edge=STOP_BAND==='dense'&&band==='dense'?NEST_DENSE_EDGE:120;
@@ -5623,7 +5626,8 @@ function placeNest(size,band,hidden){
     const p=nearestPlain(q.x,q.y);
     if(bandAt(p.x,p.y)!==band||!inMap(p.x,p.y,edge))continue;
     if(dist(p,S.base)<NEST_BASE_CLEAR)continue;
-    if(sites.some(st=>dist(st,p)<ZONE_R+(edge>120&&t<110?NEST_DENSE_SITE_GAP:120)))continue; // dense stops: out in the rift, well away from the vein rooms
+    if(sites.some(st=>dist(st,p)<ZONE_R+(near?NEST_GLASS_SITE_GAP:edge>120&&t<110?NEST_DENSE_SITE_GAP:120)))continue; // dense stops: out in the rift, well away from the vein rooms
+    if(near&&t<150&&!sites.some(st=>dist(st,p)<ZONE_R+NEST_GLASS_SITE_GAP+100))continue; // (and a near one really is near one)
     if(nests.some(o=>dist(o,p)<NEST_GAP))continue;
     if(hidden&&visible(p))continue;
     return makeNest(p.x,p.y,size);
