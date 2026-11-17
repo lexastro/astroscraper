@@ -3550,54 +3550,78 @@ function megaDied(m){S.megaDone=true;
   banner(`The Mega Nest is down! The way ${EDGE_WORD[EXIT_DIR]} is open: walk the Rig off the ${EDGE_WORD[EXIT_DIR]} edge to move on.`,'success');
   // Blooded cards: a pick, and one more
   setTimeout(()=>{if(S.over)return;S.rewardQueue=[{tier:'Hive',band:'dense'}];showRewardChoice(rewardTierFor('Hive','dense'),'dense')},600)}
-// The mountain: terraced rock rising to a crown of crimson glass spires, split by glowing fissures,
-// with burrows at the foot where its nests dig in. Drawn once to canvases (height drawn upward,
-// the same top-down cheat the nests use), the fissures and crown pulsing.
-function buildMegaSprite(m){const R=MEGA_SPR_R,HT=Math.round(R*0.95),PAD=70,w=2*(R+PAD),h=2*(R+PAD)+HT,ox=R+PAD,oy=R+PAD+HT,rr=seededRng(Math.floor(m.x*7+m.y*13)+5);
-  const mk=()=>{const c=document.createElement('canvas');c.width=w;c.height=h;return c};const base=mk(),light=mk(),bx=base.getContext('2d'),lx=light.getContext('2d');
-  const ph=[rr()*6,rr()*6,rr()*6,rr()*6],L=18;
-  const rad=(a,t)=>R*Math.pow(1-t,0.8)*(1+0.13*Math.sin(3*a+ph[0]+t*1.2)+0.08*Math.sin(5*a+ph[1]-t)+0.05*Math.sin(11*a+ph[2])+0.03*Math.sin(19*a+ph[3]+t*3));
-  const lift=t=>HT*Math.pow(t,0.85), drift=t=>R*0.06*Math.sin(t*2.5+ph[1]);
-  const poly=(c,t,sc,dx,dy)=>{c.beginPath();for(let k=0;k<=72;k++){const a=k/72*Math.PI*2,r=rad(a,t)*sc;const x=ox+drift(t)+Math.cos(a)*r+dx,y=oy-lift(t)+Math.sin(a)*r*0.82+dy;k?c.lineTo(x,y):c.moveTo(x,y)}c.closePath()};
-  // the ground shadow, thrown down and to the right
-  bx.fillStyle='rgba(0,0,0,0.5)';bx.beginPath();bx.ellipse(ox+R*0.25,oy+R*0.12,R*1.18,R*0.9,0,0,Math.PI*2);bx.fill();
-  // the terraces, base to peak
-  for(let i=0;i<L;i++){const t=i/L,top=lift(t);
-    poly(bx,t,1,5,7);bx.fillStyle='rgba(4,2,3,0.55)';bx.fill();
-    const cy=oy-top,g=bx.createLinearGradient(ox-R,cy-R*0.8,ox+R,cy+R*0.8),k=0.55+0.6*t;
-    g.addColorStop(0,`rgb(${Math.round(92*k)},${Math.round(38*k)},${Math.round(44*k)})`);
-    g.addColorStop(0.55,`rgb(${Math.round(48*k)},${Math.round(20*k)},${Math.round(26*k)})`);
-    g.addColorStop(1,`rgb(${Math.round(20*k)},${Math.round(9*k)},${Math.round(12*k)})`);
-    poly(bx,t,1,0,0);bx.fillStyle=g;bx.fill();
-    bx.lineWidth=1.6;bx.strokeStyle='rgba(255,170,160,0.10)';bx.stroke();
-    poly(bx,t,0.97,2,3);bx.lineWidth=2.2;bx.strokeStyle='rgba(0,0,0,0.28)';bx.stroke()}
-  // red glass outcrops scattered over the slopes
-  for(let k=0;k<26;k++){const a=rr()*Math.PI*2,t=rr()*0.75,r=rad(a,t)*(0.55+0.4*rr()),x=ox+drift(t)+Math.cos(a)*r,y=oy-lift(t)+Math.sin(a)*r*0.82,S2=4+rr()*9;
-    bx.fillStyle=`rgba(${150+rr()*60|0},${20+rr()*20|0},${30+rr()*20|0},0.9)`;bx.beginPath();bx.moveTo(x-S2*0.5,y);bx.lineTo(x,y-S2*1.6);bx.lineTo(x+S2*0.5,y);bx.closePath();bx.fill();
-    bx.fillStyle='rgba(255,210,210,0.35)';bx.beginPath();bx.moveTo(x-S2*0.15,y-S2*0.3);bx.lineTo(x,y-S2*1.5);bx.lineTo(x+S2*0.05,y-S2*0.3);bx.closePath();bx.fill()}
-  // the fissures: from the summit down the flanks, glowing
-  lx.lineCap=lx.lineJoin='round';
-  for(let k=0;k<9;k++){let a=k/9*Math.PI*2+rr()*0.5;lx.beginPath();
-    for(let j=0;j<=12;j++){const t=0.92-j/12*0.92;a+=(rr()-0.5)*0.22;const r=rad(a,t)*0.92,x=ox+drift(t)+Math.cos(a)*r,y=oy-lift(t)+Math.sin(a)*r*0.82;j?lx.lineTo(x,y):lx.moveTo(x,y)}
-    lx.strokeStyle='rgba(255,60,48,0.95)';lx.lineWidth=2.6;lx.stroke();lx.strokeStyle='rgba(255,190,150,0.8)';lx.lineWidth=0.9;lx.stroke()}
-  // the summit's glow
-  const sg=lx.createRadialGradient(ox+drift(1),oy-HT,0,ox+drift(1),oy-HT,R*0.45);sg.addColorStop(0,'rgba(255,70,60,0.85)');sg.addColorStop(1,'rgba(255,40,40,0)');lx.fillStyle=sg;lx.fillRect(0,0,w,h);
-  // the crown: a nest's spires, big, on the peak
-  const crown=buildNestSprite({x:m.x+1,y:m.y+1,r:R*0.3});
-  return {w,h,ox,oy,HT,base,light,crown,cx:ox+drift(1),cy:oy-HT+R*0.05}}
+// The Mega Nest is a caldera of the nests' own red glass: a ring of huge spires leaning outward round
+// a glowing pit (where its brood pours out), a fringe of smaller spires and glass plates out to its
+// nests, and the cracks of the ground it has broken. Drawn once to three canvases like a nest (ground,
+// pulsing light, spires). The ring shows the fight: the spires nearest a nest you've killed snap to
+// stumps (the spire layer is redrawn when a nest dies or regrows), and the pit burns brighter as its
+// nests fall.
+function megaSpire(rr,bx,by,a,Ls,lean,w,ring){return {a,bx,by,w,h:Ls*Math.sqrt(1-lean*lean)*1.35,tx:bx+Math.cos(a)*Ls*lean,ty:by+Math.sin(a)*Ls*lean,snap0:rr()<0.2?0.55+0.3*rr():1,snap:1,tw:rr(),ring,pa:Math.atan2(by/0.88,bx)}}
+function megaChunk(rr,x,y,Rs){const nn=3+(rr()*3|0),P=[];for(let j=0;j<nn;j++){const q=j/nn*Math.PI*2+rr()*0.6,r=Rs*(0.55+rr()*0.5);P.push(x+Math.cos(q)*r,y+Math.sin(q)*r)}
+  const tx2=(rr()-0.5)*1.3,ty2=(rr()-0.5)*1.3,nl=Math.hypot(tx2,ty2,1);
+  return {x,y,R:Rs,P,nx:tx2/nl,ny:ty2/nl,nz:1/nl,h:Rs*(0.25+0.5*Math.hypot(tx2,ty2)),th:1.4+Rs*0.12,hue:0.85+rr()*0.3,arc:rr(),col:NEST_GLASS}}
+// spires as buildNestSprite draws them (faces lit by TP_L, a cast shadow each), on one context
+function paintGlassSpires(tx,sp){const L=TP_L,NG=NEST_SPIRE;
+  const shade=(A,B,Cc)=>{const ux=B[0]-A[0],uy=B[1]-A[1],uz=B[2]-A[2],vx=Cc[0]-A[0],vy=Cc[1]-A[1],vz=Cc[2]-A[2];let nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx;const l=Math.hypot(nx,ny,nz)||1;nx/=l;ny/=l;nz/=l;if(nz<0){nx=-nx;ny=-ny;nz=-nz}
+    const d=Math.max(0,nx*L.x+ny*L.y+nz*L.z),rz=2*nz*(nx*L.x+ny*L.y+nz*L.z)-L.z;return {lit:0.28+1.05*d,spec:Math.pow(Math.max(0,rz),14)}};
+  tx.fillStyle='rgba(12,0,2,0.5)';
+  sp.forEach(q=>{const px=-Math.sin(q.a)*q.w/2,py=Math.cos(q.a)*q.w/2,hz=q.h*q.snap,sx=q.bx+(q.tx-q.bx)*q.snap+hz*0.7,sy=q.by+(q.ty-q.by)*q.snap+hz*0.7;
+    tx.beginPath();tx.moveTo(q.bx+px,q.by+py);tx.lineTo(sx,sy);tx.lineTo(q.bx-px,q.by-py);tx.closePath();tx.fill()});
+  sp.slice().sort((p,q)=>p.by-q.by).forEach(q=>{const f=q.snap,TILT=0.5,tip=[q.bx+(q.tx-q.bx)*f,q.by+(q.ty-q.by)*f-q.h*f*TILT,q.h*f],sa=Math.atan2(tip[1]-q.by,tip[0]-q.bx),px=-Math.sin(sa)*q.w/2,py=Math.cos(sa)*q.w/2;
+    const bl=[q.bx+px,q.by+py,0],br=[q.bx-px,q.by-py,0],mid=[q.bx+Math.cos(sa+1.57)*q.w*(q.tw-0.5)*0.3,q.by+Math.sin(sa+1.57)*q.w*(q.tw-0.5)*0.3,q.h*0.08];
+    const tp=f<1?[[tip[0]+px*0.45,tip[1]+py*0.45],[tip[0]+Math.cos(sa)*q.w*0.15-px*0.1,tip[1]+Math.sin(sa)*q.w*0.15-py*0.1],[tip[0]-px*0.45,tip[1]-py*0.45]]:[[tip[0],tip[1]]];
+    [[bl,mid,tip],[mid,br,tip]].forEach((F,fi)=>{const {lit,spec}=shade(...F),k=lit*(0.85+0.3*q.tw),g=tx.createLinearGradient(q.bx,q.by,tip[0],tip[1]);
+      g.addColorStop(0,`rgba(${Math.min(255,NG[0]*k*1.2+70)|0},${Math.min(255,NG[1]*k+12)|0},${Math.min(255,NG[2]*k+12)|0},0.94)`);
+      g.addColorStop(1,`rgba(${Math.min(255,NG[0]*k+255*spec)|0},${Math.min(255,NG[1]*k+230*spec)|0},${Math.min(255,NG[2]*k+235*spec)|0},0.82)`);
+      tx.fillStyle=g;tx.beginPath();tx.moveTo(F[0][0],F[0][1]);tx.lineTo(F[1][0],F[1][1]);(fi===0?tp:tp.slice().reverse()).forEach(t=>tx.lineTo(t[0],t[1]));tx.closePath();tx.fill()});
+    const lit1=((-Math.sin(sa))*L.x+Math.cos(sa)*L.y)>0;
+    tx.lineWidth=0.9;tx.strokeStyle=lit1?'rgba(255,225,220,0.75)':'rgba(30,0,4,0.8)';tx.beginPath();tx.moveTo(bl[0],bl[1]);tx.lineTo(tp[0][0],tp[0][1]);tx.stroke();
+    tx.strokeStyle=lit1?'rgba(30,0,4,0.8)':'rgba(255,225,220,0.75)';tx.beginPath();tx.moveTo(br[0],br[1]);tx.lineTo(tp[tp.length-1][0],tp[tp.length-1][1]);tx.stroke();
+    tx.strokeStyle='rgba(255,235,230,0.45)';tx.lineWidth=0.6;tx.beginPath();tx.moveTo(mid[0],mid[1]);const tm=tp[Math.floor(tp.length/2)];tx.lineTo(tm[0],tm[1]);tx.stroke()})}
+function buildMegaSprite(m){const R=MEGA_SPR_R,E=Math.ceil(R*2.3),sz=2*E,rr=seededRng(Math.floor(m.x*13+m.y*7)+991),TAU=Math.PI*2;
+  const mk=()=>{const c=document.createElement('canvas');c.width=c.height=sz;const x=c.getContext('2d');x.translate(E,E);return {c,x}};
+  const B=mk(),Lt=mk(),b=B.x,l=Lt.x;b.lineCap=l.lineCap=b.lineJoin=l.lineJoin='round';
+  // the scorched ground it sits on
+  const sg=b.createRadialGradient(0,0,0,0,0,R*1.45);sg.addColorStop(0,'rgba(6,1,3,0.85)');sg.addColorStop(0.7,'rgba(10,2,5,0.5)');sg.addColorStop(1,'rgba(0,0,0,0)');b.fillStyle=sg;b.beginPath();b.ellipse(0,0,R*1.45,R*1.3,0,0,TAU);b.fill();
+  // the breaks: cracks fanning out, broken rings
+  const lines=[],path=(c,P,dx,dy)=>{c.beginPath();P.forEach((q,j)=>j?c.lineTo(q[0]+dx,q[1]+dy):c.moveTo(q[0]+dx,q[1]+dy))};
+  for(let k=0;k<14;k++){const a=k/14*TAU+(rr()-0.5)*0.8,P=[[0,0]];let r=0,aa=a;while(r<R*1.3*(0.85+0.3*rr())){r+=R*0.156;aa+=(rr()-0.5)*0.3;P.push([Math.cos(aa)*r,Math.sin(aa)*r])}lines.push({P,w:4.5})}
+  [0.32,0.58,0.82].forEach(f=>{let a=rr()*TAU;const end=a+TAU;while(a<end){const span=0.4+rr()*0.9;if(rr()<0.6){const P=[];for(let t=0;t<=8;t++){const q=a+span*t/8,r=R*1.3*f*(0.92+0.16*rr());P.push([Math.cos(q)*r,Math.sin(q)*r])}lines.push({P,w:4.5*(1.2-f)})}a+=span+0.2+rr()*0.5}});
+  lines.forEach(Ln=>{path(b,Ln.P,0,0);b.strokeStyle='rgba(4,5,7,0.85)';b.lineWidth=Ln.w;b.stroke();path(b,Ln.P,Ln.w*0.45,Ln.w*0.45);b.strokeStyle='rgba(255,235,230,0.12)';b.lineWidth=0.6;b.stroke();
+    path(l,Ln.P,0,0);l.strokeStyle='rgba(255,62,48,0.8)';l.lineWidth=Math.max(0.6,Ln.w*0.45);l.stroke()});
+  // the pit, and its glow
+  const PX=R*0.4,PY=R*0.33,py0=-10;b.fillStyle='rgba(4,0,2,0.95)';b.beginPath();b.ellipse(0,py0,PX,PY,0,0,TAU);b.fill();
+  const pg=l.createRadialGradient(0,py0,0,0,py0,PX);pg.addColorStop(0,'rgba(255,120,70,0.95)');pg.addColorStop(0.5,'rgba(255,50,40,0.6)');pg.addColorStop(1,'rgba(255,30,30,0)');l.fillStyle=pg;l.beginPath();l.ellipse(0,py0,PX,PY,0,0,TAU);l.fill();
+  const gg=l.createRadialGradient(0,py0,0,0,py0,R*0.62);gg.addColorStop(0,'rgba(255,62,52,0.55)');gg.addColorStop(1,'rgba(255,40,40,0)');l.fillStyle=gg;l.beginPath();l.arc(0,py0,R*0.62,0,TAU);l.fill();
+  // glass plates strewn round it
+  const ch=[];for(let k=0;k<90;k++){const a=rr()*TAU,r0=R*(0.45+0.85*rr());ch.push(megaChunk(rr,Math.cos(a)*r0,Math.sin(a)*r0*0.88,5+rr()*20))}
+  ch.sort((p,q)=>p.y-q.y);ch.forEach(c=>drawChunkShadow(b,c));ch.forEach(c=>drawChunkBody(b,c));
+  // the spires: the great ring (ring 1), the outer fringe (2), and a few leaning in over the pit (0)
+  const sp=[];
+  for(let k=0;k<44;k++){const a=k/44*TAU+(rr()-0.5)*0.1,r0=R*(0.5+0.2*rr()),Ls=R*(0.75+0.6*rr());sp.push(megaSpire(rr,Math.cos(a)*r0,Math.sin(a)*r0*0.88-10,a,Ls,0.32+0.22*rr(),Ls*(0.12+0.08*rr()),1))}
+  for(let k=0;k<70;k++){const a=rr()*TAU,r0=R*(0.72+0.3*rr()),Ls=R*(0.25+0.35*rr());sp.push(megaSpire(rr,Math.cos(a)*r0,Math.sin(a)*r0*0.88,a,Ls,0.4+0.2*rr(),Math.max(6,Ls*0.16),2))}
+  for(let k=0;k<16;k++){const a=rr()*TAU,r0=R*(0.22+0.1*rr()),Ls=R*(0.2+0.2*rr());sp.push(megaSpire(rr,Math.cos(a)*r0,Math.sin(a)*r0*0.8-10,a+Math.PI,Ls,0.3+0.2*rr(),Ls*0.16,0))}
+  const T=mk();return {E,base:B.c,light:Lt.c,top:T.c,tx:T.x,sp,key:null}}
+// which slots are down, as a key; the spires of the ring and fringe nearest a dead slot snap to stumps
+function megaTopKey(m){return (S.megaSlots||[]).map(sl=>slotLive(sl)?1:0).join('')}
+function paintMegaTop(m,spr){const key=megaTopKey(m);if(spr.key===key)return;spr.key=key;
+  const dead=(S.megaSlots||[]).filter(sl=>!slotLive(sl)).map(sl=>Math.atan2((sl.y-m.y)/0.88,sl.x-m.x)),gap=Math.PI/(MEGA_SLOTS*0.95);
+  spr.sp.forEach(q=>{const near=q.ring&&dead.some(a=>Math.abs(Math.atan2(Math.sin(q.pa-a),Math.cos(q.pa-a)))<gap);q.snap=near?Math.min(q.snap0,0.22+0.18*q.tw):q.snap0});
+  const x=spr.tx;x.save();x.setTransform(1,0,0,1,0,0);x.clearRect(0,0,spr.top.width,spr.top.height);x.restore();paintGlassSpires(x,spr.sp)}
 function drawMegaNest(m){
   if(!m._spr)m._spr=buildMegaSprite(m);
-  const sp=m._spr,x0=m.x-sp.ox,y0=m.y-sp.oy,beat=0.55+0.45*Math.pow(0.5+0.5*Math.sin(S.t*1.4),3);
-  ctx.drawImage(sp.base,x0,y0);
-  ctx.save();ctx.globalCompositeOperation='lighter';ctx.globalAlpha=Math.min(1,beat+(m.flashT>0?0.5:0));ctx.drawImage(sp.light,x0,y0);ctx.restore();
-  const cr=sp.crown,E=cr.E,cx=x0+sp.cx,cy=y0+sp.cy;
-  ctx.drawImage(cr.base,cx-E,cy-E);
-  ctx.save();ctx.globalCompositeOperation='lighter';ctx.globalAlpha=beat;ctx.drawImage(cr.light,cx-E,cy-E);ctx.restore();
-  ctx.drawImage(cr.top,cx-E,cy-E);
-  // while its nests stand: a faint pink sheen over the slopes
-  if(megaShelled()){ctx.save();ctx.globalAlpha=0.18+0.08*Math.sin(S.t*2);ctx.strokeStyle='#ff9ad8';ctx.lineWidth=3;ctx.setLineDash([14,10]);ctx.lineDashOffset=-S.t*20;
-    ctx.beginPath();ctx.ellipse(m.x,m.y,MEGA_SPR_R*1.02,MEGA_SPR_R*0.84,0,0,Math.PI*2);ctx.stroke();ctx.restore()}
-  if(m.hp<m.maxHp)hpbar(m.x,m.y-sp.HT-40,200,m.hp/m.maxHp)}
+  const sp=m._spr,E=sp.E,left=megaSlotsLeft(),open=1-left/MEGA_SLOTS,beat=0.55+0.45*Math.pow(0.5+0.5*Math.sin(S.t*(1.4+open)),3);
+  paintMegaTop(m,sp);
+  ctx.drawImage(sp.base,m.x-E,m.y-E);
+  ctx.save();ctx.globalCompositeOperation='lighter';ctx.globalAlpha=Math.min(1,beat*(0.55+0.45*open)+(m.flashT>0?0.4:0));ctx.drawImage(sp.light,m.x-E,m.y-E);
+  // its nests gone, the pit flares
+  if(!left){ctx.globalAlpha=0.35+0.3*beat;const g=ctx.createRadialGradient(m.x,m.y-10,0,m.x,m.y-10,MEGA_SPR_R*0.5);g.addColorStop(0,'rgba(255,170,110,0.9)');g.addColorStop(1,'rgba(255,40,30,0)');ctx.fillStyle=g;ctx.beginPath();ctx.arc(m.x,m.y-10,MEGA_SPR_R*0.5,0,Math.PI*2);ctx.fill()}
+  ctx.restore();
+  ctx.drawImage(sp.top,m.x-E,m.y-E);
+  // while its nests stand: a faint pink sheen round the ring
+  if(left){ctx.save();ctx.globalAlpha=0.18+0.08*Math.sin(S.t*2);ctx.strokeStyle='#ff9ad8';ctx.lineWidth=3;ctx.setLineDash([14,10]);ctx.lineDashOffset=-S.t*20;
+    ctx.beginPath();ctx.ellipse(m.x,m.y,MEGA_SPR_R*1.02,MEGA_SPR_R*0.88,0,0,Math.PI*2);ctx.stroke();ctx.restore()}
+  if(m.hp<m.maxHp)hpbar(m.x,m.y-MEGA_SPR_R*1.25,200,m.hp/m.maxHp)}
 // walked off the east edge with the way open
 function finishStop(){
   if(!RUN||!(S.barrier&&S.barrier.open||S.megaDone))return;
