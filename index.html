@@ -1873,7 +1873,7 @@ function guardBastion(u){u.following=false;u.state='guard';u.guard=S.base;u.dest
 // its colour across their shoulders.
 const KITS={
   shock:{kind:'troop',name:'Shock Rounds',tier:'Rare',col:'#8fe3ff',solo:'Every hit stuns the target for a moment.',pair:'Electric Fence walls',pairTxt:'a Trooper manning one has every shot jump on to a second enemy',on:()=>S.mods.wallType==='elec',wall:'elec'},
-  lmg:{kind:'troop',name:'Line Holders',tier:'Rare',col:'#f2b84b',solo:'Light machine guns: 2.5× a rifle’s rate of fire, with more spread and 20% less range. They can’t fire on the move and move 25% slower.',pair:'Heavy Armour walls',pairTxt:'behind one they take half damage',on:()=>S.mods.wallType==='heavy',wall:'heavy'},
+  lmg:{kind:'troop',name:'Line Holders',tier:'Rare',col:'#f2b84b',solo:'Light machine guns: a rapid stream of lighter rounds, 2.5× a rifle’s damage over time, with more spread and 20% less range. They can’t fire on the move and move 25% slower.',pair:'Heavy Armour walls',pairTxt:'behind one they take half damage',on:()=>S.mods.wallType==='heavy',wall:'heavy'},
   warden:{kind:'brawler',name:'Glass Wardens',tier:'Epic',col:'#b48bff',solo:'Their shields are glass: a shot they block shatters and flies back at whoever fired it, for double.',pair:'Glass Ridge walls',pairTxt:'a Glass Ridge wall next to a Warden throws blocked shots back too',on:()=>S.mods.wallType==='glass',wall:'glass'},
   razor:{kind:'brawler',name:'Razor Guard',tier:'Rare',col:'#ff5c6a',solo:'Every strike makes the enemy bleed for 4 seconds.',pair:'Razor Line walls',pairTxt:'a bleeding enemy takes double from the wire',on:()=>S.mods.wallType==='razor',wall:'razor'},
   cryo:{kind:'grenadier',name:'Cryo Shells',tier:'Rare',col:'#8fe3ff',solo:'Blasts freeze: enemies caught are slowed to a crawl for 3 seconds.',pair:'Sonic Deterrent relays',pairTxt:'the relay horns shatter frozen enemies, for heavy damage',on:()=>S.mods.relayOff==='sonic',relay:'sonic'},
@@ -1906,7 +1906,10 @@ function kitBand(t){const id=kitOf(t);if(!id||t.kind==='mech')return;ctx.save();
 // Line Holders' light machine gun: a long, heavy barrel with a box magazine, over the rifle
 function lmgOn(t){ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang);rP([[2,1.2],[17,1.6],[17,3.6],[2,4.2]],'#3a4048');rP([[5,4],[10,4],[10,8.4],[5,8.4]],'#6f7b6a');rLimb([[17,2.6],[20,2.6]],1.4,'#2a2f36');ctx.restore()}
 // ---- kit numbers ----
-const SHOCK_STUN=0.3, SHOCK_CHAIN_R=90, LMG_RATE=2.5, LMG_RANGE=0.8, LMG_SPEED=0.75, LMG_MISS=0.25;
+// v4: Line Holders fire like machine guns: LMG_RATE× a rifle's rate (about 6.5 shots a second, under the
+// Mech minigun's 12 when spun up), each shot LMG_DMG of a rifle round, so the damage per second is the old 2.5×
+const LMG_DMG=2.5/7;
+const SHOCK_STUN=0.3, SHOCK_CHAIN_R=90, LMG_RATE=7, LMG_RANGE=0.8, LMG_SPEED=0.75, LMG_MISS=0.25;
 const BLEED_T=4, BLEED_DPS=4, CRYO_T=3, CRYO_SLOW=0.3, CRYO_SHATTER=60, FIRE_T=4, FIRE_DPS=8, FIRE_LINE_T=4;
 const SPOT_T=6, SPOT_MULT=1.25, SPOT_RADAR_R=420, SPOT_RADAR_RANGE=1.4, CLUSTER_N=4, CLUSTER_DMG=0.35, FLAK_R=1.8, FLAK_BIG=0.4;
 const BRK_RANGE=24, BRK_CD=0.55, BRK_DMG=15, BRK_SPLASH=6, BRK_SPLASH_R=26, BRK_HAY_EVERY=4, BRK_HAY_R=44, BRK_HAY_KB=380, BRK_IMPACT=45, BRK_SEEK=200;
@@ -10937,7 +10940,7 @@ function update(dt){
         }
         else if(kit==='lmg'){t.ang=Math.atan2(best.y-t.y,best.x-t.x);t.shotT=S.t;
           if(Math.random()<LMG_MISS){const a=t.ang+rnd(-0.25,0.25);tracer(gunMuzzle(t,16),{x:t.x+Math.cos(a)*range,y:t.y+Math.sin(a)*range},C.accent)}
-          else{damageEnemy(best,TROOP_DMG*S.mods.troopDmgMult,t);const j=rnd(-6,6);tracer(gunMuzzle(t,16),{x:best.x+j,y:best.y-j},C.accent)}
+          else{damageEnemy(best,TROOP_DMG*LMG_DMG*S.mods.troopDmgMult,t);const j=rnd(-6,6);tracer(gunMuzzle(t,16),{x:best.x+j,y:best.y-j},C.accent)}
           if(sfxReady('lmg',0.05))sndAt(t.x,t.y,()=>sfx.rifle());t.cd=TROOP_CD/LMG_RATE/squadFireRateMult()}
         else{t.ang=Math.atan2(best.y-t.y,best.x-t.x);const end=troopPierce(t,best,range,TROOP_DMG*S.mods.troopDmgMult);tracer(gunMuzzle(t,11),end,kit==='shock'?'#8fe3ff':C.accent);t.shotT=S.t;sndAt(t.x,t.y,()=>sfx.rifle());t.cd=TROOP_CD/squadFireRateMult();
           if(kit==='shock'){best.stunT=Math.max(best.stunT||0,SHOCK_STUN);
