@@ -5220,7 +5220,7 @@ function updateBoss(dt){bossWatch();updateLava(dt)}
 // Burrower: underground (S.burrows, not in S.enemies, so nothing can target it) it's a crack of light
 //   running through the ground toward a Stabilizer or the Rig. It surfaces beside it as a ring of jaws
 //   (kind 'burrower' in S.enemies), rooted, bites for BUR_BITE_T seconds, then dives and comes up again.
-const CHOIR_HP=60,CHOIR_R=8,CHOIR_SPEED=46,CHOIR_LINK_R=140,CHOIR_LINKS=6,CHOIR_BACK=110,CHOIR_HASTE=1.2,CHOIR_FROM=3,
+const CHOIR_HP=60,CHOIR_R=8,CHOIR_SPEED=46,CHOIR_LINK_R=140,CHOIR_LINKS=6,CHOIR_BACK=110,CHOIR_HASTE=1.2,CHOIR_FROM=2,CHOIR_SEEK=900,
   FRAC_HP=200,FRAC_R=12,FRAC_SPEED=30,FRAC_DMG=22,FRAC_BURST_R=60,FRAC_WALL=40,FRAC_FROM=4,CAL_T=10,CAL_SLOW=0.5,CAL_DPS=3,
   BUR_HP=140,BUR_R=11,BUR_SPEED=70,BUR_BITE=9,BUR_BITE_T=3,BUR_EMERGE=0.5,BUR_RESURF=6;
 const denseHp=(base,core)=>Math.round(base*(core?CORE_ENEMY_HP_MULT:1)*(RUN?stopHpMult():1));
@@ -5234,11 +5234,13 @@ function denseSpecials(v,feeders,big){if(v.band!=='dense'&&v.band!=='core')retur
   const top=feeders.length?feeders.reduce((p,q)=>NEST[q.size].feed>NEST[p.size].feed?q:p):null,a=v.waveDir;
   let src;if(top){const d=dist(top,v)||1;src={x:top.x+(v.x-top.x)/d*(top.r+40),y:top.y+(v.y-top.y)/d*(top.r+40)}}else src={x:v.x+Math.cos(a)*WAVE_SPAWN_DIST,y:v.y+Math.sin(a)*WAVE_SPAWN_DIST};
   const at=()=>nearestPlain(Math.max(30,Math.min(W-30,src.x+rnd(-50,50))),Math.max(30,Math.min(H-30,src.y+rnd(-50,50))));
-  if(v.waveNo>=CHOIR_FROM){const p=at();spawnChoir(p.x,p.y)}
+  if(v.waveNo>=CHOIR_FROM)for(let i=0;i<(big?2:1);i++){const p=at();spawnChoir(p.x,p.y)} // (two with a great wave)
   if(v.waveNo>=FRAC_FROM)for(let i=0;i<(big?2:1);i++){const p=at();spawnFracture(p.x,p.y)}
   if(big){const p=at();spawnBurrow(p.x,p.y)}}
-// Choir: what it can link (Echoes and Big Echoes; not the horde's swarmlings)
-const choirLinkable=x=>x.hp>0&&(x.kind==='wave'||x.kind==='roam')&&!x.horde;
+// Choir: what it can link (Echoes and Big Echoes; not the horde's swarmlings). v4: only ones on the attack, a
+// wave's Echoes or a roamer that has a target, so a Choir no longer settles behind the guards idling at a nest
+// and sits there while the wave it came with marches off (they piled up there, one more each wave)
+const choirLinkable=x=>x.hp>0&&!x.horde&&(x.kind==='wave'||(x.kind==='roam'&&!!x.target));
 function choirStep(e,tgt,dt){
   if((e.linkCd-=dt)<=0){e.linkCd=0.5;const c=[];S.enemies.forEach(x=>{if(choirLinkable(x)){const d=dist(e,x);if(d<CHOIR_LINK_R)c.push([d,x])}});
     c.sort((p,q)=>p[0]-q[0]);e.links=c.slice(0,CHOIR_LINKS).map(p=>p[1]);e.links.forEach(x=>{x.choir=e;x.linkT=S.t+0.8})}
@@ -5246,7 +5248,10 @@ function choirStep(e,tgt,dt){
   if(e.links.length){let cx=0,cy=0;e.links.forEach(x=>{cx+=x.x;cy+=x.y});cx/=e.links.length;cy/=e.links.length;
     const d=Math.hypot(tgt.x-cx,tgt.y-cy)||1,dx=cx-(tgt.x-cx)/d*CHOIR_BACK,dy=cy-(tgt.y-cy)/d*CHOIR_BACK;
     if(Math.hypot(dx-e.x,dy-e.y)>14)moveToward(e,waypointFor(e,dx,dy),e.speed*enemyPace(e),dt)}
-  else if(dist(e,tgt)>240)moveToward(e,enemyApproachPoint(e,tgt),e.speed*enemyPace(e),dt)}
+  else{ // v4: no Echoes in reach: catch up with the nearest attacker (within CHOIR_SEEK), else head for the fight
+    let near=null,nd=CHOIR_SEEK;S.enemies.forEach(x=>{if(choirLinkable(x)){const d=dist(e,x);if(d<nd){nd=d;near=x}}});
+    if(near)moveToward(e,waypointFor(e,near.x,near.y),e.speed*CHOIR_HASTE*enemyPace(e),dt);
+    else if(dist(e,tgt)>240)moveToward(e,enemyApproachPoint(e,tgt),e.speed*enemyPace(e),dt)}}
 // damage on a linked Echo is split across every live member of its choir
 function choirShare(e,d){const c=e.choir;if(!(e.linkT>S.t)||!c||c.hp<=0||!S.enemies.includes(c))return false;
   const m=c.links.filter(x=>x.hp>0&&x.linkT>S.t);if(m.length<2)return false;const k=d/m.length;
