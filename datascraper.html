@@ -1247,6 +1247,10 @@ const RELAY_HP=100;
 // Offensive: Sonic Deterrent I–III (the old Energy Surge), Electric Surge I–II (chain lightning),
 // Fortified Relay (armour and a full Turret gun). Defensive: Walled Relay (a ring of walls of the run's
 // wall type, no tower turrets), Radar Mast (far sight), Repair Cradle (a drone of its own).
+// v4: with Electric Fence walls, a Relay's tesla bolt jumps TESLA_FENCE_JUMPS more times (the coils and the fence share the charge)
+const TESLA_FENCE_JUMPS=3;
+const teslaFence=()=>S&&S.mods&&S.mods.wallType==='elec';
+const teslaPair=()=>{const on=teslaFence();return `<span class="rcPair${on?' on':''}">Pairs with Electric Fence walls${on?' ✓':' (you don’t have them)'}: the bolt jumps ${TESLA_FENCE_JUMPS} more times.</span>`};
 const RELAY_ARMOR_MULT=3, TESLA_R=170, TESLA_JUMP_R=95, TESLA_DMG=24, TESLA_FALLOFF=0.75, TESLA_STUN=0.45;
 const RELAY_RING_R=36, RELAY_RADAR_VISION=420, CRADLE_RANGE=170, CRADLE_SPEED=150, CRADLE_HPS=10;
 const relayMaxHp=()=>Math.round(RELAY_HP*(S.mods.relayOff==='armored'?RELAY_ARMOR_MULT:1));
@@ -1325,7 +1329,7 @@ function setWallType(id){S.mods.wallType=id;const hp=wallSlatHp(id);
 // The wall cards: a line of flavour, itemised pros and cons, and a note that it replaces your walls.
 const WALL_CARD={
   heavy:{blurb:'Thick armoured slabs.',pros:['2.5× HP','No gaps'],cons:['2× cost','Slow to rise']},
-  elec:{blurb:'Live electric fences.',pros:['Shocks and stuns attackers'],cons:['Half HP','Needs power']},
+  elec:{blurb:'Live electric fences.',pros:['Shocks and stuns attackers','Tesla Relay bolts jump 3 more times'],cons:['Half HP','Needs power']},
   razor:{blurb:'Spikes and razor wire.',pros:['Cuts attackers','Normal cost'],cons:['30% less HP']},
   glass:{blurb:'Ridges of Dense glass.',pros:['Heals over time','Regrows when broken'],cons:['20% less HP','1.5× cost']},
   shield:{blurb:'Projected shield panes.',pros:['1.4× HP, recharges','Never destroyed'],cons:['Needs power','1.5× cost']},
@@ -2045,7 +2049,7 @@ const UPGRADES={
     {id:'dmg3',name:'Battle Drills III',up:1,get desc(){return `Trooper damage +${upPct('dmg3',30)}%.`},apply:()=>{S.mods.troopDmgMult*=1+upPct('dmg3',30)/100}},
     {id:'tactical',name:'Tactical Reinforcements',up:1,get desc(){return `+${upN('tactical',5,1)} free Troopers, +${upN('tactical',3,1)} free Grenadiers, right now.`},apply:()=>{spawnFreeTroops(upN('tactical',5,1),'troop');spawnFreeTroops(upN('tactical',3,1),'grenadier')}},
     {id:'energySurge2',name:'Sonic Deterrent II',get desc(){return 'Relay horns thump every 5s instead of 10s.'+relaySlotNote('off','sonic')},has:()=>S.mods.relayOff==='sonic'&&S.mods.energySurgeLevel>=2,apply:()=>{setRelaySlot('off','sonic');S.mods.energySurgeLevel=Math.max(S.mods.energySurgeLevel,2)}},
-    {id:'tesla1',name:'Electric Surge I',get desc(){return `A tesla coil on every Relay: while drilling, every few seconds each one strikes the nearest enemy and the bolt jumps on to 2 more (${TESLA_DMG} damage, less each jump, a short stun).`+relaySlotNote('off','tesla')},has:()=>S.mods.relayOff==='tesla'&&S.mods.teslaLevel>=1,apply:()=>{setRelaySlot('off','tesla');S.mods.teslaLevel=Math.max(S.mods.teslaLevel,1)}},
+    {id:'tesla1',name:'Electric Surge I',get desc(){return `A tesla coil on every Relay: while drilling, every few seconds each one strikes the nearest enemy and the bolt jumps on to 2 more (${TESLA_DMG} damage, less each jump, a short stun).`+teslaPair()+relaySlotNote('off','tesla')},has:()=>S.mods.relayOff==='tesla'&&S.mods.teslaLevel>=1,apply:()=>{setRelaySlot('off','tesla');S.mods.teslaLevel=Math.max(S.mods.teslaLevel,1)}},
     {id:'deflector',name:'Deflector',desc:'A shield dome round the Rig and every Stabilizer: Lantern beams lose 85% of their damage and shots 50%. Melee walks straight through it.',has:()=>S.mods.deflector,apply:()=>{S.mods.deflector=true}},
     {id:'riftShield',name:'Rift Shielding',desc:'The Rig can hover out over rifts. Time over a rift drains its Sanity, which refills on solid ground; run it dry and the Rig falls back to the nearest bank until it recovers.',has:()=>S.mods.riftShield,apply:()=>{S.mods.riftShield=true;S.base.riftSan=1;S.base.riftOk=true}},
     {id:'relayWalled',name:'Walled Relay',get desc(){return 'Every Relay raises a ring of walls round itself, of your current wall type (no free tower turrets on them).'+relaySlotNote('def','walled')},has:()=>S.mods.relayDef==='walled',apply:()=>{setRelaySlot('def','walled')}},
@@ -2065,7 +2069,7 @@ const UPGRADES={
     wallCard('glass','Glass Ridge Walls'),
     wallCard('shield','Shield Pane Walls'),
     {id:'energySurge3',name:'Sonic Deterrent III',get desc(){return 'Relay horns still thump every 5s, and now the blast damages what it reaches too.'+relaySlotNote('off','sonic')},has:()=>S.mods.relayOff==='sonic'&&S.mods.energySurgeLevel>=3,apply:()=>{setRelaySlot('off','sonic');S.mods.energySurgeLevel=Math.max(S.mods.energySurgeLevel,3)}},
-    {id:'tesla2',name:'Electric Surge II',get desc(){return 'The relay coils fire faster, the bolt jumps one more time, and they strike whenever enemies come close — not only while drilling.'+relaySlotNote('off','tesla')},has:()=>S.mods.relayOff==='tesla'&&S.mods.teslaLevel>=2,apply:()=>{setRelaySlot('off','tesla');S.mods.teslaLevel=Math.max(S.mods.teslaLevel,2)}},
+    {id:'tesla2',name:'Electric Surge II',get desc(){return 'The relay coils fire faster, the bolt jumps one more time, and they strike whenever enemies come close — not only while drilling.'+teslaPair()+relaySlotNote('off','tesla')},has:()=>S.mods.relayOff==='tesla'&&S.mods.teslaLevel>=2,apply:()=>{setRelaySlot('off','tesla');S.mods.teslaLevel=Math.max(S.mods.teslaLevel,2)}},
   ],
 };
 
@@ -9032,7 +9036,8 @@ function updateStabilizerShots(dt){
     if(sh.t<sh.dur)return true;landStabilizer(sh);return false});
 }
 // ---------- wall lines ----------
-function wallEnds(noTurrets){const out=[];(S.wallLines||[]).forEach(L=>{out.push({x:L.x0,y:L.y0},{x:L.x1,y:L.y1})});if(!noTurrets)S.turrets.forEach(t=>{if(t.built)out.push({x:t.x,y:t.y})});return out}
+// (v4: a wall snaps onto a Relay as it does a Turret, and a Relay, like a Turret, snaps onto a wall's end or corner)
+function wallEnds(noTurrets){const out=[];(S.wallLines||[]).forEach(L=>{out.push({x:L.x0,y:L.y0},{x:L.x1,y:L.y1})});if(!noTurrets){S.turrets.forEach(t=>{if(t.built)out.push({x:t.x,y:t.y})});S.relays.forEach(r=>{if(r.built&&r.hp>0)out.push({x:r.x,y:r.y})})}return out}
 function wallSnap(w,noTurrets){let best=null,bd=WALL_SNAP/Math.min(1,cam.z);wallEnds(noTurrets).forEach(p=>{const d=dist(p,w);if(d<bd){bd=d;best=p}});return best?{x:best.x,y:best.y,snapped:true}:{x:w.x,y:w.y,snapped:false}}
 // the line being drawn: clamped to WALL_MAX_LEN, with its slat count, cost and whether it can be placed
 // v4: a line drawn from one end of a standing wall to its other end mends it: only its broken slats come
@@ -9124,7 +9129,7 @@ function updateTesla(dt){
   S.relays.forEach(r=>{if(!r.built||!r.tetherOk)return;
     let cur=null,bd=TESLA_R;S.enemies.forEach(e=>{if(e.kind==='nest'||e.hp<=0)return;const d=dist(e,r);if(d<bd){bd=d;cur=e}});if(!cur)return;
     const hit=new Set(),pts=[[r.x,r.y,47]];let dmg=TESLA_DMG;
-    for(let j=0;j<=(L>=2?3:2)&&cur;j++){hit.add(cur);damageEnemy(cur,dmg);cur.stunT=Math.max(cur.stunT||0,TESLA_STUN);pts.push([cur.x,cur.y,3]);dmg*=TESLA_FALLOFF;
+    for(let j=0;j<=(L>=2?3:2)+(teslaFence()?TESLA_FENCE_JUMPS:0)&&cur;j++){hit.add(cur);damageEnemy(cur,dmg);cur.stunT=Math.max(cur.stunT||0,TESLA_STUN);pts.push([cur.x,cur.y,3]);dmg*=TESLA_FALLOFF;
       let nb=null,nd=TESLA_JUMP_R;S.enemies.forEach(e=>{if(hit.has(e)||e.kind==='nest'||e.hp<=0)return;const d=dist(e,cur);if(d<nd){nd=d;nb=e}});cur=nb}
     (S.bolts||(S.bolts=[])).push({pts,t:0.22,seed:Math.floor(Math.random()*999)});fired=true});
   if(fired&&sfxReady('tesla',0.15)){noiseCrack(0.12,0.08,2600);tone(900,0.08,'sawtooth',0.035,0,2400)}
@@ -9322,7 +9327,7 @@ function drawWallPreview(){
 }
 function tryBuild(w){
   if(buildMode==='stabilizer')return fireStabilizer(w);
-  if(buildMode==='turret'||buildMode==='podturret'){const p=wallSnap(w,true);w={x:p.x,y:p.y}} // a Turret snaps onto a wall's end or corner
+  if(buildMode==='turret'||buildMode==='podturret'||buildMode==='relay'){const p=wallSnap(w,true);w={x:p.x,y:p.y}} // a Turret or Relay snaps onto a wall's end or corner
   if(buildMode!=='turret'&&buildMode!=='podturret'&&buildMode!=='relay')return;
   if(!inBuildRange(w)){note('Inside the ring only');return}
   if(terrainAt(w.x,w.y)===2){note('Not on rock');return}
@@ -12943,7 +12948,7 @@ function draw(){
     ctx.restore()}
   else if(buildMode){const ok=inBuildRange({x:mouse.wx,y:mouse.wy})&&terrainAt(mouse.wx,mouse.wy)!==2&&S.fab[buildMode]&&S.fab[buildMode].n>0;ctx.globalAlpha=0.6;
     if(buildMode==='wall'){}
-    else{const tur=buildMode==='turret'||buildMode==='podturret',rng=buildMode==='turret'?TURRET_RANGE:buildMode==='podturret'?PODT_RANGE:wirelessTol('dense'),sp=tur?wallSnap({x:mouse.wx,y:mouse.wy},true):{x:mouse.wx,y:mouse.wy};ctx.fillStyle=ok?C.accent:C.enemy;ctx.beginPath();ctx.arc(sp.x,sp.y,11,0,Math.PI*2);ctx.fill();if(sp.snapped){ctx.strokeStyle=C.accent;ctx.lineWidth=1.5/cam.z;ctx.beginPath();ctx.arc(sp.x,sp.y,16,0,Math.PI*2);ctx.stroke()}if(rng>0){ctx.strokeStyle=ok?C.accent:C.enemy;ctx.lineWidth=1;ctx.setLineDash([4,6]);ctx.beginPath();ctx.arc(sp.x,sp.y,rng,0,Math.PI*2);ctx.stroke();ctx.setLineDash([])}}
+    else{const tur=buildMode==='turret'||buildMode==='podturret',rng=buildMode==='turret'?TURRET_RANGE:buildMode==='podturret'?PODT_RANGE:wirelessTol('dense'),sp=tur||buildMode==='relay'?wallSnap({x:mouse.wx,y:mouse.wy},true):{x:mouse.wx,y:mouse.wy};ctx.fillStyle=ok?C.accent:C.enemy;ctx.beginPath();ctx.arc(sp.x,sp.y,11,0,Math.PI*2);ctx.fill();if(sp.snapped){ctx.strokeStyle=C.accent;ctx.lineWidth=1.5/cam.z;ctx.beginPath();ctx.arc(sp.x,sp.y,16,0,Math.PI*2);ctx.stroke()}if(rng>0){ctx.strokeStyle=ok?C.accent:C.enemy;ctx.lineWidth=1;ctx.setLineDash([4,6]);ctx.beginPath();ctx.arc(sp.x,sp.y,rng,0,Math.PI*2);ctx.stroke();ctx.setLineDash([])}}
     ctx.globalAlpha=1}
   drawFormationPreview();
   drawAttackMarks();
