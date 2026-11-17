@@ -1620,6 +1620,9 @@ const RIFT=3; // rift pocket count and deposits per pocket are per map type (MAP
 // a live physical cable regardless of these.
 const WIRELESS_TOL_DENSE=90, WIRELESS_TOL_CORE=0;
 const CABLE_HP_MAX=40, CABLE_SEG_MIN=24, CABLE_HIT_RANGE=16, CABLE_DMG=6, CABLE_CD=0.8;
+// v4: enemies can't cut cables for now (CABLES_CUTTABLE): a tether only goes down when it's stretched too
+// far or the Relay it hangs from is destroyed
+const CABLES_CUTTABLE=false;
 // A unit whose cable gets severed doesn't go dark and uncontrollable on the spot — it keeps
 // working under orders while its Sanity drains. Sanity regenerates (faster than it drains) once
 // the unit is back in range of a live anchor; if it ever hits 0 the unit snaps and defects,
@@ -2016,7 +2019,7 @@ const UPGRADES={
   Legendary:[
     barracksCard('mech'),kitCard('breaker'),
     {id:'overdrive',name:'Overdrive Capacitor',up:1,get desc(){return `Drill rate +${upPct('overdrive',40)}%.`},apply:()=>{S.mods.drillRateMult*=1+upPct('overdrive',40)/100}},
-    {id:'cablehp2',name:'Hardened Network',up:1,get desc(){return `All tether cable HP +${upPct('cablehp2',150)}%.`},apply:()=>{S.mods.cableHpMult*=1+upPct('cablehp2',150)/100}},
+    {id:'cablehp2',name:'Hardened Network',up:1,retired:()=>!CABLES_CUTTABLE,has:()=>!CABLES_CUTTABLE,get desc(){return `All tether cable HP +${upPct('cablehp2',150)}%.`},apply:()=>{S.mods.cableHpMult*=1+upPct('cablehp2',150)/100}},
     {id:'living1',name:'Rich Vein Memory',up:1,get desc(){return `Living Crystal yield ×${1+upPct('living1',100)/100} for the rest of the run.`},apply:()=>{S.mods.livingMult*=1+upPct('living1',100)/100}},
     {id:'podTowers',name:'Missile Battery Walls',desc:'Every wall end gets a free Missile Pod — on the walls you have now and every wall you build from here on. Turrets raised by Bulwark Towers become Missile Pods. A pod that falls is not replaced. Drawback: walls cost three times as much (replaces Bulwark Towers\' double cost).',has:()=>S.mods.podTowers||!meta.unlockPodTurret,
      apply:()=>{S.mods.podTowers=true;S.fabShots.forEach(sh=>{if(sh.free&&sh.k==='turret')sh.k='podturret'});S.turrets.forEach(t=>{if(t.tower&&t.kind==='turret'){const f=t.hp/t.maxHp;t.kind='podturret';t.maxHp=PODT_HP;t.hp=PODT_HP*f;t.pods=PODT_CELLS;burst(t.x,t.y,ROLE_COL.grenadier,10,110,0.4)}});wallTowers();updateBuildBar()}},
@@ -4014,7 +4017,7 @@ document.querySelectorAll('#shopTabs button').forEach(b=>b.onclick=()=>showShopT
 // is bought with Living Crystal; they're applied as the Rig lands on the first stop (runCardStart).
 const CARD_BUY={Common:4,Rare:6,Epic:9}, CARD_BUY_LIVING=2, CARD_UP_COST={Common:[3,5,8],Rare:[4,7,11],Epic:[6,10,15],Legendary:[8,13,20]};
 const CARD_SLOTS=2, CARD_SLOT3_COST=3;
-const ALL_CARDS=()=>TIER_ORDER_ALL.filter(t=>UPGRADES[t]).flatMap(t=>UPGRADES[t].filter(u=>u.id).map(u=>({tier:t,u})));
+const ALL_CARDS=()=>TIER_ORDER_ALL.filter(t=>UPGRADES[t]).flatMap(t=>UPGRADES[t].filter(u=>u.id&&!(u.retired&&u.retired())).map(u=>({tier:t,u})));
 const cardTier=id=>{for(const t in UPGRADES)if(UPGRADES[t].some(u=>u.id===id))return t;return 'Common'};
 const cardSlots=()=>CARD_SLOTS+(meta.cardSlot3?1:0);
 const cardOwned=id=>meta.cardOwn.includes(id);
@@ -4288,7 +4291,7 @@ const TUTORIAL_STEPS=[
    done:()=>!!tutorial.deep&&tutorial.deep.wreck.done},
   {title:'Guard your lines',
    enter:()=>tutDeepRaid(),
-   text:()=>`Cables can be <b>cut</b> — enemies chew through any line they wander across. A unit whose cable is cut keeps fighting, but its <b>Sanity</b> (the violet bar) drains, and at zero it turns on you; bring it back near the Rig or a live Relay and it reconnects. A Relay that's cut goes dark, and so does any Turret it was powering. Raiders are heading for your line now — <b>fight them off</b>.`,
+   text:()=>`Enemies can't cut your cables, but they can <b>destroy a Relay</b>, and every unit hanging from it loses its line (so does one that walks too far out). A unit whose cable is lost keeps fighting, but its <b>Sanity</b> (the violet bar) drains, and at zero it turns on you; bring it back near the Rig or a live Relay and it reconnects. A Relay that's destroyed goes dark, and so does any Turret it was powering. Raiders are heading your way now — <b>fight them off</b>.`,
    target:()=>{const f=(tutorial.deep&&tutorial.deep.foes||[]).find(e=>e.hp>0&&S.enemies.includes(e));return f?{x:f.x,y:f.y,r:40}:null},
    done:()=>{const d=tutorial.deep;return !!d&&!!d.foes&&(d.foes.every(e=>e.hp<=0||!S.enemies.includes(e))||S.t-d.raidT>60)}},
   {title:"That's the loop",
@@ -6934,7 +6937,7 @@ const CSG=64; // cable-cut lookup grid cell size
 const IDLE_TICK=0.2; // how often an unseen, idle roamer updates (see the enemy loop)
 function cableSeverPass(allUnits,dt){
   let grid=null;
-  S.enemies.forEach(e=>{
+  if(CABLES_CUTTABLE)S.enemies.forEach(e=>{
     if(e.kind==='nest')return;
     e.cableCd=(e.cableCd||0)-dt;
     if(e.cableCd>0)return;
@@ -10354,7 +10357,7 @@ function update(dt){
           const p=nearestPlain(Math.max(20,Math.min(W-20,sx+rnd(-100,100))),Math.max(20,Math.min(H-20,sy+rnd(-100,100))));
           spawnEnemy(p.x,p.y,'saboteur');S.enemies[S.enemies.length-1].sabTarget=target;
         }
-        banner(target.kind==='stabilizer'||S.stabs.includes(target)?'A saboteur swarm is creeping in on one of your Stabilizers.':'A saboteur swarm is massing on a Relay\'s cable.','danger');
+        banner(target.kind==='stabilizer'||S.stabs.includes(target)?'A saboteur swarm is creeping in on one of your Stabilizers.':'A saboteur swarm is massing on one of your Relays.','danger');
         sfx.saboteurs();
       }
     }
@@ -12708,7 +12711,7 @@ const VOX_TUT={
   'The end of the line':"Cables only reach so far. Push on toward the wreck, and you'll see.",
   'Relays carry the line':"Press R, and launch a Relay toward the wreck. It carries the line further.",
   'Chain them out':"Chain another Relay out, then send them on to the wreck.",
-  'Guard your lines':"They're going for the cables. Cut units lose their nerve. Protect the lines.",
+  'Guard your lines':"Raiders incoming. Lose a Relay and the units on it lose their nerve. Protect it.",
   "That's the loop":"Scout, drill, defend, upgrade, push deeper. You're ready, Commander.",
 };
 const VOXQ={q:[],cur:null,last:{},lastLine:{},gapT:0,hull:0,sRef:null,over:null,tutStep:-1};
