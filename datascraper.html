@@ -13336,13 +13336,14 @@ function squadIds(cls,cat){const k=cls+':'+cat;return (SQP.ids[k]||[]).concat(..
 // the radio: band-limited and lightly driven, with a squelch tick either side of the line
 function squadNodes(b){if(SQP.nodes&&SQP.nodes.ac===b.ac)return SQP.nodes;const ac=b.ac;
   const vol=ac.createGain();vol.connect(b.master);const pan=ac.createStereoPanner?ac.createStereoPanner():null;if(pan)pan.connect(vol);const out=pan||vol;
-  const hp=ac.createBiquadFilter();hp.type='highpass';hp.frequency.value=320;
-  const pk=ac.createBiquadFilter();pk.type='peaking';pk.frequency.value=1900;pk.gain.value=5;pk.Q.value=0.9;
-  const lp=ac.createBiquadFilter();lp.type='lowpass';lp.frequency.value=3300;
-  const ws=ac.createWaveShaper(),cv=new Float32Array(512);for(let i=0;i<512;i++){const x=i/511*2-1;cv[i]=Math.tanh(2.2*x)/Math.tanh(2.2)}ws.curve=cv;
-  hp.connect(pk);pk.connect(lp);lp.connect(ws);ws.connect(out);
+  // a radio: band-limited (steps filters per side, so the edges can be steeper), a presence lift, then driven
+  const radio=(hpF,lpF,steps,drive,make)=>{const f=(type,v,q)=>{const n=ac.createBiquadFilter();n.type=type;n.frequency.value=v;if(q)n.Q.value=q;return n};
+    const chain=[];for(let i=0;i<steps;i++)chain.push(f('highpass',hpF));const pk=f('peaking',1900,0.9);pk.gain.value=5;chain.push(pk);for(let i=0;i<steps;i++)chain.push(f('lowpass',lpF));
+    const ws=ac.createWaveShaper(),cv=new Float32Array(512);for(let i=0;i<512;i++){const x=i/511*2-1;cv[i]=Math.tanh(drive*x)/Math.tanh(drive)}ws.curve=cv;
+    const g=ac.createGain();g.gain.value=make;chain.push(ws,g);chain.reduce((a,n)=>(a.connect(n),n)).connect(out);return chain[0]};
+  // the Paladin's voice is so deep that the usual radio barely touches it: his gets a narrower, harder one
   const n=Math.floor(ac.sampleRate*0.05),nb=ac.createBuffer(1,n,ac.sampleRate),d=nb.getChannelData(0);for(let i=0;i<n;i++)d[i]=(Math.random()*2-1)*(1-i/n)*0.22;
-  SQP.nodes={ac,vol,pan,out,radio:hp,noise:nb};return SQP.nodes}
+  SQP.nodes={ac,vol,pan,out,radio:radio(320,3300,1,2.2,1),heavy:radio(650,2600,2,3.5,1),noise:nb};return SQP.nodes}
 function squadTick(N,t){const s=N.ac.createBufferSource(),f=N.ac.createBiquadFilter();s.buffer=N.noise;f.type='bandpass';f.frequency.value=2400;s.connect(f);f.connect(N.out);s.start(t)}
 function squadHalt(){const c=SQP.cur;SQP.cur=null;if(c&&c.src)try{c.src.stop()}catch(e){}}
 function squadDone(it){if(SQP.cur!==it)return;SQP.cur=null;SQP.gapT=performance.now()/1000+1.2}
@@ -13364,7 +13365,7 @@ function squadSay(u,what){const no=r=>{SQP.why=what+': '+r;return false};
 // plays one clip on the squad radio (the Trooper's voice has its radio built in, so it skips the filter)
 function squadPlay(id,g,pan,rate){const b=audioBus();if(!b||!SQP.clips||!SQP.clips[id])return false;const it={id};SQP.cur=it;const cls=id.split(':')[0];
   const play=buf=>{if(SQP.cur!==it)return;const N=squadNodes(b),ac=b.ac,t=ac.currentTime+0.03,src=ac.createBufferSource();src.buffer=buf;src.playbackRate.value=rate||1;
-    src.connect(cls==='trooper'?N.out:N.radio);
+    src.connect(cls==='trooper'?N.out:cls==='paladin'?N.heavy:N.radio);
     N.vol.gain.setValueAtTime(SQUAD.vol*g*(cls==='trooper'?1.7:1.3),t);if(N.pan)N.pan.pan.setValueAtTime(pan*0.8,t);
     squadTick(N,t);src.start(t+0.04);it.src=src;src.onended=()=>{if(SQP.cur===it)squadTick(N,ac.currentTime);squadDone(it)};
     setTimeout(()=>squadDone(it),buf.duration*1000/src.playbackRate.value+1500)};
