@@ -4221,9 +4221,9 @@ const HOWTO=[
    text:'You command the <b>Rig</b>, a walking mining laser, and its crew. Drill crystal <b>veins</b> and pick a <b>card</b> from each to grow stronger. Break through each stop, and drain the <b>contract vein</b> in the Core to win the run.',
    art(t){htVein(107,88,46,t);caRig(107,104,0.42,{laser:true});for(let i=0;i<6;i++){const f=(t*0.35+i/6)%1;caTxt('◆',107+(caH(i+1)-0.5)*90,96-f*70,caRgba('#9ad36a',1-f),8)}}},
   {title:'Find a vein',
-   text:'The ground is cracked, and veins send <b>pulses of light</b> out through the cracks. Follow a pulse <b>upstream</b> to its source. Send Troopers ahead (select, then <b>right-click</b>) or fire a Probe (<kbd>G</kbd>) to look further.',
+   text:'The ground is cracked, and <b>pulses of light</b> run along the cracks <b>toward a vein</b>. Follow the way they flow and they lead you to it. Send Troopers ahead (select, then <b>right-click</b>) or fire a Probe (<kbd>G</kbd>) to look further.',
    art(t){const P=[[16,108],[52,92],[86,98],[120,72],[150,66],[186,40]];htCrack(P);htCrack([[86,98],[96,118]]);htCrack([[120,72],[116,46]]);htVein(186,40,34,t);
-     for(let k=0;k<2;k++){const f=((t*0.45+k*0.5)%1),[x,y]=htAlong([...P].reverse(),f);caGlow(x,y,9,'#e3b6ff',0.9*(1-f*0.6))}
+     for(let k=0;k<2;k++){const f=((t*0.45+k*0.5)%1),[x,y]=htAlong(P,f);caGlow(x,y,9,'#e3b6ff',0.4+0.5*f)}
      const g=(t*0.12)%1,[ux,uy]=htAlong(P,g*0.85);caUnit(ux,uy-4,0,1);caUnit(ux-9,uy+3,0,1)}},
   {title:'Pin the Stabilizers',
    text:'Press <kbd>E</kbd> and click the <b>glowing hotspots</b> that drift inside a vein. Each one pins a <b>Stabilizer</b>: the first tells you the vein’s grade, and three of them make a triangle you steer the drill with.',
