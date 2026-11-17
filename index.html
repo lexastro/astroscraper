@@ -1398,7 +1398,10 @@ function payDat(cost,what){
 // its own to patch up anything damaged within DRONE_RANGE of it — Stabilizers first, then relays,
 // turrets and the Rig itself. Repairs are free (v4).
 // They fly, so the current (all-melee) enemies can't touch them, and they ignore terrain.
-const DRONE_COUNT=4, DRONE_SPEED=170, DRONE_RANGE=760, DRONE_HPS=9, DRONE_WORK_R=18;
+// v4: a run starts with no repair drones (DRONE_COUNT); cards, wrecks and Repair Cradle add them. The tutorial
+// still gives TUT_DRONES, since it shows them working.
+const TUT_DRONES=4;
+const DRONE_COUNT=0, DRONE_SPEED=170, DRONE_RANGE=760, DRONE_HPS=9, DRONE_WORK_R=18;
 // v4: the Rig mends far slower than anything else: drones patch it at RIG_DRONE_MULT of their usual rate,
 // and with no enemy near it repairs itself at RIG_SELF_REPAIR HP a second
 const RIG_DRONE_MULT=0.15, RIG_SELF_REPAIR=0.3;
@@ -3118,7 +3121,7 @@ function reset(landing){
     // the shared unit/structure code paths keep working untouched.
     fab:{},fabShots:[],drones:[],droneNoDatMsgT:-99,runUnlock:{},nestSproutT:NEST_SPROUT_T};
   Object.keys(FABS).forEach(k=>{S.fab[k]={n:FABS[k].charges,rt:0}});
-  addDrones(DRONE_COUNT);
+  addDrones(tutorialMap?TUT_DRONES:DRONE_COUNT);
   for(let i=0;i<(pressureOn('lean')?4:SQUAD_START_N);i++){const u=mkTroop(i);S.troops.push(u);guardBastion(u)}
   if(!pressureOn('lean'))for(let i=0;i<(tutorialMap?4:BRAWL_START_N);i++){ /* the tutorial gets a few Paladins to show the shield wall */const u=mkTroop(100+i,'brawler');S.troops.push(u);guardBastion(u)}
   prodMenuOpen=false;
