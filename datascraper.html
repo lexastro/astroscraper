@@ -9209,6 +9209,30 @@ function drawDatSpill(x,y,amt,s){const {pts,R}=datSpillPts(x,y,amt,s),t=S.t;
   ctx.save();ctx.globalCompositeOperation='lighter';const gr=ctx.createRadialGradient(x,y,0,x,y,R*1.8);gr.addColorStop(0,'rgba(154,211,106,0.16)');gr.addColorStop(1,'rgba(154,211,106,0)');ctx.fillStyle=gr;ctx.fillRect(x-R*1.8,y-R*1.8,R*3.6,R*3.6);ctx.restore();
   ctx.strokeStyle='rgba(12,22,8,0.8)';ctx.lineWidth=0.2;
   pts.forEach(p=>{const tw=Math.max(0,Math.sin(t*3.2+p.ph));datSliver(p.x,p.y,p.rot,p.L,tw>0.85?DAT_L:p.i%3?DAT_M:C.dat);if(tw>0.96)datTwinkle(p.x,p.y-0.4,1.4,(tw-0.96)/0.04*0.9)})}
+// A big Dat deposit (what a nest, a Quaker, the Colossus or the Shieldbearer leaves): the same glitter,
+// heaped up. A wide carpet of slivers round a cluster of standing crystals, lit on one face, with a
+// stronger glow. It shrinks as a Harvester drains it, and the amount left shows under it.
+function datPrism(x,y,h,w,lean){const tx=x+lean*h,ty=y-h,mx=x+lean*h*0.32,my=y-h*0.32;
+  ctx.fillStyle='#bfe896';ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(mx-w,my);ctx.lineTo(tx,ty);ctx.closePath();ctx.fill();ctx.stroke();
+  ctx.fillStyle='#5c9634';ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(mx+w,my);ctx.lineTo(tx,ty);ctx.closePath();ctx.fill();ctx.stroke();
+  ctx.strokeStyle='rgba(240,255,220,0.7)';ctx.beginPath();ctx.moveTo(x,y-0.6);ctx.lineTo(tx,ty+0.8);ctx.stroke();ctx.strokeStyle='rgba(12,22,8,0.85)'}
+function datClumpParts(n){if(n._ck&&n._ck.max===n.max)return n._ck;const s=Math.floor(n.x*7.1+n.y*3.3),m=n.max,R=10+Math.min(16,Math.sqrt(m)*1.6),N=Math.min(90,18+Math.round(m*0.55)),pr=[],sl=[];
+  for(let i=0;i<N;i++){const a=datHash(s*5+i)*Math.PI*2,r=Math.sqrt(datHash(s+i*13))*R;sl.push({x:Math.cos(a)*r,y:Math.sin(a)*r*0.55,rot:datHash(i+s*2)*Math.PI,L:1.2+datHash(i*3+s)*1.3,ph:datHash(i+s)*Math.PI*2,i,d:r/R})}
+  sl.sort((a,b)=>a.d-b.d);
+  const P=Math.min(7,3+Math.floor(m/30));
+  for(let i=0;i<P;i++){const a=datHash(s*3+i*7)*Math.PI*2,r=i?R*0.18+datHash(s+i)*R*0.32:0;pr.push({x:Math.cos(a)*r,y:Math.sin(a)*r*0.5,h:(i?4.5+datHash(s+i*5)*4:8+R*0.16),w:i?2.2+datHash(i+s)*1.1:3.4,lean:i?Math.cos(a)*0.35+(datHash(s*i+2)-0.5)*0.2:-0.06,ph:datHash(s+i*9)*6.3})}
+  pr.sort((a,b)=>a.y-b.y);return n._ck={max:m,R,sl,pr}}
+function drawDatClump(n){const ck=datClumpParts(n),f=Math.max(0.15,Math.min(1,n.amt/n.max)),k=0.55+0.45*Math.sqrt(f),R=ck.R*k,x=n.x,y=n.y,t=S.t;
+  ctx.save();ctx.globalCompositeOperation='lighter';const gr=ctx.createRadialGradient(x,y,0,x,y,R*2);gr.addColorStop(0,`rgba(154,211,106,${0.2+0.06*Math.sin(t*2+x)})`);gr.addColorStop(1,'rgba(154,211,106,0)');ctx.fillStyle=gr;ctx.fillRect(x-R*2,y-R*2,R*4,R*4);ctx.restore();
+  ctx.fillStyle='rgba(8,14,6,0.3)';ctx.beginPath();ctx.ellipse(x,y+1,R*0.45,R*0.24,0,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle='rgba(12,22,8,0.8)';ctx.lineWidth=0.2;
+  const ns=Math.ceil(ck.sl.length*(0.3+0.7*f));
+  for(let i=0;i<ns;i++){const p=ck.sl[i],tw=Math.max(0,Math.sin(t*3.2+p.ph));datSliver(x+p.x*k,y+p.y*k,p.rot,p.L,tw>0.85?DAT_L:p.i%3?DAT_M:C.dat);if(tw>0.97)datTwinkle(x+p.x*k,y+p.y*k-0.4,1.5,(tw-0.97)/0.03*0.9)}
+  ctx.lineWidth=0.35;ctx.strokeStyle='rgba(12,22,8,0.85)';
+  const np=Math.max(1,Math.ceil(ck.pr.length*f));
+  for(let i=0;i<ck.pr.length;i++){const p=ck.pr[i];if(i>=np&&p!==ck.pr.find(q=>q.x===0&&q.y===0))continue;datPrism(x+p.x*k,y+p.y*k,p.h*k,p.w*k,p.lean);
+    const tw=Math.sin(t*1.7+p.ph);if(tw>0.93)datTwinkle(x+p.x*k+p.lean*p.h*k,y+p.y*k-p.h*k+1,2.6,(tw-0.93)/0.07)}
+  ctx.font='600 9px '+css('--mono');ctx.textAlign='center';ctx.textBaseline='top';ctx.lineWidth=2.5;ctx.strokeStyle='rgba(6,10,6,0.85)';ctx.strokeText(n.amt,x,y+R*0.42+3);ctx.fillStyle=DAT_L;ctx.fillText(n.amt,x,y+R*0.42+3)}
 // picked up: remember where it lay and who took it; the slivers fly to them
 function datPickupFx(o,amt,who){(S.datFx||(S.datFx=[])).push({x:o.x,y:o.y,amt,s:(o.rot||0)*7.3,who,t0:S.t})}
 function drawDatStreams(){if(!S.datFx||!S.datFx.length)return;S.datFx=S.datFx.filter(f=>S.t-f.t0<DAT_STREAM_T);
@@ -10674,7 +10698,7 @@ function update(dt){
   S.nodes.forEach(n=>{if(n.amt<=0)return;
     const who=dist(n,B)<B.r+DAT_PICKUP_R?B:S.troops.find(t=>dist(t,n)<t.r+DAT_PICKUP_R*pickupRangeMult());
     if(!who)return;
-    S.dat+=n.amt;floatText(n.x,n.y-14,'+'+n.amt+' Dat',C.dat);burst(n.x,n.y,C.dat,10,100,0.4);sndAt(n.x,n.y,()=>sfx.gather());
+    S.dat+=n.amt;floatText(n.x,n.y-14,'+'+n.amt+' Dat',C.dat);burst(n.x,n.y,C.dat,10,100,0.4);for(let j=0;j<3;j++)datPickupFx({x:n.x+(j-1)*6,y:n.y+(j%2)*3,rot:j*1.7+n.x},6,who);sndAt(n.x,n.y,()=>sfx.gather());
     n.amt=0;n.found=true});
   // A vein is SEEN once any of your units' sight reaches into its zone; its mining point is FOUND
   // once sight reaches the point itself. The contract vein is never found by sight — only by
@@ -12182,8 +12206,7 @@ function draw(){
   endVeinLight();
   drawStrayPockets(x0,y0,x1,y1);
   // Dat Crystal deposits
-  S.nodes.forEach(n=>{if((!n.found&&!debugNoFog)||n.amt<=0)return;const s=8+8*n.amt/n.max;ctx.fillStyle=C.dat;ctx.beginPath();for(let k=0;k<6;k++){const a=k*Math.PI/3;ctx.lineTo(n.x+Math.cos(a)*s,n.y+Math.sin(a)*s)}ctx.closePath();ctx.globalAlpha=0.85;ctx.fill();ctx.globalAlpha=1;
-    ctx.fillStyle='#0b0e12';ctx.font='500 9px '+css('--mono');ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(n.amt,n.x,n.y)});
+  S.nodes.forEach(n=>{if((!n.found&&!debugNoFog)||n.amt<=0||!inView(n.x,n.y,40))return;drawDatClump(n)});
   // Dat Crystal shards — scattered fragments dropped by dead enemies, each a tiny triangle at a
   // fixed random rotation so a pile of them reads as scattered debris, not identical icons.
   S.shards.forEach(sh=>{if(!inView(sh.x,sh.y,12)||(!debugNoFog&&!visible(sh)))return;drawDatSpill(sh.x,sh.y,sh.amt,sh.rot*7.3)});
