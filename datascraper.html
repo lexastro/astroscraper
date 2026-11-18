@@ -8532,7 +8532,9 @@ function manWall(L,units){
   sfx.click();
 }
 // damage an enemy deals to one of your units: less if it's manning a standing wall
-function allyHit(t,d,src){if(src&&gatShielded(t,src)){d*=GAT_SHIELD_MELEE;if(sfxReady('gatBlock',0.1))tone(1100,0.04,'square',0.025);spark(t.x+Math.cos(t.ang)*12,t.y+Math.sin(t.ang)*12,'#9fb6d0',3)}
+// v4: a Breaker brawls in the thick of the crowd, so it takes only BREAKER_TAKE of every hit (about 4.5x as tough)
+const BREAKER_TAKE=0.22;
+function allyHit(t,d,src){if(t.kind==='mech'&&hasKit(t,'breaker'))d*=BREAKER_TAKE;if(src&&gatShielded(t,src)){d*=GAT_SHIELD_MELEE;if(sfxReady('gatBlock',0.1))tone(1100,0.04,'square',0.025);spark(t.x+Math.cos(t.ang)*12,t.y+Math.sin(t.ang)*12,'#9fb6d0',3)}
   if(!(t.manning&&!t.dest&&S.wallLines&&S.wallLines.includes(t.manning)))return d;return d*(1-MAN_DMG_RED)*(hasKit(t,'lmg')&&t.manning.type==='heavy'?0.5:1)}
 // ---- the Rig & Stabilizer kit (reward cards): Heavy Armour, Point Defence, Deflector, Rift Shielding ----
 // Every hit an enemy lands on the Rig or a Stabilizer runs through structHit with the kind of hit it
