@@ -4984,8 +4984,11 @@ function drawBruteSplits(){if(!S.bruteSplits||!S.bruteSplits.length)return;
 // do and it goes bare: faster, breathing far more often. It climbs out of the contract vein once the
 // vein is found and something of yours comes near, and the contract can't be drilled while it lives.
 // =====================================================================================================
-const BOSS_HP=2200,BOSS_R=42,BOSS_SPEED=24,BOSS_TURN=0.9,BOSS_AGGRO=640,BOSS_LEASH=560,BOSS_SC=1.25,BOSS_EXT=104,
-  BOSS_SHIELD_HP=650,BOSS_SHIELD_TAKE=0.45,BOSS_ARC=1.3,BOSS_WAKE_R=720,BOSS_EMERGE_T=3.2,
+// v4: buffed (was 2200 HP, 650 shields, full damage from blasts): an army of Grenadiers and Rocketeers
+// lobbing over the slabs melted it. BOSS_SPLASH_TAKE: share it takes from hits that come over the top
+const BOSS_SPLASH_TAKE=0.6;
+const BOSS_HP=4500,BOSS_R=42,BOSS_SPEED=24,BOSS_TURN=0.9,BOSS_AGGRO=640,BOSS_LEASH=560,BOSS_SC=1.25,BOSS_EXT=104,
+  BOSS_SHIELD_HP=1000,BOSS_SHIELD_TAKE=0.45,BOSS_ARC=1.3,BOSS_WAKE_R=720,BOSS_EMERGE_T=3.2,
   BOSS_BREATH_CD=7,BOSS_BREATH_RANGE=215,BOSS_BREATH_ARC=0.42,BOSS_BREATH_T=2,BOSS_OPEN_T=0.6,BOSS_BREATH_DPS=24,
   BOSS_BASH_DMG=28,BOSS_BASH_CD=2.4,BOSS_CRACK_AT=0.6,BOSS_ENRAGE=0.25,BOSS_DAT=150,
   LAVA_T=8,LAVA_DPS=7,LAVA_GAP=0.22;
@@ -9398,7 +9401,7 @@ function revealCircle(x,y,r){
   fogX.fillStyle=g;fogX.beginPath();fogX.arc(x/FOG_S,y/FOG_S,r/FOG_S,0,Math.PI*2);fogX.fill();
 }
 // src: who fired, for direct fire only (the Shieldbearer's shields stop it from in front)
-function damageEnemy(e,d,src){if(e.boss&&src&&bossBlock(e,src,d))return;if(e.mega&&megaShelled()){shellPing(e);return}if(!e._share&&e.choir&&choirShare(e,d))return;if(e.markT>0)d*=SPOT_MULT;e.hp-=d;/*VOX*/if(src&&src.kind==='marksman'&&e.hp<=0&&e.hp+d>0)squadSay(src,'kill');hitFlash(e);spark(e.x,e.y,C.accent,2)}
+function damageEnemy(e,d,src){if(e.boss){if(src){if(bossBlock(e,src,d))return}else d*=BOSS_SPLASH_TAKE}if(e.mega&&megaShelled()){shellPing(e);return}if(!e._share&&e.choir&&choirShare(e,d))return;if(e.markT>0)d*=SPOT_MULT;e.hp-=d;/*VOX*/if(src&&src.kind==='marksman'&&e.hp<=0&&e.hp+d>0)squadSay(src,'kill');hitFlash(e);spark(e.x,e.y,C.accent,2)}
 // Grenadier round: travels to where the target is right now (not a lead/intercept shot) and
 // explodes there, splashing every enemy within GREN_SPLASH_R of the landing point.
 // Shared by Grenadier rounds and the Big Guns artillery shell — opts lets a shell carry its own
