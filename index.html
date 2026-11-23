@@ -66,6 +66,7 @@ body.lowGfx #fogGrain{display:none}
 /* v4: hovering a currency (the HUD's, or any ❖ / ⬢ in the menus) shows what it is, where it comes from and what it buys */
 .curTip{position:fixed;z-index:60;pointer-events:none;width:220px;padding:9px 11px;background:#12161b;border:1px solid var(--line);border-left:3px solid var(--tc);border-radius:6px;box-shadow:0 8px 20px rgba(0,0,0,.5);font-size:12px;line-height:1.4;color:var(--fg);text-align:left}
 .curTip[hidden]{display:none}
+.curTip .tipMore{font-size:11px;font-style:italic;opacity:.75}
 .curTip b{display:block;font-family:var(--mono);font-size:12px;letter-spacing:.04em;color:var(--tc);margin-bottom:4px}
 .curTip span{display:block;color:var(--muted)}.curTip span i{font-style:normal;color:var(--fg)}
 .cur,.crystalIcon,.crystalIcon~.v{cursor:help}
@@ -4271,24 +4272,35 @@ const BUILD_INFO={
   mech:{n:'Mech',c:BI_U,d:'Rotary cannon that spins up to a hail of fire and slows what it hits. Front shield.',p:'In a choke point or a gap in your wall.'},
   breaker:{n:'Mech · Breaker',c:BI_U,d:'Huge fists: punches splash, haymakers hurl enemies into walls. Very tough.',p:'Into the thick of a crowd, near a wall.'},
   fieldrelay:{n:'Mech · Field Relay',c:BI_U,d:'A walking Relay: up to 6 units tether to it, and it heals units round it.',p:'With units pushing beyond your Relays.'}};
+const CALL_PLACE={orbital:'On a nest, a Colossus or the thickest clump.',stasis:'On a wave about to break through, to buy time.',emp:'In the middle of a swarm.',
+  droppod:'Where your line is thin and needs bodies now.',bulwark:'Round units or a Stabilizer under attack, or across a gap in your wall.',carpet:'Along the path a wave is marching in on.',
+  minefield:'On the route a wave will take, before it gets there.',overclock:'Over your main line or Turrets during a big wave.',gravity:'Just ahead of your line, then follow with blasts.',
+  decoy:'Away from the Rig and Stabilizers, to pull a wave off them.'};
 function buildInfoOf(b){const k=b.dataset.mode||b.dataset.unit||(b.id==='bPing'?'probe':null);
   if(k){const id=k==='mech'&&S&&S.kits&&(S.kits.mech==='breaker'||S.kits.mech==='fieldrelay')?S.kits.mech:k;return BUILD_INFO[id]||null}
-  if(b.dataset.call&&typeof CALLDOWNS!=='undefined'){const K=CALLDOWNS[b.dataset.call];return K?{n:K.name,c:BI_C,d:K.desc}:null}
+  if(b.dataset.call&&typeof CALLDOWNS!=='undefined'){const K=CALLDOWNS[b.dataset.call];return K?{n:K.name,c:BI_C,d:K.desc,p:CALL_PLACE[b.dataset.call]}:null}
   if(b.dataset.tip){const l=b.querySelector('span:not(.icon):not(.cost):not(.key)');return {n:(l?l.textContent:'').replace(/\s*▴$/,''),c:'#a9b4c0',d:b.dataset.tip}}
   return null}
 // (the build bar's own hover hints move off the browser's tooltip into the panel)
 document.querySelectorAll('#buildBar button[title]').forEach(b=>{b.dataset.tip=b.title;b.removeAttribute('title')});
-{const tip=document.createElement('div');tip.className='curTip';tip.hidden=true;document.body.appendChild(tip);let on=null;
+{const tip=document.createElement('div');tip.className='curTip';tip.hidden=true;document.body.appendChild(tip);let on=null,more=false,mx=0,my=0;
   // (owned cards on the pause menu and the reward pick use the same panel: an .oc with data-tip set)
+  // v4: every panel shows just its name and a Shift hint; holding Shift shows the rest
   const kindOf=el=>{if(!el||!el.closest)return null;const oc=el.closest('.oc[data-tip]');if(oc)return oc;const bb=el.closest('#buildBar button');if(bb)return bb;const c=el.closest('.cur,.crystalIcon')||(el.classList&&el.classList.contains('v')&&el.previousElementSibling&&el.previousElementSibling.classList.contains('crystalIcon')?el.previousElementSibling:null);
     if(!c)return null;return ['dat','living','condensed'].find(k=>c.classList.contains(k))||null};
-  addEventListener('pointermove',e=>{const k=e.pointerType==='touch'?null:kindOf(e.target);if(!k){if(on){tip.hidden=true;on=null}return}
-    if(k!==on){on=k;if(typeof k==='string'){const I=CUR_INFO[k];tip.style.setProperty('--tc',`var(${I.col})`);tip.innerHTML=`<b>${I.name}</b><span><i>From:</i> ${I.from}</span><span><i>For:</i> ${I.use}</span>`}
-      else if(k.closest('#buildBar')){const I=buildInfoOf(k);if(!I){tip.hidden=true;return}tip.style.setProperty('--tc',I.c);
-        tip.innerHTML=`<b>${I.n}</b><span>${I.d}</span>${I.t?`<span><i>Troops:</i> ${I.t}</span>`:''}${I.p?`<span><i>Place:</i> ${I.p}</span>`:''}`}
-      else{tip.style.setProperty('--tc',k.style.getPropertyValue('--tc')||'#a9b4c0');tip.innerHTML=`<b>${k.dataset.tn}</b><span><i>${k.dataset.tt}</i>${k.dataset.tip?' · '+k.dataset.tip:''}</span>`}tip.hidden=false}
-    const w=tip.offsetWidth,h=tip.offsetHeight;let x=e.clientX+14,y=e.clientY+16;if(x+w>innerWidth-8)x=e.clientX-w-10;if(y+h>innerHeight-8)y=e.clientY-h-12;
-    tip.style.left=Math.max(8,x)+'px';tip.style.top=Math.max(8,y)+'px'},{passive:true});
+  const hint='<span class="tipMore">Hold Shift for more info</span>';
+  function fill(k){let c,name,body;
+    if(typeof k==='string'){const I=CUR_INFO[k];c=`var(${I.col})`;name=I.name;body=`<span><i>From:</i> ${I.from}</span><span><i>For:</i> ${I.use}</span>`}
+    else if(k.closest('#buildBar')){const I=buildInfoOf(k);if(!I)return false;c=I.c;name=I.n;
+      body=`<span>${I.d}</span>${I.t?`<span><i>Troops:</i> ${I.t}</span>`:''}${I.p?`<span><i>Place:</i> ${I.p}</span>`:''}`}
+    else{c=k.style.getPropertyValue('--tc')||'#a9b4c0';name=k.dataset.tn;body=`<span><i>${k.dataset.tt}</i>${k.dataset.tip?' · '+k.dataset.tip:''}</span>`}
+    tip.style.setProperty('--tc',c);tip.innerHTML=`<b>${name}</b>`+(more?body:hint);return true}
+  function place(){const w=tip.offsetWidth,h=tip.offsetHeight;let x=mx+14,y=my+16;if(x+w>innerWidth-8)x=mx-w-10;if(y+h>innerHeight-8)y=my-h-12;
+    tip.style.left=Math.max(8,x)+'px';tip.style.top=Math.max(8,y)+'px'}
+  addEventListener('pointermove',e=>{mx=e.clientX;my=e.clientY;const k=e.pointerType==='touch'?null:kindOf(e.target);if(!k){if(on){tip.hidden=true;on=null}return}
+    if(k!==on){on=k;tip.hidden=!fill(k)}place()},{passive:true});
+  const shift=v=>{if(v===more)return;more=v;if(on&&!tip.hidden){fill(on);place()}};
+  addEventListener('keydown',e=>{if(e.key==='Shift')shift(true)});addEventListener('keyup',e=>{if(e.key==='Shift')shift(false)});addEventListener('blur',()=>shift(false));
   addEventListener('pointerdown',()=>{if(on){tip.hidden=true;on=null}},{passive:true})}
 // ---- v4: HOW TO PLAY ----
 // The whole game in HOWTO steps, each with a little animated scene drawn with the card-art pieces (in the
