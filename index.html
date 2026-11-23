@@ -4296,7 +4296,7 @@ document.querySelectorAll('#buildBar button[title]').forEach(b=>{b.dataset.tip=b
     else if(k.closest('#buildBar')){const I=buildInfoOf(k);if(!I)return false;c=I.c;name=I.n;
       body=`<span>${I.d}</span>${I.t?`<span><i>Troops:</i> ${I.t}</span>`:''}${I.p?`<span><i>Place:</i> ${I.p}</span>`:''}`}
     else{c=k.style.getPropertyValue('--tc')||'#a9b4c0';name=k.dataset.tn;body=`<span><i>${k.dataset.tt}</i>${k.dataset.tip?' · '+k.dataset.tip:''}</span>`}
-    tip.style.setProperty('--tc',c);tip.innerHTML=`<b>${name}</b>`+(more||body.replace(/<[^>]*>/g,'').length<=TIP_SHORT?body:hint);return true}
+    tip.style.setProperty('--tc',c);tip.innerHTML=`<b>${name}</b>`+(more||typeof k==='string'||body.replace(/<[^>]*>/g,'').length<=TIP_SHORT?body:hint);return true} // (the currencies always show it all)
   function place(){const w=tip.offsetWidth,h=tip.offsetHeight;let x=mx+14,y=my+16;if(x+w>innerWidth-8)x=mx-w-10;if(y+h>innerHeight-8)y=my-h-12;
     tip.style.left=Math.max(8,x)+'px';tip.style.top=Math.max(8,y)+'px'}
   addEventListener('pointermove',e=>{mx=e.clientX;my=e.clientY;const k=e.pointerType==='touch'?null:kindOf(e.target);if(!k){if(on){tip.hidden=true;on=null}return}
