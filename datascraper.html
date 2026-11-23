@@ -391,6 +391,16 @@ body.lowGfx #fogGrain{display:none}
 @keyframes bannerIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
 .curNote{position:fixed;z-index:30;pointer-events:none;background:rgba(11,14,18,0.9);border:1px solid var(--accent);color:var(--fg);font:600 12px var(--mono);padding:3px 8px;border-radius:3px;white-space:nowrap;transform:translate(14px,-130%);transition:opacity .25s}
 @media (max-width:720px){.banners{top:calc(env(safe-area-inset-top,0px) + 64px)}.banner{font-size:12px;padding:6px 10px}}
+/* v4: the run guide — on a player's first GUIDE_RUNS runs, a card on the left always says what to do next */
+#guide{position:absolute;left:max(16px,env(safe-area-inset-left,0px));top:calc(env(safe-area-inset-top,0px) + 150px);width:290px;max-width:calc(100vw - 32px);
+  background:rgba(11,14,18,0.9);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:6px;padding:8px 11px 10px;z-index:15;
+  font-size:12.5px;line-height:1.45;color:var(--fg);box-shadow:0 4px 14px rgba(0,0,0,.45)}
+#guide[hidden]{display:none}
+#guide .gk{display:flex;justify-content:space-between;align-items:center;font:600 10px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--accent);margin-bottom:4px}
+#guide .gx{background:none;border:0;color:var(--muted);cursor:pointer;font:11px var(--mono);padding:0 2px;letter-spacing:0;text-transform:none}#guide .gx:hover{color:var(--fg)}
+#guide .gt b{color:var(--fg)} #guide .gs{color:var(--muted);margin-top:5px;font-size:11.5px} #guide .gs:empty{display:none}
+#guide kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--line);border-bottom-width:2px;border-radius:3px;padding:0 4px;background:var(--panel2);color:var(--fg)}
+@media (max-width:720px){#guide{top:calc(env(safe-area-inset-top,0px) + 68px);width:220px;font-size:11.5px}}
 .toasts{position:absolute;left:max(16px,env(safe-area-inset-left,0px));top:calc(env(safe-area-inset-top,0px) + 150px);
   display:flex;flex-direction:column;gap:8px;width:300px;max-width:calc(100vw - 32px);pointer-events:none;z-index:15}
 .toast{pointer-events:auto;display:flex;align-items:flex-start;gap:8px;background:var(--panel);border:1px solid var(--line);
@@ -768,6 +778,7 @@ async function run(d){
 </div>
 <button class="helpToggleBtn" id="helpToggleBtn" aria-label="Show controls">?</button>
 <div class="toasts" id="toasts"></div>
+<div id="guide" hidden><div class="gk"><span>Guide · next step</span><button class="gx" id="guideX">Hide guide ✕</button></div><div class="gt" id="guideT"></div><div class="gs" id="guideS"></div></div>
 
 <div class="bottomBar">
   <!-- Live drilling readout (speed picking itself happens in the #drillSelectOverlay popup) — sits
@@ -1643,7 +1654,7 @@ function loadMeta(){
         // every stored tier, whatever the key — listing them by hand here silently dropped any
         // upgrade added later (Rapid Loaders / Magnetic Collectors) on every page reload
         upgrades:Object.fromEntries(Object.entries(mu).map(([k,v])=>[k,v|0])),
-        recordingConsent:m.recordingConsent===true?true:m.recordingConsent===false?false:undefined,howtoSeen:!!m.howtoSeen,
+        recordingConsent:m.recordingConsent===true?true:m.recordingConsent===false?false:undefined,howtoSeen:!!m.howtoSeen,guideRuns:m.guideRuns|0,guideOff:!!m.guideOff,
         // v4: call-downs bought in the shop, and the two picked to start every run with (checked against CALLDOWNS in callLoadout)
         calls:Array.isArray(m.calls)?m.calls.filter(x=>typeof x==='string'):[],callLoadout:Array.isArray(m.callLoadout)?m.callLoadout.filter(x=>typeof x==='string').slice(0,2):[],
         // v4: the card shop — cards picked at least once in a run (cardSeen), bought (cardOwn), their upgrade tiers (cardLv),
@@ -3449,6 +3460,7 @@ function buildStop(carry){
   applyCarry(carry);
   // a fresh run: the loadout comes charged, and the Rig lands (later stops start with it already down)
   if(!carry){runCallStart().forEach(id=>grantCall(id,CALL_LOADOUT_CHARGES));beginLanding();runCardStart();
+    if(!tutorial&&!tutorialMap){meta.guideRuns=(meta.guideRuns|0)+1;saveMeta()} // (the run guide shows on the first GUIDE_RUNS)
     if(!meta.howtoSeen&&!tutorial&&!tutorialMap)setTimeout(()=>{if(RUN&&S&&!S.over&&!howtoOpen())openHowTo('first')},700)} // a player's first run opens How to play
   saveRun(carry);grantStopBonus();
   if(curNode()&&curNode().type==='hive')setTimeout(()=>msg('A Hive stop: two Mega nests have dug in here. Break them for Blooded cards and salvage.'),120);
@@ -13110,8 +13122,43 @@ function drawMini(){const s=mini.width/W;mctx.fillStyle='#10151b';mctx.fillRect(
   mctx.fillStyle=C.accent;mctx.fillRect(S.base.x*s-3,S.base.y*s-3,6,6);
   const vw=cv.width/gDpr()/cam.z,vh=cv.height/gDpr()/cam.z;mctx.strokeStyle='rgba(255,255,255,0.5)';mctx.lineWidth=1;mctx.strokeRect((cam.x-vw/2)*s,(cam.y-vh/2)*s,vw*s,vh*s)}
 const $cache={}, $=id=>$cache[id]||($cache[id]=document.getElementById(id));
+// ---- v4: the run guide ----
+// For a player's first GUIDE_RUNS runs (meta.guideRuns counts runs started) a card on the left always says
+// what to do next, read from the game's state, so someone who skipped the tutorial and How to play isn't
+// lost. Its Hide button turns it off for good (meta.guideOff).
+const GUIDE_RUNS=2;
+function guideOn(){return !!(RUN&&S&&!tutorial&&!tutorialMap&&!meta.guideOff&&(meta.guideRuns||0)>=1&&(meta.guideRuns||0)<=GUIDE_RUNS)}
+function guideStep(){const B=S.base,v=S.activeVein;
+  if(S.megaNest&&!S.megaDone)return megaShelled()?['Destroy the <b>small nests</b> round the Mega Nest: they shield it.','Send your army in a group. Rocketeers hit nests hardest.']
+    :['The Mega Nest is open: <b>send everything at it</b>.','Rocketeers hit it hardest.'];
+  if(B.locked&&v&&v.meter){
+    if(v.meter.phase==='strike')return ['Press <kbd>F</kbd> to stop the sweeping needle on the <b>best band</b>. Never on red.',''];
+    const wave=S.enemies.some(e=>e.hp>0&&e.kind==='wave');
+    return ['Keep the needle on your band: drag the <b>gold weight</b> on the steering pad.',
+      wave?'A wave is attacking. <kbd>Space</kbd> pauses to plan. Build with <kbd>B</kbd>, deploy units with <kbd>U</kbd>.'
+          :'Waves will come for the Rig. Get ready: walls and Turrets (<kbd>B</kbd>), units (<kbd>U</kbd>).']}
+  if(S.barrier&&S.barrier.open||S.megaDone)return [`The way is open: walk the Rig off the <b>${EDGE_WORD[EXIT_DIR]}</b> edge to the next stop.`,'Select the Rig (<kbd>Z</kbd>) and right-click by that edge. Or drain more veins first, for more cards.'];
+  if(bossAlive())return ['Bring down the <b>Shieldbearer</b> guarding the contract vein.','Its shields block shots from the front: flank it, and keep clear of its fiery breath.'];
+  if(canLockdown())return ['Press <kbd>F</kbd> to lock on and start drilling.',''];
+  const bv=S.breachVein&&veinAlive(S.breachVein)&&S.breachVein.seen?S.breachVein:null;
+  let f=bv;if(!f){let fd=1e9;S.veins.forEach(x=>{if(!veinAlive(x)||!x.seen||x.contract&&!x.mine.found)return;const d=dist(B,x);if(d<fd){fd=d;f=x}})}
+  if(!f)return ['Find a vein: <b>pulses of light</b> run along the cracks toward one. Follow them.','Fire a Probe (<kbd>G</kbd>), or send Troopers ahead (select, then right-click), to scout further.'];
+  const nm=f===S.breachVein?'the breach vein':f.contract?'the contract vein':'the vein';
+  const hs=f.hot||[],pinned=hs.filter(h=>h.stab).length;
+  if(pinned<Math.min(3,hs.length)){
+    if(dist(B,f)>STAB_RANGE-40)return [`Walk the Rig closer to ${nm}: select it (<kbd>Z</kbd>) and right-click near it.`,'Then pin Stabilizers on its glowing hotspots.'];
+    return [`Press <kbd>E</kbd> and click the <b>glowing hotspots</b> drifting inside ${nm} to pin Stabilizers.`,`${pinned}/3 pinned. They tell you its grade and make the triangle you steer the drill with.`]}
+  return [`Walk the Rig onto ${nm}: select it (<kbd>Z</kbd>) and right-click its mining point.`,
+    f!==S.breachVein&&S.breachVein&&veinAlive(S.breachVein)?'Draining the breach vein by the barrier opens the way to the next stop.':''];
+}
+function updateGuide(){const g=document.getElementById('guide');if(!g)return;
+  const show=guideOn()&&!S.over&&!S.rewardChoice&&!menuOpen&&!(typeof howtoOpen==='function'&&howtoOpen())&&!(S.landing&&!S.landing.touch);
+  if(!show){g._hd=true;return}g._hd=false;
+  if(S._guideT>S.t-0.25&&S._guideT<=S.t)return;S._guideT=S.t;
+  const [t,sub]=guideStep();if(g._t!==t){g._t=t;document.getElementById('guideT').innerHTML=t}if(g._s!==sub){g._s=sub;document.getElementById('guideS').innerHTML=sub}}
+document.getElementById('guideX').onclick=()=>{meta.guideOff=true;saveMeta();updateGuide()};
 function hud(){
-  const B=S.base;
+  const B=S.base;updateGuide();
   $('hDat')._tc=Math.floor(S.dat);$('hLiving')._tc=S.living;$('hCondensed')._tc=S.condensed;
   $('hBase')._tc=Math.ceil(B.hp)+' / '+B.maxHp;$('hBaseBar')._sw=(100*B.hp/B.maxHp).toFixed(1)+'%';
   $('hBaseBar').classList.toggle('low',B.hp/B.maxHp<0.25);
