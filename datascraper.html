@@ -453,6 +453,7 @@ body.lowGfx #fogGrain{display:none}
 .secBrief .row{font-size:13px;color:#b9c2cc}
 .secBrief .row>b{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:500;margin-bottom:4px}
 .secBrief .fog{color:var(--muted);font-style:italic}
+.secChip[data-g]{cursor:help}
 .secChip{display:inline-block;font:11px var(--mono);padding:2px 7px;border-radius:10px;border:1px solid var(--c);color:var(--c);margin:0 4px 4px 0}
 @keyframes secPulse{50%{opacity:.3}}.secPulse{animation:secPulse 1.6s ease-in-out infinite}
 @media (prefers-reduced-motion:reduce){.secPulse{animation:none}}
@@ -3479,10 +3480,10 @@ function buildStop(carry){
 // in full, only the kind of stop one column further, and just the zone beyond that. You pick at the
 // start of a run and each time a stop is cleared; the map is saved with the run (RUN.sector, RUN.path).
 const SECTOR_GROUND={
-  rich:{name:'Rich veins',good:true,desc:'Veins here hold about a third more.'},
-  calm:{name:'Quiet ground',good:true,desc:'Fewer nests than usual, but the veins run a little leaner.'},
-  brood:{name:'Brood ground',good:false,desc:'More nests than usual. Its supply cache makes up for it.'},
-  glass:{name:'Glass-choked',good:false,desc:'Much more crystal glass to wind your way through.'}};
+  rich:{name:'Rich veins',good:true,desc:'Veins here hold about a third more.',tip:'Worth draining extra veins here.'},
+  calm:{name:'Quiet ground',good:true,desc:'Fewer nests than usual, but the veins run a little leaner.',tip:'A safer stop to build up your army.'},
+  brood:{name:'Brood ground',good:false,desc:'More nests than usual. Its supply cache makes up for it.',tip:'Expect heavier waves: bring walls and Grenadiers.'},
+  glass:{name:'Glass-choked',good:false,desc:'Much more crystal glass to wind your way through.',tip:'Routes are long and twisting, and some nests sit close to the veins.'}};
 const SECTOR_TYPE={
   drill:{name:'Drill stop',col:'#d7dde5',desc:'Find the breach vein by the wall and drain it to break through. Drain other veins on the way for cards.'},
   hive:{name:'Hive stop',col:HIVE_COL,desc:'Two Mega nests have dug in here instead of one: hive veins ringed by brood mounds. Break them for Blooded cards and salvage.'},
@@ -3582,7 +3583,7 @@ function renderSecBrief(){const el=document.getElementById('secBrief'),sc=RUN.se
   if(sg==='band'){el.innerHTML=`<div class="k" style="color:${B.col}">${B.name} · stop ${ci+1}</div><h2>Unknown stop</h2><p class="fog">Too far off to make out. You'll see what kind of stop it is once you're two stops away.</p>`;return}
   let h=`<div class="k" style="color:${T.col}">${B.name} · stop ${ci+1}</div><h2>${T.name}</h2><p>${T.desc}</p>`;
   if(sg==='type'&&n.type!=='contract'){el.innerHTML=h+`<p class="fog">Its ground and bonus come into view once it's within reach.</p>`;return}
-  if(n.ground.length)h+=`<div class="row"><b>Ground</b>${n.ground.map(g=>{const G=SECTOR_GROUND[g];return `<span class="secChip" style="--c:${G.good?'#9ad36a':'#ff5c4d'}">${G.name}</span>`}).join('')}<div>${n.ground.map(g=>SECTOR_GROUND[g].desc).join(' ')}</div></div>`;
+  if(n.ground.length)h+=`<div class="row"><b>Ground</b>${n.ground.map(g=>{const G=SECTOR_GROUND[g];return `<span class="secChip" data-g="${g}" style="--c:${G.good?'#9ad36a':'#ff5c4d'}">${G.name}</span>`}).join('')}<div>${n.ground.map(g=>SECTOR_GROUND[g].desc).join(' ')}</div></div>`;
   if(n.bonus)h+=`<div class="row"><b>Bonus</b>${esc(sectorBonusText(n,ci))}.</div>`;
   if(can)h+=`<button id="secGoBtn" type="button">${secCol===0?'Land here':'Travel here'}</button>`;
   el.innerHTML=h;const b=document.getElementById('secGoBtn');if(b)b.onclick=()=>sectorTravel(i)}
@@ -4302,15 +4303,17 @@ document.querySelectorAll('#buildBar button[title]').forEach(b=>{b.dataset.tip=b
   // v4: a long panel shows just its name and a Shift hint, and holding Shift shows the rest; a short one
   // (TIP_SHORT characters or less) just shows it all
   const TIP_SHORT=90;
-  const kindOf=el=>{if(!el||!el.closest)return null;const oc=el.closest('.oc[data-tip]');if(oc)return oc;const bb=el.closest('#buildBar button');if(bb)return bb;const c=el.closest('.cur,.crystalIcon')||(el.classList&&el.classList.contains('v')&&el.previousElementSibling&&el.previousElementSibling.classList.contains('crystalIcon')?el.previousElementSibling:null);
+  const kindOf=el=>{if(!el||!el.closest)return null;const oc=el.closest('.oc[data-tip],.secChip[data-g]');if(oc)return oc;const bb=el.closest('#buildBar button');if(bb)return bb;const c=el.closest('.cur,.crystalIcon')||(el.classList&&el.classList.contains('v')&&el.previousElementSibling&&el.previousElementSibling.classList.contains('crystalIcon')?el.previousElementSibling:null);
     if(!c)return null;return ['dat','living','condensed'].find(k=>c.classList.contains(k))||null};
   const hint='<span class="tipMore">Hold Shift for more info</span>';
-  function fill(k){let c,name,body;
+  function fill(k){let c,name,body,full=false;
     if(typeof k==='string'){const I=CUR_INFO[k];c=`var(${I.col})`;name=I.name;body=`<span><i>From:</i> ${I.from}</span><span><i>For:</i> ${I.use}</span>`}
     else if(k.closest('#buildBar')){const I=buildInfoOf(k);if(!I)return false;c=I.c;name=I.n;
       body=`<span>${I.d}</span>${I.t?`<span><i>Troops:</i> ${I.t}</span>`:''}${I.p?`<span><i>Place:</i> ${I.p}</span>`:''}`}
+    else if(k.dataset.g){const G=SECTOR_GROUND[k.dataset.g];c=G.good?'#9ad36a':'#ff5c4d';name=G.name;full=true;
+      body=`<span><i>${G.good?'Helps you':'Works against you'}</i> · ${G.desc}</span>${G.tip?`<span>${G.tip}</span>`:''}`}
     else{c=k.style.getPropertyValue('--tc')||'#a9b4c0';name=k.dataset.tn;body=`<span><i>${k.dataset.tt}</i>${k.dataset.tip?' · '+k.dataset.tip:''}</span>`}
-    tip.style.setProperty('--tc',c);tip.innerHTML=`<b>${name}</b>`+(more||typeof k==='string'||body.replace(/<[^>]*>/g,'').length<=TIP_SHORT?body:hint);return true} // (the currencies always show it all)
+    tip.style.setProperty('--tc',c);tip.innerHTML=`<b>${name}</b>`+(more||full||typeof k==='string'||body.replace(/<[^>]*>/g,'').length<=TIP_SHORT?body:hint);return true} // (the currencies always show it all)
   function place(){const w=tip.offsetWidth,h=tip.offsetHeight;let x=mx+14,y=my+16;if(x+w>innerWidth-8)x=mx-w-10;if(y+h>innerHeight-8)y=my-h-12;
     tip.style.left=Math.max(8,x)+'px';tip.style.top=Math.max(8,y)+'px'}
   addEventListener('pointermove',e=>{mx=e.clientX;my=e.clientY;const k=e.pointerType==='touch'?null:kindOf(e.target);if(!k){if(on){tip.hidden=true;on=null}return}
