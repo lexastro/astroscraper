@@ -49,5 +49,8 @@ jobs:
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with: {path: _site}
+      # GitHub sometimes can't list a just-uploaded artifact yet; give it a moment
+      - name: Let the artifact register
+        run: sleep 20
       - id: deployment
         uses: actions/deploy-pages@v4
