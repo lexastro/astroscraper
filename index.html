@@ -393,11 +393,13 @@ body.lowGfx #fogGrain{display:none}
 @media (max-width:720px){.banners{top:calc(env(safe-area-inset-top,0px) + 64px)}.banner{font-size:12px;padding:6px 10px}}
 /* v4: the run guide — on a player's first GUIDE_RUNS runs, a card on the left always says what to do next */
 #guide{position:absolute;left:max(16px,env(safe-area-inset-left,0px));top:calc(env(safe-area-inset-top,0px) + 150px);width:290px;max-width:calc(100vw - 32px);
-  background:rgba(11,14,18,0.9);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:6px;padding:8px 11px 10px;z-index:15;
-  font-size:12.5px;line-height:1.45;color:var(--fg);box-shadow:0 4px 14px rgba(0,0,0,.45)}
+  display:flex;flex-direction:column;gap:6px;z-index:15;font-size:12.5px;line-height:1.45;color:var(--fg);pointer-events:none}
 #guide[hidden]{display:none}
-#guide .gk{display:flex;justify-content:space-between;align-items:center;font:600 10px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--accent);margin-bottom:4px}
-#guide .gx{background:none;border:0;color:var(--muted);cursor:pointer;font:11px var(--mono);padding:0 2px;letter-spacing:0;text-transform:none}#guide .gx:hover{color:var(--fg)}
+#guide .gk{display:flex;justify-content:space-between;align-items:center;font:600 10px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--accent);padding:0 2px}
+#guide .gx{pointer-events:auto;background:none;border:0;color:var(--muted);cursor:pointer;font:11px var(--mono);padding:0 2px;letter-spacing:0;text-transform:none}#guide .gx:hover{color:var(--fg)}
+#guide .gc{background:rgba(11,14,18,0.9);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:6px;padding:8px 11px 9px;box-shadow:0 4px 14px rgba(0,0,0,.45);animation:toastIn .22s ease;transition:opacity .3s}
+#guide .gc.old{opacity:.5;border-left-color:var(--line);font-size:11.5px;padding:6px 10px 7px}#guide .gc.old .gs{display:none}
+#guide .gc.leaving{animation:toastOut .18s ease forwards}
 #guide .gt b{color:var(--fg)} #guide .gs{color:var(--muted);margin-top:5px;font-size:11.5px} #guide .gs:empty{display:none}
 #guide kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--line);border-bottom-width:2px;border-radius:3px;padding:0 4px;background:var(--panel2);color:var(--fg)}
 @media (max-width:720px){#guide{top:calc(env(safe-area-inset-top,0px) + 68px);width:220px;font-size:11.5px}}
@@ -778,7 +780,7 @@ async function run(d){
 </div>
 <button class="helpToggleBtn" id="helpToggleBtn" aria-label="Show controls">?</button>
 <div class="toasts" id="toasts"></div>
-<div id="guide" hidden><div class="gk"><span>Guide · next step</span><button class="gx" id="guideX">Hide guide ✕</button></div><div class="gt" id="guideT"></div><div class="gs" id="guideS"></div></div>
+<div id="guide" hidden><div class="gk" id="guideK"><span>Guide · next step</span><button class="gx" id="guideX">Hide guide ✕</button></div></div>
 
 <div class="bottomBar">
   <!-- Live drilling readout (speed picking itself happens in the #drillSelectOverlay popup) — sits
@@ -13151,11 +13153,21 @@ function guideStep(){const B=S.base,v=S.activeVein;
   return [`Walk the Rig onto ${nm}: select it (<kbd>Z</kbd>) and right-click its mining point.`,
     f!==S.breachVein&&S.breachVein&&veinAlive(S.breachVein)?'Draining the breach vein by the barrier opens the way to the next stop.':''];
 }
+// (a feed like the old alert cards: each new step slides in on top, the earlier ones dim below it, GUIDE_FEED at most;
+// a step that comes back moves to the top instead of showing twice)
+const GUIDE_FEED=3;
 function updateGuide(){const g=document.getElementById('guide');if(!g)return;
   const show=guideOn()&&!S.over&&!S.rewardChoice&&!menuOpen&&!(typeof howtoOpen==='function'&&howtoOpen())&&!(S.landing&&!S.landing.touch);
   if(!show){g._hd=true;return}g._hd=false;
   if(S._guideT>S.t-0.25&&S._guideT<=S.t)return;S._guideT=S.t;
-  const [t,sub]=guideStep();if(g._t!==t){g._t=t;document.getElementById('guideT').innerHTML=t}if(g._s!==sub){g._s=sub;document.getElementById('guideS').innerHTML=sub}}
+  const [t,sub]=guideStep(),feed=g._feed||(g._feed=[]);
+  if(!feed.length||feed[0].t!==t){
+    const i=feed.findIndex(c=>c.t===t);if(i>=0){feed[i].el.remove();feed.splice(i,1)}
+    const el=document.createElement('div');el.className='gc';el.innerHTML=`<div class="gt">${t}</div><div class="gs"></div>`;
+    document.getElementById('guideK').after(el);feed.unshift({t,s:null,el});
+    feed.forEach((c,j)=>c.el.classList.toggle('old',j>0));
+    while(feed.length>GUIDE_FEED){const c=feed.pop();c.el.classList.add('leaving');setTimeout(()=>c.el.remove(),200)}}
+  const c=feed[0];if(c.s!==sub){c.s=sub;c.el.querySelector('.gs').innerHTML=sub}}
 document.getElementById('guideX').onclick=()=>{meta.guideOff=true;saveMeta();updateGuide()};
 function hud(){
   const B=S.base;updateGuide();
