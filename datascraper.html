@@ -4253,12 +4253,39 @@ const CUR_INFO={
   dat:{name:'◆ Dat Crystal',col:'--dat',from:'Drained veins, crystal deposits and shards dropped by enemies.',use:'Units, buildings, stock and call-downs in this run. Lost when the run ends.'},
   living:{name:'❖ Living Crystal',col:'--living',from:'Rare: only some veins yield it, the contract vein most of all.',use:'Unit unlocks, Flawless cards and the third card slot. Kept between runs.'},
   condensed:{name:'⬢ Condensed Crystal',col:'--condensed',from:'Every vein you drain.',use:'Upgrades, call-downs, cards and card upgrades. Kept between runs.'}};
+// v4: the same panel for every button on the build bar: what it does, what it does for your troops, where to put it
+const BI_B='#d8b36a',BI_U='#8fb8e0',BI_C='#ff9a5c';
+const BUILD_INFO={
+  turret:{n:'Turret',c:BI_B,d:'Automatic gun: quick fire, short reach.',p:'On the side waves come from. Snaps onto wall ends and corners.'},
+  podturret:{n:'Missile Pod',c:BI_B,d:'Loads 8 missiles, then ripples them all into one cluster.',p:'Behind a wall, where waves bunch up against it.'},
+  wall:{n:'Wall',c:BI_B,d:'Stops enemies. Your own units walk straight through.',t:'Units manning it take 25% less damage; gunners shoot 15% further.',p:'Across the side a wave banner names, between the nests and the Rig. Draw between two posts to mend it.'},
+  relay:{n:'Relay',c:BI_B,d:'Anchors unit cables and widens your build ring.',t:'Units beyond cable reach lose Sanity and can turn hostile.',p:'Along the route to far veins and nests, a step behind your front.'},
+  stabilizer:{n:'Stabilizer',c:BI_B,d:'Fired onto a drifting hotspot: steadies the drill needle and the vein lasts longer.',p:'Lead the hotspot as it drifts. A miss wastes the charge.'},
+  probe:{n:'Probe',c:BI_B,d:'Flies straight out, shows enemies on its path for 20s and finds veins for good.',p:'Into unexplored ground, or where a wave is coming from.'},
+  troop:{n:'Trooper',c:BI_U,d:'Rifle squad, the core of your army. Shots pierce 2 enemies.',p:'Behind your Paladins, or manning a wall facing the wave.'},
+  marksman:{n:'Marksman',c:BI_U,d:'Charged long-range bolt that punches through 4 enemies. Frail.',p:'Well back: on a wall or behind the line.'},
+  brawler:{n:'Paladin',c:BI_U,d:'Tough melee shield wall: blocks shots from the front and shoves enemies back.',t:'Holds enemies off while your guns do the killing.',p:'Front line, just ahead of your Troopers.'},
+  grenadier:{n:'Grenadier',c:BI_U,d:'Fires missile salvos that splash whole crowds.',p:'Just behind the front, facing where waves bunch up.'},
+  artillery:{n:'Artillery',c:BI_U,d:'Huge shell with a wide blast, anywhere you can see. Very slow reload; crawls.',p:'Near the Rig. Probe ahead to give it targets.'},
+  rocket:{n:'Rocketeer',c:BI_U,d:'Rockets hit nests, Quakers and bosses 4× as hard. Frail.',p:'With an escort, to crack nests and big enemies.'},
+  mech:{n:'Mech',c:BI_U,d:'Rotary cannon that spins up to a hail of fire and slows what it hits. Front shield.',p:'In a choke point or a gap in your wall.'},
+  breaker:{n:'Mech · Breaker',c:BI_U,d:'Huge fists: punches splash, haymakers hurl enemies into walls. Very tough.',p:'Into the thick of a crowd, near a wall.'},
+  fieldrelay:{n:'Mech · Field Relay',c:BI_U,d:'A walking Relay: up to 6 units tether to it, and it heals units round it.',p:'With units pushing beyond your Relays.'}};
+function buildInfoOf(b){const k=b.dataset.mode||b.dataset.unit||(b.id==='bPing'?'probe':null);
+  if(k){const id=k==='mech'&&S&&S.kits&&(S.kits.mech==='breaker'||S.kits.mech==='fieldrelay')?S.kits.mech:k;return BUILD_INFO[id]||null}
+  if(b.dataset.call&&typeof CALLDOWNS!=='undefined'){const K=CALLDOWNS[b.dataset.call];return K?{n:K.name,c:BI_C,d:K.desc}:null}
+  if(b.dataset.tip){const l=b.querySelector('span:not(.icon):not(.cost):not(.key)');return {n:(l?l.textContent:'').replace(/\s*▴$/,''),c:'#a9b4c0',d:b.dataset.tip}}
+  return null}
+// (the build bar's own hover hints move off the browser's tooltip into the panel)
+document.querySelectorAll('#buildBar button[title]').forEach(b=>{b.dataset.tip=b.title;b.removeAttribute('title')});
 {const tip=document.createElement('div');tip.className='curTip';tip.hidden=true;document.body.appendChild(tip);let on=null;
   // (owned cards on the pause menu and the reward pick use the same panel: an .oc with data-tip set)
-  const kindOf=el=>{if(!el||!el.closest)return null;const oc=el.closest('.oc[data-tip]');if(oc)return oc;const c=el.closest('.cur,.crystalIcon')||(el.classList&&el.classList.contains('v')&&el.previousElementSibling&&el.previousElementSibling.classList.contains('crystalIcon')?el.previousElementSibling:null);
+  const kindOf=el=>{if(!el||!el.closest)return null;const oc=el.closest('.oc[data-tip]');if(oc)return oc;const bb=el.closest('#buildBar button');if(bb)return bb;const c=el.closest('.cur,.crystalIcon')||(el.classList&&el.classList.contains('v')&&el.previousElementSibling&&el.previousElementSibling.classList.contains('crystalIcon')?el.previousElementSibling:null);
     if(!c)return null;return ['dat','living','condensed'].find(k=>c.classList.contains(k))||null};
   addEventListener('pointermove',e=>{const k=e.pointerType==='touch'?null:kindOf(e.target);if(!k){if(on){tip.hidden=true;on=null}return}
     if(k!==on){on=k;if(typeof k==='string'){const I=CUR_INFO[k];tip.style.setProperty('--tc',`var(${I.col})`);tip.innerHTML=`<b>${I.name}</b><span><i>From:</i> ${I.from}</span><span><i>For:</i> ${I.use}</span>`}
+      else if(k.closest('#buildBar')){const I=buildInfoOf(k);if(!I){tip.hidden=true;return}tip.style.setProperty('--tc',I.c);
+        tip.innerHTML=`<b>${I.n}</b><span>${I.d}</span>${I.t?`<span><i>Troops:</i> ${I.t}</span>`:''}${I.p?`<span><i>Place:</i> ${I.p}</span>`:''}`}
       else{tip.style.setProperty('--tc',k.style.getPropertyValue('--tc')||'#a9b4c0');tip.innerHTML=`<b>${k.dataset.tn}</b><span><i>${k.dataset.tt}</i>${k.dataset.tip?' · '+k.dataset.tip:''}</span>`}tip.hidden=false}
     const w=tip.offsetWidth,h=tip.offsetHeight;let x=e.clientX+14,y=e.clientY+16;if(x+w>innerWidth-8)x=e.clientX-w-10;if(y+h>innerHeight-8)y=e.clientY-h-12;
     tip.style.left=Math.max(8,x)+'px';tip.style.top=Math.max(8,y)+'px'},{passive:true});
@@ -8179,7 +8206,7 @@ function buildCallBar(){const bar=document.getElementById('callBar'),bc=document
   if(bc){bc.style.display=ids.length?'':'none';bc.classList.toggle('on',callMenuOpen);const tot=ids.reduce((t,id)=>t+(S.calls[id]||0),0);document.getElementById('cCall').textContent=tot?`${tot} free`:''}
   bar.style.display=ids.length&&callMenuOpen?'flex':'none';
   if(bar._ids!==ids.join()){bar._ids=ids.join();bar.innerHTML='';ids.forEach(id=>{const K=CALLDOWNS[id],b=document.createElement('button');b.dataset.call=id;
-    const i=ids.indexOf(id);b.innerHTML=`<span class="icon">${K.icon}</span><span>${K.name}</span><span class="cost" id="cc_${id}"></span>${i<10?`<span class="key num">${(i+1)%10}</span>`:''}`;b.title=K.desc;b.onclick=()=>tryCall(id);bar.appendChild(b)})}
+    const i=ids.indexOf(id);b.innerHTML=`<span class="icon">${K.icon}</span><span>${K.name}</span><span class="cost" id="cc_${id}"></span>${i<10?`<span class="key num">${(i+1)%10}</span>`:''}`;b.onclick=()=>tryCall(id);bar.appendChild(b)})}
   ids.forEach(id=>{const b=bar.querySelector(`[data-call="${id}"]`),n=S.calls[id]||0;if(!b)return;b.classList.toggle('on',callMode===id);b.classList.toggle('dry',!n&&S.dat<callPrice(id));
     const el=document.getElementById('cc_'+id);if(el)el.textContent=callMode===id?'Aim…':(n?`${n} free · `:'')+'◆'+callPrice(id)})}
 
