@@ -3625,7 +3625,7 @@ function megaBurrow(m){let k=0;const sp=S.megaHeldSp||(S.megaHeldSp=[]);S.enemie
 function megaAttackPatrol(m){const marks=[S.base,...S.troops.filter(t=>t.hp>0)];let o=marks[0],od=Infinity;marks.forEach(q=>{const d=dist(q,m);if(d<od){od=d;o=q}});
   return {a:{x:m.x,y:m.y},b:{x:o.x+rnd(-80,80),y:o.y+rnd(-80,80)},dir:1}}
 function megaErupt(m,n){let brood=0;for(const e of S.enemies)if(e.nest===m&&e.hp>0)brood++;
-  n=Math.min(nestScaled(m,n),MEGA_BROOD_CAP-brood);if(n<=0)return;
+  n=Math.min(nestScaled(m,n),MEGA_BROOD_CAP*swarmMult()-brood);if(n<=0)return;
   const patrol=megaAttackPatrol(m);S.megaEruptInA=(S.megaEruptInA||0)+1;
   const sp=megaExtras(m,n,patrol);
   if(n-sp>0)nestSpawn(m,n-sp,'roam').forEach(e=>{e.nest=m;e.patrol=patrol;e.aggro=700});
@@ -3782,6 +3782,15 @@ document.getElementById('stopBtn').onclick=advanceStop;
 const DBG_DAT=99999;let dbgGod=false,dbgInvuln=false,dbgDatSave=null;
 const dbgBar=document.createElement('div');dbgBar.hidden=true;
 dbgBar.style.cssText='position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:50;display:flex;gap:6px';
+// ---- Swarm test (debug toggle, kept between sessions): a "They Are Billions" feel. Every regular
+// enemy that spawns comes with a twin (so twice the spawns; nests' and the Mega Nest's brood caps
+// double with them), and every enemy hits for SWT_DMG of its damage with SWT_HP of its health.
+// Elites (Lancers, Choirs, Burrowers, Quakers, bosses) aren't twinned but still get the damage and
+// health change. Applied once to each enemy as it appears (e.sw marks it; saved with the run).
+const SWT_KEY='datascraper_swarmtest', SWT_DMG=0.5, SWT_HP=0.8;
+let swarmTest=false;try{swarmTest=localStorage.getItem(SWT_KEY)==='1'}catch(e){}
+const swarmMult=()=>swarmTest?2:1;
+const SWT_TWIN=new Set(['wave','roam','swarm','saboteur','brute','splinter','fracture']);
 const dbgBtnCss='padding:6px 12px;background:#2a1a12;color:#ff9a5a;border:1px solid #ff9a5a;border-radius:4px;font:12px var(--mono,monospace);cursor:pointer';
 function dbgButton(label,fn){const b=document.createElement('button');b.textContent=label;b.style.cssText=dbgBtnCss;b.addEventListener('click',e=>{e.stopPropagation();fn(b)});b.addEventListener('keydown',e=>e.preventDefault());dbgBar.appendChild(b);return b}
 function setGod(on){if(!S)return;dbgGod=on;
@@ -3801,6 +3810,7 @@ const dbgSkip=dbgButton('Next map',()=>{
 const dbgRestart=dbgButton('Restart stop',()=>{
   if(!RUN||!S||tutorialMap){msg('Debug: no stop to restart');return}
   if(dbgGod&&dbgDatSave)dbgDatSave.S=null;S.over=null;document.getElementById('overlay')._hd=true;buildStop(RUN.stopCarry||null)});
+const dbgSwarmBtn=dbgButton('Swarm test: '+(swarmTest?'on':'off'),()=>setSwarmTest(!swarmTest));
 const dbgGodBtn=dbgButton('God mode: off',()=>setGod(!dbgGod)),dbgInvBtn=dbgButton('Invincible units: off',()=>setInvuln(!dbgInvuln));
 // v4: Give card — a searchable list of every reward card in every tier; click one to apply it right
 // away (the game pauses while the list is open). Cards you already hold, or that can't apply yet, are
@@ -4677,6 +4687,16 @@ function drawTutorialArrow(vw,vh){
   ctx.restore();ctx.globalAlpha=1;
 }
 // opts (optional): {core:true} forces Core tier regardless of band; {hp} overrides max HP.
+function swarmSweep(){const E=S.enemies,n0=E.length;
+  for(let i=0;i<n0;i++){const e=E[i];if(e.sw!=null)continue;
+    if(!swarmTest||e.kind==='nest'||e.kind==='corrupted'||e.megaGlass||e.hp<=0){e.sw=0;continue}
+    e.sw=1;if(e.kind!=='boss'){e.maxHp=Math.max(1,Math.round(e.maxHp*SWT_HP));e.hp=Math.min(e.hp,e.maxHp);if(e.lastHp!=null)e.lastHp=e.hp}
+    if(e.dmg)e.dmg*=SWT_DMG;
+    if(SWT_TWIN.has(e.kind)&&!e.boss){const t={...e};for(const k in t){if(k[0]==='_')delete t[k];else if(Array.isArray(t[k]))t[k]=t[k].slice()}if(Array.isArray(t.links))t.links=[];t.sw=2;t.target=null;t.home={...e.home};
+      for(let k=0;k<6;k++){const a=rnd(0,Math.PI*2),d=rnd(8,18),x=e.x+Math.cos(a)*d,y=e.y+Math.sin(a)*d;if(!plainBlocked(x,y)){t.x=x;t.y=y;break}}
+      t.ang=rnd(0,Math.PI*2);if(t.seed!=null)t.seed=rnd(0,100);E.push(t)}}}
+function setSwarmTest(on){swarmTest=on;try{localStorage.setItem(SWT_KEY,on?'1':'0')}catch(e){}if(typeof dbgSwarmBtn!=='undefined')dbgSwarmBtn.textContent='Swarm test: '+(on?'on':'off');
+  msg(on?'Swarm test on: twice the enemies, half their damage, 80% health (for enemies that spawn from now on)':'Swarm test off')}
 function spawnEnemy(x,y,kind,opts){
   const core=(opts&&opts.core)||bandAt(x,y)==='core';
   // Brutes only ever show up as a rare roll on a Core roam spawn — never on a wave/saboteur/
@@ -5263,7 +5283,7 @@ function choirShare(e,d){const c=e.choir;if(!(e.linkT>S.t)||!c||c.hp<=0||!S.enem
 function fractureBurst(e){const R=FRAC_BURST_R;
   burst(e.x,e.y,'#ff6a4d',26,190,0.6);burst(e.x,e.y,'#ffd0c0',10,120,0.4);shakeScreen(4,0.25);sndAt(e.x,e.y,()=>sfx.explode());
   const mine=[S.base].concat(S.troops,S.harvesters,S.builders,S.turrets.filter(t=>t.built),S.relays.filter(r=>r.built&&r.hp>0),S.stabs.filter(st=>st.built&&st.hp>0),S.depots.filter(de=>de.built&&de.hp>0));
-  mine.forEach(u=>{const r=u===S.base?BASE_R:(u.r||10);if(dist(u,e)>R+r)return;u.hp-=structHit(u,u.kind?allyHit(u,FRAC_DMG):FRAC_DMG,'blast',e);u.lastHitBy='enemy';hitFlash(u)});
+  mine.forEach(u=>{const r=u===S.base?BASE_R:(u.r||10);if(dist(u,e)>R+r)return;const fd=FRAC_DMG*(e.sw?SWT_DMG:1);u.hp-=structHit(u,u.kind?allyHit(u,fd):fd,'blast',e);u.lastHitBy='enemy';hitFlash(u)});
   (S.wallLines||[]).forEach(L=>L.slats.forEach(sl=>{if(!sl.dead&&dist(sl,e)<R)damageWall(sl,FRAC_WALL)}));
   (S.caltrops||(S.caltrops=[])).push({x:e.x,y:e.y,r:R,t0:S.t,end:S.t+CAL_T,seed:Math.floor(rnd(0,1e4))});
   (S.fracFx||(S.fracFx=[])).push({x:e.x,y:e.y,t0:S.t})}
@@ -5660,7 +5680,7 @@ function updateNests(dt){
     if(!n.seen&&visible(n)){n.seen=true;msg(`${N.name} spotted — its patrols roam this area. Destroy it for Dat${n.size==='small'?'':n.size==='medium'?' and fabricator charges':', fabricator charges and salvage'}.`)}
     // struck: rally defenders (on a cooldown, and not past a ceiling on its living brood)
     if(n.hp<n.lastHp){n.hitT=S.t;
-      if(n.defendCd<=0&&nestBrood(n)<nestScaled(n,N.brood)+nestScaled(n,N.defend)*2){
+      if(n.defendCd<=0&&nestBrood(n)<(nestScaled(n,N.brood)+nestScaled(n,N.defend)*2)*swarmMult()){
         nestSpawn(n,nestScaled(n,N.defend),'roam').forEach(e=>{e.nest=n;e.aggro=480});
         n.defendCd=NEST_DEFEND_CD;
       }}
@@ -5670,7 +5690,7 @@ function updateNests(dt){
     n.patrolT-=dt;
     if(n.patrolT<=0){const PT=PATROL_TUNE[n.band]&&STOP_BAND===n.band?PATROL_TUNE[n.band]:null;
       n.patrolT=N.patrolT*rnd(0.8,1.2)*(PT?PT.every:1);
-      const b=patrolPoint(n,PT), room=nestScaled(n,N.brood)-nestBrood(n);
+      const b=patrolPoint(n,PT), room=nestScaled(n,N.brood)*swarmMult()-nestBrood(n);
       if(room>0){
         const patrol={a:{x:n.x,y:n.y},b,dir:1};
         nestSpawn(n,Math.min(room,nestScaled(n,Math.round(rnd(N.patrolN[0],N.patrolN[1])))),'roam').forEach(e=>{e.nest=n;e.patrol=patrol;if(PT)e.aggro=PT.aggro});
@@ -10709,6 +10729,7 @@ function update(dt){
   if(S.over||S.rewardChoice||S.paused)return;
   if(S.tacPause){const ps=520/cam.z*dt;if(keys['w']||keys['arrowup'])cam.y-=ps;if(keys['s']||keys['arrowdown'])cam.y+=ps;if(keys['a']||keys['arrowleft'])cam.x-=ps;if(keys['d']||keys['arrowright'])cam.x+=ps;clampCam();return}
   S.t+=dt;stat('time',dt);
+  swarmSweep();
   {const h=Math.max(0,S.base.hp);if(S._statHp!=null&&h<S._statHp)stat('rigDmg',S._statHp-h);S._statHp=h}
   if(S.shoves)S.shoves=S.shoves.filter(f=>(f.t+=dt)<0.3);
   const B=S.base;
