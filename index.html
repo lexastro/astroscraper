@@ -3230,7 +3230,7 @@ function reset(landing){
     const pts=[...S.sites,...S.hiveSites,S.contractSite].map(v=>({x:v.x,y:v.y}));
     knitBarrierSides(S.breachSite,pts.filter(q=>frameAB(q.x,q.y).a<bx-BARRIER_HALF),pts.filter(q=>frameAB(q.x,q.y).a>bx+BARRIER_HALF))}
   // the ground texture rolls from its own fixed stream so it doesn't change with the landing spot
-  {const landingRand=rand;rand=seededRng(mapSeed*131+17);terrainCv=buildTerrainCanvas();rand=landingRand}
+  {const landingRand=rand;rand=seededRng(mapSeed*131+17);terrainCv=buildTerrainCanvas();paintOldCables(terrainCv.getContext('2d'),0,0,W,H);rand=landingRand}
   buildTerrainBlur();
 
   // v2: no loose Dat deposits on the map - Dat comes from nests, vein payouts and enemy drops.
@@ -3269,7 +3269,7 @@ function reset(landing){
    if(S.barrier&&!tutorialMap){S.routeFixes=ensureBastionRoutes();if(S.routeFixes)console.info('map',mapSeed,': carved',S.routeFixes,'missing Rig route(s)')}
    const glass=STOP_BAND&&!tutorialMap?placeGlass():false; // v4: purple glass formations in the rift
    const routes=STOP_BAND&&!tutorialMap?ensureNestRoutes():null;S.nestRoutes=routes; // v4: a second way from every feeding nest to its vein
-   if(maze||glass||(routes&&routes.carved)){const keep=rand;rand=seededRng(mapSeed*131+17);terrainCv=buildTerrainCanvas();rand=keep;buildTerrainBlur()}}
+   if(maze||glass||(routes&&routes.carved)){const keep=rand;rand=seededRng(mapSeed*131+17);terrainCv=buildTerrainCanvas();paintOldCables(terrainCv.getContext('2d'),0,0,W,H);rand=keep;buildTerrainBlur()}}
   startTerrainPaint(true); // the ground paints in the background; a loading screen covers it until the area round the landing is done
   if(STOP_BAND&&stopInfo().final){S.contractAwake=true;const cv=S.veins.find(v=>v.contract);if(cv)raiseMounds(cv,CONTRACT_MOUNDS,'great')}
   rand=Math.random; // map built — live gameplay goes back to unseeded randomness
@@ -3343,7 +3343,7 @@ function knitBarrierSides(breach,west,east){
 function carveBreach(B,mask){
   for(let gy=0;gy<TGY;gy++)for(let gx=0;gx<TGX;gx++){const id=gy*TGX+gx;
     if(mask[id]&&Math.abs(frameAB(gx*TCELL+TCELL/2,gy*TCELL+TCELL/2).b-B.y)<=BREACH_GAP+TCELL/2){terrain[id]=0;mask[id]=0;if(B.mask)B.mask[id]=0}}
-  if(terrainWorker)startTerrainPaint();else{const keep=rand;rand=seededRng(mapSeed*131+17);terrainCv=buildTerrainCanvas();rand=keep;buildTerrainBlur()}
+  if(terrainWorker)startTerrainPaint();else{const keep=rand;rand=seededRng(mapSeed*131+17);terrainCv=buildTerrainCanvas();paintOldCables(terrainCv.getContext('2d'),0,0,W,H);rand=keep;buildTerrainBlur()}
   [S.base,...S.troops,...S.enemies].forEach(u=>{u._pg=null;u._path=null;u._blocked=false});
 }
 // The breach vein is drained: blast the barrier open across its line.
@@ -12174,6 +12174,62 @@ function buildTerrainBlur(){
   terrainBlurC.width=w;terrainBlurC.height=h;const tx=terrainBlurC.getContext('2d');tx.imageSmoothingEnabled=true;
   tx.filter=`blur(${FOG_BLUR_PX*0.6}px)`;tx.drawImage(b,0,0,w,h);tx.filter='none'; // one blur, at build time only
 }
+// ---- old cables ----
+// v4: tether cables left in the ground by earlier crews (the "Mix" from concepts/old-cables.html, at 40%):
+// long half-buried runs strung along a faint groove, a drift of dust over one here and there, and now and
+// then a dead Relay's footplate with its snapped bundle beside it. Same hoses as your units' tethers,
+// faded toward the dirt, no shadow, no glint. Laid out from the map seed and painted straight into the
+// terrain image (each tile as it lands), so they cost nothing per frame. Plenty on the Rim, fewer in the
+// Dense Field, a rare scrap in the Core; never on vein sites, the crystal wall, the contract or the landing spot.
+const OC_VIS=0.4,OC_FADE=0.32,OC_BAND={rim:1,dense:0.5,core:0.15},OC_GROUND={rim:[27,30,33],dense:[30,25,38],core:[30,23,21]};
+let OC=null; // {key, items:[{bb:[x0,y0,x1,y1], draw(c)}]}
+function ocAged(col,k,g){const n=parseInt(col.slice(1),16),c=[n>>16&255,n>>8&255,n&255];return`rgb(${c[0]+(g[0]-c[0])*k|0},${c[1]+(g[1]-c[1])*k|0},${c[2]+(g[2]-c[2])*k|0})`}
+// a wandering route through control points, sampled every ~5px, with a lazy hose wiggle laid along it
+function ocRoute(C){const P=[];for(let i=0;i<C.length-1;i++){const p0=C[Math.max(0,i-1)],p1=C[i],p2=C[i+1],p3=C[Math.min(C.length-1,i+2)],n=Math.max(2,Math.round(Math.hypot(p2[0]-p1[0],p2[1]-p1[1])/5));
+  for(let k=0;k<n;k++){const t=k/n,t2=t*t,t3=t2*t;P.push([0.5*((2*p1[0])+(-p0[0]+p2[0])*t+(2*p0[0]-5*p1[0]+4*p2[0]-p3[0])*t2+(-p0[0]+3*p1[0]-3*p2[0]+p3[0])*t3),0.5*((2*p1[1])+(-p0[1]+p2[1])*t+(2*p0[1]-5*p1[1]+4*p2[1]-p3[1])*t2+(-p0[1]+3*p1[1]-3*p2[1]+p3[1])*t3)])}}
+  P.push(C[C.length-1]);return P}
+function ocWiggle(P,amp,freq,seed){return P.map((p,i)=>{const a=P[Math.max(0,i-1)],b=P[Math.min(P.length-1,i+1)],dx=b[0]-a[0],dy=b[1]-a[1],l=Math.hypot(dx,dy)||1,o=amp*Math.sin(i*freq+seed)+amp*0.5*Math.sin(i*freq*2.7+seed*3);return[p[0]-dy/l*o,p[1]+dx/l*o]})}
+const ocBB=P=>{let a=1e9,b=1e9,c=-1e9,d=-1e9;P.forEach(p=>{if(p[0]<a)a=p[0];if(p[0]>c)c=p[0];if(p[1]<b)b=p[1];if(p[1]>d)d=p[1]});return[a-6,b-6,c+6,d+6]};
+// where nothing old may lie: rock, vein sites, the crystal wall, the contract, the Mega Nest, the landing spot
+function ocClear(x,y){if(x<0||y<0||x>=W||y>=H)return false;const gx=Math.floor(x/TCELL),gy=Math.floor(y/TCELL),id=gy*TGX+gx;if(terrain[id]===2)return false;
+  if(S.barrier&&S.barrier.mask&&S.barrier.mask[id])return false;
+  if((S.sites||[]).some(st=>Math.hypot(st.x-x,st.y-y)<160))return false;
+  for(const p of [S.contractSite,S.megaSite,S._ocLand])if(p&&Math.hypot(p.x-x,p.y-y)<(p===S.megaSite?900:220))return false;return true}
+function oldCableItems(){const key=mapSeed+'|'+W+'|'+H;if(OC&&OC.key===key)return OC.items;
+  const R=seededRng(mapSeed*977+5),items=[];if(!S._ocLand)S._ocLand={x:S.base.x,y:S.base.y};
+  const bandK=(x,y)=>{const b=bandAt(x,y);return{b,k:OC_BAND[b]||0,g:OC_GROUND[b]||OC_GROUND.rim}};
+  const hose=(P,o)=>{const vis=o.vis,bb=ocBB(P);items.push({bb,draw:c=>{c.save();c.lineCap='round';c.lineJoin='round';
+    const seg=(style,w,alpha,dx,dy)=>{c.strokeStyle=style;c.lineWidth=w;for(let i=1;i<P.length;i++){const v=Math.min(vis[i-1],vis[i]);if(v<=0.02)continue;c.globalAlpha=Math.min(1,alpha*v);c.beginPath();c.moveTo(P[i-1][0]+dx,P[i-1][1]+dy);c.lineTo(P[i][0]+dx,P[i][1]+dy);c.stroke()}};
+    if(o.trench)seg('#000',o.sw+1.6,0.12,0.4,0.6);seg(ocAged('#121416',o.fade*0.6,o.g),o.sw+0.55,o.a,0,0);seg(ocAged(o.col,o.fade,o.g),o.sw,o.a,0,0);c.restore()}})};
+  const drift=(x,y,r,g)=>items.push({bb:[x-r,y-r,x+r,y+r],draw:c=>{const gr=c.createRadialGradient(x,y,0,x,y,r);gr.addColorStop(0,`rgba(${g.map(v=>v*1.05|0)},0.95)`);gr.addColorStop(0.6,`rgba(${g},0.6)`);gr.addColorStop(1,`rgba(${g},0)`);
+    c.fillStyle=gr;c.beginPath();c.ellipse(x,y,r,r*0.7,0.4,0,Math.PI*2);c.fill()}});
+  // the long runs
+  const tries=Math.round(W*H/(700*700));
+  for(let n=0;n<tries;n++){let x=R()*W,y=R()*H;const{k,g}=bandK(x,y);if(R()>k||!ocClear(x,y))continue;
+    let a=R()*Math.PI*2;const C=[[x,y]],steps=3+Math.floor(R()*3);for(let s=0;s<steps;s++){a+=(R()-0.5)*1.1;const L=180+R()*200;x+=Math.cos(a)*L;y+=Math.sin(a)*L;C.push([x,y])}
+    const seed=R()*10,P=ocWiggle(ocRoute(C),1.3,0.35,seed),col=HOSES[[1,4,2,5][Math.floor(R()*4)]];
+    const vis=P.map((p,i)=>{if(!ocClear(p[0],p[1]))return 0;const v=0.5+0.5*Math.sin(i*0.21+seed)*Math.cos(i*0.07+seed*1.7);return Math.max(0,Math.min(1,(v-0.4)/0.1))});
+    if(vis.filter(v=>v>0.5).length<12)continue;
+    hose(P,{col,fade:OC_FADE,a:0.7*OC_VIS,sw:1.6,trench:true,vis,g});
+    for(let i=20;i<P.length;i+=31)if(vis[i]>0.5&&R()<0.5)drift(P[i][0],P[i][1],6,g)}
+  // a dead Relay or two: a dull footplate, a sheared mast, its bundle lying beside it with the end snapped
+  const bases=Math.round(tries*0.12*(OC_BAND[STOP_BAND]??0.6));
+  for(let n=0,got=0;n<bases*8&&got<bases;n++){const x=60+R()*(W-120),y=60+R()*(H-120),{k,g}=bandK(x,y);if(R()>k||!ocClear(x,y)||!ocClear(x+40,y+20))continue;got++;
+    const a0=R()*Math.PI*2,C=[[x,y],[x+Math.cos(a0)*30+R()*8,y+Math.sin(a0)*30+R()*8],[x+Math.cos(a0+0.3)*60,y+Math.sin(a0+0.3)*60]],base=ocRoute(C),seed=R()*10;
+    for(let s=0;s<2;s++){const off=(s-0.5)*0.9,Q=base.map((p,i)=>{const pa=base[Math.max(0,i-1)],pb=base[Math.min(base.length-1,i+1)],dx=pb[0]-pa[0],dy=pb[1]-pa[1],l=Math.hypot(dx,dy)||1,w=off+0.6*Math.sin(i*0.5+s*2.1);return[p[0]-dy/l*w,p[1]+dx/l*w]});
+      hose(ocWiggle(Q,1,0.5,seed),{col:HOSES[(s*3+3)%HOSES.length],fade:OC_FADE,a:0.65*OC_VIS,sw:1.3,vis:Q.map(()=>1),g})}
+    const e=C[2],ea=a0+0.3;
+    items.push({bb:[Math.min(x,e[0])-9,Math.min(y,e[1])-9,Math.max(x,e[0])+9,Math.max(y,e[1])+9],draw:c=>{c.save();c.globalAlpha=0.7*OC_VIS;
+      c.fillStyle='rgba(0,0,0,.3)';c.beginPath();c.ellipse(x+1.5,y+1.5,7,4.6,0,0,Math.PI*2);c.fill();
+      c.fillStyle=ocAged('#5d6670',0.5,g);c.beginPath();for(let i=0;i<8;i++){const a=i/8*Math.PI*2+0.39;c.lineTo(x+Math.cos(a)*7,y+Math.sin(a)*4.6)}c.closePath();c.fill();c.strokeStyle=ocAged('#121416',0.3,g);c.lineWidth=0.5;c.stroke();
+      c.fillStyle=ocAged('#8d9aa8',0.5,g);for(let i=0;i<4;i++){const a=i/4*Math.PI*2+0.78;c.beginPath();c.arc(x+Math.cos(a)*5,y+Math.sin(a)*3.2,0.6,0,Math.PI*2);c.fill()}
+      c.fillStyle=ocAged('#3c434a',0.35,g);c.fillRect(x-1.4,y-4.5,2.8,4.5);c.fillStyle=ocAged('#8d9aa8',0.4,g);c.beginPath();c.moveTo(x-1.4,y-4.5);c.lineTo(x-0.3,y-5.8);c.lineTo(x+0.6,y-4.6);c.lineTo(x+1.4,y-5.2);c.lineTo(x+1.4,y-4.5);c.fill();
+      c.lineCap='round';c.lineWidth=0.5;for(let k=0;k<4;k++){const a=ea+(k-1.5)*0.35,L=2+((k*7+3)%5)*0.7;c.strokeStyle=ocAged(k%2?'#8c8a6a':'#c98b4a',0.36,g);c.beginPath();c.moveTo(e[0],e[1]);c.quadraticCurveTo(e[0]+Math.cos(a)*L*0.6,e[1]+Math.sin(a)*L*0.6+0.6,e[0]+Math.cos(a)*L,e[1]+Math.sin(a)*L);c.stroke()}
+      c.restore()}})}
+  OC={key,items};return items}
+// paint the old cables into a piece of the terrain image (the rectangle x,y,w,h in world pixels)
+function paintOldCables(c,x,y,w,h){if(!terrain||!terrain.length||!S||!S.base)return;let items;try{items=oldCableItems()}catch(e){return}
+  c.save();c.beginPath();c.rect(x,y,w,h);c.clip();items.forEach(it=>{const b=it.bb;if(b[2]<x||b[0]>x+w||b[3]<y||b[1]>y+h)return;it.draw(c)});c.restore()}
 // ---------- terrain painting ----------
 // The ground is painted by a Web Worker (terrainWorkerSrc above): the same rules as the old canvas
 // builder, but a full heightmap — tiered rock, stepped rift chasms, mud pans, the crystal wall, the
@@ -12218,6 +12274,7 @@ if(terrainWorker)terrainWorker.onmessage=e=>{const d=e.data;if(d.id!==TPAINT.id)
     return}
   if(d.type==='tile'){const tc=terrainCv.getContext('2d');tc.putImageData(new ImageData(new Uint8ClampedArray(d.buf),d.w,d.h),d.x,d.y);
     if(TPAINT.buckets)drawTerrainItems(tc,d.x,d.y,d.w,d.h);
+    paintOldCables(tc,d.x,d.y,d.w,d.h);
     TPAINT.got++;if(TPAINT.done)TPAINT.done.add(Math.floor(d.y/TP_TS)*TPAINT.NTX+Math.floor(d.x/TP_TS));
     if(TPAINT.loading&&TPAINT.need){TPAINT.need.delete(Math.floor(d.y/TP_TS)*TPAINT.NTX+Math.floor(d.x/TP_TS));const f=1-TPAINT.need.size/Math.max(1,TPAINT.needN);document.getElementById('loadFill').style.width=(f*100).toFixed(0)+'%';
       if(!TPAINT.need.size){buildTerrainBlur();showLoading(false);return}}
