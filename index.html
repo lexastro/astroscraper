@@ -4285,7 +4285,9 @@ function buildInfoOf(b){const k=b.dataset.mode||b.dataset.unit||(b.id==='bPing'?
 document.querySelectorAll('#buildBar button[title]').forEach(b=>{b.dataset.tip=b.title;b.removeAttribute('title')});
 {const tip=document.createElement('div');tip.className='curTip';tip.hidden=true;document.body.appendChild(tip);let on=null,more=false,mx=0,my=0;
   // (owned cards on the pause menu and the reward pick use the same panel: an .oc with data-tip set)
-  // v4: every panel shows just its name and a Shift hint; holding Shift shows the rest
+  // v4: a long panel shows just its name and a Shift hint, and holding Shift shows the rest; a short one
+  // (TIP_SHORT characters or less) just shows it all
+  const TIP_SHORT=90;
   const kindOf=el=>{if(!el||!el.closest)return null;const oc=el.closest('.oc[data-tip]');if(oc)return oc;const bb=el.closest('#buildBar button');if(bb)return bb;const c=el.closest('.cur,.crystalIcon')||(el.classList&&el.classList.contains('v')&&el.previousElementSibling&&el.previousElementSibling.classList.contains('crystalIcon')?el.previousElementSibling:null);
     if(!c)return null;return ['dat','living','condensed'].find(k=>c.classList.contains(k))||null};
   const hint='<span class="tipMore">Hold Shift for more info</span>';
@@ -4294,7 +4296,7 @@ document.querySelectorAll('#buildBar button[title]').forEach(b=>{b.dataset.tip=b
     else if(k.closest('#buildBar')){const I=buildInfoOf(k);if(!I)return false;c=I.c;name=I.n;
       body=`<span>${I.d}</span>${I.t?`<span><i>Troops:</i> ${I.t}</span>`:''}${I.p?`<span><i>Place:</i> ${I.p}</span>`:''}`}
     else{c=k.style.getPropertyValue('--tc')||'#a9b4c0';name=k.dataset.tn;body=`<span><i>${k.dataset.tt}</i>${k.dataset.tip?' · '+k.dataset.tip:''}</span>`}
-    tip.style.setProperty('--tc',c);tip.innerHTML=`<b>${name}</b>`+(more?body:hint);return true}
+    tip.style.setProperty('--tc',c);tip.innerHTML=`<b>${name}</b>`+(more||body.replace(/<[^>]*>/g,'').length<=TIP_SHORT?body:hint);return true}
   function place(){const w=tip.offsetWidth,h=tip.offsetHeight;let x=mx+14,y=my+16;if(x+w>innerWidth-8)x=mx-w-10;if(y+h>innerHeight-8)y=my-h-12;
     tip.style.left=Math.max(8,x)+'px';tip.style.top=Math.max(8,y)+'px'}
   addEventListener('pointermove',e=>{mx=e.clientX;my=e.clientY;const k=e.pointerType==='touch'?null:kindOf(e.target);if(!k){if(on){tip.hidden=true;on=null}return}
