@@ -8528,7 +8528,7 @@ Object.assign(CALLDOWNS,{
     land(x,y,c){const N=6,R=c.r,pts=[];for(let i=0;i<N;i++){const a=Math.PI/N+i/N*Math.PI*2;pts.push({x:x+Math.cos(a)*R,y:y+Math.sin(a)*R})}
       const same=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y)<4,shared=(p,q)=>(S.wallLines||[]).some(L=>{const a={x:L.x0,y:L.y0},b={x:L.x1,y:L.y1};return (same(a,p)&&same(b,q))||(same(a,q)&&same(b,p))});
       for(let i=0;i<N;i++){const p=pts[i],q=pts[(i+1)%N];if([p,q].some(o=>o.x<20||o.y<20||o.x>W-20||o.y>H-20))continue;if(shared(p,q)||wallAt((p.x+q.x)/2,(p.y+q.y)/2))continue; // (a side the neighbouring ring already has)
-        const L=addWallLine(p,q,true);if(!L)continue;S.fabShots=S.fabShots.filter(sh=>sh.line!==L);L.posts=[true,true];L.raiseT0=S.t;L.callDrop=true}
+        const L=addWallLine(p,q,true);if(!L)continue;S.fabShots=S.fabShots.filter(sh=>sh.line!==L);L.posts=[true,true];L.raiseT0=S.t;L.callDrop=true;L.ringC={x,y}}
       callEnemiesIn(x,y,R+10,e=>{const a=Math.atan2(e.y-y,e.x-x);e.kbx=Math.cos(a)*200;e.kby=Math.sin(a)*200;e.stunT=Math.max(e.stunT||0,0.4)});
       burst(x,y,'#8d9aa8',20,160,0.5);callFx(x,y,R,'#c3ccd6',0.45,'ring');shakeScreen(4,0.2);sndAt(x,y,()=>sfx.build());wallTowers()}},
   carpet:{name:'Carpet Shells',icon:'⋯',dat:200,delay:1.6,r:48,line:true,desc:`Click a start and an end: ${CARPET_N} shells land one after another along the line, ${CARPET_DMG} damage each. For a wave on its way in.`,
@@ -8829,7 +8829,8 @@ function manRing(r,units){
 function manWall(L,units){
   if(L.relayRing&&L.relay)return manRing(L.relay,units);
   const mx=(L.x0+L.x1)/2,my=(L.y0+L.y1)/2;let nx=-L.uy,ny=L.ux;
-  if((S.base.x-mx)*nx+(S.base.y-my)*ny<0){nx=-nx;ny=-ny} // n: toward the Rig's side
+  // n: toward the Rig's side, or for a ring of walls (a Bulwark Drop, the Siege Ring) toward the ring's inside, wherever the Rig is
+  const ref=L.ringC||S.base;if((ref.x-mx)*nx+(ref.y-my)*ny<0){nx=-nx;ny=-ny}
   const face=Math.atan2(-ny,-nx),cap=manCap(L);
   const keep=manners(L).filter(t=>!units.includes(t)),room=Math.max(0,cap-keep.length);
   const mid={x:mx,y:my},join=units.slice().sort((a,b)=>dist(a,mid)-dist(b,mid)).slice(0,room);
@@ -9438,7 +9439,7 @@ function buildSiegeRing(){
     if([p,q].some(o=>o.x<20||o.y<20||o.x>W-20||o.y>H-20))continue;
     if(terrainAt(p.x,p.y)===2&&terrainAt(q.x,q.y)===2)continue;
     if(wallAt(mx,my)||S.wallLines&&S.wallLines.some(L=>!L.slats.every(sl=>sl.dead)&&pointSegDist({x:mx,y:my},{x:L.x0,y:L.y0},{x:L.x1,y:L.y1})<10))continue;
-    const L=addWallLine(p,q,true);if(L){L.siege=true;made++}}
+    const L=addWallLine(p,q,true);if(L){L.siege=true;L.ringC={x:B.x,y:B.y};made++}}
   if(made){tone(200,0.12,'square',0.025,0,420);tone(260,0.12,'square',0.02,0.08,520)}
   return made}
 // Bulwark Towers: every landed wall end gets a free Turret lobbed from the Rig, once per end
