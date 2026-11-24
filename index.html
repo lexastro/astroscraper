@@ -271,6 +271,7 @@ body.lowGfx #fogGrain{display:none}
 .metaUnlock.secondary{border-color:var(--line)}
 .consentRow{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
 .overlay button.secondary{background:var(--panel2);color:var(--fg);border:1px solid var(--line)}
+.rewardCards.arming{pointer-events:none}.rewardCards.arming .rewardCard{opacity:.45;filter:saturate(.5)}.rewardCards .rewardCard{transition:opacity .25s,filter .25s}
 .rewardCards{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;max-width:900px}
 /* v4: the cards you already hold this run — under a reward pick and in the pause menu */
 .ownedCards{max-width:760px;margin:14px auto 0;text-align:center}.ownedCards[hidden]{display:none}
@@ -8581,7 +8582,7 @@ function showCallChoice(){const ids=shuffled(Object.keys(CALLDOWNS)).slice(0,3);
   const host=document.getElementById('rewardCards');host.innerHTML='';
   cards.forEach((c,i)=>{const btn=document.createElement('button');btn.className='rewardCard';btn.style.setProperty('--tc',C.accent);
     buildCardFace(btn,{name:`${CALLDOWNS[ids[i]].icon} ${c.name}`,desc:c.desc,tier:'Call-down'},{cat:'calls',applies:'Charges to call in'});btn.onclick=()=>pickReward(i);host.appendChild(btn)});
-  document.getElementById('rerollBtn')._hd=true;document.getElementById('rewardOverlay')._hd=false;sfx.veinDone()}
+  document.getElementById('rerollBtn')._hd=true;document.getElementById('rewardOverlay')._hd=false;armReward();sfx.veinDone()}
 // gifts: a free charge of a random call-down you have (nests, big veins and some cards hand these out)
 function giftCall(n,why){const ids=Object.keys(CALLDOWNS).filter(id=>CALLDOWNS[id].unlocked()),got={};for(let i=0;i<(n||1);i++){const id=ids[Math.floor(Math.random()*ids.length)];grantCall(id,1);got[id]=(got[id]||0)+1}
   return Object.keys(got).map(id=>`${got[id]>1?got[id]+'× ':''}${CALLDOWNS[id].name}`).join(' and ')}
@@ -12024,7 +12025,12 @@ function buildCardFace(btn,c,o={}){const info=o.info||CARD_INFO[c.id]||null,cat=
     g.setTransform(dpr*k*1.22,0,0,dpr*k*1.22,dpr*(w/2-107*k*1.22+6*k),dpr*(h-20*k-106*k*1.22));drawArt(t);g.setTransform(dpr,0,0,dpr,0,0);caGlow(w/2,0,w*0.42,K.col,0.06)},o.still);
   cardCanvas(btn.querySelector('canvas.badge'),(g,t,dpr,w,h)=>{g.setTransform(1,0,0,1,0,0);g.clearRect(0,0,g.canvas.width,g.canvas.height);const k=dpr*w/24;g.setTransform(k,0,0,k,g.canvas.width/2,g.canvas.height/2);(o.icon||CARD_ICON[cat])()},true)}
 // Pauses the whole sim (update() bails out while S.rewardChoice is set) and shows the pick.
-function showRewardChoice(tier,band){
+// v4: a reward screen that has just opened ignores clicks for REWARD_ARM_MS (its cards show faded), so a click
+// meant for ordering units around can't pick a card by accident. A reroll doesn't re-lock it.
+const REWARD_ARM_MS=1000;let rewardArmT=null;
+function armReward(){const h=document.getElementById('rewardCards');h.classList.add('arming');S.rewardArmAt=performance.now()+REWARD_ARM_MS;
+  clearTimeout(rewardArmT);rewardArmT=setTimeout(()=>h.classList.remove('arming'),REWARD_ARM_MS)}
+function showRewardChoice(tier,band,reroll){
   const cards=rollRewardCards(tier,band);
   {const n=tier==='Epic'?1:tier==='Legendary'||tier==='Hive'?2:0;if(n)msg(`The ${tierName(tier)} vein also paid out ${giftCall(n)} — free call-downs.`)}
   S.rewardChoice={tier,cards,band};
@@ -12044,7 +12050,7 @@ function showRewardChoice(tier,band){
   const rb=document.getElementById('rerollBtn');
   rb._tc=`Reroll (◆${cost})`;
   rb._ds=S.dat<cost;rb._hd=false;
-  document.getElementById('rewardOverlay')._hd=false;
+  document.getElementById('rewardOverlay')._hd=false;if(!reroll)armReward();
   renderOwnedCards(document.getElementById('rewardOwned'),'Your cards');
   sfx.veinDone();
 }
@@ -12058,12 +12064,12 @@ function rerollReward(){
   S.dat-=cost;
   S.rerollCount++;
   sfx.click();
-  showRewardChoice(choice.tier,choice.band);
+  showRewardChoice(choice.tier,choice.band,true);
 }
 document.getElementById('rerollBtn').onclick=rerollReward;
 function pickReward(i){
   const choice=S.rewardChoice;
-  if(!choice)return;
+  if(!choice||performance.now()<(S.rewardArmAt||0))return; // (still arming: see armReward)
   const c=choice.cards[i];
   if(c.kind==='trade'){
     S.dat+=c.amt; floatText(S.base.x,S.base.y-40,'+'+c.amt+' Dat',C.dat);
