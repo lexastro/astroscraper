@@ -10151,13 +10151,94 @@ function spawnAtStab(v,st,k,th){
 // ---------- horde ----------
 // Where the next wave will come from: the nests feeding the vein, or its wave line.
 const WARN_GROUP_SPAN=0.7, WARN_MAX_MARKERS=5;
+// ---------- nest breaches ----------
+// v4 (concepts/breaches-glass.html, "Struck Glass"): a feeding nest further than BREACH_FAR from the vein
+// doesn't walk its share of a wave the whole way. It tunnels: the ground opens at a breach on the line from
+// the vein toward that nest, BREACH_D out (nudged up to BREACH_SPREAD either side onto open ground), and the
+// wave (its share and its swarmlings) climbs out there. The spot only depends on the nest and the wave
+// number, so the wave warning's marker can point at it. The ground trembles and cracks for BREACH_WARN
+// seconds, bursts, lets them out over BREACH_POUR seconds, closes, and leaves broken tilted ground that
+// fades over BREACH_SCAR seconds. No open ground on the line: the nest sends its share overland as before.
+const BREACH_FAR=900,BREACH_D=[520,650],BREACH_SPREAD=0.44,BREACH_WARN=3,BREACH_BURST=0.6,BREACH_POUR=3.5,BREACH_CLOSE=1.6,BREACH_SCAR=30,BREACH_SC=1.6;
+const brHash=(a,b,c)=>glHash(Math.floor(a),Math.floor(b),Math.floor(c||0));
+// where a far nest's share comes up on this wave (null: it walks)
+function breachSpot(nn,v,w){if(dist(nn,v)<=BREACH_FAR)return null;const a0=Math.atan2(nn.y-v.y,nn.x-v.x);
+  for(let k=0;k<14;k++){const a=a0+(brHash(nn.x,w,k)-0.5)*2*BREACH_SPREAD*(k<7?0.6:1),d=BREACH_D[0]+brHash(nn.y,w,k+40)*(BREACH_D[1]-BREACH_D[0]),x=v.x+Math.cos(a)*d,y=v.y+Math.sin(a)*d;
+    if(x<60||y<60||x>W-60||y>H-60||terrainAt(x,y)===2||wallAt(x,y))continue;
+    if(S.veins.some(o=>dist(o.mine||o,{x,y})<140)||(S.barrier&&S.barrier.mask&&S.barrier.mask[Math.floor(y/TCELL)*TGX+Math.floor(x/TCELL)]))continue;
+    return{x,y}}return null}
+// this wave's breach for a nest, opening it if it isn't already
+function breachFor(nn,v){const B=S.breaches||(S.breaches=[]);let b=B.find(o=>o.nest===nn&&o.t0===S.t);if(b)return b;
+  const p=breachSpot(nn,v,v.waveNo||0);if(!p)return null;if(S.troops.some(u=>dist(u,p)<40)||dist(S.base,p)<S.base.r+50)return null;
+  b={x:p.x,y:p.y,nest:nn,t0:S.t,q:[],out:0,total:0,seed:Math.floor(brHash(p.x,p.y,7)*1e6),ang:Math.atan2(nn.y-p.y,nn.x-p.x),band:bandAt(p.x,p.y)};B.push(b);
+  // the fog lifts round it for as long as it's trembling and open, so you can always see it coming (a quiet ping, like a probe's)
+  S.pings.push({x:b.x,y:b.y,r:110,t:BREACH_WARN+BREACH_BURST+BREACH_POUR+2,probe:true,breach:true});
+  sndAt(b.x,b.y,()=>tone(55,BREACH_WARN,'sawtooth',0.04,0,35));
+  return b}
+// queue n enemies of a kind to come up through it
+function breachQueue(b,kind,n,opts,hunt){b.q.push({kind,n,opts,hunt});b.total+=n}
+function updateBreaches(dt){if(!S.breaches||!S.breaches.length)return;
+  S.breaches=S.breaches.filter(b=>{const u=S.t-b.t0,open=u-BREACH_WARN;
+    if(open>=0&&!b.burst){b.burst=true;burst(b.x,b.y,'#ff6a4a',30,220,0.7);burst(b.x,b.y,'#3a3442',16,160,0.6);if(visible(b)){shakeScreen(5,0.4);sndAt(b.x,b.y,()=>sfx.explode())}}
+    if(open>=BREACH_BURST*0.5&&b.q.length){const want=Math.ceil(b.total*Math.min(1,(open-BREACH_BURST*0.5)/BREACH_POUR));
+      while(b.out<want&&b.q.length){const g=b.q[0];const p=nearestPlain(b.x+rnd(-9,9)*BREACH_SC,b.y+rnd(-7,7)*BREACH_SC);spawnEnemy(p.x,p.y,g.kind,g.opts);
+        const e=S.enemies[S.enemies.length-1];if(e){e.ang=Math.atan2(S.base.y-p.y,S.base.x-p.x);if(g.kind==='wave'&&rnd(0,1)<g.hunt)e.stabHunter=true;e.nest=e.nest||null}
+        b.out++;if(--g.n<=0)b.q.shift()}
+      if(!b.q.length)b.doneT=S.t}
+    return u<BREACH_WARN+BREACH_BURST+BREACH_POUR+BREACH_CLOSE+BREACH_SCAR})}
+// ---- the Struck Glass look: the ground shatters like a struck pane (rays and rings), the middle falls away
+// into a red glow, the plates round it tip up on their outer edges, and red nest shards push through the gaps
+function breachWeb(b){if(b._w)return b._w;const s=b.seed,m=8,ang=[];for(let k=0;k<m;k++)ang.push(k/m*Math.PI*2+(brHash(k,s)-0.5)*0.55);ang.sort((p,q)=>p-q);
+  const RR=[9,18,30,44].map(r=>r*BREACH_SC),frags=[];
+  for(let k=0;k<m;k++){const a0=ang[k],a1=k+1<m?ang[k+1]:ang[0]+Math.PI*2,rj=RR.map((R,j)=>R*(0.82+0.36*brHash(k*13+j,s,1)));
+    for(let j=0;j<rj.length;j++){const rin=j?rj[j-1]:0,rout=rj[j],n=4,pts=[],jit=(q,r)=>r*(1+(brHash(q*100,r,s)-0.5)*0.12);
+      for(let i=0;i<=n;i++){const a=a0+(a1-a0)*i/n;pts.push([Math.cos(a)*jit(a,rout),Math.sin(a)*jit(a,rout)])}
+      if(rin>0)for(let i=n;i>=0;i--){const a=a0+(a1-a0)*i/n;pts.push([Math.cos(a)*jit(a,rin),Math.sin(a)*jit(a,rin)])}else pts.push([0,0]);
+      const h=brHash(k*7+j,s,3),h2=brHash(k*5+j,s,9);frags.push({pts,mid:(a0+a1)/2,rin,rout,ring:j,sec:k,h,h2,gone:j===0||(j===1&&h<0.4),th:j===1?0.45+h2*0.45:j===2?0.15+h2*0.3:0.04*h2})}}
+  const sp=frags.filter(f=>f.ring===1&&f.gone).map(f=>{const r=(f.rin+f.rout)/2;return{x:Math.cos(f.mid)*r,y:Math.sin(f.mid)*r,a:f.mid,h:(12+f.h2*10)*1.3,lean:0.3,w:5,tw:f.h}});
+  // the plates are the ground itself: take its colour from the painted terrain under the breach
+  let col=[40,40,44];try{const tc=terrainCv.getContext('2d'),ts=terrainCv.width/W,d=tc.getImageData(Math.max(0,(b.x-6)*ts)|0,Math.max(0,(b.y-6)*ts)|0,12,12).data;let r=0,g=0,bl=0,n=0;for(let i=0;i<d.length;i+=4){r+=d[i];g+=d[i+1];bl+=d[i+2];n++}col=[r/n,g/n,bl/n]}catch(e){}
+  return b._w={ang,frags,R:RR[RR.length-1],sp,col:col.map(v=>v/0.78+1)}}
+const BR_L=[-0.62,-0.62,0.48];
+function brPlate(cx,cy,f,th,col,drop,glowA){if(th<0.004&&!drop&&!(glowA>0.02))return;const u=[Math.cos(f.mid),Math.sin(f.mid)],R=f.rout;
+  const P3=f.pts.map(p=>{const d=p[0]*u[0]+p[1]*u[1],lx=p[0]-d*u[0],ly=p[1]-d*u[1],hd=Math.max(0,R-d),d2=R-hd*Math.cos(th),z=hd*Math.sin(th);let x=lx+d2*u[0],y=ly+d2*u[1],zz=z;if(drop>0){const k=1-drop*0.5;x*=k;y*=k;zz=z-drop*14}return[cx+x,cy+y,zz]});
+  const n=[u[0]*Math.sin(th),u[1]*Math.sin(th),Math.cos(th)],lit=0.35+0.9*Math.max(0,n[0]*BR_L[0]+n[1]*BR_L[1]+n[2]*BR_L[2]),pj=p=>[p[0],p[1]-p[2]*0.5],Q=P3.map(pj);
+  if(th>0.02&&drop<1){ctx.fillStyle='#0d0a10';ctx.beginPath();P3.forEach((p,i)=>{const a=pj(p);i?ctx.lineTo(a[0],a[1]):ctx.moveTo(a[0],a[1])});for(let i=P3.length-1;i>=0;i--)ctx.lineTo(P3[i][0],P3[i][1]+1.2);ctx.closePath();ctx.fill()}
+  ctx.globalAlpha=1-drop;ctx.fillStyle=`rgb(${col.map(v=>Math.max(0,Math.min(255,v*lit-(drop?drop*20:0)))|0)})`;ctx.beginPath();Q.forEach((q,i)=>i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]));ctx.closePath();ctx.fill();
+  ctx.strokeStyle=lit>0.8?'rgba(255,240,235,.35)':'rgba(0,0,0,.5)';ctx.lineWidth=0.5;ctx.stroke();
+  if(glowA>0){ctx.save();ctx.globalCompositeOperation='lighter';ctx.strokeStyle=`rgba(255,110,70,${glowA})`;ctx.lineWidth=0.7;ctx.stroke();ctx.restore()}ctx.globalAlpha=1}
+function brHole(cx,cy,f,glow,t){ctx.save();ctx.beginPath();f.pts.forEach((p,i)=>i?ctx.lineTo(cx+p[0],cy+p[1]):ctx.moveTo(cx+p[0],cy+p[1]));ctx.closePath();ctx.fillStyle='#0a0406';ctx.fill();
+  if(glow>0.01){ctx.clip();const g=ctx.createRadialGradient(cx,cy+2,0,cx,cy,f.rout+4);g.addColorStop(0,`rgba(255,${130+60*Math.sin(t*5+f.sec)|0},80,${0.85*glow})`);g.addColorStop(0.6,`rgba(200,40,40,${0.5*glow})`);g.addColorStop(1,'rgba(40,0,0,0)');ctx.fillStyle=g;ctx.fillRect(cx-f.rout-8,cy-f.rout-8,f.rout*2+16,f.rout*2+16)}ctx.restore()}
+function brCracks(cx,cy,Wb,grow,col,w,blur){ctx.save();ctx.lineCap='round';ctx.strokeStyle=col;ctx.lineWidth=w;if(blur){ctx.globalCompositeOperation='lighter';ctx.shadowColor=col;ctx.shadowBlur=blur}
+  ctx.beginPath();Wb.ang.forEach((a,k)=>{const L=Wb.R*1.05*Math.max(0,Math.min(1,grow*1.3-k*0.03));ctx.moveTo(cx,cy);for(let s=1;s<=6;s++){const r=L*s/6,j=(brHash(k,s,2)-0.5)*0.12;ctx.lineTo(cx+Math.cos(a+j)*r,cy+Math.sin(a+j)*r)}});
+  Wb.frags.forEach(f=>{if(f.ring===3)return;const g=Math.max(0,Math.min(1,grow*1.6-f.ring*0.3-0.2));if(g<=0)return;const o=f.pts.slice(0,5);ctx.moveTo(cx+o[0][0],cy+o[0][1]);o.forEach((p,i)=>{if(i/4<=g)ctx.lineTo(cx+p[0],cy+p[1])})});
+  ctx.stroke();ctx.restore()}
+function brGlow(x,y,r,col,a){if(a<=0.01)return;ctx.save();ctx.globalCompositeOperation='lighter';const g=ctx.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,`rgba(${col},${Math.min(1,a)})`);g.addColorStop(1,`rgba(${col},0)`);ctx.fillStyle=g;ctx.beginPath();ctx.ellipse(x,y,r,r*0.8,0,0,Math.PI*2);ctx.fill();ctx.restore()}
+function brRising(x,y,spread,n,t,col,a0,size,seed){ctx.save();ctx.globalCompositeOperation='lighter';ctx.fillStyle=col;for(let i=0;i<n;i++){const life=1+brHash(i,seed,1)*1.2,ph=brHash(seed,i,2)*life,f=((t+ph)%life)/life,k=Math.floor((t+ph)/life);
+  const ox=(brHash(i,k,seed)-0.5)*spread,oy=(brHash(k,i,seed)-0.5)*spread*0.6;ctx.globalAlpha=a0*(1-f)*Math.min(1,f*5);const s=size*(0.6+brHash(i,4,seed));ctx.fillRect(x+ox+Math.sin(f*5+i)*2-s/2,y+oy-f*(18+brHash(i,3,seed)*26)*BREACH_SC-s/2,s,s)}ctx.restore()}
+const BR_SM=x=>x<=0?0:x>=1?1:x*x*(3-2*x);
+function drawBreaches(x0,y0,x1,y1){if(!S.breaches||!S.breaches.length)return;const t=S.t;
+  S.breaches.forEach(b=>{const R=48*BREACH_SC;if(b.x<x0-R||b.x>x1+R||b.y<y0-R||b.y>y1+R)return;if(!debugNoFog&&!visible(b))return;
+    const Wb=breachWeb(b),u=t-b.t0,cx=b.x,cy=b.y,trem=BR_SM(u/BREACH_WARN),after=u>=BREACH_WARN,pourEnd=b.doneT!=null?b.doneT-b.t0+0.4:BREACH_WARN+BREACH_BURST+BREACH_POUR,
+      open=!after?0:u<pourEnd?BR_SM((u-BREACH_WARN)/0.4):1-BR_SM((u-pourEnd)/BREACH_CLOSE),scar=u>pourEnd+BREACH_CLOSE?1-BR_SM((u-pourEnd-BREACH_CLOSE)/BREACH_SCAR):1;
+    const k=after?Math.min(1,(u-BREACH_WARN)/0.35):0,th=BR_SM(k)*(1+0.15*Math.sin(k*Math.PI)),glow=open;
+    ctx.save();ctx.globalAlpha=1;if(scar<1){ctx.globalAlpha=scar}
+    const sh=!after?(brHash(Math.floor(u*30),1,b.seed)-0.5)*1.4*trem:u<BREACH_WARN+BREACH_BURST?(brHash(Math.floor(u*40),2,b.seed)-0.5)*3*(1-(u-BREACH_WARN)/BREACH_BURST):0;ctx.translate(sh,sh*0.5);
+    if(after)Wb.frags.forEach(f=>{if(f.gone)brHole(cx,cy,f,glow,t)});
+    brCracks(cx,cy,Wb,after?1:trem,'rgba(12,6,8,.95)',1.3*BREACH_SC*0.8,0);brCracks(cx,cy,Wb,after?1:trem,`rgba(255,100,60,${!after?0.2+0.5*trem:0.15+0.7*glow})`,0.55*BREACH_SC*0.8,5);
+    Wb.frags.slice().sort((p,q)=>Math.sin(p.mid)-Math.sin(q.mid)).forEach(f=>{if(!after)return;if(f.gone){const d=BR_SM((u-BREACH_WARN)/0.5);if(d<1)brPlate(cx,cy,f,0.3*d,Wb.col,d,0);return}brPlate(cx,cy,f,f.th*th,Wb.col,0,0.25*glow)});
+    if(after){const sg=BR_SM((u-BREACH_WARN-0.15)/0.5);glUse();const sp=[];Wb.sp.forEach(s=>{const h=s.h*sg;if(h<0.6)return;const x=cx+s.x,y=cy+s.y;sp.push(glFaces([x,y,0],[x+Math.cos(s.a)*h*s.lean,y+Math.sin(s.a)*h*s.lean,h],s.w,s.tw,s.a))});glSpires(sp,{col:GL_DEEP})}
+    ctx.restore();
+    brGlow(cx,cy,18*BREACH_SC,'255,90,50',0.8*open);if(open>0)brRising(cx,cy,16*BREACH_SC,26,t,'#ff8a50',0.85*open,1.4,b.seed);
+    if(!after)brRising(cx,cy,34*BREACH_SC,12,t*0.7,'rgba(170,160,180,1)',0.45*trem,1.2,b.seed+1);
+    if(after&&u<BREACH_WARN+BREACH_BURST){const q=(u-BREACH_WARN)/BREACH_BURST;brGlow(cx,cy,(60*q+10)*BREACH_SC,'255,170,110',1-q)}})}
 function waveSources(v){
   const feeders=feedingNests(v);
   if(feeders.length){
     // nests on roughly the same bearing from the vein make one marker. A group spans at most
     // WARN_GROUP_SPAN of bearing from its first nest — it doesn't chain on from nest to nest, which
     // let nests strung round half the vein share one marker pointing between them all.
-    const pts=feeders.map(nn=>({x:nn.x,y:nn.y,a:Math.atan2(nn.y-v.y,nn.x-v.x),w:NEST[nn.size].feed})).sort((p,q)=>p.a-q.a),groups=[];
+    const pts=feeders.map(nn=>{const b=breachSpot(nn,v,(v.waveNo||0)+1)||nn;return{x:b.x,y:b.y,a:Math.atan2(b.y-v.y,b.x-v.x),w:NEST[nn.size].feed}}).sort((p,q)=>p.a-q.a),groups=[];
     pts.forEach(p=>{const g=groups[groups.length-1];if(g&&p.a-g.a0<=WARN_GROUP_SPAN){g.m.push(p);g.a1=p.a}else groups.push({m:[p],a0:p.a,a1:p.a})});
     if(groups.length>1){const f=groups[0],l=groups[groups.length-1];if(f.a1+Math.PI*2-l.a0<=WARN_GROUP_SPAN){f.m.push(...l.m);groups.pop()}} // across ±180°
     const wt=g=>g.m.reduce((t,p)=>t+p.w,0);
@@ -10172,7 +10253,7 @@ function spawnHorde(v,n,feeders,big){
   let k=Math.round(n*HORDE_MULT[v.band]*(big?HORDE_BIG_MULT:1));
   k=Math.max(0,Math.min(k,HORDE_CAP-hordeAlive()));if(!k)return;
   const o={horde:true,hp:Math.round(HORDE_HP*(v.band==='core'?CORE_ENEMY_HP_MULT:1))};
-  if(feeders.length){let left=k;feeders.forEach((nn,i)=>{const m=i===feeders.length-1?left:Math.round(k/feeders.length);left-=m;if(m>0)nestSpawn(nn,m,'swarm',o)});return}
+  if(feeders.length){let left=k;feeders.forEach((nn,i)=>{const m=i===feeders.length-1?left:Math.round(k/feeders.length);left-=m;if(m>0){const b=breachFor(nn,v);if(b)breachQueue(b,'swarm',m,o,0);else nestSpawn(nn,m,'swarm',o)}});return}
   const a=v.waveDir, sx=v.x+Math.cos(a)*WAVE_SPAWN_DIST, sy=v.y+Math.sin(a)*WAVE_SPAWN_DIST, px=-Math.sin(a), py=Math.cos(a);
   for(let i=0;i<k;i++){const lat=rnd(-1.5,1.5)*WAVE_FRONT_HALF, dep=rnd(-120,160);
     const p=nearestPlain(Math.max(20,Math.min(W-20,sx+px*lat+Math.cos(a)*dep)),Math.max(20,Math.min(H-20,sy+py*lat+Math.sin(a)*dep)));
@@ -10343,7 +10424,7 @@ function spawnVeinWave(v,o){
     let left=n;
     feeders.sort((p,q)=>NEST[q.size].feed-NEST[p.size].feed).forEach((nn,i)=>{
       const k=i===feeders.length-1?left:Math.min(left,Math.max(1,Math.round(n*NEST[nn.size].feed/feed)));left-=k;
-      if(k>0)nestSpawn(nn,k,'wave',{bigP:th.big}).forEach(e=>{if(rnd(0,1)<th.hunt)e.stabHunter=true});
+      if(k>0){const b=breachFor(nn,v);if(b)breachQueue(b,'wave',k,{bigP:th.big},th.hunt);else nestSpawn(nn,k,'wave',{bigP:th.big}).forEach(e=>{if(rnd(0,1)<th.hunt)e.stabHunter=true})}
     });
     const top=feeders[0];
     formPacks(v,packFrom,feeders.map(nn=>({x:nn.x,y:nn.y})),big);
@@ -11783,7 +11864,7 @@ function update(dt){
   S.tracers=S.tracers.filter(t=>(t.t-=dt)>0);
   if(!S.shardShots)S.shardShots=[];updateShardShots(dt);
   if(!S.lances)S.lances=[];updateLances(dt);updatePointDefence(dt);
-  if(!S.fires)S.fires=[];if(!S.kits)S.kits={};updateKitEffects(dt);updateFieldRelays(dt);updateBoss(dt);updateBurrows(dt);updateCaltrops(dt);
+  if(!S.fires)S.fires=[];if(!S.kits)S.kits={};updateKitEffects(dt);updateFieldRelays(dt);updateBoss(dt);updateBreaches(dt);updateBurrows(dt);updateCaltrops(dt);
   if(!S.smears)S.smears=[];updateSmears();
   S._nadeBirth=[]; // projectiles launched by an explosion (cluster bomblets) join after this pass
   S.nades=S.nades.filter(n=>{n.t+=dt;if(n.track&&n.track.hp>0&&S.enemies.includes(n.track)){n.tx=n.track.x;n.ty=n.track.y}const pt=Math.min(1,n.t/n.dur);n.x=n.x0+(n.tx-n.x0)*pt;n.y=n.y0+(n.ty-n.y0)*pt;if(pt>=1){explodeNade(n);return false}return true});
@@ -13260,7 +13341,7 @@ function draw(){
   // the Mega Nest's mountain goes down before the Rig and units, so they're drawn over it (see the enemy pass)
   S.enemies.forEach(e=>{if(e.kind==='nest'&&e.mega&&(debugNoFog||e.seen))drawNest(e)});
   // the Rig: the Needle tower
-  drawLava();drawDenseGround(x0,y0,x1,y1); // Burrower cracks, caltrops; magma the Shieldbearer breathed, on the ground under everything
+  drawLava();drawDenseGround(x0,y0,x1,y1);drawBreaches(x0,y0,x1,y1); // Burrower cracks, caltrops; magma the Shieldbearer breathed, on the ground under everything
   drawPOIs(); // wrecks and beacons lie on the ground, under the Rig and units
   // cables run under the Rig's turret, hanging from beneath it
   const ldg=S.landing&&!S.landing.touch;if(!ldg)drawTethers();drawDrones(true);drawRigTower(B);drawBolts();drawRigTop(B);if(!ldg)drawTethersFront();drawDrillReadout(B);if(!S.landing)hpbar(B.x,B.y-RIG_TOP-(B._hov||0)*0.5-8,B.r*2,B.hp/B.maxHp);drawRiftMeter(B);
@@ -13500,6 +13581,7 @@ function drawMini(){const s=mini.width/W;mctx.fillStyle='#10151b';mctx.fillRect(
     mctx.strokeStyle=C.accent;mctx.lineWidth=1.5;
     mctx.globalAlpha=boost*(1-ph);mctx.beginPath();mctx.arc((g.x+g.fuzz.x)*s,(g.y+g.fuzz.y)*s,(260+ph*340)*s,0,Math.PI*2);mctx.stroke();
     mctx.globalAlpha=boost;mctx.beginPath();mctx.arc((g.x+g.fuzz.x)*s,(g.y+g.fuzz.y)*s,3,0,Math.PI*2);mctx.fillStyle=C.accent;mctx.fill();mctx.globalAlpha=1}}
+  (S.breaches||[]).forEach(b=>{const u=S.t-b.t0;if(u>BREACH_WARN+BREACH_BURST+BREACH_POUR+BREACH_CLOSE)return;mctx.fillStyle=C.enemy;mctx.globalAlpha=0.55+0.45*Math.sin(S.t*9);mctx.beginPath();mctx.arc(b.x*s,b.y*s,u<BREACH_WARN?2.5+u:4,0,Math.PI*2);mctx.fill();mctx.globalAlpha=1});
   {const g=S.strand;if(g&&!g.done){
     if(!g.seen&&S.t>=36){const since=S.t-g.pingFlash,ph=(S.t*0.7+0.5)%1,boost=since<8?1:0.45;
       mctx.strokeStyle=C.ally;mctx.lineWidth=1.5;mctx.globalAlpha=boost*(1-ph);mctx.beginPath();mctx.arc((g.x+g.fuzz.x)*s,(g.y+g.fuzz.y)*s,(240+ph*300)*s,0,Math.PI*2);mctx.stroke();
