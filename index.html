@@ -1538,21 +1538,30 @@ function updateStrand(dt){
     sfx.distress()}
   g.uiT=(g.uiT||0)-dt;if(g.uiT<=0){g.uiT=0.5;if(g.seen)updateBuildBar()}
 }
+// v4: the distress beacon (concepts/distress-beacon.html, the Spike Beacon, taller): a grey pole hammered
+// into the ground on a three-finned spike, a battery box strapped at its foot, an amber marker band, and a
+// strobe on top flashing the call's double blink, with a ping spreading over the ground. About three
+// quarters of a Relay's height. It looks the same whatever is waiting beside it.
+const BEACON_TOP=34;
+const beaconBlink=t=>{const p=t%1.4;return p<0.12||(p>0.26&&p<0.38)};
+function drawSpikeBeacon(x,y){SKO.x=0;SKO.y=0;SKO.s=1;SKO.lean=[0,0];SKO.shk=[0,0];
+  const t=S.t,on=beaconBlink(t),G2='#6f7c89',DK='#4a4f57',INS='#d9a441',o=[],H=BEACON_TOP;
+  {const p=(t%2.8)/2.8;ctx.save();ctx.strokeStyle=C.ally;ctx.globalAlpha=0.45*(1-p);ctx.lineWidth=1.2;ctx.beginPath();ctx.ellipse(x,y,6+p*80,(6+p*80)*0.9,0,0,Math.PI*2);ctx.stroke();ctx.restore()}
+  for(let i=0;i<3;i++){const a=i*Math.PI*2/3+0.5,c=Math.cos(a),s=Math.sin(a);o.push(skBeam([x,y,6],[x+c*6,y+s*6,0.4],1.2,G2))}
+  o.push(skPrism(x,y,0,1.4,2.8,2.4,6,0,DK));o.push(skPrism(x,y,1,H-4,1.35,1,6,0,'#8d9aa8',{top:'#a9b6c4'}));
+  o.push(skBox(x+3.6,y+1.6,0,5,4,3,0.4,'#5d6670',{top:'#7d8793'}));o.push(skBox(x+3.6,y+1.6,3,3.7,4.1,3.1,0.4,INS));
+  o.push(skPrism(x,y,H*0.52,H*0.52+2.4,1.65,1.65,6,0,INS,{top:'#e8c06a'}));
+  o.push(skPrism(x,y,H-4,H-2.8,2.2,2.2,8,0,DK));o.push(skPrism(x,y,H-2.8,H+0.6,1.65,1.45,8,0,C.ally,{emit:on?0.95:0.15}));o.push(skPrism(x,y,H+0.6,H+1.5,2,1.3,8,0,DK));
+  skRender(o);skGlow([x,y,H-1],on?11:5,C.ally,on?0.7:0.12);if(on)skGlow([x,y,H-1],2.6,'#ffffff',0.8);
+  SKO.s=SK_SCALE}
 function drawStrand(){
   const g=S.strand;if(!g||g.done||!(g.seen||debugNoFog))return;
-  // an emergency beacon planted in the middle, blinking
-  const on=Math.sin(S.t*6)>0;
-  ctx.save();ctx.fillStyle='rgba(0,0,0,0.3)';ctx.beginPath();ctx.ellipse(g.x+2,g.y+3,4,3,0,0,Math.PI*2);ctx.fill();
-  ctx.fillStyle='#4d5560';ctx.fillRect(g.x-1,g.y-9,2,10);
-  ctx.fillStyle=on?C.ally:'#2b4250';ctx.beginPath();ctx.arc(g.x,g.y-10,2.6,0,Math.PI*2);ctx.fill();
-  if(on){ctx.globalAlpha=0.25;ctx.beginPath();ctx.arc(g.x,g.y-10,9,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1}
-  // the reach ring, dashed (none when there's nobody left to take on)
-  if(!g.units.length){ctx.restore();return}
-  ctx.strokeStyle=C.ally;ctx.globalAlpha=0.35;ctx.lineWidth=1.2;ctx.setLineDash([5,6]);ctx.beginPath();ctx.arc(g.x,g.y,STRAND_REACH,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1;
-  ctx.restore();
-  g.units.forEach(u=>{ctx.save();ctx.globalAlpha=0.85;drawUnitBody(u);ctx.restore();if(u.hp<u.maxHp)hpbar(u.x,u.y-14,16,u.hp/u.maxHp)});
-  ctx.save();ctx.font='11px monospace';ctx.textAlign='center';ctx.fillStyle=C.ally;
-  ctx.fillText(`STRANDED · ◆${g.cost}`,g.x,g.y-46);ctx.restore();
+  const unit=u=>{ctx.save();ctx.globalAlpha=0.85;drawUnitBody(u);ctx.restore();if(u.hp<u.maxHp)hpbar(u.x,u.y-14,16,u.hp/u.maxHp)};
+  // the reach ring, dashed, under everything (none when there's nobody left to take on)
+  if(g.units.length){ctx.save();ctx.strokeStyle=C.ally;ctx.globalAlpha=0.35;ctx.lineWidth=1.2;ctx.setLineDash([5,6]);ctx.beginPath();ctx.arc(g.x,g.y,STRAND_REACH,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);ctx.restore()}
+  // the squad behind the beacon, the beacon, then the squad in front of it (it's tall enough to overlap them)
+  g.units.filter(u=>u.y<g.y).forEach(unit);drawSpikeBeacon(g.x,g.y);g.units.filter(u=>u.y>=g.y).forEach(unit);
+  if(g.units.length){ctx.save();ctx.font='11px monospace';ctx.textAlign='center';ctx.fillStyle=C.ally;ctx.fillText(`STRANDED · ◆${g.cost}`,g.x,g.y-46);ctx.restore()}
 }
 function rigLinked(){const r=S.rig;return !!r&&S.relays.some(x=>x.built&&x.hp>0&&x.tetherOk&&x.state!=='cut'&&dist(x,r)<=RIG_LINK_R)}
 function pickRigSite(starts){
