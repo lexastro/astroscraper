@@ -4561,7 +4561,7 @@ const ENEMY_STEPS=[
    art:htFoes([[()=>htE({kind:'brute',r:16,core:true,hp:300,maxHp:300}),drawBrute,107,74,1.8,3]])},
   {zone:'core',title:'Colossus',
    text:'The Core’s elite, one at a time while you drill. Its <b>black trail slows</b> your units and its fists slam everything round it. It loses a core at each third of its health: <b>burst all three</b>. Rocketeers help.',
-   art:htFoes([[()=>htE({shard:'colossus',r:24,core:true,cores:3,hp:1400,maxHp:1400}),drawShard,107,78,1.3,2]])},
+   art:htFoes([[()=>htE({shard:'colossus',r:36,core:true,cores:3,hp:1400,maxHp:1400}),drawShard,107,74,0.9,2]])},
   {zone:'core',title:'The Shieldbearer',
    text:'The boss that guards the <b>contract vein</b>. Two stone slabs block shots from the front, and every few seconds it throws them open to <b>breathe magma</b>. Flank it, and hit it while its chest is bare.',
    art:htFoes([[()=>htE({kind:'boss',boss:true,r:42,sh:[1000,1000],brkT:[-9,-9],o:1,st:'idle',vent:0,wk:0,breathCd:3,hp:4500,maxHp:4500}),drawBoss,107,66,0.62,0]])}
@@ -5651,7 +5651,8 @@ function drawDenseGround(x0,y0,x1,y1){const t=S.t;
 //   LANT_LOCK before the end) and fires a beam that goes through every unit in line. Walls and rock stop it.
 // Colossus: the Core's elite, one at a time while you drill there. It leaves a black smear that slows
 //   your units, slams both fists for a ring of damage, and loses a core (and some speed) at each third of its health.
-const SHARD={stalker:{hp:90,r:9,speed:50,dmg:10},static:{hp:22,r:6,speed:40,dmg:6},husk:{hp:110,r:10,speed:46,dmg:8},lantern:{hp:50,r:9,speed:40,dmg:22},colossus:{hp:1400,r:24,speed:22,dmg:30}};
+const SHARD={stalker:{hp:90,r:9,speed:50,dmg:10},static:{hp:22,r:6,speed:40,dmg:6},husk:{hp:110,r:10,speed:46,dmg:8},lantern:{hp:50,r:9,speed:40,dmg:22},colossus:{hp:1400,r:36,speed:22,dmg:30}}; // v4: the Colossus is 50% bigger (r was 24; drawn COL_DRAW_SC times its old size)
+const COL_DRAW_SC=1.5;
 const SHARD_WAVE=[['stalker',0.14],['static',0.14],['husk',0.16],['lantern',0.07]],SHARD_ROAM=[['stalker',0.2],['husk',0.25],['static',0.1]];
 const STALK_REACH=30,STALK_LUNGE=0.5,STALK_CD=1.5,STATIC_HOP=46,STATIC_CD=0.6,STATIC_HUNT_R=520;
 const HUSKCORE_HP=14,HUSKCORE_SPEED=150,HUSKCORE_LIFE=9;
@@ -5737,7 +5738,7 @@ function drawShard(e){const k=e.shard||'huskcore',t=S.t+e.seed%50,fl=e.flashT>0,
       ctx.strokeStyle=SH_HOT2;ctx.lineWidth=2;ctx.stroke();ctx.restore()}}
   else{const p=e.slamT>0?1-e.slamT/COL_SLAM:0,slam=e.slamT>0?(p<0.6?sm(p/0.6):1-sm((p-0.6)/0.4)):0,rs=e.ringAt!=null?(S.t-e.ringAt)/0.9:9;
     if(rs<1){ctx.save();ctx.globalAlpha=1-rs;ctx.strokeStyle=SH_HOT;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(e.rx,e.ry,12+rs*(COL_SLAM_R-12),0,Math.PI*2);ctx.stroke();ctx.restore();shSlivers(e.rx,e.ry,rs,e.seed+3,18)}
-    shFigure(e.x,e.y,a,46,e.seed,t,()=>shColossus(t,wk,slam,e.cores),0.06,1,fl,e);top=40}
+    ctx.save();ctx.translate(e.x,e.y);ctx.scale(COL_DRAW_SC,COL_DRAW_SC);ctx.translate(-e.x,-e.y);shFigure(e.x,e.y,a,46,e.seed,t,()=>shColossus(t,wk,slam,e.cores),0.06,1,fl,e);ctx.restore();top=40*COL_DRAW_SC}
   if(e.hp<e.maxHp)hpbar(e.x,e.y-top,e.r*2+6,e.hp/e.maxHp)}
 // ---------- Lance Splinters ----------
 // v4: the Dense Field's artillery, the Splinter's big sibling. One comes with each drilling wave in
