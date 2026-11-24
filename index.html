@@ -5528,7 +5528,7 @@ function updateBoss(dt){bossWatch();updateLava(dt)}
 // Burrower: underground (S.burrows, not in S.enemies, so nothing can target it) it's a crack of light
 //   running through the ground toward a Stabilizer or the Rig. It surfaces beside it as a ring of jaws
 //   (kind 'burrower' in S.enemies), rooted, bites for BUR_BITE_T seconds, then dives and comes up again.
-const CHOIR_HP=60,CHOIR_R=8,CHOIR_SPEED=46,CHOIR_LINK_R=140,CHOIR_LINKS=6,CHOIR_BACK=110,CHOIR_HASTE=1.2,CHOIR_FROM=2,CHOIR_SEEK=900,
+const CHOIR_HP=60,CHOIR_R=8,CHOIR_SPEED=46,CHOIR_LINK_R=140,CHOIR_LINKS=6,CHOIR_BACK=110,CHOIR_HASTE=1.2,CHOIR_FROM=2,CHOIR_SEEK=900,CHOIR_TRAIL=40,
   FRAC_HP=200,FRAC_R=12,FRAC_SPEED=30,FRAC_DMG=22,FRAC_BURST_R=60,FRAC_WALL=40,FRAC_FROM=4,CAL_T=10,CAL_SLOW=0.5,CAL_DPS=3,
   BUR_HP=140,BUR_R=11,BUR_SPEED=70,BUR_BITE=9,BUR_BITE_T=3,BUR_EMERGE=0.5,BUR_RESURF=6;
 const denseHp=(base,core)=>Math.round(base*(core?CORE_ENEMY_HP_MULT:1)*(RUN?stopHpMult():1));
@@ -5553,9 +5553,13 @@ function choirStep(e,tgt,dt){
   if((e.linkCd-=dt)<=0){e.linkCd=0.5;const c=[];S.enemies.forEach(x=>{if(choirLinkable(x)){const d=dist(e,x);if(d<CHOIR_LINK_R)c.push([d,x])}});
     c.sort((p,q)=>p[0]-q[0]);e.links=c.slice(0,CHOIR_LINKS).map(p=>p[1]);e.links.forEach(x=>{x.choir=e;x.linkT=S.t+0.8})}
   e.links=e.links.filter(x=>x.hp>0);e.ang=Math.atan2(tgt.y-e.y,tgt.x-e.x);
-  if(e.links.length){let cx=0,cy=0;e.links.forEach(x=>{cx+=x.x;cy+=x.y});cx/=e.links.length;cy/=e.links.length;
-    const d=Math.hypot(tgt.x-cx,tgt.y-cy)||1,dx=cx-(tgt.x-cx)/d*CHOIR_BACK,dy=cy-(tgt.y-cy)/d*CHOIR_BACK;
-    if(Math.hypot(dx-e.x,dy-e.y)>14)moveToward(e,waypointFor(e,dx,dy),e.speed*enemyPace(e),dt)}
+  // v4: it follows in its pack's footsteps, trailing the rearmost linked Echo (ground an Echo has just stood on, so it
+  // can always get there). It used to aim at a spot CHOIR_BACK behind the pack, which on glass-choked ground was often
+  // inside the crystal or behind it, and the Choirs stood pressed against the glass edge for the rest of the stop.
+  if(e.links.length){let rear=e.links[0],rd=-1;e.links.forEach(x=>{const d=dist(x,tgt);if(d>rd){rd=d;rear=x}});
+    const dr=dist(e,rear);
+    if(!e._chSk||S.t-e._chSk.t>1.5){if(e._chSk&&dr>CHOIR_TRAIL+20&&e._chSk.d-dr<8)e._chBan=S.t+3;e._chSk={d:dr,t:S.t}} // (no closer for a while: stuck)
+    if(dr>CHOIR_TRAIL)moveToward(e,e._chBan>S.t?enemyApproachPoint(e,rear):waypointFor(e,rear.x,rear.y),e.speed*(dr>CHOIR_TRAIL*3?CHOIR_HASTE:1)*enemyPace(e),dt)}
   else{ // v4: no Echoes in reach: catch up with the nearest attacker (within CHOIR_SEEK), else head for the fight
     let near=null,nd=CHOIR_SEEK;S.enemies.forEach(x=>{if(choirLinkable(x)){const d=dist(e,x);if(d<nd){nd=d;near=x}}});
     if(near)moveToward(e,waypointFor(e,near.x,near.y),e.speed*CHOIR_HASTE*enemyPace(e),dt);
