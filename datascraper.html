@@ -1989,6 +1989,7 @@ const KITS={
   spotter:{kind:'marksman',name:'Spotter',tier:'Rare',col:'#f2b84b',solo:'Its target is marked for 6 seconds and takes +25% damage from everyone.',pair:'Radar Mast relays',pairTxt:'Marksmen near a Radar Mast get +40% range',on:()=>S.mods.relayDef==='radar',relay:'radar'},
   rail:{kind:'marksman',name:'Rail Pierce',tier:'Epic',col:'#dff7ff',solo:'Each shot goes through every enemy in its line.',pair:'Shield Pane walls',pairTxt:'a shot fired through your own Shield Pane comes out charged: +50% damage',on:()=>S.mods.wallType==='shield',wall:'shield'},
   cluster:{kind:'rocket',name:'Cluster Rockets',tier:'Epic',col:'#ff8a4c',solo:'Each rocket splits into four bomblets over the target.',pair:'Fortified Relays',pairTxt:'relay turrets near the target lob a rocket at it too',on:()=>S.mods.relayOff==='armored',relay:'armored'},
+  mortar:{kind:'rocket',name:'Mortar Team',tier:'Epic',col:'#ffb36b',solo:'Your Rocketeers become mortar crews: no laser, they set a mortar up when they stop and lob a heavy shell high over walls and rock, 40% further, with a bigger blast. Slower to fire, and the shell takes a moment to come down.',pair:'Spotter Marksmen or Radar Mast relays',pairTxt:'they shell any enemy a Spotter has marked or a Radar Mast can see, at any range',on:()=>S.kits.marksman==='spotter'||S.mods.relayDef==='radar',relay:'radar'},
   flak:{kind:'rocket',name:'Flak',tier:'Rare',col:'#c7d0da',solo:'Rockets burst in the air: a wide cloud of shrapnel that shreds the swarm, but does little to anything big. Rocketeers go for the swarm first.',pair:'Radar Mast relays',pairTxt:'they fire at any swarm a Radar Mast sees, out to twice their range',on:()=>S.mods.relayDef==='radar',relay:'radar'},
   breaker:{kind:'mech',name:'Breaker',tier:'Legendary',col:'#c79a4a',solo:'Your Mechs become Breakers: no gun, two huge fists. Punches splash round the target; it works round a group so a wall is behind them, then a haymaker throws them all, and anything that hits a wall takes heavy damage.',pair:'any wall type',pairTxt:'each wall type adds a twist: Electric Fence stuns, Razor Line bleeds, Glass Ridge throws shards, Heavy Armour doubles the impact, Shield Pane bounces them back',on:()=>!!(S.wallLines&&S.wallLines.length),anyWall:true},
   fieldrelay:{kind:'mech',name:'Field Relay',tier:'Epic',col:'#7bd389',solo:'Your Mechs become Field Relays: no gun, a relay mast. Up to 6 units can tether to one as it walks, and it heals the units round it while they are out of combat.',pair:'Repair Cradle relays',pairTxt:'it heals them in combat too',on:()=>S.mods.relayDef==='repair',relay:'repair'},
@@ -2151,7 +2152,7 @@ const UPGRADES={
     barracksCard('brawler'),barracksCard('grenadier'),
   ],
   Epic:[
-    kitCard('warden'),kitCard('fire'),kitCard('rail'),kitCard('cluster'),kitCard('fieldrelay'),
+    kitCard('warden'),kitCard('fire'),kitCard('rail'),kitCard('cluster'),kitCard('mortar'),kitCard('fieldrelay'),
     callCard('droppod'),callCard('carpet'),callCard('overclock'),callCard('gravity'),
     {id:'callPrice',name:'Bulk Contract',up:1,get desc(){return `Call-downs cost ${upPct('callPrice',35,0.15)}% less Dat.`},has:()=>S.mods.callPriceMult<1,apply:()=>{S.mods.callPriceMult=1-upPct('callPrice',35,0.15)/100}},
     {id:'callEcho',name:'Echo Strike',up:1,get desc(){return `Each call-down has a ${upPct('callEcho',30)}% chance to land a second time close by.`},has:()=>S.mods.callEcho>0,apply:()=>{S.mods.callEcho=upPct('callEcho',30)/100}},
@@ -9767,7 +9768,7 @@ function launchProjectile(from,target,opts){
   const tx=target.x,ty=target.y,d=dist(from,{x:tx,y:ty});
   const speed=opts.speed||GREN_PROJ_SPEED;
   (S._nadeBirth||S.nades).push({x:from.x,y:from.y,x0:from.x,y0:from.y,tx,ty,t:0,dur:Math.max(opts.minDur||0.12,d/speed),
-    dmg:opts.dmg,splashR:opts.splashR,color:opts.color,big:!!opts.big,pellet:!!opts.pellet,vsBig:opts.vsBig||1,style:opts.style||null,track:opts.track||null,spin:rnd(-3,3),kit:opts.kit||null,sub:!!opts.sub});
+    dmg:opts.dmg,splashR:opts.splashR,color:opts.color,big:!!opts.big,pellet:!!opts.pellet,vsBig:opts.vsBig||1,style:opts.style||null,track:opts.track||null,trackTo:opts.trackTo||0,spin:rnd(-3,3),kit:opts.kit||null,sub:!!opts.sub});
 }
 function launchNade(from,target){launchProjectile(from,target,{speed:GREN_PROJ_SPEED})}
 function explodeNade(n){
@@ -10519,7 +10520,8 @@ function unitPoseKey(t){
   if(k==='marksman'){if(t.chargeT>0||since<0.9)return null;return 'm'+aq+(t.moving?'w':'')+(((Math.floor((S.t*3+(t.id||0))/TAU*3)%3)+3)%3)}
   if(k==='brawler'){const p=palState(t);return 'p'+Math.round(p.pitch*6)+','+Math.round(p.h[0]*2)+','+Math.round(p.h[1]*2)+','+Math.round(p.bash*6)+','+Math.round(Math.min(1,p.flare)*4)}
   if(k==='grenadier'){const a=S.t-(t.podShotT??-9),g=S.t-(t.podGrewT??-9);return 'g'+(t.pods??GREN_PODS)+(a<0.35?'a'+q(a,0.07,4):'')+(g<0.35?'b'+q(g,0.07,4):'')}
-  if(k==='rocket'){if(t.paintT>0)return null;return 'r'+aq+(since<0.5?'s'+q(since,0.1,4):'')}
+  if(k==='rocket'){if(t.paintT>0||kitOf(t)==='mortar')return null; // (a mortar crew is drawn live: its tube reaches past the sprite, and it sets up and packs away)
+    return 'r'+aq+(since<0.5?'s'+q(since,0.1,4):'')}
   if(k==='mech'&&hasKit(t,'breaker'))return S.t-(t.punchT??-9)<0.3||t.moving?null:'B';
   if(k==='mech'&&hasKit(t,'fieldrelay'))return 'F'+walk(8);
   if(k==='mech'){const fire=S.t-(t.gatShotT??-9)<0.12,b=(((t.barrel||0)%(Math.PI/3))+Math.PI/3)%(Math.PI/3);
@@ -10702,7 +10704,7 @@ function drawGrenadier(t){
   rO(0,0.2,2.7,fl?'#fff':'#e6e6e6',0.6);ctx.fillStyle=OC;ctx.fillRect(-0.6,-2.4,1.2,4.4);ctx.fillStyle='#4d4d4d';ctx.fillRect(-1.7,-2,3.4,1);ctx.fillStyle=OC;ctx.fillRect(-1.3,-1.9,2.6,0.5);
   ctx.restore();
 }
-function drawRocketeer(t){
+function drawRocketeer(t){if(kitOf(t)==='mortar'){drawMortarCrew(t);return}
   const fl=t.flashT>0,AD=fl?'#fff':C.ally,VC=fl?'#fff':ROLE_COL.rocket,VD=fl?'#fff':ROLE_COL.rocketDark,a=t.aimV??RIFLE_READY,since=S.t-(t.shotT??-9),kick=since<0.25?1-since/0.25:0,ang=0.3+(0-0.3)*a;
   ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2);
   ctx.fillStyle='rgba(0,0,0,0)';ctx.beginPath();ctx.ellipse(1,2,6,5,0,0,Math.PI*2);ctx.fill();
@@ -10724,6 +10726,57 @@ function drawRocketeer(t){
 // circle); as it tips over at the top it stretches out to its full length; diving, it shortens again
 // and you see the glowing tail end, skewed back along its path.
 //  pod: a small missile on an even arc;  javelin: pops straight up, climbs high, tips over, dives.
+// ---- Mortar Team (a Rocketeer kit): sets a mortar up when it stops (like the Line Holders' guns) and lobs a heavy
+// shell MORTAR_RANGE times as far as a rocket, over walls and rock, on a high arc. Paired with Spotter Marksmen it
+// can shell any marked enemy, and with Radar Mast relays anything a mast can see, wherever it is on the map.
+// It talks with the Artillery's voice.
+const MORTAR_RANGE=1.4,MORTAR_CD=ROCKET_CD*1.35,MORTAR_DMG=ROCKET_DMG*1.1,MORTAR_SPLASH=ROCKET_SPLASH_R*1.5,MORTAR_VS_BIG=2;
+function mortarReach(t,e,range){if(e.hp<=0||e.kind==='nest'&&!(e.seen||debugNoFog))return false;if(dist(t,e)<=range*MORTAR_RANGE&&visible(e))return true;
+  if(S.kits.marksman==='spotter'&&e.markT>0)return true;
+  if(S.mods.relayDef==='radar'&&radarRelays().some(r=>dist(r,e)<RELAY_RADAR_VISION))return true;return false}
+function mortarTarget(t,range){const ord=t.state==='attack'&&t.target&&S.enemies.includes(t.target)&&mortarReach(t,t.target,range)?t.target:null;if(ord)return ord;
+  let best=null,bs=-1e9;S.enemies.forEach(e=>{if(!mortarReach(t,e,range))return;const d=dist(t,e),sc=(e.markT>0?2000:0)+(isBigTarget(e)?800:0)-d;if(sc>bs){bs=sc;best=e}});return best}
+function fireMortar(t,e){t.ang=Math.atan2(e.y-t.y,e.x-t.x);t.shotT=S.t;const d=dist(t,e),ca=Math.cos(t.ang),sa=Math.sin(t.ang),m={x:t.x+ca*17,y:t.y+sa*17};
+  launchProjectile(m,e,{speed:9999,minDur:1.2+Math.min(2.2,d/900),dmg:MORTAR_DMG*S.mods.troopDmgMult,splashR:MORTAR_SPLASH,color:'#ffb36b',big:true,vsBig:MORTAR_VS_BIG,style:'mortar',track:e,trackTo:0.55,kit:'mortar'});
+  /*VOX*/squadSay(t,'shell');if(sfxReady('mortar',0.08))sndAt(t.x,t.y,()=>{noiseCrack(0.14,0.08,420);tone(95,0.22,'sine',0.06,0,60)})}
+// The mortar crew (after a real 81mm team): a round slotted baseplate, a long tube slanted up toward the target,
+// ribbed at its breech, flared at the muzzle, on a bipod with a sight and a traverse wheel, the crewman kneeling
+// beside it laying the sight. On the move it's packed: the tube slung across his back, the plate on top.
+// t.deploy (0 packed .. 1 set up), t.shotT (last shot). Drawn facing t.ang.
+function drawMortarCrew(t){
+  const fl=t.flashT>0,AD=fl?'#fff':C.ally,VC=fl?'#fff':ROLE_COL.rocket,VD=fl?'#fff':ROLE_COL.rocketDark,since=S.t-(t.shotT??-9),kick=since<0.25?1-since/0.25:0;
+  const d=Math.max(0,Math.min(1,t.dep??t.deploy??1)),e=d*d*(3-2*d),L=(a,b)=>a+(b-a)*e,TB='#3b4148',TBL='#5d6670',TBD='#23272c',PL='#55605a';
+  ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2);
+  // the baseplate, set down as it unpacks
+  if(e>0.05){ctx.globalAlpha=Math.min(1,e*1.6);const pr=4.2*e;rO(0.6,-2,pr,PL,0.6);ctx.strokeStyle='rgba(16,19,23,.55)';ctx.lineWidth=0.5;for(let i=0;i<3;i++){const a=i/3*Math.PI*2+0.5;ctx.beginPath();ctx.moveTo(0.6+Math.cos(a)*pr*0.35,-2+Math.sin(a)*pr*0.35);ctx.lineTo(0.6+Math.cos(a)*pr*0.85,-2+Math.sin(a)*pr*0.85);ctx.stroke()}ctx.globalAlpha=1}
+  // the tube: from the plate up toward the target (or across his back when packed)
+  const bx=L(5,0.6),by=L(5.5,-2)+kick*0.8,mx=L(-4.5,0.6),my=L(4,-17)+kick*0.8,ang=Math.atan2(my-by,mx-bx),len=Math.hypot(mx-bx,my-by);
+  ctx.save();ctx.translate(bx,by);ctx.rotate(ang-Math.PI/2);
+  // bipod legs and feet, out in front, only when set up
+  if(e>0.3){ctx.globalAlpha=(e-0.3)/0.7;const k=len*0.62;rLimb([[0,k],[-5.2,k+3.2]],0.9,'#4a5058');rLimb([[0,k],[5.2,k+3.2]],0.9,'#4a5058');rO(-5.2,k+3.4,0.9,TBD,0.3);rO(5.2,k+3.4,0.9,TBD,0.3);
+    rP([[-2.4,k-0.8],[2.4,k-0.8],[2.4,k+0.8],[-2.4,k+0.8]],'#4a5058',0.4);rO(3.6,k,1,'#6f7c89',0.3);ctx.globalAlpha=1}
+  rP([[-1.55,0],[1.55,0],[1.3,len-2.4],[-1.3,len-2.4]],TB,0.6);
+  ctx.strokeStyle='rgba(10,12,14,.6)';ctx.lineWidth=0.35;for(let s=1;s<9;s++){const y=s*len*0.055;ctx.beginPath();ctx.moveTo(-1.5,y);ctx.lineTo(1.5,y);ctx.stroke()} // the ribbed breech
+  ctx.fillStyle='rgba(255,255,255,.18)';ctx.fillRect(-1,0.5,0.5,len-3);
+  rP([[-1.15,len-2.6],[1.15,len-2.6],[2,len+0.6],[-2,len+0.6]],TBD,0.5);rO(0,len+0.4,1.9,TBD,0.4);rO(0,len+0.4,1.15,'#0c0d0f',0);
+  if(e>0.5){ctx.globalAlpha=(e-0.5)*2;rP([[-3.6,len*0.55],[-1.4,len*0.55],[-1.4,len*0.55+2.6],[-3.6,len*0.55+2.6]],'#4f5a4f',0.4);rO(-3.9,len*0.55+2.9,0.8,'#111',0.3);ctx.globalAlpha=1} // the sight
+  ctx.restore();
+  // the crewman: kneeling beside the tube laying the sight, or standing with it slung
+  // (set up, he kneels just left of the tube turned to face it, hands on the sight; packed, he faces ahead)
+  const cx=L(0,-6.8),cy=L(0,-6),ca=L(0,Math.PI/2);ctx.save();ctx.translate(cx,cy);ctx.rotate(ca);
+  if(e>0.4){ctx.globalAlpha=(e-0.4)/0.6;rLimb([[2.4,1.6],[3.4,-2.2]],1.9,AD);rO(3.4,-2.2,1.1,AD,0.4);ctx.globalAlpha=1} // the knee up, the other one down
+  rP([[-5,0.6],[-3.8,-2],[3.8,-2],[5,0.6],[3.8,2.6],[-3.8,2.6]],AD,0.6);
+  rLimb([[3.8,-0.4],[L(4.4,3.2),L(-3,-3.6)],[L(2.8,-0.4),L(-5.2,-6)]],1.8,AD);rLimb([[-3.8,0],[L(-4.4,-4.4),L(-3,-3.2)],[L(-2.8,-4),L(-5.2,-5.8)]],1.8,AD);
+  rO(0.3,-0.6,2.7,VC,0.6);ctx.fillStyle=VD;ctx.fillRect(-1.1,-2.9,3.4,1.1);ctx.fillStyle='#ffb36b';ctx.fillRect(-0.7,-2.8,2.6,0.5);
+  ctx.restore();
+  // the plate on his back while it's packed
+  if(e<0.95){ctx.globalAlpha=1-e;rO(0,3.4,2.2,PL,0.5);ctx.globalAlpha=1}
+  ctx.restore();
+  // the shot: a puff out of the muzzle
+  if(e>0.95&&since<0.8){const k=since/0.8,ca2=Math.cos(t.ang),sa2=Math.sin(t.ang),mxw=t.x+ca2*17-sa2*0.6,myw=t.y+sa2*17+ca2*0.6;
+    for(let i=0;i<4;i++){ctx.fillStyle=i<1?'#ffb36b':'#cfd8e0';ctx.globalAlpha=(1-k)*0.5;ctx.beginPath();ctx.arc(mxw+ca2*k*6+(i-1.5)*1.4,myw+sa2*k*6-k*10-i*2.5,2+k*5,0,Math.PI*2);ctx.fill()}ctx.globalAlpha=1}
+}
+
 function arcFlight(n,f){
   const D=Math.hypot(n.tx-n.x0,n.ty-n.y0);
   if(n.style==='javelin'){
@@ -10731,6 +10784,7 @@ function arcFlight(n,f){
     const e=f<0.15?0:Math.pow((f-0.15)/0.85,1.5);
     return {lift:climb*70,sc:1+1.9*climb,e,D,K:3.2};
   }
+  if(n.style==='mortar'){const arc=Math.sin(Math.PI*f),H=Math.min(170,50+D*0.16);return {lift:arc*H,sc:1+1.6*arc,e:f,D,K:3}}
   const arc=Math.sin(Math.PI*f);return {lift:arc*30,sc:1+1.2*arc,e:f,D,K:3};
 }
 function drawArcRound(n){
@@ -10746,7 +10800,7 @@ function drawArcRound(n){
     ctx.fillStyle='#cfd8e0';ctx.globalAlpha=0.28*(1-i/6);ctx.beginPath();ctx.arc(bx,by,(1.2+i*0.7)*B.sc*0.6,0,Math.PI*2);ctx.fill()}
   ctx.globalAlpha=1;
   ctx.translate(gx,gy-A.lift);ctx.rotate(dir+Math.PI/2);ctx.scale(A.sc,A.sc);
-  const jav=n.style==='javelin',L=jav?4.5:3,w=jav?1.4:1.1,body=jav?'#d9dee4':ROCKET_COLOR,nose=jav?C.enemy:'#5a2f1a',Lp=L*c;
+  const jav=n.style==='javelin',mor=n.style==='mortar',L=jav?4.5:mor?2.6:3,w=jav?1.4:mor?1.7:1.1,body=jav?'#d9dee4':mor?'#5d6670':ROCKET_COLOR,nose=jav?C.enemy:mor?'#ffb36b':'#5a2f1a',Lp=L*c;
   // body, foreshortened along its flight line
   ctx.fillStyle=body;ctx.strokeStyle='#000';ctx.lineWidth=0.5;ctx.beginPath();ctx.rect(-w,-Lp,w*2,Lp*2);ctx.fill();ctx.stroke();
   if(sn>-0.2){ctx.fillStyle=nose;ctx.fillRect(-w,-Lp,w*2,Lp*0.5)}
@@ -11414,8 +11468,10 @@ function update(dt){
     // before they can move (LMG_STOW): t.dep runs 0 → 1 while they set up, with something in reach and
     // nothing telling them to go, and back down once they're told to move or nothing's been in reach for
     // LMG_LINGER. While it's above 0 they stand where they are, turned to the target.
-    if(kit==='lmg'){const tried=(t.x-px0)**2+(t.y-py0)**2>0.02;let tg=null,td=range;
-      if(t.state==='attack'&&t.target&&t.target.hp>0&&S.enemies.includes(t.target)&&dist(t,t.target)<=range)tg=t.target;
+    // (a Mortar Team crew sets up and packs its mortar the same way, for anything it can shell)
+    if(kit==='lmg'||(rock&&kit==='mortar')){const tried=(t.x-px0)**2+(t.y-py0)**2>0.02;let tg=null,td=range;
+      if(kit==='mortar')tg=mortarTarget(t,range);
+      else if(t.state==='attack'&&t.target&&t.target.hp>0&&S.enemies.includes(t.target)&&dist(t,t.target)<=range)tg=t.target;
       else S.enemies.forEach(e=>{if(e.hp<=0)return;const d=dist(e,t);if(d<td){td=d;tg=e}});
       if(tg)t.lmgSeen=S.t;
       // (planted in Hold position they set up and stay set up, kneeling with the gun ready, until moved on)
@@ -11428,6 +11484,9 @@ function update(dt){
       if(t.dep>0){t.x=px0;t.y=py0;if(tg)t.ang=Math.atan2(tg.y-t.y,tg.x-t.x);else if(planted&&t.formAng!=null&&S.t-(t.shotT??-9)>1.4)t.ang=t.formAng}}
     const movedNow=(t.x-px0)**2+(t.y-py0)**2>0.02;
     const ord=t.state==='attack'&&t.target&&t.target.hp>0&&S.enemies.includes(t.target)&&dist(t,t.target)-(brawl?t.target.r||0:0)<=range?t.target:null; // what you told it to shoot
+    // a mortar crew: once it's set up, lobs a shell at whatever it can reach (see mortarTarget), no laser
+    if(rock&&kit==='mortar'){if(t.cd<=0&&!movedNow&&(t.dep||0)>=1){const tg=mortarTarget(t,range);if(tg){fireMortar(t,tg);t.cd=MORTAR_CD/squadFireRateMult()}else t.cd=0.3}}
+    else
     if(t.cd<=0&&!mark&&!frl&&!(kit==='lmg'&&(movedNow||(t.dep||0)<1))){let best=null,bd=range;S.enemies.forEach(e=>{if(arty&&!visible(e))return;const d=dist(e,t)-(brawl?e.r||0:0);if(d<bd){bd=d;best=e}});
       // a Rocketeer goes for the nearest nest or Quaker in reach before anything else
       if(rock&&kit!=='flak'){let bb=null,bbd=range;S.enemies.forEach(e=>{if(!isBigTarget(e)||e.hp<=0)return;const d=dist(e,t);if(d<bbd){bbd=d;bb=e}});
@@ -11899,7 +11958,7 @@ function update(dt){
   if(!S.fires)S.fires=[];if(!S.kits)S.kits={};updateKitEffects(dt);updateFieldRelays(dt);updateBoss(dt);updateBreaches(dt);updateBurrows(dt);updateCaltrops(dt);
   if(!S.smears)S.smears=[];updateSmears();
   S._nadeBirth=[]; // projectiles launched by an explosion (cluster bomblets) join after this pass
-  S.nades=S.nades.filter(n=>{n.t+=dt;if(n.track&&n.track.hp>0&&S.enemies.includes(n.track)){n.tx=n.track.x;n.ty=n.track.y}const pt=Math.min(1,n.t/n.dur);n.x=n.x0+(n.tx-n.x0)*pt;n.y=n.y0+(n.ty-n.y0)*pt;if(pt>=1){explodeNade(n);return false}return true});
+  S.nades=S.nades.filter(n=>{n.t+=dt;if(n.track&&n.track.hp>0&&S.enemies.includes(n.track)&&!(n.trackTo&&n.t/n.dur>n.trackTo)){n.tx=n.track.x;n.ty=n.track.y}const pt=Math.min(1,n.t/n.dur);n.x=n.x0+(n.tx-n.x0)*pt;n.y=n.y0+(n.ty-n.y0)*pt;if(pt>=1){explodeNade(n);return false}return true});
   S.nades.push(...S._nadeBirth);S._nadeBirth=null;
   debugPass();
   if(B.hp<=0){S.over='lose';sfx.lose();shakeScreen(10,0.6);burst(B.x,B.y,C.enemy,30,160,0.9);showOverlay('Rig destroyed','The crew and the crystal are lost to the zone. Try fortifying before you push deeper.',0.5)}
@@ -13421,7 +13480,7 @@ function draw(){
       const dx=n.tx-n.x0,dy=n.ty-n.y0,L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L,len=14;
       ctx.strokeStyle=n.color||C.mech;ctx.lineWidth=2;ctx.beginPath();
       ctx.moveTo(n.x-ux*len,n.y-uy*len);ctx.lineTo(n.x,n.y);ctx.stroke();
-    }else if(n.style)drawArcRound(n);
+    }else if(n.style){if(n.style==='mortar'){const f=Math.min(1,n.t/n.dur),R=4+MORTAR_SPLASH*0.4*f;ctx.save();ctx.fillStyle='#000';ctx.globalAlpha=0.12+0.4*f*f;ctx.beginPath();ctx.ellipse(n.tx,n.ty,R,R*0.6,0,0,Math.PI*2);ctx.fill();ctx.restore()}drawArcRound(n)}
     else{ctx.fillStyle=n.color||C.accent;ctx.beginPath();ctx.arc(n.x,n.y,n.big?6:4,0,Math.PI*2);ctx.fill()}
   });
   // harvesters
@@ -14112,7 +14171,7 @@ function squadDone(it){if(SQP.cur!==it)return;SQP.cur=null;SQP.gapT=performance.
 // verdict, which is handy when a bark doesn't come)
 function squadSay(u,what){const no=r=>{SQP.why=what+': '+r;return false};
   if(!SQUAD.on||SQP.state!=='ready'||!u||typeof S==='undefined'||!S||S.over||menuOpen||document.hidden)return no('off/menu');
-  const cls=SQUAD_CLS[u.kind||'troop'],C=SQUAD_CAT[what];if(!cls||!C)return no('no class');if(C[0]>SQUAD.chat)return no('chattiness');
+  const cls=u.kind==='rocket'&&typeof kitOf==='function'&&kitOf(u)==='mortar'?'artillery':SQUAD_CLS[u.kind||'troop'],C=SQUAD_CAT[what];if(!cls||!C)return no('no class');if(C[0]>SQUAD.chat)return no('chattiness');
   const now=performance.now()/1000;if(SQP.cur)return no('busy');if(now<SQP.gapT)return no('gap');if(VOXQ.cur)return no('vesper'); // one at a time, and never over Vesper
   if(TPAINT.loading||(S.landing&&!S.landing.touch))return no('landing');
   const ck=cls+':'+what;if(now-(SQP.last[ck]??-99)<C[1])return no('cooldown');
