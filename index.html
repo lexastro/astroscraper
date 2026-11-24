@@ -10204,9 +10204,16 @@ function hordeBlocked(x,y){return x<4||y<4||x>W-4||y>H-4||tcost(Math.floor(x/TCE
 // (jamT); one pressing up behind a jammed one, facing
 // into it, queues (qJamT) and walks at JAM_SLOW, and the queue passes back through the clump (in the separation pass).
 // Crowd pushes don't move a jammed enemy, and a push can't carry anyone across a wall: no more shoving the front rank over.
-const JAM_SLOW=0.3,JAM_GAP=6,JAM_HOLD=0.3;
-const jammed=e=>e.jamT>S.t-JAM_HOLD,wallJammed=e=>e.wjT>S.t-JAM_HOLD,queued=e=>jammed(e)||e.qJamT>S.t-JAM_HOLD;
-function jamSlow(e){return e.qJamT>S.t-JAM_HOLD&&!jammed(e)?JAM_SLOW:1}
+// The queue only reaches JAM_DEPTH ranks back. Behind a clump on one of your units, the enemies further back
+// (flowT) give up on that unit: they count it ENEMY_FLOW_PEN further away when picking a target, and steer
+// round the clump to the next unit along, so a wave flows round the first fight instead of stacking up on it.
+const JAM_SLOW=0.3,JAM_GAP=6,JAM_HOLD=0.3,JAM_DEPTH=2,ENEMY_FLOW_PEN=140,FLOW_ROUND=60;
+const jammed=e=>e.jamT>S.t-JAM_HOLD,wallJammed=e=>e.wjT>S.t-JAM_HOLD,queued=e=>jammed(e)||e.qJamT>S.t-JAM_HOLD,
+  jamDepth=e=>jammed(e)?0:e.qJamT>S.t-JAM_HOLD?(e.qD||1):99,onUnitJam=e=>jammed(e)?!wallJammed(e):!!e.qU,flowing=e=>e.flowT>S.t-0.6;
+function jamSlow(e){return e.qJamT>S.t-JAM_HOLD&&!jammed(e)&&!flowing(e)?JAM_SLOW:1}
+// one facing into a queued neighbour: it joins the queue a rank further back, or (past JAM_DEPTH, behind a unit) flows round
+function jamPass(a,b){const da=jamDepth(a);if(da<JAM_DEPTH){const nd=da+1;if(!(b.qJamT===S.t&&b.qD<=nd)){b.qJamT=S.t;b.qD=nd;b.qU=onUnitJam(a)}}
+  if(onUnitJam(a)&&da>=JAM_DEPTH&&da<99&&!jammed(b)){b.flowT=S.t;b.flowFrom=a.flowFrom&&a.qD>=JAM_DEPTH?a.flowFrom:(a.target||b.flowFrom)}}
 function hordeStep(e,tgt,dt){
   const B=S.base,db=dist(e,B);
   // v4 (performance): one that's been stuck against rock — not HORDE_STUCK_GAIN closer to what it's after in
@@ -11585,7 +11592,7 @@ function update(dt){
       tgt=bestR||B;
     } else {
       if(e.kind==='roam'||e.kind==='brute'){if(e._lhp!=null&&e.hp<e._lhp)e.provT=S.t+PROVOKE_T;e._lhp=e.hp;if(e.provT>S.t)bd=Math.max(bd,PROVOKE_R)}
-      {const L=enemyLoad(),cur=e.target;let bs=Infinity;allies.forEach(t=>{const d=dist(t,e);if(d>=bd)return;const n=(L.get(t)||0)-(cur===t?1:0),sc=d+ENEMY_SPREAD*Math.max(0,n)-(cur===t?ENEMY_STICK:0);if(sc<bs){bs=sc;tgt=t}});if(tgt)bd=dist(tgt,e)}
+      {const L=enemyLoad(),cur=e.target;let bs=Infinity;allies.forEach(t=>{const d=dist(t,e);if(d>=bd)return;const n=(L.get(t)||0)-(cur===t?1:0),fl=flowing(e)&&t===e.flowFrom,sc=d+ENEMY_SPREAD*Math.max(0,n)-(cur===t&&!fl?ENEMY_STICK:0)+(fl?ENEMY_FLOW_PEN:0);if(sc<bs){bs=sc;tgt=t}});if(tgt)bd=dist(tgt,e)}
       if(!tgt&&e.provT>S.t)S.turrets.forEach(tu=>{if(!tu.built||tu.hp<=0)return;const d=dist(tu,e);if(d<bd){bd=d;tgt=tu}});
     }
     if(e.kind==='roam'||e.kind==='brute'){
@@ -11640,7 +11647,9 @@ function update(dt){
       }
       return;
     }
-    const aim=enemyApproachPoint(e,tgt);
+    let aim=enemyApproachPoint(e,tgt);
+    if(flowing(e)&&e.flowFrom&&e.flowFrom!==tgt&&e.flowFrom.hp>0){const c=e.flowFrom,dc=dist(e,c); // (go round the clump, not through it)
+      if(dc<dist(e,tgt)&&dc<FLOW_ROUND*2.5&&pointSegDist(c,e,aim)<FLOW_ROUND){const px=-(aim.y-e.y),py=aim.x-e.x,pl=Math.hypot(px,py)||1,sd=((c.x-e.x)*px+(c.y-e.y)*py)>0?-1:1;aim={x:c.x+px/pl*FLOW_ROUND*sd,y:c.y+py/pl*FLOW_ROUND*sd}}}
     const dx=aim.x-e.x,dy=aim.y-e.y,L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L,look=e.r+6,perp=e.r*0.6;
     const probes=[{x:e.x+ux*look,y:e.y+uy*look},{x:e.x+ux*look-uy*perp,y:e.y+uy*look+ux*perp},{x:e.x+ux*look+uy*perp,y:e.y+uy*look-ux*perp}];
     let w=null; for(const pt of probes){w=wallAt(pt.x,pt.y,true); if(w)break}
@@ -11654,8 +11663,8 @@ function update(dt){
   for(let i=0;i<es.length;i++)for(let j=i+1;j<es.length;j++){const a=es[i],b=es[j];if(b.x-a.x>a.r+maxR+JAM_GAP)break;const d=dist(a,b),m=a.r+b.r;
     // the queue at a wall passes back: one facing into a queued neighbour queues too
     if(d<m+JAM_GAP&&d>0.5){const fx=(b.x-a.x)/d,fy=(b.y-a.y)/d;
-      if(queued(a)&&Math.cos(b.ang)*-fx+Math.sin(b.ang)*-fy>0.3)b.qJamT=S.t;
-      if(queued(b)&&Math.cos(a.ang)*fx+Math.sin(a.ang)*fy>0.3)a.qJamT=S.t}
+      if(queued(a)&&Math.cos(b.ang)*-fx+Math.sin(b.ang)*-fy>0.3)jamPass(a,b);
+      if(queued(b)&&Math.cos(a.ang)*fx+Math.sin(a.ang)*fy>0.3)jamPass(b,a)}
     if(d<m&&d>0.5){const an=a.kind==='nest'||wallJammed(a),bn=b.kind==='nest'||wallJammed(b); // (only a wall-blocked one stands firm; ones on a unit still jostle)if(an&&bn)continue;
       const p=(m-d)/2*(an||bn?2:1),dx=(b.x-a.x)/d,dy=(b.y-a.y)/d;
       const anx=an?a.x:a.x-dx*p,any=an?a.y:a.y-dy*p,bnx=bn?b.x:b.x+dx*p,bny=bn?b.y:b.y+dy*p;
