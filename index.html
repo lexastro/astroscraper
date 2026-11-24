@@ -3710,6 +3710,10 @@ function raiseMega(){const c=S.megaSite,m=makeNest(c.x,c.y,'mega');m.mega=true;m
 const slotLive=sl=>!!(sl.nest&&sl.nest.hp>0&&S.enemies.includes(sl.nest));
 function megaSlotsLeft(){return (S.megaSlots||[]).filter(slotLive).length}
 function megaShelled(){return megaSlotsLeft()>0}
+// where a unit ordered onto the Mega Nest walks to: open ground at the foot of the mountain on its own side
+// (its middle is solid rock, so it can't be walked to; worked out again every second or so as the unit goes)
+function megaFoot(t,m){if(!t._mf||t._mfM!==m||S.t-t._mfT>1){const a=Math.atan2(t.y-m.y,t.x-m.x),r=MEGA_ROCK+40;
+  t._mf=nearestPlain(m.x+Math.cos(a)*r,m.y+Math.sin(a)*r);t._mfM=m;t._mfT=S.t}return t._mf}
 function shellPing(m){spark(m.x+rnd(-m.r,m.r)*0.6,m.y+rnd(-m.r,m.r)*0.6,'#ff9ad8',2);
   if(!S.shellMsgT||S.t-S.shellMsgT>25){S.shellMsgT=S.t;const k=megaSlotsLeft();
     banner(`The Mega Nest shrugs off the hit: ${k} nest${k===1?'':'s'} on its slopes still hold${k===1?'s':''} it together. Destroy them first.`,'warning')}}
@@ -9222,7 +9226,10 @@ function rightClick(w,queue){
   // a severed unit still takes orders — losing power doesn't lose the player control of it,
   // only its Sanity meter (and eventually the unit) if it stays dark too long
   const selT=rawT, selH=rawH, selBu=rawBu;
-  const en=S.enemies.find(e=>visible(e)&&(dist(e,w0)<e.r+10||e.megaGlass&&dist(e,{x:w0.x,y:w0.y+45})<55)); // (a rim crystal's blades stand up above where it sits)
+  // (a rim crystal's blades stand up above where it sits; a Mega Nest you've found takes an order anywhere on its
+  // mountain even when nobody can see its middle; where shapes overlap, the one you clicked nearest the middle of wins)
+  let en=null,enD=Infinity;S.enemies.forEach(e=>{if(!(visible(e)||e.mega&&e.seen))return;const d=dist(e,w0);
+    if(d<e.r+10||e.megaGlass&&dist(e,{x:w0.x,y:w0.y+45})<55){const k=d/(e.r+10);if(k<enD){enD=k;en=e}}});
   {const wl=!en&&selT.length?wallLineAt(w):null;/*VOX*/if(selT.length)squadOrder(selT,en,wl);if(wl){manWall(wl,selT);return}}
   const nd=S.nodes.find(n=>n.found&&dist(n,w)<28);
   const nearBase=dist(S.base,w)<S.base.r+40;
@@ -11423,7 +11430,7 @@ function update(dt){
       if(!t.target||t.target.hp<=0){t.target=null;t.state='idle';if(mech||brawl||t.hold)t.post={x:t.x,y:t.y};
         if(t.wallHome){const h=t.wallHome;t.wallHome=null;t.state='move';t.dest={x:h.x,y:h.y};t.wall=true;t.wallAng=h.ang;t.formAng=h.form;t.manning=h.man&&S.wallLines&&S.wallLines.includes(h.man)?h.man:null}}
       // (a mortar crew stays put to shell anything it can reach from where it is, and never walks off a hold)
-      else if(dist(t,t.target)-(brawl?t.target.r||0:0)>range-10&&!(rock&&kit==='mortar'&&(t.hold||mortarReach(t,t.target,range)))){if(mech||brawl)t.ang=Math.atan2(t.target.y-t.y,t.target.x-t.x);const aim=waypointFor(t,t.target.x,t.target.y);moveToward(t,aim,speed*factor,dt)}
+      else if(dist(t,t.target)-(brawl||t.target.mega?t.target.r||0:0)>range-10&&!(rock&&kit==='mortar'&&(t.hold||mortarReach(t,t.target,range)))){if(mech||brawl)t.ang=Math.atan2(t.target.y-t.y,t.target.x-t.x);const tp=t.target.mega?megaFoot(t,t.target):t.target,aim=waypointFor(t,tp.x,tp.y);moveToward(t,aim,speed*factor,dt)}
     }
     else if(t.state==='guard')guardMove(t,range,speed*factor,dt);
     else if(frl&&t.state==='idle'){if(!t.post)t.post={x:t.x,y:t.y};if(dist(t,t.post)>6)moveToward(t,waypointFor(t,t.post.x,t.post.y),speed*factor,dt)}
@@ -11442,7 +11449,7 @@ function update(dt){
           if(t.pods<=0||!(c||t.volAt)){t.volley=false;t.volTgt=null;t.volAt=null;t.podT=0}}}}
     // Rocketeer: paint the target with the laser; when the paint holds for ROCKET_PAINT, fire the Javelin
     if(rock&&t.paintT>0){const c=t.paintTgt;
-      if(!c||c.hp<=0||!(S.enemies.includes(c)||c.megaGlass)||dist(t,c)>range*(kit==='flak'&&S.mods.relayDef==='radar'?2.5:1.25)){t.paintT=0;t.paintTgt=null;t.cd=Math.min(t.cd,0.4)}
+      if(!c||c.hp<=0||!(S.enemies.includes(c)||c.megaGlass)||dist(t,c)-(c.mega?c.r:0)>range*(kit==='flak'&&S.mods.relayDef==='radar'?2.5:1.25)){t.paintT=0;t.paintTgt=null;t.cd=Math.min(t.cd,0.4)}
       else{t.ang=Math.atan2(c.y-t.y,c.x-t.x);t.paintT-=dt;
         if(t.paintT<=0){t.paintT=0;t.paintTgt=null;t.shotT=S.t;const m=gunMuzzle(t,10);/*VOX*/squadSay(t,'launch');
           launchProjectile(m,c,{speed:ROCKET_PROJ_SPEED,minDur:1.1,dmg:ROCKET_DMG*S.mods.troopDmgMult,splashR:ROCKET_SPLASH_R*(kit==='flak'?FLAK_R:1),color:kit==='flak'?'#c7d0da':ROCKET_COLOR,big:true,vsBig:kit==='flak'?FLAK_BIG:ROCKET_VS_BIG,style:'javelin',track:c,kit});
@@ -11474,7 +11481,7 @@ function update(dt){
     // (a Mortar Team crew sets up and packs its mortar the same way, for anything it can shell)
     if(kit==='lmg'||(rock&&kit==='mortar')){const tried=(t.x-px0)**2+(t.y-py0)**2>0.02;let tg=null,td=range;
       if(kit==='mortar')tg=mortarTarget(t,range);
-      else if(t.state==='attack'&&t.target&&t.target.hp>0&&S.enemies.includes(t.target)&&dist(t,t.target)<=range)tg=t.target;
+      else if(t.state==='attack'&&t.target&&t.target.hp>0&&S.enemies.includes(t.target)&&dist(t,t.target)-(t.target.mega?t.target.r:0)<=range)tg=t.target;
       else S.enemies.forEach(e=>{if(e.hp<=0)return;const d=dist(e,t);if(d<td){td=d;tg=e}});
       if(tg)t.lmgSeen=S.t;
       // (planted in Hold position they set up and stay set up, kneeling with the gun ready, until moved on)
@@ -11486,7 +11493,7 @@ function update(dt){
       t.dep=Math.max(0,Math.min(1,dep));
       if(t.dep>0){t.x=px0;t.y=py0;if(tg)t.ang=Math.atan2(tg.y-t.y,tg.x-t.x);else if(planted&&t.formAng!=null&&S.t-(t.shotT??-9)>1.4)t.ang=t.formAng}}
     const movedNow=(t.x-px0)**2+(t.y-py0)**2>0.02;
-    const ord=t.state==='attack'&&t.target&&t.target.hp>0&&S.enemies.includes(t.target)&&dist(t,t.target)-(brawl?t.target.r||0:0)<=range?t.target:null; // what you told it to shoot
+    const ord=t.state==='attack'&&t.target&&t.target.hp>0&&S.enemies.includes(t.target)&&dist(t,t.target)-(brawl||t.target.mega?t.target.r||0:0)<=range?t.target:null; // what you told it to shoot (a Mega Nest from the edge of its mountain)
     // a mortar crew: once it's set up, lobs a shell at whatever it can reach (see mortarTarget), no laser
     if(rock&&kit==='mortar'){if(t.cd<=0&&!movedNow&&(t.dep||0)>=1){const tg=mortarTarget(t,range);if(tg){fireMortar(t,tg);t.cd=MORTAR_CD/squadFireRateMult()}else t.cd=0.3}}
     else
