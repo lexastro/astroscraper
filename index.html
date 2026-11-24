@@ -9706,8 +9706,29 @@ function drawWallLines(){
     S.zaps.forEach(z=>{const a=1-z.t/0.18,pts=wsJag(z.x0,z.y0,z.x1,z.y1,z.seed+Math.floor(z.t*60),5,5);ctx.globalAlpha=a*0.5;ctx.strokeStyle='#8fe3ff';ctx.lineWidth=3;wsStroke(pts);ctx.globalAlpha=a;ctx.strokeStyle='#fff';ctx.lineWidth=1;wsStroke(pts)});
     ctx.restore()}
 }
+// v4: while placing walls, every wall you have stands out over the fight: a bright line along it (dashed red
+// where slats are broken, with how many), and a ring on each end post, the one the cursor would snap to
+// drawn bigger. Line widths are in screen pixels, so it reads the same at any zoom.
+function drawWallHighlights(){const z=cam.z,Ls=(S.wallLines||[]).filter(L=>!L.relayRing&&L.raiseT0!=null);if(!Ls.length)return;
+  const snap=wallSnap({x:mouse.wx,y:mouse.wy},true),pu=0.5+0.5*Math.sin(S.t*5);ctx.save();ctx.lineCap='round';
+  Ls.forEach(L=>{const ang=L.ang,ux=Math.cos(ang),uy=Math.sin(ang);
+    L.slats.forEach(sl=>{const a={x:sl.x-ux*sl.half,y:sl.y-uy*sl.half},b={x:sl.x+ux*sl.half,y:sl.y+uy*sl.half};
+      ctx.setLineDash(sl.dead?[5/z,4/z]:[]);
+      ctx.strokeStyle='rgba(8,10,13,0.8)';ctx.lineWidth=6/z;ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();
+      ctx.strokeStyle=sl.dead?C.enemy:C.accent;ctx.globalAlpha=sl.dead?0.95:0.75;ctx.lineWidth=2.5/z;ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();ctx.globalAlpha=1});
+    ctx.setLineDash([]);
+    const nb=L.slats.filter(sl=>sl.dead).length;
+    if(nb&&L.type!=='glass'){const mx=(L.x0+L.x1)/2-uy*16/z,my=(L.y0+L.y1)/2+ux*16/z,f=11/z,t=`✕${nb}`;ctx.font=`700 ${f}px ${css('--mono')}`;ctx.textAlign='center';ctx.textBaseline='middle';
+      const tw=ctx.measureText(t).width;ctx.fillStyle='rgba(11,14,18,0.85)';ctx.fillRect(mx-tw/2-3/z,my-f*0.7,tw+6/z,f*1.4);ctx.fillStyle=C.enemy;ctx.fillText(t,mx,my)}});
+  const ends=[];Ls.forEach(L=>[[L.x0,L.y0],[L.x1,L.y1]].forEach(([x,y])=>{if(!ends.some(q=>Math.abs(q.x-x)<3&&Math.abs(q.y-y)<3))ends.push({x,y})}));
+  ends.forEach(p=>{const on=snap.snapped&&Math.abs(snap.x-p.x)<0.5&&Math.abs(snap.y-p.y)<0.5,r=(on?13+pu*3:9)/z;
+    ctx.strokeStyle='rgba(8,10,13,0.85)';ctx.lineWidth=5/z;ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);ctx.stroke();
+    ctx.strokeStyle=on?'#fff':C.accent;ctx.lineWidth=2.5/z;ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);ctx.stroke();
+    ctx.fillStyle=on?'#fff':C.accent;ctx.beginPath();ctx.arc(p.x,p.y,2.2/z,0,Math.PI*2);ctx.fill()});
+  ctx.restore()}
 function drawWallPreview(){
   if(buildMode!=='wall')return;
+  drawWallHighlights();
   const d=mouse.wallDraw;
   if(!d){const p=wallSnap({x:mouse.wx,y:mouse.wy}),ok=inBuildRange(p),z=cam.z;ctx.save();
     // a ghost wall slat under the cursor, a pulsing ring and a WALL tag, so the mode can't be missed
