@@ -4475,7 +4475,7 @@ const COMBAT=[
      for(let i=0;i<5;i++){const f=(t*0.9+i*0.2)%1,y=24+i*17;if(f<0.85){const x=caLerp(190,136,f/0.85);ctx.fillStyle='#b9a6ff';ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+6,y-2);ctx.lineTo(x+6,y+2);ctx.fill()}else caGlow(136,y,6,'#cdf6ff',(1-f)*5)}
      for(let i=0;i<3;i++)htFoe(o,'s'+i,{kind:'splinter',r:8,shards:6},drawSplinter,200,30+i*30)})},
   {title:'Hold your ground',
-   text:'Press <kbd>X</kbd> and the selected units <b>plant where they stand</b>: they won’t chase or wander. Held units close together <b>back each other up</b>, firing up to 30% faster, and small swarmers that crowd right up against them get crushed.',
+   text:'Press <kbd>X</kbd> and the selected units <b>plant where they stand</b>: they won’t chase or wander. Held units close together <b>back each other up</b>: held <b>Troopers and Marksmen</b> fire up to 30% faster (gold chevrons over them show how much), and small swarmers that crowd right up against any held unit get crushed.',
    art:htLive(function(t,o){const P=[[92,46],[112,58],[92,72],[112,84]];const us=P.map(([x,y],i)=>{const fp=(t*2+i*0.3)%1;const u=htUnit(o,'t'+i,'troop',x,y,0,{hold:true,shotT:fp<0.1?t:-9});htShot(x+6,y,206,y,fp);return u});htHoldMarks(us);
      us.forEach(u=>{u.holdLinks=us.filter(v=>v!==u&&dist(u,v)<HOLD_LINK_R).length;drawHoldPips(u,u.y-17)});
      for(let i=0;i<9;i++){const f=(t*0.32+i/9)%1,a=i*0.8,x=caLerp(206,126,f),y=66+Math.sin(a)*42*(1-f);if(f<0.9)htFoe(o,'w'+i,{kind:'swarm',r:3,horde:true,seed:i*7},drawSwarm,x,y);else caGlow(124,66+Math.sin(a)*4,6,'#ffd0c8',(1-f)*8)}
