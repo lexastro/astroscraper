@@ -1981,7 +1981,7 @@ function guardBastion(u){u.following=false;u.state='guard';u.guard=S.base;u.dest
 // its colour across their shoulders.
 const KITS={
   shock:{kind:'troop',name:'Shock Rounds',tier:'Rare',col:'#8fe3ff',solo:'Every hit stuns the target for a moment.',pair:'Electric Fence walls',pairTxt:'a Trooper manning one has every shot jump on to a second enemy',on:()=>S.mods.wallType==='elec',wall:'elec'},
-  lmg:{kind:'troop',name:'Line Holders',tier:'Rare',col:'#f2b84b',solo:'Light machine guns: a rapid stream of lighter rounds, 2.5× a rifle’s damage over time, with more spread and 20% less range. They can’t fire on the move and move 25% slower.',pair:'Heavy Armour walls',pairTxt:'behind one they take half damage',on:()=>S.mods.wallType==='heavy',wall:'heavy'},
+  lmg:{kind:'troop',name:'Line Holders',tier:'Rare',col:'#f2b84b',solo:'Light machine guns: a rapid stream of lighter rounds, 2.5× a rifle’s damage over time, with more spread and 20% less range. They have to set up before firing and pack up before moving, can’t fire on the move and move 25% slower.',pair:'Heavy Armour walls',pairTxt:'behind one they take half damage',on:()=>S.mods.wallType==='heavy',wall:'heavy'},
   warden:{kind:'brawler',name:'Glass Wardens',tier:'Epic',col:'#b48bff',solo:'Their shields are glass: a shot they block shatters and flies back at whoever fired it, for double.',pair:'Glass Ridge walls',pairTxt:'a Glass Ridge wall next to a Warden throws blocked shots back too',on:()=>S.mods.wallType==='glass',wall:'glass'},
   razor:{kind:'brawler',name:'Razor Guard',tier:'Rare',col:'#ff5c6a',solo:'Every strike makes the enemy bleed for 4 seconds.',pair:'Razor Line walls',pairTxt:'a bleeding enemy takes double from the wire',on:()=>S.mods.wallType==='razor',wall:'razor'},
   cryo:{kind:'grenadier',name:'Cryo Shells',tier:'Rare',col:'#8fe3ff',solo:'Blasts freeze: enemies caught are slowed to a crawl for 3 seconds.',pair:'Sonic Deterrent relays',pairTxt:'the relay horns shatter frozen enemies, for heavy damage',on:()=>S.mods.relayOff==='sonic',relay:'sonic'},
@@ -2011,13 +2011,18 @@ function cardWeight(u){if(!S||!S.kits)return 1;
 function wShuffle(arr){return arr.map(c=>({c,k:Math.pow(Math.random(),1/cardWeight(c))})).sort((p,q)=>q.k-p.k).map(o=>o.c)}
 // the kit's band across a unit's shoulders, in its colour
 function kitBand(t){const id=kitOf(t);if(!id||t.kind==='mech')return;ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2);ctx.fillStyle=KITS[id].col;ctx.fillRect(-4.6,1.6,9.2,1.7);ctx.strokeStyle='rgba(16,19,23,0.85)';ctx.lineWidth=0.5;ctx.strokeRect(-4.6,1.6,9.2,1.7);ctx.restore()}
-// Line Holders' light machine gun: a long, heavy barrel with a box magazine, over the rifle
-function lmgOn(t){ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang);rP([[2,1.2],[17,1.6],[17,3.6],[2,4.2]],'#3a4048');rP([[5,4],[10,4],[10,8.4],[5,8.4]],'#6f7b6a');rLimb([[17,2.6],[20,2.6]],1.4,'#2a2f36');ctx.restore()}
+// Line Holders' light machine gun: a long, heavy barrel with a box magazine, drawn in the rifle's place
+// by drawRifleman (so it hangs low on the move and comes up to the shoulder as they set up)
+function lmgGun(L,w){rP([[-w/2-0.4,-L+1],[w/2+0.4,-L+1],[w/2+0.6,-L*0.2],[-w/2-0.6,-L*0.2]],'#3a4048');rP([[w/2+0.4,-L*0.62],[w/2+4.2,-L*0.62],[w/2+4.2,-L*0.36],[w/2+0.4,-L*0.36]],'#6f7b6a');rLimb([[0,-L+1],[0,-L-2.4]],1.4,'#2a2f36')}
 // ---- kit numbers ----
 // v4: Line Holders fire like machine guns: LMG_RATE× a rifle's rate (about 6.5 shots a second, under the
 // Mech minigun's 12 when spun up), each shot LMG_DMG of a rifle round, so the damage per second is the old 2.5×
 const LMG_DMG=2.5/7;
 const SHOCK_STUN=0.3, SHOCK_CHAIN_R=90, LMG_RATE=7, LMG_RANGE=0.8, LMG_SPEED=0.75, LMG_MISS=0.25;
+// v4: setting the gun up to fire, packing it away to move, and how long it stays up once nothing's in reach (seconds)
+const LMG_DEPLOY=0.5, LMG_STOW=0.4, LMG_LINGER=0.6;
+// (the pose a packed-up gun is carried in: below the rifles' ready angle, slung low across the body)
+const LMG_LOW=-0.35;
 const BLEED_T=4, BLEED_DPS=4, CRYO_T=3, CRYO_SLOW=0.3, CRYO_SHATTER=60, FIRE_T=4, FIRE_DPS=8, FIRE_LINE_T=4;
 const SPOT_T=6, SPOT_MULT=1.25, SPOT_RADAR_R=420, SPOT_RADAR_RANGE=1.4, CLUSTER_N=4, CLUSTER_DMG=0.35, FLAK_R=1.8, FLAK_BIG=0.4;
 const BRK_RANGE=24, BRK_CD=0.55, BRK_DMG=15, BRK_SPLASH=6, BRK_SPLASH_R=26, BRK_HAY_EVERY=4, BRK_HAY_R=44, BRK_HAY_KB=380, BRK_IMPACT=45, BRK_SEEK=200;
@@ -10558,7 +10563,7 @@ function drawUnitBodyLive(t){
   else if(mech&&hasKit(t,'fieldrelay'))drawFieldRelay(t);
   else if(mech)drawGatMech(t);
   else if(t.kind==='marksman')drawMarksman(t);
-  else{drawRifleman(t);if(hasKit(t,'lmg'))lmgOn(t)}
+  else drawRifleman(t);
   kitBand(t);
 }
 function drawPaladin(t){
@@ -10814,12 +10819,12 @@ function drawRifleman(t){
   const since=S.t-(t.shotT??-9),kick=since<0.3?(since<0.05?since/0.05:1-(since-0.05)/0.25):0,a=t.aimV??RIFLE_READY,fl=t.flashT>0;
   ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2);
   ctx.fillStyle='rgba(0,0,0,0)';ctx.beginPath();ctx.ellipse(1,2,6,5,0,0,Math.PI*2);ctx.fill();
-  ctx.translate(0,kick*1.4);
-  riflePose({a,L:11,rw:1.6,gy:3,hy:7.5,flash:fl,
+  ctx.translate(0,kick*1.4);const lmg=hasKit(t,'lmg');
+  riflePose({a,L:lmg?17*(0.8+0.2*Math.max(0,Math.min(1,a))):11,rw:lmg?2.2:1.6,gy:3,hy:lmg?9:7.5,flash:fl,rx:lmg?lmgGun:null,
     pack:()=>{rP([[-3,2],[3,1.6],[3,5],[-3,5.4]],'#999');rO(0,3.6,1.5,'#4d4d4d');ctx.strokeStyle=C.accent;ctx.lineWidth=0.5;ctx.beginPath();ctx.arc(0,3.6,1,0,Math.PI*2);ctx.stroke()},
     head:(hx,hy)=>{rO(hx,hy,2.8,fl?'#fff':'#e6e6e6',0.6);ctx.fillStyle='#4d4d4d';ctx.fillRect(hx-1.8,hy-2.3,3.6,1.1);ctx.fillStyle=C.ally;ctx.fillRect(hx-1.4,hy-2.2,2.8,0.5)}});
   ctx.restore();
-  if(since<0.06){const m=gunMuzzle(t,11);ctx.save();ctx.translate(m.x,m.y);ctx.rotate(t.ang+Math.PI/2);rifleFlash(0,0,0.9);ctx.restore()}
+  if(since<0.06){const m=gunMuzzle(t,hasKit(t,'lmg')?18:11);ctx.save();ctx.translate(m.x,m.y);ctx.rotate(t.ang+Math.PI/2);rifleFlash(0,0,0.9);ctx.restore()}
 }
 function drawMarksman(t){
   const since=S.t-(t.shotT??-9),kick=since<0.4?Math.max(0,1-since/0.4):0,a=t.aimV??RIFLE_READY,fl=t.flashT>0,charge=t.chargeT>0?1-t.chargeT/MARK_CHARGE:0,kneel=!t.moving;
@@ -11400,9 +11405,23 @@ function update(dt){
         if(t.state==='attack'&&t.target&&t.target.hp>0&&S.enemies.includes(t.target)&&dist(t,t.target)<=range+(t.target.r||0))best=t.target; // your order first
         if(best){t.chargeT=MARK_CHARGE;t.chargeTgt=best;t.ang=Math.atan2(best.y-t.y,best.x-t.x);sndAt(t.x,t.y,()=>sfx.railCharge())}}
     }
+    // v4: Line Holders have to set their gun up before they can fire (LMG_DEPLOY) and pack it away again
+    // before they can move (LMG_STOW): t.dep runs 0 → 1 while they set up, with something in reach and
+    // nothing telling them to go, and back down once they're told to move or nothing's been in reach for
+    // LMG_LINGER. While it's above 0 they stand where they are, turned to the target.
+    if(kit==='lmg'){const tried=(t.x-px0)**2+(t.y-py0)**2>0.02;let tg=null,td=range;
+      if(t.state==='attack'&&t.target&&t.target.hp>0&&S.enemies.includes(t.target)&&dist(t,t.target)<=range)tg=t.target;
+      else S.enemies.forEach(e=>{if(e.hp<=0)return;const d=dist(e,t);if(d<td){td=d;tg=e}});
+      if(tg)t.lmgSeen=S.t;
+      let dep=t.dep||0;
+      if(dep<=0){if(tg&&!tried)dep=dt/LMG_DEPLOY}
+      else if(tried||S.t-(t.lmgSeen??-9)>LMG_LINGER)dep-=dt/LMG_STOW;
+      else if(tg)dep+=dt/LMG_DEPLOY;
+      t.dep=Math.max(0,Math.min(1,dep));
+      if(t.dep>0){t.x=px0;t.y=py0;if(tg)t.ang=Math.atan2(tg.y-t.y,tg.x-t.x)}}
     const movedNow=(t.x-px0)**2+(t.y-py0)**2>0.02;
     const ord=t.state==='attack'&&t.target&&t.target.hp>0&&S.enemies.includes(t.target)&&dist(t,t.target)-(brawl?t.target.r||0:0)<=range?t.target:null; // what you told it to shoot
-    if(t.cd<=0&&!mark&&!frl&&!(kit==='lmg'&&movedNow)){let best=null,bd=range;S.enemies.forEach(e=>{if(arty&&!visible(e))return;const d=dist(e,t)-(brawl?e.r||0:0);if(d<bd){bd=d;best=e}});
+    if(t.cd<=0&&!mark&&!frl&&!(kit==='lmg'&&(movedNow||(t.dep||0)<1))){let best=null,bd=range;S.enemies.forEach(e=>{if(arty&&!visible(e))return;const d=dist(e,t)-(brawl?e.r||0:0);if(d<bd){bd=d;best=e}});
       // a Rocketeer goes for the nearest nest or Quaker in reach before anything else
       if(rock&&kit!=='flak'){let bb=null,bbd=range;S.enemies.forEach(e=>{if(!isBigTarget(e)||e.hp<=0)return;const d=dist(e,t);if(d<bbd){bbd=d;bb=e}});
         liveMegaGlass().forEach(g=>{const d=dist(g,t);if(d<range&&(!bb||!bb.megaGlass||d<bbd)){bbd=d;bb=g}}); // (a Mega Nest's rim crystals come first)
@@ -11446,9 +11465,10 @@ function update(dt){
     t.x=Math.max(10,Math.min(W-10,t.x));t.y=Math.max(10,Math.min(H-10,t.y));
     if(mech)t.moving=(t.x-px0)**2+(t.y-py0)**2>0.02; // the Mech art's legs stomp while it walks
     // Troopers and Marksmen: face where they walk unless they've just been shooting; raise the rifle to fire
-    if(t.kind==='troop'||mark||gren||rock){const mvx=t.x-px0,mvy=t.y-py0,recent=S.t-(t.shotT??-9)<1.4||S.t-(t.podShotT??-9)<1.2||t.chargeT>0||t.paintT>0||t.volley;
+    if(t.kind==='troop'||mark||gren||rock){const mvx=t.x-px0,mvy=t.y-py0,recent=S.t-(t.shotT??-9)<1.4||S.t-(t.podShotT??-9)<1.2||t.chargeT>0||t.paintT>0||t.volley||t.dep>0;
       if(!recent&&mvx*mvx+mvy*mvy>0.02)t.ang=Math.atan2(mvy,mvx);else if(!recent&&!t.dest&&t.formAng!=null)t.ang=t.formAng;
-      t.moving=mvx*mvx+mvy*mvy>0.02;const want=recent?1:RIFLE_READY;t.aimV=(t.aimV??RIFLE_READY)+(want-(t.aimV??RIFLE_READY))*Math.min(1,dt*(want>0.9?14:5))}
+      t.moving=mvx*mvx+mvy*mvy>0.02;const want=recent?1:RIFLE_READY;t.aimV=(t.aimV??RIFLE_READY)+(want-(t.aimV??RIFLE_READY))*Math.min(1,dt*(want>0.9?14:5));
+      if(kit==='lmg'){const d=t.dep||0;t.aimV=LMG_LOW+(1-LMG_LOW)*d*d*(3-2*d)}} // (Line Holders: the gun hangs low across the body until it's set up)
     S.nodes.forEach(n=>{if(!n.found&&dist(n,t)<TROOP_VISION*S.mods.visionMult*S.mods.squadRangeMult)n.found=true});
   });
 
