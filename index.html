@@ -10199,6 +10199,12 @@ function flowDir(x,y){
 function hordeBlocked(x,y){return x<4||y<4||x>W-4||y>H-4||tcost(Math.floor(x/TCELL),Math.floor(y/TCELL),false,true)===Infinity}
 // A horde enemy's turn: bite whatever it's touching, chew through a wall in its way, otherwise run
 // the flow field (or straight at something close), weaving a little, sliding along rock.
+// v4: a crowd at a wall: an enemy stopped by a wall is 'jammed' (jamT); one pressing up behind a jammed one, facing
+// into it, queues (qJamT) and walks at JAM_SLOW, and the queue passes back through the clump (in the separation pass).
+// Crowd pushes don't move a jammed enemy, and a push can't carry anyone across a wall: no more shoving the front rank over.
+const JAM_SLOW=0.2,JAM_GAP=6,JAM_HOLD=0.3;
+const jammed=e=>e.jamT>S.t-JAM_HOLD,queued=e=>jammed(e)||e.qJamT>S.t-JAM_HOLD;
+function jamSlow(e){return e.qJamT>S.t-JAM_HOLD&&!jammed(e)?JAM_SLOW:1}
 function hordeStep(e,tgt,dt){
   const B=S.base,db=dist(e,B);
   // v4 (performance): one that's been stuck against rock — not HORDE_STUCK_GAIN closer to what it's after in
@@ -10216,8 +10222,8 @@ function hordeStep(e,tgt,dt){
   const side=e._sideT>S.t?((e.seed||0)%2<1?1.3:-1.3):0;
   const wv=Math.sin(S.t*2.3+e.seed)*0.4*Math.min(1,d/200)+side,c=Math.cos(wv),s=Math.sin(wv);[ux,uy]=[ux*c-uy*s,ux*s+uy*c];
   const w=wallAt(e.x+ux*(e.r+6),e.y+uy*(e.r+6),true);
-  if(w){if(e.cd<=0){damageWall(w,e.dmg*1.5);spark(w.x,w.y,C.enemy,1);e.cd=0.8;wallTouch(w,e)}return}
-  const sp=e.speed*enemyPace(e)*dt,nx=e.x+ux*sp,ny=e.y+uy*sp;
+  if(w){e.jamT=S.t;if(e.cd<=0){damageWall(w,e.dmg*1.5);spark(w.x,w.y,C.enemy,1);e.cd=0.8;wallTouch(w,e)}return}
+  e.ang=Math.atan2(uy,ux);const sp=e.speed*enemyPace(e)*jamSlow(e)*dt,nx=e.x+ux*sp,ny=e.y+uy*sp;
   // (one already inside blocked ground — solid glass — walks out rather than freezing there)
   if(!hordeBlocked(nx,ny)||hordeBlocked(e.x,e.y)){e.x=nx;e.y=ny}else if(!hordeBlocked(nx,e.y))e.x=nx;else if(!hordeBlocked(e.x,ny))e.y=ny;
   e.ang=Math.atan2(uy,ux);
@@ -11635,19 +11641,24 @@ function update(dt){
     const dx=aim.x-e.x,dy=aim.y-e.y,L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L,look=e.r+6,perp=e.r*0.6;
     const probes=[{x:e.x+ux*look,y:e.y+uy*look},{x:e.x+ux*look-uy*perp,y:e.y+uy*look+ux*perp},{x:e.x+ux*look+uy*perp,y:e.y+uy*look-ux*perp}];
     let w=null; for(const pt of probes){w=wallAt(pt.x,pt.y,true); if(w)break}
-    if(w){if(e.kind==='fracture'){e.hp=0;return}if(e.cd<=0){damageWall(w,e.dmg*1.5);spark(w.x,w.y,C.enemy,2);e.cd=0.8;wallTouch(w,e)}return}
+    if(w){e.jamT=S.t;if(e.kind==='fracture'){e.hp=0;return}if(e.cd<=0){damageWall(w,e.dmg*1.5);spark(w.x,w.y,C.enemy,2);e.cd=0.8;wallTouch(w,e)}return}
     const factor=enemyPace(e);
-    moveToward(e,aim,e.speed*factor*(e.linkT>S.t?CHOIR_HASTE:1),dt);
+    moveToward(e,aim,e.speed*factor*(e.linkT>S.t?CHOIR_HASTE:1)*jamSlow(e),dt);
   });
   // enemy separation — crowd pressure must not shove anyone clean through a wall
   // (sort-and-sweep on x: only pairs whose x gap is under the largest possible overlap are checked)
   {const es=S.enemies.slice().sort((p,q)=>p.x-q.x);let maxR=0;for(const e of es)if(e.r>maxR)maxR=e.r;
-  for(let i=0;i<es.length;i++)for(let j=i+1;j<es.length;j++){const a=es[i],b=es[j];if(b.x-a.x>a.r+maxR)break;const d=dist(a,b),m=a.r+b.r;
-    if(d<m&&d>0.5){const an=a.kind==='nest',bn=b.kind==='nest';if(an&&bn)continue;
+  const wl=S.wallLines&&S.wallLines.length;
+  for(let i=0;i<es.length;i++)for(let j=i+1;j<es.length;j++){const a=es[i],b=es[j];if(b.x-a.x>a.r+maxR+JAM_GAP)break;const d=dist(a,b),m=a.r+b.r;
+    // the queue at a wall passes back: one facing into a queued neighbour queues too
+    if(wl&&d<m+JAM_GAP&&d>0.5){const fx=(b.x-a.x)/d,fy=(b.y-a.y)/d;
+      if(queued(a)&&Math.cos(b.ang)*-fx+Math.sin(b.ang)*-fy>0.3)b.qJamT=S.t;
+      if(queued(b)&&Math.cos(a.ang)*fx+Math.sin(a.ang)*fy>0.3)a.qJamT=S.t}
+    if(d<m&&d>0.5){const an=a.kind==='nest'||wl&&jammed(a),bn=b.kind==='nest'||wl&&jammed(b);if(an&&bn)continue;
       const p=(m-d)/2*(an||bn?2:1),dx=(b.x-a.x)/d,dy=(b.y-a.y)/d;
       const anx=an?a.x:a.x-dx*p,any=an?a.y:a.y-dy*p,bnx=bn?b.x:b.x+dx*p,bny=bn?b.y:b.y+dy*p;
-      if(!wallAt(anx,any,true)){a.x=anx;a.y=any}
-      if(!wallAt(bnx,bny,true)){b.x=bnx;b.y=bny}
+      if(!an&&!wallAt(anx,any,true)&&!(wl&&wallAt((a.x+anx)/2,(a.y+any)/2,true))){a.x=anx;a.y=any}
+      if(!bn&&!wallAt(bnx,bny,true)&&!(wl&&wallAt((b.x+bnx)/2,(b.y+bny)/2,true))){b.x=bnx;b.y=bny}
     }}}
 
   cableLenPass(allies);
