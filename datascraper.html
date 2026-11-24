@@ -1365,7 +1365,14 @@ const WALL_TYPES={
 // it's off and doesn't block at all.
 const ELEC_DMG=14, ELEC_STUN=0.7, RAZOR_DMG=10, GLASS_REGEN=3, GLASS_REGROW_T=25, SHIELD_RECHARGE=30, SHIELD_QUIET=3, SHIELD_DOWN_T=8;
 const wallType=()=>S.mods.wallType||'std';
-const wallSlatHp=t=>Math.round(WALL_SLAT_HP*WALL_TYPES[t||wallType()].hp);
+const wallSlatHp=t=>Math.round(WALL_SLAT_HP*WALL_TYPES[t||wallType()].hp*(S&&S.mods&&S.mods.wallHpMult||1));
+// v4: wall health cards (Reinforced Slats I and II): every wall, standing or new, gets tougher. WALL_HP_CARD_MAX picks of
+// them in a run, between the two
+const WALL_HP_CARD_MAX=3;
+const wallHpOpen=()=>(S.mods.wallHpN||0)<WALL_HP_CARD_MAX;
+function wallHpCard(p){const k=1+p/100;S.mods.wallHpMult=(S.mods.wallHpMult||1)*k;S.mods.wallHpN=(S.mods.wallHpN||0)+1;
+  (S.wallLines||[]).forEach(L=>L.slats.forEach(sl=>{sl.maxHp=Math.round(sl.maxHp*k);if(!sl.dead)sl.hp=Math.min(sl.maxHp,Math.round(sl.hp*k))}))}
+const wallHpLeft=()=>`(${WALL_HP_CARD_MAX-(S&&S.mods&&S.mods.wallHpN||0)} of ${WALL_HP_CARD_MAX} wall health cards left this run)`;
 function wallCostMult(){return (S.mods.podTowers?3:S.mods.wallTowers?2:1)*WALL_TYPES[wallType()].cost}
 function setWallType(id){S.mods.wallType=id;const hp=wallSlatHp(id);
   (S.wallLines||[]).forEach(L=>{L.type=id;L.slats.forEach(sl=>{const f=sl.maxHp?sl.hp/sl.maxHp:1;sl.maxHp=hp;if(!sl.dead)sl.hp=Math.max(1,hp*f);sl.downT=0})});
@@ -1790,6 +1797,7 @@ const WAVE_SPAWN_DIST=820,WAVE_BASE_N={rim:11,dense:13,core:16}; // ~1.4x, in st
 // SPL_SHARE of each band's drilling-wave enemies come as Splinters.
 const SPL_SHARDS=6, SPL_RANGE=230, SPL_VOLLEY_GAP=0.14, SPL_REGROW=1.1, SPL_SHOT_SPEED=270, SPL_SHOT_DMG=4, SPL_HP=45, SPL_SPEED=62, SPL_SHARE={rim:0.08,dense:0.15,core:0.2};
 const HORDE_STUCK_T=20, HORDE_STUCK_GAIN=60;
+const DAT_DROP_MULT=0.85; // v4: enemies drop Dat Crystal a little less often (15% fewer drops)
 const HORDE_MULT={rim:4,dense:4,core:4}, HORDE_CAP=420, HORDE_BIG_EVERY=4, HORDE_BIG_MULT=2.2, HORDE_HP=8, HORDE_SHARD_P=0.06, HORDE_DMG=1, HORDE_STOMP_DPS=14;
 // (a horde swarmer pressed up against the Rig is trampled by its legs at HORDE_STOMP_DPS — each one
 // gets a bite or two in before it's crushed, so it's the flow of them that wears the Rig down)
@@ -2091,9 +2099,11 @@ const UPGRADES={
     {id:'grenrate1',name:'Lubed Tubes I',up:1,get desc(){return `Grenadier fire rate +${upPct('grenrate1',10)}%.`},apply:()=>{S.mods.grenFireRateMult*=1+upPct('grenrate1',10)/100}},
     {id:'grensplash1',name:'Blast Power I',up:1,get desc(){return `Explosive blast radius +${upPct('grensplash1',10)}%.`},apply:()=>{S.mods.grenSplashMult*=1+upPct('grensplash1',10)/100}},
     {id:'vis1',name:"Surveyor's Eye",up:1,get desc(){return `Vision radius +${upPct('vis1',20)}% for every unit.`},apply:()=>{S.mods.visionMult*=1+upPct('vis1',20)/100}},
+    {id:'wallhp1',name:'Reinforced Slats I',up:1,get desc(){return `Every wall has +${upPct('wallhp1',15)}% health, the ones standing now too. ${wallHpLeft()}`},has:()=>!wallHpOpen(),apply:()=>{wallHpCard(upPct('wallhp1',15))}},
     {id:'drones1',name:'Spare Drones',up:1,get desc(){return `+${upN('drones1',2,1)} repair drones join the swarm.`},apply:()=>{addDrones(upN('drones1',2,1))}},
   ],
   Rare:[
+    {id:'wallhp2',name:'Reinforced Slats II',up:1,get desc(){return `Every wall has +${upPct('wallhp2',30)}% health, the ones standing now too. ${wallHpLeft()}`},has:()=>!wallHpOpen(),apply:()=>{wallHpCard(upPct('wallhp2',30))}},
     {id:'swarm2',name:'Additional Swarm',up:1,get desc(){return `A whole extra repair swarm: +${upN('swarm2',4,1)} repair drones.`},apply:()=>{addDrones(upN('swarm2',4,1))}},
     {id:'dmg2',name:'Battle Drills II',up:1,get desc(){return `Trooper damage +${upPct('dmg2',20)}%.`},apply:()=>{S.mods.troopDmgMult*=1+upPct('dmg2',20)/100}},
     {id:'grenrate2',name:'Lubed Tubes II',up:1,get desc(){return `Grenadier fire rate +${upPct('grenrate2',20)}%.`},apply:()=>{S.mods.grenFireRateMult*=1+upPct('grenrate2',20)/100}},
@@ -3874,7 +3884,7 @@ dbgBar.style.cssText='position:fixed;top:8px;left:50%;transform:translateX(-50%)
 // Elites (Lancers, Choirs, Burrowers, Quakers, bosses) aren't twinned but still get the damage and
 // health change. Applied once to each enemy as it appears (e.sw marks it; saved with the run).
 const SWT_KEY='datascraper_swarmtest', SWT_DMG=0.5, SWT_HP=0.8;
-let swarmTest=false;try{swarmTest=localStorage.getItem(SWT_KEY)==='1'}catch(e){}
+let swarmTest=true;try{swarmTest=localStorage.getItem(SWT_KEY)!=='0'}catch(e){} // v4: on by default (switched off only if you turned it off)
 const swarmMult=()=>swarmTest?2:1;
 const SWT_TWIN=new Set(['wave','roam','swarm','saboteur','brute','splinter','fracture']);
 const dbgBtnCss='padding:6px 12px;background:#2a1a12;color:#ff9a5a;border:1px solid #ff9a5a;border-radius:4px;font:12px var(--mono,monospace);cursor:pointer';
@@ -11706,7 +11716,7 @@ function update(dt){
     const brute=e.kind==='brute';
     burst(e.x,e.y,brute?'#ff2a2a':e.kind==='saboteur'?C.cable:C.enemy,brute?20:e.horde?3:5,brute?150:90,brute?0.6:undefined);
     sndAt(e.x,e.y,()=>sfx.kill());
-    if(Math.random()<(e.horde?HORDE_SHARD_P:0.35))S.shards.push({x:e.x+rnd(-8,8),y:e.y+rnd(-8,8),amt:Math.round(rnd(1,3)),rot:rnd(0,Math.PI*2)});
+    if(Math.random()<(e.horde?HORDE_SHARD_P:0.35)*DAT_DROP_MULT)S.shards.push({x:e.x+rnd(-8,8),y:e.y+rnd(-8,8),amt:Math.round(rnd(1,3)),rot:rnd(0,Math.PI*2)});
     if(brute)bruteDeaths.push({x:e.x,y:e.y,ang:e.da??e.ang,seed:e.seed??1});
     return false}return true});
   // a Brute going down tears in two along its seam and a swarm of swarmlings pours out of it, instead of just dying
@@ -11963,6 +11973,7 @@ const CARD_INFO={
   relayRadar:['relayDef','Every Relay','radar'],relayWalled:['relayDef','Every Relay','walledRelay'],relayRepair:['relayDef','Every Relay','cradle'],
   heavyArmour:['rigstab','Rig + every Stabilizer','armour'],anchorPod:['rigstab','Fired by a pod','anchor'],pointDefence:['rigstab','Rig + every Stabilizer','pd'],deflector:['rigstab','Rig + every Stabilizer','dome'],
   riftShield:['rig','Rig only','rift'],overdrive:['rig','Rig drill','overdrive'],
+  wallhp1:['walls','Every wall'],wallhp2:['walls','Every wall'],
   siegeRing:['walls','Around the Rig, each drill','siege'],wallTowers:['walls','Every wall end','towers'],podTowers:['walls','Every wall end','pods'],
   tol1:['cables','Rig + Relays'],cable1:['cables','Every unit cable','spool'],cablehp2:['cables','Every cable'],
   callDelay:['calls','Every call-down'],callRadius:['calls','Every call-down'],callCrate:['calls','Now: 2 call-downs'],callPrice:['calls','Every call-down'],
