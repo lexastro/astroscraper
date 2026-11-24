@@ -407,7 +407,22 @@ body.lowGfx #fogGrain{display:none}
 .curNote{position:fixed;z-index:30;pointer-events:none;background:rgba(11,14,18,0.9);border:1px solid var(--accent);color:var(--fg);font:600 12px var(--mono);padding:3px 8px;border-radius:3px;white-space:nowrap;transform:translate(14px,-130%);transition:opacity .25s}
 @media (max-width:720px){.banners{top:calc(env(safe-area-inset-top,0px) + 64px)}.banner{font-size:12px;padding:6px 10px}}
 /* v4: the run guide — on a player's first GUIDE_RUNS runs, a card on the left always says what to do next */
-#guide{position:absolute;left:max(16px,env(safe-area-inset-left,0px));top:calc(env(safe-area-inset-top,0px) + 150px);width:290px;max-width:calc(100vw - 32px);
+/* v4: challenges sheet (top left, under the HUD) */
+#chSheet{position:absolute;left:max(16px,env(safe-area-inset-left,0px));top:calc(env(safe-area-inset-top,0px) + 76px);width:250px;max-width:calc(100vw - 32px);z-index:14;
+  background:rgba(11,14,18,0.88);border:1px solid var(--line);border-radius:6px;font-size:12px;line-height:1.35;color:var(--fg);box-shadow:0 4px 14px rgba(0,0,0,.4)}
+#chSheet[hidden]{display:none}
+#chHead{all:unset;box-sizing:border-box;display:flex;width:100%;align-items:center;gap:7px;padding:6px 10px;cursor:pointer;font:600 10px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+#chHead:hover{color:var(--fg)} #chHead .chN{color:var(--muted);letter-spacing:.02em;text-transform:none;font-weight:400} #chHead .chChev{margin-left:auto;color:var(--muted);transition:transform .15s}
+#chSheet.shut #chHead .chChev{transform:rotate(-90deg)} #chSheet.shut #chList{display:none}
+#chList{padding:0 10px 9px;display:flex;flex-direction:column;gap:8px}
+#chList .chRow{transition:opacity .4s} #chList .chRow.gone{opacity:0}
+#chList .chT{display:flex;justify-content:space-between;gap:8px} #chList .chP{font-family:var(--mono);font-size:11px;color:var(--muted);white-space:nowrap}
+#chList .chBar{height:3px;background:var(--line);border-radius:2px;margin-top:3px;overflow:hidden} #chList .chBar i{display:block;height:100%;width:0;background:var(--accent);transition:width .25s}
+#chList .chR{color:var(--muted);font-size:11px;margin-top:3px} #chList .chR b{color:var(--ally);font-weight:600}
+#chList .chRow.done .chT span:first-child{color:var(--ally)} #chList .chRow.done .chBar i{background:var(--ally)}
+#chList .chEmpty{color:var(--muted);font-size:11px}
+@media (max-width:720px){#chSheet{width:210px;font-size:11.5px}}
+#guide{position:absolute;left:max(16px,env(safe-area-inset-left,0px));top:max(calc(env(safe-area-inset-top,0px) + 150px),var(--chB,0px));width:290px;max-width:calc(100vw - 32px);
   display:flex;flex-direction:column;gap:6px;z-index:15;font-size:12.5px;line-height:1.45;color:var(--fg);pointer-events:none}
 #guide[hidden]{display:none}
 #guide .gk{display:flex;justify-content:space-between;align-items:center;font:600 10px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--accent);padding:0 2px}
@@ -417,8 +432,8 @@ body.lowGfx #fogGrain{display:none}
 #guide .gc.leaving{animation:toastOut .18s ease forwards}
 #guide .gt b{color:var(--fg)} #guide .gs{color:var(--muted);margin-top:5px;font-size:11.5px} #guide .gs:empty{display:none}
 #guide kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--line);border-bottom-width:2px;border-radius:3px;padding:0 4px;background:var(--panel2);color:var(--fg)}
-@media (max-width:720px){#guide{top:calc(env(safe-area-inset-top,0px) + 68px);width:220px;font-size:11.5px}}
-.toasts{position:absolute;left:max(16px,env(safe-area-inset-left,0px));top:calc(env(safe-area-inset-top,0px) + 150px);
+@media (max-width:720px){#guide{top:max(calc(env(safe-area-inset-top,0px) + 68px),var(--chB,0px));width:220px;font-size:11.5px}}
+.toasts{position:absolute;left:max(16px,env(safe-area-inset-left,0px));top:max(calc(env(safe-area-inset-top,0px) + 150px),var(--chB,0px));
   display:flex;flex-direction:column;gap:8px;width:300px;max-width:calc(100vw - 32px);pointer-events:none;z-index:15}
 .toast{pointer-events:auto;display:flex;align-items:flex-start;gap:8px;background:var(--panel);border:1px solid var(--line);
   border-left:4px solid var(--fg);border-radius:6px;padding:9px 10px;box-shadow:0 2px 8px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.04);
@@ -439,7 +454,7 @@ body.lowGfx #fogGrain{display:none}
 @keyframes toastOut{to{opacity:0;transform:translateX(-14px)}}
 @media (max-width:720px),(max-height:500px){
   /* right under the (now single-row) top HUD strip, and noticeably smaller than desktop */
-  .toasts{top:calc(env(safe-area-inset-top,0px) + 68px);width:200px;gap:5px}
+  .toasts{top:max(calc(env(safe-area-inset-top,0px) + 68px),var(--chB,0px));width:200px;gap:5px}
   .toast{padding:6px 8px;gap:5px;border-left-width:3px}
   .toast .ti{font-size:11px}
   .toast .tx{font-size:10px;line-height:1.25}
@@ -564,7 +579,7 @@ body.lowGfx #fogGrain{display:none}
   .build button{min-height:0;padding:5px 10px;font-size:12px;gap:0}
   .build button .cost{display:block;font-size:10px}
   .tutPanel{top:calc(env(safe-area-inset-top,0px) + 52px);max-height:calc(100vh - 140px);overflow-y:auto}
-  .toasts{top:calc(env(safe-area-inset-top,0px) + 56px)}
+  .toasts{top:max(calc(env(safe-area-inset-top,0px) + 56px),var(--chB,0px))}
   .drillMeter{bottom:calc(68px + env(safe-area-inset-bottom,0px));padding:5px 8px 6px;width:min(420px,calc(100vw - 32px))}
   #dmHint{display:none} .dmFoot{min-height:0;margin-top:3px} .dmHead{margin-bottom:3px}
   .help.open{inset:6% 6%;max-height:88vh}
@@ -804,6 +819,7 @@ async function run(d){
 <div class="toasts" id="toasts"></div>
 <div class="curCost" id="curCost" hidden></div>
 <div id="guide" hidden><div class="gk" id="guideK"><span>Guide · next step</span><button class="gx" id="guideX">Hide guide ✕</button></div></div>
+<div id="chSheet" hidden><button id="chHead" aria-expanded="true"><span>Challenges</span><span class="chN" id="chN"></span><span class="chChev">▾</span></button><div id="chList"></div></div>
 
 <div class="bottomBar">
   <!-- Live drilling readout (speed picking itself happens in the #drillSelectOverlay popup) — sits
@@ -879,11 +895,11 @@ async function run(d){
 <div class="help" id="help" hidden>
   <button id="helpClose" aria-label="Close">×</button>
   <b>The run:</b> three stops, one map in each zone, each deeper and tougher than the last — the Rim, the Dense Field, and the Core's heart where the contract vein waits. A barrier (rift on the Rim, a crystal wall deeper in) cuts every map: drain the <b>breach vein</b> in front of it to break through, then walk the Rig off the far edge — which side that is changes from map to map, and you arrive on the opposite one. Everything you have carries on to the next stop.<br>
-<b>Healing:</b> units inside the Rig's dashed ring slowly regain health (Relays don't heal anyone). <b>Unit limits:</b> up to 5 Grenadiers, 4 Rocketeers (rockets that hit nests and Quakers 4× as hard) and 3 Mechs at once (the button shows how many you have). <b>Stock &amp; troopers:</b> nothing refills on its own any more — every fabricator, Stabilizer and Probe has a free stock, and once it's empty each use costs Dat (the price shows on the button). You have 6 Trooper slots (3 filled for free at the start — the button shows how many you have against the limit) and 8 Paladin slots (4 free to start); each new Trooper or Paladin costs Dat, and right-clicking any build button buys another charge of it, and an empty stock buys its next charge with Dat automatically. Salvage from Large nests and Hive veins can raise the limit. <b>Wrecks</b> (derelict scrapers) lie hidden on every map, some beyond the barrier — park the Rig on one for 8s (or send units to stand on it — slower) to salvage it (it draws an ambush): Dat, refilled stocks, drones, a barracks module (+1 Trooper limit) or a few free units of a kind you haven't unlocked yet (they join you, but only the Unlocks panel lets you build more). <b>Quakers</b> — big stone blocks — lumber in while you drill, keep their distance and slam the ground to jolt the drill needle and shake your Stabilizers: send units out to kill them. In the Dense Field (and the Core) waves, and the Mega Nest's attacks, bring three more: a <b>Choir</b>, a humming glass fork that hangs back and ties the Echoes round it together with red threads, so damage on one is shared by all of them until you break the fork; a <b>Fracture</b>, which glows hotter as you hurt it and bursts when it dies or reaches your line, leaving glass on the ground that slows and cuts your units; and on great waves a <b>Burrower</b>, a crack of light that runs under your walls and comes up beside a Stabilizer or the Rig to bite. It can't be hit underground, but it's rooted while it bites.<br>
+<b>Healing:</b> units inside the Rig's dashed ring slowly regain health (Relays don't heal anyone). <b>Unit limits:</b> up to 5 Grenadiers, 4 Rocketeers (rockets that hit nests and Quakers 4× as hard) and 3 Mechs at once (the button shows how many you have). <b>Stock &amp; troopers:</b> nothing refills on its own any more — every fabricator, Stabilizer and Probe has a free stock, and once it's empty each use costs Dat (the price shows on the button). You have 6 Trooper slots (3 filled for free at the start — the button shows how many you have against the limit) and 8 Paladin slots (4 free to start); each new Trooper or Paladin costs Dat, and right-clicking any build button buys another charge of it, and an empty stock buys its next charge with Dat automatically. Challenges can raise the limit. <b>Wrecks</b> (derelict scrapers) lie hidden on every map, some beyond the barrier — park the Rig on one for 8s (or send units to stand on it — slower) to salvage it (it draws an ambush): Dat, refilled stocks or drones. <b>Challenges</b> (top left, click to fold) are side goals for each stop, like salvaging wrecks, destroying nests or tapping a seam: each pays free call-downs or troops. <b>Quakers</b> — big stone blocks — lumber in while you drill, keep their distance and slam the ground to jolt the drill needle and shake your Stabilizers: send units out to kill them. In the Dense Field (and the Core) waves, and the Mega Nest's attacks, bring three more: a <b>Choir</b>, a humming glass fork that hangs back and ties the Echoes round it together with red threads, so damage on one is shared by all of them until you break the fork; a <b>Fracture</b>, which glows hotter as you hurt it and bursts when it dies or reaches your line, leaving glass on the ground that slows and cuts your units; and on great waves a <b>Burrower</b>, a crack of light that runs under your walls and comes up beside a Stabilizer or the Rig to bite. It can't be hit underground, but it's rooted while it bites.<br>
 <b>Goal:</b> the ground is cracked all over: <b>follow the pulses of energy</b> running through the cracks back to their source to find a vein, then park the Rig on its glowing centre and press <kbd>F</kbd> to lock on. Veins <b>emerge, ripen</b> a tier at a time, then go unstable and <b>collapse</b> — and new ones emerge elsewhere. Glowing <b>stray pockets</b> give a bearing toward the nearest vein when a unit reaches one; two bearings from different angles triangulate it. Locking on starts the <b>strike</b> at once: press <kbd>F</kbd> again to stop the needle on a good band of the strip (the thin sliver is a tier above the vein; red ruptures it) — the meter zooms in on where you hit and the drill starts; the first wave arrives about 20s later. While it drills, the needle drifts; Stabilizers hold it steady, and the tier you're paid is where it spends most of its time. If it drifts into the red, the vein ruptures and damages the Rig. Drain veins for rewards — after 3, the contract vein stirs: it gives off no pulses, so triangulate it with bearings from stray pockets, then drain it to win. In the heart of the Core the contract vein is guarded by <b>the Shieldbearer</b>: its slab shields stop direct fire from in front (lobbed rounds, rockets and call-downs come over the top), it opens them to breathe magma, and its chest is bare while it does. Flank it, crack the shields off, and bring it down before you can drill the contract.<br>
   <b>Controls:</b> drag to select · right-click to move/attack · right-click a friendly unit or building with combat units selected to <b>guard</b> it (escort it, fight off anything that comes near, then fall back) · <kbd>Ctrl</kbd>+<kbd>A</kbd> select all your units · <kbd>Z</kbd> select the Rig · <kbd>B</kbd> build menu · <kbd>U</kbd> units menu · <kbd>C</kbd> call-downs · <kbd>F</kbd> lock on to a vein / strike · <kbd>H</kbd> jump the camera to the Rig · <kbd>WASD</kbd> or middle-drag to pan, scroll to zoom<br>
   <b>Touch:</b> tap to select · three-finger tap to deselect · tap empty ground/an enemy/a wall to move/attack/man it · drag to pan · pinch to zoom · double-tap a unit to select all of its kind · hold still then drag: box-select (nothing selected) or lay out a formation (units selected) · hold on a friendly unit or building with units selected to guard it · hold a build button to buy another charge · the round buttons by the minimap: ⏸ tactical pause, ⌂ back to the Rig, ✕ cancel what you're placing, and your control groups (save one with ⧉ while units are selected)<br>
-  <b>Fabricators:</b> Turrets and Relays hold a free stock; once it's empty each use costs Dat (shown on the button). Unit buttons (Trooper, Paladin, Grenadier, Rocketeer, Mech) show how many you can field against how many you have, and the price of the next one — just click to deploy. <kbd>T</kbd> launch a turret · <kbd>Ctrl</kbd>+<kbd>1</kbd>–<kbd>9</kbd> save the selected units as a control group, <kbd>1</kbd>–<kbd>9</kbd> select it (twice to look at it) · <kbd>R</kbd> launch a relay · <kbd>G</kbd> power up a derelict rig ·  <b>Nests</b>: every enemy patrol comes from one, and the nests near a vein send its drilling waves — destroy them (they fight back) for <b>Dat Crystal</b>. <b>Hive veins</b> glow crimson through the fog: veins ringed by brood mounds that pour out their waves — break the mounds, then drain the vein for Blooded-grade rewards and salvage. When the contract vein stirs, great mounds rise around it too. <b>Dat Crystal</b>: drive the Rig or a unit over the Dat a nest drops (or an enemy's shard) to scoop it up — your <b>repair drones</b> fly out on their own and spend it patching up Stabilizers, turrets, relays and the Rig · <kbd>E</kbd> fire a Stabilizer from the Rig (3 free, then Dat each; aim at a vein's drifting hotspot and lead it — a hit pins it, buys the vein 15s before it collapses, widens the strike bands and steadies the needle; with all 3 pinned, drag the weight on the steering pad to push the needle — the wider their triangle, the further it goes, but the one you lean on draws the enemy) — turrets and relays land anywhere inside the Rig's ring (or a relay's)<br>
+  <b>Fabricators:</b> Turrets and Relays hold a free stock; once it's empty each use costs Dat (shown on the button). Unit buttons (Trooper, Paladin, Grenadier, Rocketeer, Mech) show how many you can field against how many you have, and the price of the next one — just click to deploy. <kbd>T</kbd> launch a turret · <kbd>Ctrl</kbd>+<kbd>1</kbd>–<kbd>9</kbd> save the selected units as a control group, <kbd>1</kbd>–<kbd>9</kbd> select it (twice to look at it) · <kbd>R</kbd> launch a relay · <kbd>G</kbd> power up a derelict rig ·  <b>Nests</b>: every enemy patrol comes from one, and the nests near a vein send its drilling waves — destroy them (they fight back) for <b>Dat Crystal</b>. <b>Hive veins</b> glow crimson through the fog: veins ringed by brood mounds that pour out their waves — break the mounds, then drain the vein for Blooded-grade rewards. When the contract vein stirs, great mounds rise around it too. <b>Dat Crystal</b>: drive the Rig or a unit over the Dat a nest drops (or an enemy's shard) to scoop it up — your <b>repair drones</b> fly out on their own and spend it patching up Stabilizers, turrets, relays and the Rig · <kbd>E</kbd> fire a Stabilizer from the Rig (3 free, then Dat each; aim at a vein's drifting hotspot and lead it — a hit pins it, buys the vein 15s before it collapses, widens the strike bands and steadies the needle; with all 3 pinned, drag the weight on the steering pad to push the needle — the wider their triangle, the further it goes, but the one you lean on draws the enemy) — turrets and relays land anywhere inside the Rig's ring (or a relay's)<br>
   <b>Tether:</b> wireless works freely on the Rim; past it, units need a live cable back to the Rig or a Relay, or they go dark — chain Relays to push your reach further out. A dark unit still takes orders, but its Sanity drains; reconnect in time to recover it, or it defects into a hostile Corrupted enemy<br>
   <kbd>G</kbd> recon probe: click a direction and it flies straight out on its fiber line, lifting the fog along a narrow strip for 20s and permanently finding veins it passes (3 charges, one back every 20s) · <kbd>V</kbd> follow Rig (escorts it as it moves, until given another order) · right-drag with units selected: line them up along the drag, facing square to it (drag longer to spread them wider) · <kbd>Q</kbd> wall: click and drag to lay a line of wall, or click the end of a wall or a Turret and click again where it should run to (right-click cancels) · right-click a wall with units selected to man it (one rank behind it, as many as fit; they take 25% less damage and ranged units shoot 15% further) · <kbd>Space</kbd> tactical pause: the action stops but you can still give orders, place walls and call in builds (they go ahead when you resume) · <kbd>X</kbd> hold position (held units side by side fire up to 30% faster) · <kbd>Esc</kbd> cancel, or pause the whole game if nothing's open · <kbd>`</kbd> reveal map (debug)
 </div>
@@ -1112,7 +1128,7 @@ function pickStopDirs(){
 }
 let RUN=null, STOP_BAND=null, STOP_SPLIT=false;
 // v4: run stats for the end screen — kept on RUN (so they ride through stops and saves), only on a real run
-function stat(k,n){if(!RUN||tutorialMap)return;const st=RUN.stats||(RUN.stats={});st[k]=(st[k]||0)+(n===undefined?1:n)}
+function stat(k,n){if(!RUN||tutorialMap)return;const st=RUN.stats||(RUN.stats={});st[k]=(st[k]||0)+(n===undefined?1:n);chEv(k,n===undefined?1:n)}
 // v4: the split stop. Its entry side (up to SPLIT_A of the way along, in the stop's own frame) is Rim
 // ground; the rest, with the crystal wall and the way out, is the Dense Field. Its map is sized between
 // the two, and its Rim veins can ripen as far as Epic.
@@ -1409,11 +1425,11 @@ const FABS={
 const FAB_FLIGHT_SPEED=380;
 // v4: fabricator, Stabilizer and Probe stocks no longer refill over time. While a stock lasts each
 // use is free; once it's empty, every use costs Dat (FAB_DAT / STAB_DAT / PROBE_DAT). Nests and
-// salvage can still put free charges back.
+// Medium and Large nests still put free charges back.
 // v4: build and unit prices doubled
 const FAB_DAT={turret:60,podturret:150,relay:24,grenadier:60,artillery:90,mech:120,rocket:90,brawler:30,marksman:70}, STAB_DAT=24, PROBE_DAT=8;
 // Troopers aren't stocked: you can field up to S.squadCap of them at once (SQUAD_CAP_START, raised by
-// salvage and a reward card up to SQUAD_CAP_MAX), each new one costing SQUAD_DAT.
+// Challenges and a reward card up to SQUAD_CAP_MAX), each new one costing SQUAD_DAT.
 const SQUAD_CAP_START=12, SQUAD_CAP_MAX=36, BARRACKS_SLOTS=3, SQUAD_START_N=6, SQUAD_DAT=40;
 // v4: Paladins work the same way: up to BRAWL_CAP at once, BRAWL_START_N of them free at the start, each new one BRAWL_DAT
 const BRAWL_CAP=16, BRAWL_START_N=8, BRAWL_DAT=30;
@@ -1852,7 +1868,7 @@ const VEIN_SAME_BAND_GAP=1500*MS, VEIN_GAP=900*MS, VEIN_X_MARGIN=ZONE_R+250;
 // the fog from anywhere, never ripen or collapse (they sit at their peak until drained), and are
 // ringed by HIVE_MOUNDS brood mounds (nests of their own) that send out its patrols and its drilling
 // waves; a destroyed mound regrows if left out of sight for MOUND_REGROW_T. Their meter has a Hive
-// band above Legendary, and draining one pays Hive-tier rewards plus salvage. The contract vein is
+// band above Legendary, and draining one pays Hive-tier rewards. The contract vein is
 // the Ultra Mega nest: when it stirs, CONTRACT_MOUNDS great mounds rise around it.
 const HIVE_COL='#e0284a', HIVE_BANDS=['dense','core'], HIVE_RICHNESS={dense:60,core:90}, HIVE_BASE_CLEAR=1400;
 const HIVE_PULSE_REACH=1400, HIVE_MOUNDS=4, CONTRACT_MOUNDS=6, MOUND_R=[600,880], MOUND_REGROW_T=150;
@@ -3533,7 +3549,7 @@ function buildStop(carry){
     if(!tutorial&&!tutorialMap){meta.guideRuns=(meta.guideRuns|0)+1;saveMeta()} // (the run guide shows on the first GUIDE_RUNS)
     if(!meta.howtoSeen&&!tutorial&&!tutorialMap)setTimeout(()=>{if(RUN&&S&&!S.over&&!howtoOpen())openHowTo('first')},700)} // a player's first run opens How to play
   saveRun(carry);grantStopBonus();
-  if(curNode()&&curNode().type==='hive')setTimeout(()=>msg('A Hive stop: two Hive veins here instead of one. Break their brood mounds and drain them for Blooded cards and salvage.'),120);
+  if(curNode()&&curNode().type==='hive')setTimeout(()=>msg('A Hive stop: two Hive veins here instead of one. Break their brood mounds and drain them for Blooded cards.'),120);
   const st=stopInfo();
   if(RUN.stop===0&&pressureNote())setTimeout(()=>msg(pressureNote().trim()),50);
   msg(megaStop()?`Stop ${RUN.stop+1} of ${RUN_STOPS.length} — the Mega Nest. No veins here and no wall: just the hive, a mountain of it in the middle of the map, with nests dug into its slopes. Destroy every nest on it to crack it open, then bring the Mega Nest down. When it falls the way ${EDGE_WORD[EXIT_DIR]} is open.`:st.final?`Stop ${RUN.stop+1} of ${RUN_STOPS.length} — the heart of the Core. The contract vein is here and already stirring: take bearings from stray energy to triangulate it, then drain it.`:
@@ -3553,8 +3569,8 @@ const SECTOR_GROUND={
   glass:{name:'Glass-choked',good:false,desc:'Much more crystal glass to wind your way through.',tip:'Routes are long and twisting, and some nests sit close to the veins.'}};
 const SECTOR_TYPE={
   drill:{name:'Drill stop',col:'#d7dde5',desc:'Find the breach vein by the wall and drain it to break through. Drain other veins on the way for cards.'},
-  hive:{name:'Hive stop',col:HIVE_COL,desc:'Two Hive veins here instead of one, each ringed by brood mounds. Break the mounds and drain the veins for Blooded cards and salvage.'},
-  nest:{name:'Mega Nest',col:'#ff6fd8',desc:'A smaller map given over to one fight: a Mega Nest the size of a mountain in the middle of it, with nests dug into its slopes. No veins and no wall. Destroy every nest on it to crack it open, then bring it down for Blooded cards and salvage. Its fall opens the way on.'},
+  hive:{name:'Hive stop',col:HIVE_COL,desc:'Two Hive veins here instead of one, each ringed by brood mounds. Break the mounds and drain the veins for Blooded cards.'},
+  nest:{name:'Mega Nest',col:'#ff6fd8',desc:'A smaller map given over to one fight: a Mega Nest the size of a mountain in the middle of it, with nests dug into its slopes. No veins and no wall. Destroy every nest on it to crack it open, then bring it down for Blooded cards. Its fall opens the way on.'},
   contract:{name:'The contract',col:'#f2b63c',desc:'The heart of the Core. The contract vein waits here, with its guardian.'}};
 const SECTOR_CALLS=['orbital','stasis','emp','droppod','bulwark','carpet','minefield','overclock','gravity','decoy'];
 const SECTOR_BAND={rim:{name:'Rim',col:'#5ec8ff'},split:{name:'Rim / Dense edge',col:'#8fa8ff'},dense:{name:'Dense Field',col:'#b48bff'},core:{name:'Core',col:'#ff5c4d'}};
@@ -3661,7 +3677,7 @@ function sectorTravel(i){RUN.path[secCol]=i;document.getElementById('sectorOverl
 // veins and no wall, and a Mega Nest the size of a mountain in the middle of it (a nest of its own,
 // kind 'nest', size 'mega', standing on solid rock). MEGA_SLOTS regular nests are dug into its
 // slopes; it can't be hurt while any of them stands, and while it lives it grows a new one into an
-// empty slot out of sight every MEGA_REGROW_T. Bringing it down pays Blooded cards and salvage, and
+// empty slot out of sight every MEGA_REGROW_T. Bringing it down pays Blooded cards, and
 // opens the way on (S.megaDone): walk the Rig off the far edge, as after a breach.
 // it attacks in waves: an ASSAULT (MEGA_ASSAULT_T) of eruptions every MEGA_ASSAULT_GAP, each a pack out of the pit at
 // your nearest unit (bigger as its nests fall), then a LULL of MEGA_LULL_T with none (and its own patrols held back,
@@ -5990,7 +6006,7 @@ function updateNests(dt){
     const N=NEST[n.size];
     if(n.mega&&megaShelled()&&n.hp<n.lastHp){n.hp=n.lastHp;shellPing(n)} // (damage that went round damageEnemy)
     if(!n.seen&&visible(n)&&n.hiveVein){n.seen=true}
-    if(!n.seen&&visible(n)){n.seen=true;msg(`${N.name} spotted — its patrols roam this area. Destroy it for Dat${n.size==='small'?'':n.size==='medium'?' and fabricator charges':', fabricator charges and salvage'}.`)}
+    if(!n.seen&&visible(n)){n.seen=true;msg(`${N.name} spotted — its patrols roam this area. Destroy it for Dat${n.size==='small'?'':' and fabricator charges'}.`)}
     // struck: rally defenders (on a cooldown, and not past a ceiling on its living brood)
     if(n.hp<n.lastHp){n.hitT=S.t;
       if(n.defendCd<=0&&nestBrood(n)<(nestScaled(n,N.brood)+nestScaled(n,N.defend)*2)*swarmMult()){
@@ -6024,8 +6040,8 @@ function updateNests(dt){
   if(S.nestSproutT<=0){S.nestSproutT=NEST_SPROUT_T*rnd(0.8,1.2);
     if(liveNests().length<NEST_CAP){const r=rand();placeNest('small',STOP_SPLIT?(r<0.5?'rim':'dense'):STOP_BAND||(r<0.4?'rim':r<0.75?'dense':'core'),true)}}
 }
-// A destroyed nest drops a Dat deposit to collect; Medium ones also kick a charge back into every
-// fabricator, Large ones give up salvage too (free units of a locked kind, or spare drones).
+// A destroyed nest drops a Dat deposit to collect; Medium and Large ones also kick a charge back into
+// every fabricator. (v4: free units and call-downs come from Challenges now, not nests.)
 function nestDestroyed(n){if(n.megaGlass){megaGlassShattered(n);return}stat('nests');if(n.mega)megaDied(n);
   const N=NEST[n.size], amt=Math.round(N.dat*(n.band==='core'?2:n.band==='dense'?1.5:1));
   S.nodes.push({x:n.x,y:n.y,amt,max:amt,found:true});
@@ -6035,20 +6051,9 @@ function nestDestroyed(n){if(n.megaGlass){megaGlassShattered(n);return}stat('nes
     Object.keys(FABS).forEach(k=>{const st=S.fab[k];if(st.n<FABS[k].charges){st.n++;if(st.n>=FABS[k].charges)st.rt=0}});
     extra=' +1 fabricator charge.';
   }
-  if(n.size==='large'||n.mega)extra+=salvageFab();
-  if(n.size!=='small')extra+=` Free ${giftCall(1)}.`;
+  if(n.size!=='small'&&!n.mega)chEv('bignest');
   banner(`${N.name} destroyed — collect its Dat.${extra}`,'success');
   updateBuildBar();
-}
-// Salvage: a few free units of a kind you haven't unlocked yet (one Mech, two of anything else),
-// or 2 drones if you own them all. It never unlocks buying more: only the Unlocks panel does that,
-// so a locked unit's button stays hidden however you came by the ones you have.
-function salvageFab(){
-  if(S.squadCap<SQUAD_CAP_MAX&&Math.random()<0.5){const n=raiseSquadCap(BARRACKS_SLOTS);return ` Salvaged a barracks module \u2014 ${n} Troopers join you and you can field ${S.squadCap} now!`}
-  const locked=Object.keys(FABS).filter(k=>FABS[k].kind==='unit'&&!fabUnlocked(k)&&!FABS[k].disabled);
-  if(locked.length){const k=locked[Math.floor(Math.random()*locked.length)],n=k==='mech'?1:2;spawnFreeTroops(n,k);updateBuildBar();
-    return ` Salvaged ${n===1?'a':n} ${FABS[k].name}${n===1?'':'s'} from the wreck \u2014 they join you (unlock them to build more)!`}
-  addDrones(2);return ' Salvaged 2 repair drones.';
 }
 // Brood mounds ring a hive vein; each slot remembers its spot so a lost mound can regrow there.
 function raiseMounds(v,count,size,R){
@@ -6066,7 +6071,7 @@ function updateMounds(dt){
   S.veins.forEach(v=>{
     if(!v.moundSlots||!veinAlive(v))return;
     if(v.hive&&!v.hiveIntro&&visible(v)){v.hiveIntro=true;
-      msg('A Hive vein: a crimson vein ringed by brood mounds. Its waves pour out of every mound still standing — break them first. Drain it for Hive-tier rewards and salvage.')}
+      msg('A Hive vein: a crimson vein ringed by brood mounds. Its waves pour out of every mound still standing — break them first. Drain it for Blooded rewards.')}
     v.moundSlots.forEach(sl=>{
       if(sl.nest&&sl.nest.hp>0&&S.enemies.includes(sl.nest)){sl.regrowT=MOUND_REGROW_T;return}
       if(visible(sl))return; // nothing regrows while you're watching
@@ -6185,7 +6190,8 @@ function drawMotes(x0,y0,x1,y1){
 // radius on your map for good.
 const WRECK_UNIT_RATE=0.6, WRECK_T=8, WRECK_R=44, WRECK_REACH=80, WRECK_N={rim:2,dense:2,core:2}, WRECK_STOP_N=4, WRECK_AMBUSH={rim:3,dense:5,core:8}, WRECK_AMBUSH_D=480;
 const WRECK_DAT={rim:45,dense:75,core:120};
-const WRECK_LOOT={rim:{dat:0.25,refill:0.2,drones:0.1,squad:0.2,fab:0.1,call:0.15},dense:{dat:0.15,refill:0.2,drones:0.1,squad:0.2,fab:0.15,call:0.2},core:{dat:0.1,refill:0.15,drones:0.1,squad:0.2,fab:0.2,call:0.25}};
+// (v4: no more call-downs, barracks or free units in wrecks: Challenges hand those out)
+const WRECK_LOOT={rim:{dat:0.45,refill:0.35,drones:0.2},dense:{dat:0.4,refill:0.35,drones:0.25},core:{dat:0.4,refill:0.35,drones:0.25}};
 const BEACON_T=3, BEACON_REACH=60, BEACON_R=1500, BEACON_N={rim:0,dense:0,core:0}; // v4: wrecks only for now
 const POI_GAP=700*MS;
 // a spot in the band the Rig can actually walk to, clear of the landing, vein sites, nests and
@@ -6214,7 +6220,7 @@ function placePOIs(){
 }
 function rollWreckLoot(band){
   const L=WRECK_LOOT[band];let r=Math.random();
-  for(const k of ['dat','refill','drones','squad','fab','call']){if(r<L[k])return k;r-=L[k]}
+  for(const k of ['dat','refill','drones']){if(r<L[k])return k;r-=L[k]}
   return 'dat';
 }
 function salvageWreck(w){
@@ -6223,12 +6229,9 @@ function salvageWreck(w){
   if(kind==='dat'){const a=WRECK_DAT[w.band];S.dat+=a;floatText(w.x,w.y-20,'+'+a+' Dat',C.dat);text=`a Dat Crystal cache (+${a})`}
   else if(kind==='refill'){Object.keys(FABS).forEach(k=>{S.fab[k].n=FABS[k].charges;S.fab[k].rt=0});S.stabCharges=STAB_CHARGES;text='spare parts: every fabricator is refilled'}
   else if(kind==='drones'){addDrones(2);text='2 intact repair drones'}
-  else if(kind==='call'){text='a call-down cache';if(!S.rewardChoice)setTimeout(()=>{if(S&&!S.rewardChoice&&!S.over)showCallChoice()},600);else text=`a call-down beacon: a free ${giftCall(1)}`}
-  else if(kind==='squad'&&S.squadCap<SQUAD_CAP_MAX){const n=raiseSquadCap(BARRACKS_SLOTS);text=`a barracks module — ${n} Troopers join you and you can field ${S.squadCap} now`}
-  else if(kind==='squad'){const a=WRECK_DAT[w.band];S.dat+=a;floatText(w.x,w.y-20,'+'+a+' Dat',C.dat);text=`a Dat Crystal cache (+${a})`}
-  else text=salvageFab().trim().replace(/^Salvaged /,'').replace(/[!.]$/,'');
+  else{const a=WRECK_DAT[w.band];S.dat+=a;floatText(w.x,w.y-20,'+'+a+' Dat',C.dat);text=`a Dat Crystal cache (+${a})`}
   burst(w.x,w.y,C.accent,24,150,0.7);sfx.veinDone();updateBuildBar();
-  banner(`Wreck salvaged — ${text}.`,'success');
+  banner(`Wreck salvaged — ${text}.`,'success');chEv('wreck');
 }
 function updatePOIs(dt){
   if(!S.wrecks)return;
@@ -8607,16 +8610,16 @@ function callLoadout(){const L=[];(meta.callLoadout||[]).forEach(id=>{if(callOwn
 function runCallStart(){return (RUN&&RUN.loadout)||callLoadout()}
 Object.keys(CALLDOWNS).forEach(id=>{CALLDOWNS[id].unlocked=()=>runCallStart().includes(id)||!!(S.callUnlock&&S.callUnlock[id])});
 function unlockCall(id,n){S.callUnlock[id]=true;grantCall(id,n??CALL_CARD_N)}
-// a wreck's call-down cache: pick one of three call-downs (unlocking it, or more charges of one you have)
-function showCallChoice(){const ids=shuffled(Object.keys(CALLDOWNS)).slice(0,3);
+// a call-down cache (a Challenge reward): pick one of three call-downs (unlocking it, or more charges of one you have)
+function showCallChoice(title){const ids=shuffled(Object.keys(CALLDOWNS)).slice(0,3);
   const cards=ids.map(id=>{const K=CALLDOWNS[id],have=K.unlocked();return {kind:'upgrade',tier:'Call-down',name:K.name,desc:`${K.desc}<span class="rcSwap">${have?`+${CALL_CARD_N+1} free charges`:`Unlocks it for the run, with ${CALL_CARD_N} free charges`}</span>`,apply:()=>{if(have)grantCall(id,CALL_CARD_N+1);else unlockCall(id)}}});
   S.rewardChoice={tier:'Call-down',cards,band:null,calls:true};
-  document.getElementById('rewardTitle')._tc='Wreck salvaged — choose a call-down';
+  document.getElementById('rewardTitle')._tc=title||'Choose a call-down';
   const host=document.getElementById('rewardCards');host.innerHTML='';
   cards.forEach((c,i)=>{const btn=document.createElement('button');btn.className='rewardCard';btn.style.setProperty('--tc',C.accent);
     buildCardFace(btn,{name:`${CALLDOWNS[ids[i]].icon} ${c.name}`,desc:c.desc,tier:'Call-down'},{cat:'calls',applies:'Charges to call in'});btn.onclick=()=>pickReward(i);host.appendChild(btn)});
   document.getElementById('rerollBtn')._hd=true;document.getElementById('rewardOverlay')._hd=false;armReward();sfx.veinDone()}
-// gifts: a free charge of a random call-down you have (nests, big veins and some cards hand these out)
+// gifts: a free charge of a random call-down you have (Challenges and some cards hand these out)
 function giftCall(n,why){const ids=Object.keys(CALLDOWNS).filter(id=>CALLDOWNS[id].unlocked()),got={};for(let i=0;i<(n||1);i++){const id=ids[Math.floor(Math.random()*ids.length)];grantCall(id,1);got[id]=(got[id]||0)+1}
   return Object.keys(got).map(id=>`${got[id]>1?got[id]+'× ':''}${CALLDOWNS[id].name}`).join(' and ')}
 let probeMode=false;
@@ -11237,7 +11240,7 @@ function update(dt){
       const datEarned=Math.round((v.reward.dat||0)*tierMult);
       const livingEarned=Math.round((v.reward.living||0)*tierMult*S.mods.livingMult);
       S.dat+=datEarned; S.living+=livingEarned; S.condensed+=condensedEarned;
-      stat('veins');stat('dat',datEarned);if(RUN&&!tutorialMap&&tierRank(tier)>tierRank(RUN.stats.best||'Common'))RUN.stats.best=tier;
+      stat('veins');stat('dat',datEarned);chEv('drain',1,tier);if(RUN&&!tutorialMap&&tierRank(tier)>tierRank(RUN.stats.best||'Common'))RUN.stats.best=tier;
       burst(v.x,v.y,TIER_COLOR[tier],24,140,0.7);
       if(datEarned){burst(v.x,v.y,C.dat,30,190,0.9);floatText(v.x,v.y-16,'+'+datEarned+' Dat',C.dat);sndAt(v.x,v.y,()=>sfx.gather())}
       if(livingEarned)floatText(v.x,v.y-34,'+'+livingEarned+' Living',C.living);
@@ -11253,7 +11256,7 @@ function update(dt){
           {const cv=S.veins.find(x=>x.contract);if(cv)raiseMounds(cv,CONTRACT_MOUNDS,'great')}
           tail=' The contract vein has stirred deep in the zone — it gives off no pulses, so take bearings from stray energy pockets to triangulate it.';
         }
-        if(v.hive)tail=` The hive is broken.${salvageFab()}`+tail;
+        if(v.hive)tail=' The hive is broken.'+tail;
         msg(`${v.hive?'Hive vein':'Vein'} drained at ${tierName(tier)} grade — +${datEarned} Dat Crystal and +${condensedEarned} Condensed Crystal.${tail}`);
         if(S.bonusPick){S.bonusPick=false;v.bonus=(v.bonus||0)+1;msg('The supply cache adds an extra card.')}
         shakeScreen(4,0.3);S.rewardQueue=[];for(let i=0;i<(v.bonus||0);i++)S.rewardQueue.push({tier:rewardTierFor(tier,v.band),band:v.band});showRewardChoice(rewardTierFor(tier,v.band),v.band);
@@ -12170,7 +12173,6 @@ function armReward(){const h=document.getElementById('rewardCards');h.classList.
   clearTimeout(rewardArmT);rewardArmT=setTimeout(()=>h.classList.remove('arming'),REWARD_ARM_MS)}
 function showRewardChoice(tier,band,reroll){
   const cards=rollRewardCards(tier,band);
-  {const n=tier==='Epic'?1:tier==='Legendary'||tier==='Hive'?2:0;if(n)msg(`The ${tierName(tier)} vein also paid out ${giftCall(n)} — free call-downs.`)}
   S.rewardChoice={tier,cards,band};
   document.getElementById('rewardTitle')._tc=`Choose a Reward — ${tierName(tier)} Grade`;
   const host=document.getElementById('rewardCards');
@@ -13625,6 +13627,87 @@ function guideStep(){const B=S.base,v=S.activeVein;
   return [`Walk the Rig onto ${nm}: select it (<kbd>Z</kbd>) and right-click its mining point.`,
     f!==S.breachVein&&S.breachVein&&veinAlive(S.breachVein)?'Draining the breach vein by the barrier opens the way to the next stop.':''];
 }
+// ---------- v4: Challenges ----------
+// Each stop rolls side challenges, CH_SHOWN at a time and CH_PER_STOP in all (a finished one stays up a few
+// seconds ticked off, then makes room for a fresh one until the stop's run out). They're where free call-downs and extra troops come from
+// now: nests, wrecks, veins and the hives no longer hand those out. Each shows its reward up front; val
+// 2 (the harder ones) pays the bigger rewards. Shown in a collapsible sheet at the top left.
+const CH_SHOWN=3, CH_PER_STOP=5, CH_DONE_SHOW=3.5;
+const chVeins=()=>!megaStop()&&S.veins.some(v=>!v.done&&!v.contract);
+const chWrecksLeft=()=>(S.wrecks||[]).filter(w=>!w.done).length;
+const chBigNests=()=>liveNests().filter(x=>x.size!=='small'&&!x.mega&&!x.megaGlass).length;
+const chGradeTier=()=>STOP_BAND==='rim'&&!STOP_SPLIT?'Rare':'Epic';
+const CH_TYPES={
+  wrecks: {w:3,ev:'wreck',ns:[2,3],ok:n=>chWrecksLeft()>=n,text:n=>`Salvage ${n} wrecks`,val:n=>n>=3?2:1},
+  nests:  {w:3,ev:'nests',ns:[3,5],ok:()=>true,text:n=>`Destroy ${n} nests`,val:n=>n>=5?2:1},
+  bignest:{w:2,ev:'bignest',ns:[1],ok:()=>chBigNests()>=1,text:()=>'Destroy a Medium or Large nest',val:()=>2},
+  veins:  {w:2,ev:'veins',ns:[2],ok:chVeins,text:n=>`Drain ${n} veins`,val:()=>1},
+  grade:  {w:2,ev:'drain',ns:[1],ok:chVeins,text:()=>`Drain a vein at ${tierName(chGradeTier())} grade or better`,val:()=>2},
+  seam:   {w:2,ev:'seams',ns:[1],ok:chVeins,text:()=>'Tap a seam while drilling',val:()=>2},
+  over:   {w:2,ev:'overdrills',ns:[1],ok:chVeins,text:()=>'Hold an overdrill',val:()=>2},
+  kills:  {w:2,ev:'kills',ns:[50,100],ok:()=>true,text:n=>`Kill ${n} enemies`,val:n=>n>=100?2:1}};
+const unitPl=k=>{const nm=FABS[k].name;return nm==='Marksman'?'Marksmen':nm+'s'};
+const chLocked=()=>Object.keys(FABS).filter(k=>FABS[k].kind==='unit'&&!fabUnlocked(k)&&!FABS[k].disabled);
+const chHasCalls=()=>Object.keys(CALLDOWNS).some(id=>CALLDOWNS[id].unlocked());
+// rewards: label for the sheet, ok (still worth giving), give → what the banner says you got
+const CH_REWARDS={
+  calls:   {label:r=>`${r.n} call-down charges`,ok:chHasCalls,give:r=>`${giftCall(r.n)} (free call-downs)`},
+  cache:   {label:()=>'Call-down cache: pick one of three',ok:()=>true,
+            give:r=>{if(S.rewardChoice||S.over)return `${giftCall(3)} (free call-downs)`;setTimeout(()=>{if(S&&!S.rewardChoice&&!S.over)showCallChoice('Challenge done — choose a call-down')},500);return 'a call-down cache'}},
+  troops:  {label:r=>`${r.n} free Troopers`,ok:()=>true,give:r=>{spawnFreeTroops(r.n,'troop');return `${r.n} Troopers join you`}},
+  drones:  {label:r=>`${r.n} repair drones`,ok:()=>true,give:r=>{addDrones(r.n);return `${r.n} repair drones join the swarm`}},
+  barracks:{label:()=>`Barracks module: +${BARRACKS_SLOTS} Trooper limit`,ok:()=>S.squadCap<SQUAD_CAP_MAX,
+            give:()=>{const n=raiseSquadCap(BARRACKS_SLOTS);return `a barracks module — ${n} Troopers join you and you can field ${S.squadCap} now`}},
+  unitcap: {label:r=>`${UNIT_BARRACKS[r.u].name}: +${UNIT_BARRACKS[r.u].n} ${FABS[r.u].name} limit`,ok:r=>fabUnlocked(r.u)&&unitLimit(r.u)<UNIT_BARRACKS[r.u].max,
+            give:r=>{const n=raiseUnitCap(r.u,UNIT_BARRACKS[r.u].n);return `${UNIT_BARRACKS[r.u].name} — ${n} ${n===1?FABS[r.u].name:unitPl(r.u)} join you and you can field ${unitLimit(r.u)} now`}},
+  recruit: {label:r=>`${r.n} ${r.n===1?FABS[r.u].name:unitPl(r.u)} (not unlocked yet)`,ok:r=>!fabUnlocked(r.u),
+            give:r=>{spawnFreeTroops(r.n,r.u);updateBuildBar();return `${r.n===1?'a':r.n} ${r.n===1?FABS[r.u].name:unitPl(r.u)} join${r.n===1?'s':''} you (unlock them to build more)`}}};
+function chRollReward(val){const opts=[];const add=(w,r)=>{if(CH_REWARDS[r.k].ok(r))opts.push([w,r])};
+  if(val<2){add(3,{k:'calls',n:2});add(2,{k:'troops',n:3});add(1,{k:'drones',n:2})}
+  else{add(2,{k:'calls',n:3});add(1,{k:'cache'});add(2,{k:'barracks'});
+    Object.keys(UNIT_BARRACKS).filter(k=>FABS[k]&&!FABS[k].disabled).forEach(k=>add(0.6,{k:'unitcap',u:k}));
+    chLocked().forEach(k=>add(0.5,{k:'recruit',u:k,n:k==='mech'?1:2}))}
+  if(!opts.length)return {k:'troops',n:val<2?3:5};
+  let t=opts.reduce((a,o)=>a+o[0],0)*Math.random();for(const [w,r] of opts){if((t-=w)<=0)return r}return opts[0][1]}
+function chRoll(){const C=S.ch,used=new Set(C.list.map(c=>c.type));
+  const types=Object.keys(CH_TYPES).filter(k=>!used.has(k)),pool=[];
+  types.forEach(k=>{const T=CH_TYPES[k],ns=T.ns.filter(n=>T.ok(n));if(ns.length)pool.push([T.w,k,ns[Math.floor(Math.random()*ns.length)]])});
+  if(!pool.length)return null;
+  let t=pool.reduce((a,o)=>a+o[0],0)*Math.random(),pick=pool[0];for(const o of pool){if((t-=o[0])<=0){pick=o;break}}
+  const [,type,n]=pick,T=CH_TYPES[type];C.rolled++;
+  return {type,n,got:0,text:T.text(n),rw:chRollReward(T.val(n)),doneT:null}}
+function chFill(){const C=S.ch;while(C.list.length<CH_SHOWN&&C.rolled<CH_PER_STOP){const c=chRoll();if(!c)break;C.list.push(c)}}
+function chInit(){S.ch={list:[],rolled:0};chFill()}
+// progress: stat() feeds every counted event in; nests, drains and big nests are told directly
+function chEv(k,n,tier){const C=S&&S.ch;if(!C||S.over)return;
+  C.list.forEach(c=>{if(c.doneT!=null||CH_TYPES[c.type].ev!==k)return;
+    if(c.type==='grade'&&tierRank(tier)<tierRank(chGradeTier()))return;
+    c.got=Math.min(c.n,c.got+(n||1));if(c.got>=c.n)chDone(c)})}
+function chDone(c){c.doneT=S.t;const R=CH_REWARDS[c.rw.k];
+  const got=R.ok(c.rw)?R.give(c.rw):chHasCalls()?CH_REWARDS.calls.give({n:c.rw.k==='calls'||c.rw.k==='troops'||c.rw.k==='drones'?2:3}):CH_REWARDS.troops.give({n:3});
+  updateBuildBar();sfx.veinDone();banner(`Challenge done — ${c.text}: ${got}.`,'success');stat('challenges')}
+let chShut=false;try{chShut=localStorage.getItem('astro_chShut')==='1'}catch(e){}
+function chToggle(){chShut=!chShut;try{localStorage.setItem('astro_chShut',chShut?'1':'0')}catch(e){}const el=document.getElementById('chSheet');
+  el.classList.toggle('shut',chShut);document.getElementById('chHead').setAttribute('aria-expanded',String(!chShut));el._key=null}
+document.getElementById('chHead').onclick=chToggle;
+function updateChallenges(){const el=document.getElementById('chSheet');if(!el)return;
+  const live=RUN&&S&&!tutorial&&!tutorialMap&&!S.over&&!(S.landing&&!S.landing.touch);
+  if(live&&!S.ch)chInit();
+  const show=live&&!menuOpen&&!S.rewardChoice;
+  el._hd=!show;
+  const hb=document.querySelector('.hud').getBoundingClientRect().bottom+8;if(el._top!==hb){el._top=hb;el.style.top=hb+'px'}
+  if(!show){document.documentElement.style.setProperty('--chB','0px');return}
+  const C=S.ch;
+  C.list=C.list.filter(c=>c.doneT==null||S.t-c.doneT<CH_DONE_SHOW);chFill();
+  el.classList.toggle('shut',chShut);
+  const open=C.list.filter(c=>c.doneT==null).length,left=CH_PER_STOP-C.rolled;
+  const key=chShut+'|'+C.list.map(c=>c.type+c.got+(c.doneT!=null?'d'+(S.t-c.doneT>CH_DONE_SHOW-0.5?'g':''):'')).join(',');
+  if(el._key!==key){el._key=key;
+    document.getElementById('chN').textContent=open?`${open} open${left>0?` · ${left} more`:''}`:'all done';
+    document.getElementById('chList').innerHTML=C.list.length?C.list.map(c=>{const d=c.doneT!=null;
+      return `<div class="chRow${d?' done':''}${d&&S.t-c.doneT>CH_DONE_SHOW-0.5?' gone':''}"><div class="chT"><span>${d?'✓ ':''}${c.text}</span><span class="chP">${c.got}/${c.n}</span></div><div class="chBar"><i style="width:${(100*c.got/c.n).toFixed(0)}%"></i></div><div class="chR">${d?'Done':'Reward'}: <b>${CH_REWARDS[c.rw.k].label(c.rw)}</b></div></div>`}).join('')
+      :'<div class="chEmpty">No challenges left on this stop.</div>'}
+  document.documentElement.style.setProperty('--chB',Math.round(el.getBoundingClientRect().bottom+8)+'px')}
 // (a feed like the old alert cards: each new step slides in on top, the earlier ones dim below it, GUIDE_FEED at most;
 // a step that comes back moves to the top instead of showing twice)
 const GUIDE_FEED=3;
@@ -13642,7 +13725,7 @@ function updateGuide(){const g=document.getElementById('guide');if(!g)return;
   const c=feed[0];if(c.s!==sub){c.s=sub;c.el.querySelector('.gs').innerHTML=sub}}
 document.getElementById('guideX').onclick=()=>{meta.guideOff=true;meta.guideForce=false;saveMeta();updateGuide()};
 function hud(){
-  const B=S.base;updateGuide();updateCursorCost();
+  const B=S.base;updateGuide();updateCursorCost();updateChallenges();
   $('hDat')._tc=Math.floor(S.dat);$('hLiving')._tc=S.living;$('hCondensed')._tc=S.condensed;
   $('hBase')._tc=Math.ceil(B.hp)+' / '+B.maxHp;$('hBaseBar')._sw=(100*B.hp/B.maxHp).toFixed(1)+'%';
   $('hBaseBar').classList.toggle('low',B.hp/B.maxHp<0.25);
