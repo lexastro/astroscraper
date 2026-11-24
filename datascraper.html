@@ -4477,6 +4477,7 @@ const COMBAT=[
   {title:'Hold your ground',
    text:'Press <kbd>X</kbd> and the selected units <b>plant where they stand</b>: they won’t chase or wander. Held units close together <b>back each other up</b>, firing up to 30% faster, and small swarmers that crowd right up against them get crushed.',
    art:htLive(function(t,o){const P=[[92,46],[112,58],[92,72],[112,84]];const us=P.map(([x,y],i)=>{const fp=(t*2+i*0.3)%1;const u=htUnit(o,'t'+i,'troop',x,y,0,{hold:true,shotT:fp<0.1?t:-9});htShot(x+6,y,206,y,fp);return u});htHoldMarks(us);
+     us.forEach(u=>{u.holdLinks=us.filter(v=>v!==u&&dist(u,v)<HOLD_LINK_R).length;drawHoldPips(u,u.y-17)});
      for(let i=0;i<9;i++){const f=(t*0.32+i/9)%1,a=i*0.8,x=caLerp(206,126,f),y=66+Math.sin(a)*42*(1-f);if(f<0.9)htFoe(o,'w'+i,{kind:'swarm',r:3,horde:true,seed:i*7},drawSwarm,x,y);else caGlow(124,66+Math.sin(a)*4,6,'#ffd0c8',(1-f)*8)}
      htKey('X',16,16,(t*0.5)%1<0.1)})},
   {title:'Man the walls',
@@ -13232,6 +13233,7 @@ function draw(){
     if(t.hp<t.maxHp)hpbar(t.x,t.y-14,16,t.hp/t.maxHp);
     if(sel&&t.grp!=null){ctx.fillStyle='#bfe6ff';ctx.font='bold 9px monospace';ctx.textAlign='center';ctx.fillText(t.grp,t.x,t.y-20);ctx.textAlign='start'}
     if(t.sanity<SANITY_MAX)sanityBar(t.x,t.y-10,16,t.sanity/SANITY_MAX);
+    drawHoldPips(t,t.y-(sel&&t.grp!=null?28:19));
     if(!t.tetherOk)drawCutGlyph(t.x,t.y); if(t.following)drawFollowGlyph(t.x,t.y);
     if(t.state==='guard'&&t.guard){
       drawGuardGlyph(t.x,t.y);
@@ -13411,6 +13413,16 @@ function drawWaveWarn(vw,vh){
   });
   ctx.restore();
 }
+// v4: the Hold link buff, shown: chevrons over a held unit, one for each 10% of fire rate its neighbours give it
+// (up to HOLD_LINK_MAX: three), paler for one, gold for two, and glowing gold for the full three
+const HOLD_PIP_COL=['#f4e3a6','#f2b63c','#ffcf4d'];
+function holdTier(t){return t.hold&&!t.dest?Math.min(Math.round(HOLD_LINK_MAX/HOLD_LINK_BONUS),t.holdLinks||0):0}
+function drawHoldPips(t,y){const n=holdTier(t);if(!n)return;const c=HOLD_PIP_COL[n-1],x=t.x;ctx.save();
+  if(n>=3){ctx.globalAlpha=0.2+0.1*Math.sin(S.t*5);ctx.fillStyle=c;ctx.beginPath();ctx.arc(x,y-n*1.6,5.2,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1}
+  ctx.lineCap='round';ctx.lineJoin='round';
+  for(let i=0;i<n;i++){const yy=y-i*3.2;ctx.strokeStyle='rgba(11,14,18,0.85)';ctx.lineWidth=2.8;ctx.beginPath();ctx.moveTo(x-3.4,yy+1.6);ctx.lineTo(x,yy-1.4);ctx.lineTo(x+3.4,yy+1.6);ctx.stroke();
+    ctx.strokeStyle=c;ctx.lineWidth=1.4;ctx.stroke()}
+  ctx.restore()}
 function hpbar(x,y,w,f){ctx.fillStyle='rgba(0,0,0,0.6)';ctx.fillRect(x-w/2,y,w,3);ctx.fillStyle=f>0.5?C.dat:f>0.25?C.accent:C.enemy;ctx.fillRect(x-w/2,y,w*Math.max(0,f),3)}
 // Sanity meter — only shown once a unit has taken any damage to it, fading from the zone-purple
 // "mind intact" color toward corrupted red as it nears 0.
