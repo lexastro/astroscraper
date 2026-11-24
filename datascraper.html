@@ -1454,6 +1454,24 @@ const RIG_CHANCE=0.7, RIG_DAT=200, RIG_LINK_R=BUILD_R, RIG_ISLAND_R=190, RIG_GUA
 const STRAND_CHANCE=0.75, STRAND_FRAC=0.25, STRAND_REACH=150, STRAND_GUARDS=[3,6];
 const STRAND_SIZE={rim:[3,4],dense:[4,5],core:[5,6]};
 const STRAND_KINDS=[['troop',3],['brawler',2],['marksman',2],['grenadier',1.5],['rocket',1],['mech',0.6]];
+// v4: not every call is what it seems. The signal is the same, but once you see the squad:
+//  'bait'    (STRAND_BAIT_P): they've all turned, and the beacon was left on to lure you in. They wait,
+//            corrupted, until something of yours comes within LURE_R (or shoots one), then all come at once.
+//            Clear them and the beacon's salvage is yours: a Dat cache worth STRAND_BAIT_DAT of what the
+//            squad would have cost to build.
+//  'turning' (STRAND_TURN_P): some have already turned and stand guard over the rest, and once you've seen
+//            them another survivor goes over every STRAND_TURN_T seconds until you take them on. Fewer left,
+//            a smaller price.
+const STRAND_BAIT_P=0.22, STRAND_TURN_P=0.22, STRAND_TURN_T=20, STRAND_BAIT_DAT=0.4, LURE_R=260;
+// a squad member gone over: a corrupted enemy where it stood, waiting (lure) until woken
+function strandCorrupt(u,g,lure){const st=CORRUPT_STATS[u.kind]||CORRUPT_STATS.troop,hp=Math.round(st.hp*(RUN?stopHpMult():1));
+  S.enemies.push({x:u.x,y:u.y,r:st.r,hp,maxHp:hp,speed:st.speed,dmg:st.dmg,cd:0,kind:'corrupted',unit:CORRUPT_DRAW[u.kind]?u.kind:'troop',seed:Math.floor(Math.random()*9999),
+    target:null,aggro:1e9,home:{x:u.x,y:u.y},ang:u.ang||0,faceT:rnd(1,3),stunT:0,lure:!!lure,lureG:g.gid});return S.enemies[S.enemies.length-1]}
+// a lured corrupted unit: stand and twitch until woken; waking one wakes its whole group
+function lureStep(e,dt){const near=u=>dist(u,e)<LURE_R;
+  if(e.hp<e.maxHp||near(S.base)||S.troops.some(near)){S.enemies.forEach(o=>{if(o.lure&&o.lureG===e.lureG)o.lure=false});
+    if(!S._lureMsgT||S.t-S._lureMsgT>10){S._lureMsgT=S.t;banner('The corrupted squad is coming for you!','danger')}return false}
+  e.faceT-=dt;if(e.faceT<=0){e.ang+=rnd(-0.8,0.8);e.faceT=rnd(0.6,2)}return true}
 function strandCost(units){return Math.max(15,Math.round(units.reduce((a,u)=>a+unitPrice(u.kind),0)*STRAND_FRAC/5)*5)}
 function strandLabel(units){const c={};units.forEach(u=>{const n=u.kind==='troop'?'Trooper':FABS[u.kind].name;c[n]=(c[n]||0)+1});return Object.entries(c).map(([n,k])=>`${k} ${n}${k>1?'s':''}`).join(', ')}
 function makeStrand(){
@@ -1469,13 +1487,19 @@ function makeStrand(){
   for(let i=0;i<n;i++){let r=Math.random()*tot,kind='troop';for(const [k,w] of STRAND_KINDS){if((r-=w)<=0){kind=k;break}}
     const u=mkTroop(Date.now()+5000+i*7+Math.floor(Math.random()*1000),kind),a=i/n*Math.PI*2,rr=n>1?22:0,q=nearestPlain(at.x+Math.cos(a)*rr,at.y+Math.sin(a)*rr);
     u.x=q.x;u.y=q.y;u.ang=a;u.hp=Math.round(u.maxHp*rnd(0.4,0.75));u.aimV=0.8;units.push(u)}
-  S.strand={x:at.x,y:at.y,units,cost:strandCost(units),seen:false,done:false,pingT:40,pingFlash:-99,fuzz:{x:rnd(-200,200),y:rnd(-200,200)}};
-  const g=Math.round(rnd(STRAND_GUARDS[0],STRAND_GUARDS[1]));
+  S.strand={x:at.x,y:at.y,units,cost:strandCost(units),seen:false,done:false,pingT:40,pingFlash:-99,fuzz:{x:rnd(-200,200),y:rnd(-200,200)},gid:Math.floor(Math.random()*1e9)};
+  {const g=S.strand,r=Math.random();
+    if(r<STRAND_BAIT_P){g.variant='bait';g.bait=Math.max(40,Math.round(g.cost/STRAND_FRAC*STRAND_BAIT_DAT/5)*5);
+      const extra=mkTroop(Date.now()+9000,STRAND_KINDS[Math.floor(Math.random()*3)][0]),a=rnd(0,Math.PI*2),q=nearestPlain(at.x+Math.cos(a)*30,at.y+Math.sin(a)*30);extra.x=q.x;extra.y=q.y;
+      units.concat([extra]).forEach(u=>strandCorrupt(u,g,true));g.units=[];g.cost=0}
+    else if(r<STRAND_BAIT_P+STRAND_TURN_P&&units.length>=3){g.variant='turning';const k=Math.max(1,Math.floor(units.length/2));
+      units.splice(0,k).forEach(u=>strandCorrupt(u,g,true));g.cost=strandCost(units);g.turnT=STRAND_TURN_T}}
+  const g=Math.round(rnd(STRAND_GUARDS[0],STRAND_GUARDS[1])*(S.strand.variant==='bait'?0.5:1));
   for(let i=0;i<g;i++){const a=rnd(0,Math.PI*2),rr=rnd(150,260),q=nearestPlain(at.x+Math.cos(a)*rr,at.y+Math.sin(a)*rr);spawnEnemy(q.x,q.y,'roam')}
 }
 function strandInReach(){const g=S.strand;return !!g&&(dist(S.base,g)<=STRAND_REACH+S.base.r||S.troops.some(t=>dist(t,g)<=STRAND_REACH))}
 function tryRescueStrand(){
-  const g=S.strand;if(!g||g.done||!g.seen||S.over||S.paused)return;
+  const g=S.strand;if(!g||g.done||!g.seen||S.over||S.paused||!g.units.length)return;
   if(!strandInReach()){note('Get closer to the squad');return}
   if(!payDat(g.cost,'Taking on the stranded squad'))return;
   g.done=true;g.units.forEach(u=>{S.troops.push(u);guardBastion(u);burst(u.x,u.y,C.ally,6,80,0.35)});
@@ -1484,8 +1508,17 @@ function tryRescueStrand(){
 }
 function updateStrand(dt){
   const g=S.strand;if(!g||g.done)return;
-  if(!g.seen&&(visible(g)||g.units.some(u=>visible(u)))){g.seen=true;
-    msg(`A stranded squad — ${strandLabel(g.units)}, cut off from their Rig. Get within reach and pay ${g.cost} Dat to take them on (button, or Y).`);updateBuildBar()}
+  const lost=S.enemies.filter(e=>e.lureG===g.gid&&e.hp>0);
+  if(!g.seen&&(visible(g)||g.units.some(u=>visible(u))||lost.some(e=>visible(e)))){g.seen=true;
+    if(g.variant==='bait')msg("The squad's gone over: they're corrupted, and the beacon was left on as bait. Clear them out and the beacon's salvage is yours.");
+    else if(g.variant==='turning')msg(`A stranded squad, but ${lost.length>1?'some of them have':'one of them has'} already turned. ${strandLabel(g.units)} still hold on: get within reach and pay ${g.cost} Dat (button, or Y) before another goes over.`);
+    else msg(`A stranded squad — ${strandLabel(g.units)}, cut off from their Rig. Get within reach and pay ${g.cost} Dat to take them on (button, or Y).`);updateBuildBar()}
+  if(g.variant==='turning'&&g.seen&&g.units.length&&(g.turnT-=dt)<=0){g.turnT=STRAND_TURN_T;const u=g.units.splice(Math.floor(Math.random()*g.units.length),1)[0];
+    strandCorrupt(u,g,!lost.some(o=>!o.lure));burst(u.x,u.y,C.enemy,14,110,0.5);sndAt(u.x,u.y,()=>sfx.kill());
+    if(g.units.length){g.cost=strandCost(g.units);msg(`Another of the stranded squad has turned. ${strandLabel(g.units)} left.`)}else{msg('The last of the stranded squad has turned.');g.variant='bait';g.bait=0}updateBuildBar()}
+  if(g.variant==='bait'&&g.seen&&!lost.length){g.done=true;S.strand=null;
+    if(g.bait>0){S.nodes.push({x:g.x,y:g.y,amt:g.bait,max:g.bait,found:true});msg(`The corrupted squad is down. The beacon had ${g.bait} Dat in its cache.`)}
+    burst(g.x,g.y,C.dat,12,100,0.4);updateBuildBar();return}
   // slowly turn to watch the dark around them
   g.units.forEach((u,i)=>{u.ang+=Math.sin(S.t*0.4+i*1.7)*dt*0.25;if(u.flashT>0)u.flashT=Math.max(0,u.flashT-dt)});
   if(!g.seen&&S.t>=g.pingT){g.pingT=S.t+rnd(40,55);g.pingFlash=S.t;
@@ -1500,14 +1533,16 @@ function drawStrand(){
   const on=Math.sin(S.t*6)>0;
   ctx.save();ctx.fillStyle='rgba(0,0,0,0.3)';ctx.beginPath();ctx.ellipse(g.x+2,g.y+3,4,3,0,0,Math.PI*2);ctx.fill();
   ctx.fillStyle='#4d5560';ctx.fillRect(g.x-1,g.y-9,2,10);
-  ctx.fillStyle=on?C.ally:'#2b4250';ctx.beginPath();ctx.arc(g.x,g.y-10,2.6,0,Math.PI*2);ctx.fill();
+  const bad=g.variant==='bait',bc=bad?C.enemy:C.ally;
+  ctx.fillStyle=on?bc:(bad?'#4a2520':'#2b4250');ctx.beginPath();ctx.arc(g.x,g.y-10,2.6,0,Math.PI*2);ctx.fill();
   if(on){ctx.globalAlpha=0.25;ctx.beginPath();ctx.arc(g.x,g.y-10,9,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1}
-  // the reach ring, dashed
+  // the reach ring, dashed (none when there's nobody left to take on)
+  if(!g.units.length){ctx.font='11px monospace';ctx.textAlign='center';ctx.fillStyle=C.enemy;ctx.fillText('CORRUPTED',g.x,g.y-46);ctx.restore();return}
   ctx.strokeStyle=C.ally;ctx.globalAlpha=0.35;ctx.lineWidth=1.2;ctx.setLineDash([5,6]);ctx.beginPath();ctx.arc(g.x,g.y,STRAND_REACH,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1;
   ctx.restore();
   g.units.forEach(u=>{ctx.save();ctx.globalAlpha=0.85;drawUnitBody(u);ctx.restore();if(u.hp<u.maxHp)hpbar(u.x,u.y-14,16,u.hp/u.maxHp)});
   ctx.save();ctx.font='11px monospace';ctx.textAlign='center';ctx.fillStyle=C.ally;
-  ctx.fillText(`STRANDED · ◆${g.cost}`,g.x,g.y-46);ctx.restore();
+  ctx.fillText(`STRANDED · ◆${g.cost}`,g.x,g.y-46);if(g.variant==='turning'){ctx.fillStyle=C.enemy;ctx.fillText(`next turns in ${Math.ceil(g.turnT)}s`,g.x,g.y-34)}ctx.restore();
 }
 function rigLinked(){const r=S.rig;return !!r&&S.relays.some(x=>x.built&&x.hp>0&&x.tetherOk&&x.state!=='cut'&&dist(x,r)<=RIG_LINK_R)}
 function pickRigSite(starts){
@@ -7719,7 +7754,7 @@ function positionPoiBtns(){
   const r=S.rig;
   if(r&&r.seen&&!r.online&&!r.vein.done){const ln=rigLinked();place(rb,r.x,r.y+56,`⛭ Power the Derelict Rig<span class="c">◆${RIG_DAT}</span>${ln?'':'<span class="n">needs a Relay link</span>'}`,!ln||S.dat<RIG_DAT)}else rb._hd=true;
   const g=S.strand;
-  if(g&&g.seen&&!g.done){const reach=strandInReach();place(sb,g.x,g.y+38,`⚑ Take on Squad<span class="c">◆${g.cost}</span>${reach?'':'<span class="n">get closer</span>'}`,!reach||S.dat<g.cost)}else sb._hd=true;
+  if(g&&g.seen&&!g.done&&g.units.length){const reach=strandInReach();place(sb,g.x,g.y+38,`⚑ Take on Squad<span class="c">◆${g.cost}</span>${reach?'':'<span class="n">get closer</span>'}`,!reach||S.dat<g.cost)}else sb._hd=true;
 }
 document.getElementById('bFollow').onclick=followSelected;document.getElementById('bHold').onclick=holdSelected;
 // Shared by the top HUD selector buttons, their mobile equivalents next to the zoom controls, and
@@ -7976,7 +8011,7 @@ function updateBuildBar(){
     if(!rb.hidden){const ok=rigLinked()&&S.dat>=RIG_DAT;rb.classList.toggle('dry',!ok);
       document.getElementById('cRig')._tc=`${rigLinked()?'linked':'no link'} · ◆${RIG_DAT}`}}
   {const sb=document.getElementById('bStrand'),g=S.strand;
-    sb._hd=!(g&&g.seen&&!g.done);
+    sb._hd=!(g&&g.seen&&!g.done&&g.units.length);
     if(!sb.hidden){const reach=strandInReach();sb.classList.toggle('dry',!reach||S.dat<g.cost);
       document.getElementById('cStrand')._tc=`${reach?'in reach':'out of reach'} · ◆${g.cost}`}}
   buildCallBar();
@@ -11339,6 +11374,7 @@ function update(dt){
       return;
     }
     if(e.kind==='burrower'){burrowerStep(e,dt);return}
+    if(e.lure&&lureStep(e,dt))return;
     if(e.recall&&e.kind!=='roam'&&e.nest){megaHomeStep(e,dt);return}
     if(e.pack&&e.pack.phase==='muster'){musterStep(e,dt);return}
     // horde: re-pick a target only a few times a second
@@ -13217,7 +13253,7 @@ function drawMini(){const s=mini.width/W;mctx.fillStyle='#10151b';mctx.fillRect(
     if(!g.seen&&S.t>=36){const since=S.t-g.pingFlash,ph=(S.t*0.7+0.5)%1,boost=since<8?1:0.45;
       mctx.strokeStyle=C.ally;mctx.lineWidth=1.5;mctx.globalAlpha=boost*(1-ph);mctx.beginPath();mctx.arc((g.x+g.fuzz.x)*s,(g.y+g.fuzz.y)*s,(240+ph*300)*s,0,Math.PI*2);mctx.stroke();
       mctx.globalAlpha=boost;mctx.beginPath();mctx.arc((g.x+g.fuzz.x)*s,(g.y+g.fuzz.y)*s,3,0,Math.PI*2);mctx.fillStyle=C.ally;mctx.fill();mctx.globalAlpha=1}
-    else if(g.seen){mctx.fillStyle=C.ally;mctx.globalAlpha=0.6+0.4*Math.sin(S.t*4);mctx.beginPath();mctx.arc(g.x*s,g.y*s,3.5,0,Math.PI*2);mctx.fill();mctx.globalAlpha=1}}}
+    else if(g.seen){mctx.fillStyle=g.variant==='bait'?C.enemy:C.ally;mctx.globalAlpha=0.6+0.4*Math.sin(S.t*4);mctx.beginPath();mctx.arc(g.x*s,g.y*s,3.5,0,Math.PI*2);mctx.fill();mctx.globalAlpha=1}}}
   S.depots.forEach(de=>{if(de.built){mctx.fillStyle=de.hp>0?C.dat:C.enemy;mctx.fillRect(de.x*s-2,de.y*s-2,4,4)}});
   S.enemies.forEach(e=>{if(e.kind==='nest'){if(debugNoFog||e.seen){const q=e.size==='small'?2.5:e.size==='large'||e.size==='great'?4.5:3.5;mctx.fillStyle='#8a2c22';mctx.beginPath();mctx.arc(e.x*s,e.y*s,q+1,0,Math.PI*2);mctx.fill();mctx.fillStyle=C.enemy;mctx.beginPath();mctx.arc(e.x*s,e.y*s,q*0.55,0,Math.PI*2);mctx.fill()}return}
     if(debugNoFog||visible(e)){mctx.fillStyle=C.enemy;mctx.fillRect(e.x*s-1,e.y*s-1,2,2)}});
