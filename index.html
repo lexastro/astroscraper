@@ -3718,7 +3718,7 @@ function shellPing(m){spark(m.x+rnd(-m.r,m.r)*0.6,m.y+rnd(-m.r,m.r)*0.6,'#ff9ad8
   if(!S.shellMsgT||S.t-S.shellMsgT>25){S.shellMsgT=S.t;const k=megaSlotsLeft();
     banner(`The Mega Nest shrugs off the hit: ${k} nest${k===1?'':'s'} on its slopes still hold${k===1?'s':''} it together. Destroy them first.`,'warning')}}
 function updateMega(dt){const m=S.megaNest;if(!m||m.hp<=0||!S.enemies.includes(m))return;
-  if(!S.megaIntro&&visible(m)){S.megaIntro=true;banner(`The Mega Nest. Destroy the ${megaSlotsLeft()} nests dug into its slopes to crack it open. Shatter the pink crystals in its rim (Rocketeers do it fastest): each one tears a chunk out of it.`,'danger')}
+  if(!S.megaIntro&&visible(m)){S.megaIntro=true;banner(`The Mega Nest. Destroy the ${megaSlotsLeft()} nests dug into its slopes to crack it open (they regrow on empty slopes nobody is watching). Shatter the pink crystals in its rim (Rocketeers do it fastest): each one tears a chunk out of it.`,'danger')}
   if(S.megaIntro){if(!S.megaPhase){S.megaPhase='lull';S.megaPhaseT=MEGA_LULL_T} // (a save from before the waves)
     S.megaPhaseT-=dt;if(S.megaPhase==='lull')megaBurrow(m);
     if(S.megaPhase==='lull'&&S.megaPhaseT<=0){S.megaPhase='assault';S.megaPhaseT=MEGA_ASSAULT_T;S.megaEruptT=0;{const P=megaAttackPatrol(m);S.enemies.forEach(e=>{if(e.nest===m&&e.hp>0){e.patrol=P;e.aggro=700;e.recall=false}})} // (any of the swarm still on its way home turns round)
@@ -3732,7 +3732,8 @@ function updateMega(dt){const m=S.megaNest;if(!m||m.hp<=0||!S.enemies.includes(m
       if(S.megaPhaseT<=0){S.megaPhase='lull';S.megaPhaseT=MEGA_LULL_T;megaRecall(m);if(m.seen)banner(`The attack ebbs: ${MEGA_LULL_T}s until the next.`,'success')}}}
   if(megaSlotsLeft()<MEGA_SLOTS){S.megaRegrowT-=dt;
     if(S.megaRegrowT<=0){const sl=S.megaSlots.find(q=>!slotLive(q)&&!visible(q));
-      if(sl){sl.nest=makeNest(sl.x,sl.y,'medium');sl.nest.megaSlot=true;S.megaRegrowT=MEGA_REGROW_T;if(m.seen)banner('A new nest has grown on the Mega Nest\'s slopes.','danger')}else S.megaRegrowT=5}}}
+      if(sl){sl.nest=makeNest(sl.x,sl.y,'medium');sl.nest.megaSlot=true;sl.nest.seen=true;sl.nest.regrownT=S.t;S.megaRegrowT=MEGA_REGROW_T;const side=compassName(Math.atan2(sl.y-m.y,sl.x-m.x));
+        if(m.seen)banner(`A nest has regrown on the Mega Nest's ${side?side+' ':''}slope${megaSlotsLeft()===1?': its shell is back up':''}. Keep units watching the empty slopes to stop it.`,'danger')}else S.megaRegrowT=5}}}
 // the lull: what's left of its swarm heads home and burrows back into the pit (held there, it comes out
 // again with the next attack), so the rim is clear to fight over
 function megaRecall(m){S.enemies.forEach(e=>{if(e.nest!==m||e.hp<=0)return;const a=Math.atan2(e.y-m.y,e.x-m.x),q=nearestPlain(m.x+Math.cos(a)*215,m.y+Math.sin(a)*215);
@@ -6087,7 +6088,8 @@ function updateMounds(dt){
       if(sl.nest&&sl.nest.hp>0&&S.enemies.includes(sl.nest)){sl.regrowT=MOUND_REGROW_T;return}
       if(visible(sl))return; // nothing regrows while you're watching
       sl.regrowT-=dt;
-      if(sl.regrowT<=0){sl.nest=makeNest(sl.x,sl.y,sl.size);sl.nest.hiveVein=v;sl.regrowT=MOUND_REGROW_T;}
+      if(sl.regrowT<=0){sl.nest=makeNest(sl.x,sl.y,sl.size);sl.nest.hiveVein=v;sl.regrowT=MOUND_REGROW_T;
+        if(v.seen){sl.nest.seen=true;sl.nest.regrownT=S.t;const side=compassName(Math.atan2(sl.y-v.y,sl.x-v.x));banner(`A brood mound has regrown ${side?'on the '+side+' side of':'by'} the ${v.hive?'Hive':'contract'} vein.`,'danger')}}
     });
   });
 }
@@ -6112,6 +6114,27 @@ function pickHiveSites(starts){
 }
 // A hive vein you've found throbs with a crimson glow and slow rings (under the fog, like the rest
 // of the map — it's the long red pulses and the drifting motes that lead you to one).
+// v4: regrowth made plain. Every empty Mega Nest slope slot and brood mound spot you know of shows a ring
+// above the fog that fills as its regrowth comes due (red, pulsing faster near the end; grey while one of
+// your units can see it, since nothing regrows in sight). A nest that has just regrown is revealed and
+// flashes a ring for REGROW_FLASH_T.
+const REGROW_FLASH_T=12;
+function drawRegrowRing(x,y,k,watched,r){const t=S.t,pl=watched?0:0.5+0.5*Math.sin(t*(3+9*k));
+  ctx.save();ctx.lineWidth=2.5;ctx.strokeStyle=watched?'rgba(170,178,188,0.55)':`rgba(255,92,77,${0.45+0.4*pl})`;
+  ctx.setLineDash([5,4]);ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
+  if(k>0){ctx.lineWidth=4;ctx.strokeStyle=watched?'rgba(170,178,188,0.8)':'#ff5c4d';ctx.beginPath();ctx.arc(x,y,r,-Math.PI/2,-Math.PI/2+Math.PI*2*Math.min(1,k));ctx.stroke()}
+  ctx.restore()}
+function drawRegrowFlash(n){const a=S.t-(n.regrownT??-99);if(a>REGROW_FLASH_T||n.hp<=0||!S.enemies.includes(n))return;
+  const f=(a*0.9)%1;ctx.save();ctx.strokeStyle=`rgba(255,92,77,${(1-f)*0.9})`;ctx.lineWidth=3;ctx.beginPath();ctx.arc(n.x,n.y,(n.r||28)+8+f*50,0,Math.PI*2);ctx.stroke();
+  ctx.fillStyle='#ff5c4d';ctx.font='700 13px IBM Plex Mono, monospace';ctx.textAlign='center';ctx.fillText('REGROWN',n.x,n.y-(n.r||28)-14);ctx.restore()}
+function drawRegrowMarks(){
+  const m=S.megaNest;
+  if(m&&m.hp>0&&S.enemies.includes(m)&&(m.seen||debugNoFog))(S.megaSlots||[]).forEach(sl=>{
+    if(slotLive(sl)){drawRegrowFlash(sl.nest);return}
+    drawRegrowRing(sl.x,sl.y,1-S.megaRegrowT/MEGA_REGROW_T,visible(sl),34)});
+  S.veins.forEach(v=>{if(!v.moundSlots||!veinAlive(v)||!(v.seen||debugNoFog))return;
+    v.moundSlots.forEach(sl=>{if(sl.nest&&sl.nest.hp>0&&S.enemies.includes(sl.nest)){drawRegrowFlash(sl.nest);return}
+      drawRegrowRing(sl.x,sl.y,1-sl.regrowT/MOUND_REGROW_T,visible(sl),38)})})}
 function drawHiveBeacons(){
   S.veins.forEach(v=>{if(!v.hive||!veinAlive(v)||!(v.seen||debugNoFog))return;
     const t=S.t, pul=0.5+0.5*Math.sin(t*1.6);
@@ -13584,6 +13607,7 @@ function draw(){
   // fog
   if(!debugNoFog){blurFogged(vw,vh,shkx,shky);ctx.imageSmoothingEnabled=true;ctx.drawImage(dimSoftC,0,0,W,H)}
   drawExit();
+  drawRegrowMarks();
   // energy pulses through the crack network (only where something can see) and bearing beams
   drawExplorationLight(x0-40,y0-40,x1+40,y1+40,vw,vh,shkx,shky);
   drawDrones();
@@ -13864,7 +13888,7 @@ function hud(){
     const cv=S.veins.find(v=>v.contract);
     if(RUN&&!stopInfo().final){
       $('hObjK')._tc=`Stop ${RUN.stop+1}/${RUN_STOPS.length} · ${STOP_SPLIT?'Rim / Dense':STOP_BAND==='rim'?'Rim':STOP_BAND==='dense'?'Dense':'Core'}`;
-      $('hObj')._tc=ready?'ready to drill — press F':S.barrier&&S.barrier.open||S.megaDone?`way open — head ${EDGE_WORD[EXIT_DIR]}`:S.megaNest?(megaShelled()?`destroy its nests (${megaSlotsLeft()} left)`:'destroy the Mega Nest')+(S.megaIntro&&S.megaPhase?(S.megaPhase==='assault'?' · ATTACKING':` · lull ${Math.ceil(S.megaPhaseT)}s`):''):S.breachVein&&S.breachVein.seen?'drain the breach vein':'find the breach vein';
+      $('hObj')._tc=ready?'ready to drill — press F':S.barrier&&S.barrier.open||S.megaDone?`way open — head ${EDGE_WORD[EXIT_DIR]}`:S.megaNest?(megaShelled()?`destroy its nests (${megaSlotsLeft()} left)`:'destroy the Mega Nest')+(megaSlotsLeft()<MEGA_SLOTS?` · regrows ${Math.max(0,Math.ceil(S.megaRegrowT))}s`:'')+(S.megaIntro&&S.megaPhase?(S.megaPhase==='assault'?' · ATTACKING':` · lull ${Math.ceil(S.megaPhaseT)}s`):''):S.breachVein&&S.breachVein.seen?'drain the breach vein':'find the breach vein';
       $('hObjBar')._sw=(100*RUN.stop/(RUN_STOPS.length-1))+'%';
     }else{
     $('hObjK')._tc=S.contractAwake?(RUN?`Stop ${RUN.stop+1}/${RUN_STOPS.length} · Contract`:'Contract vein'):'Veins';
