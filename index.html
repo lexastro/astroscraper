@@ -599,6 +599,7 @@ body.inMenu :is(#game,#fogGrain,.hud,.helpToggleBtn,.toasts,.bottomBar,.drillMet
   #buildMain button .key{grid-column:3;grid-row:1}
   #buildMain button .cost{grid-column:2/4;grid-row:2}
   .buildStack>.buildFolder{position:absolute;left:calc(100% - 10px);flex-wrap:nowrap;padding:0}
+  .buildStack>#callBar{flex-wrap:wrap;width:max-content;max-width:calc(100vw - 380px)} /* (many call-downs wrap, clear of the minimap) */
   .drillMeter{bottom:max(12px,env(safe-area-inset-bottom,0px))}
   .drillMeter.steering{width:max(360px,min(680px,calc(100vw - 430px - var(--padS,184px))))}
 }
@@ -8183,10 +8184,11 @@ function toggleRepairMode(){
 // alongside the call-down row
 let buildFolder=null;
 const VERT_BAR=matchMedia('(min-width:721px) and (min-height:501px)');
-// desktop: the open row flies out beside its button; a wide landscape phone: the row sits above the
+// desktop: the open row flies out beside its button, lifted as far as it takes to stay above the
+// bottom edge (a tall or wrapped row of call-downs would hang off it otherwise); a wide landscape phone: the row sits above the
 // bar starting over its button (kept on screen); an upright phone: full width
 function alignFolder(row,btn){
-  if(VERT_BAR.matches){const top=btn.offsetTop;if(row._top!==top){row._top=top;row._ml=null;row.style.marginLeft='';row.style.top=top+'px'}return}
+  if(VERT_BAR.matches){const st=row.parentElement.getBoundingClientRect(),top=Math.max(-st.top+8,Math.min(btn.offsetTop,innerHeight-8-row.offsetHeight-st.top));if(row._top!==top){row._top=top;row._ml=null;row.style.marginLeft='';row.style.top=top+'px'}return}
   if(row._top!=null){row._top=null;row.style.top=''}
   const main=document.getElementById('buildMain'),ml=innerWidth>720?Math.max(0,Math.min(btn.offsetLeft-parseFloat(getComputedStyle(main).paddingLeft),innerWidth-row.scrollWidth-8)):0;
   if(row._ml!==ml){row._ml=ml;row.style.marginLeft=ml+'px'}}
