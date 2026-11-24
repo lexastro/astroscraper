@@ -11418,12 +11418,14 @@ function update(dt){
       if(t.state==='attack'&&t.target&&t.target.hp>0&&S.enemies.includes(t.target)&&dist(t,t.target)<=range)tg=t.target;
       else S.enemies.forEach(e=>{if(e.hp<=0)return;const d=dist(e,t);if(d<td){td=d;tg=e}});
       if(tg)t.lmgSeen=S.t;
+      // (planted in Hold position they set up and stay set up, kneeling with the gun ready, until moved on)
+      const planted=t.hold&&!t.dest&&t.state!=='attack'&&!tried;
       let dep=t.dep||0;
-      if(dep<=0){if(tg&&!tried)dep=dt/LMG_DEPLOY}
-      else if(tried||S.t-(t.lmgSeen??-9)>LMG_LINGER)dep-=dt/LMG_STOW;
-      else if(tg)dep+=dt/LMG_DEPLOY;
+      if(dep<=0){if((tg||planted)&&!tried)dep=dt/LMG_DEPLOY}
+      else if(tried||(!planted&&S.t-(t.lmgSeen??-9)>LMG_LINGER))dep-=dt/LMG_STOW;
+      else if(tg||planted)dep+=dt/LMG_DEPLOY;
       t.dep=Math.max(0,Math.min(1,dep));
-      if(t.dep>0){t.x=px0;t.y=py0;if(tg)t.ang=Math.atan2(tg.y-t.y,tg.x-t.x)}}
+      if(t.dep>0){t.x=px0;t.y=py0;if(tg)t.ang=Math.atan2(tg.y-t.y,tg.x-t.x);else if(planted&&t.formAng!=null&&S.t-(t.shotT??-9)>1.4)t.ang=t.formAng}}
     const movedNow=(t.x-px0)**2+(t.y-py0)**2>0.02;
     const ord=t.state==='attack'&&t.target&&t.target.hp>0&&S.enemies.includes(t.target)&&dist(t,t.target)-(brawl?t.target.r||0:0)<=range?t.target:null; // what you told it to shoot
     if(t.cd<=0&&!mark&&!frl&&!(kit==='lmg'&&(movedNow||(t.dep||0)<1))){let best=null,bd=range;S.enemies.forEach(e=>{if(arty&&!visible(e))return;const d=dist(e,t)-(brawl?e.r||0:0);if(d<bd){bd=d;best=e}});
