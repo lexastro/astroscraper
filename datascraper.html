@@ -336,6 +336,13 @@ body.lowGfx #fogGrain{display:none}
 .unlockCard.unlocked .ucIcon{color:var(--ally)}
 .shopSection{display:flex;flex-direction:column;align-items:center;gap:10px}
 /* v4: How to play */
+.helpMenu{position:absolute;top:calc(env(safe-area-inset-top,0px) + 48px);right:max(10px,env(safe-area-inset-right,0px));z-index:26;width:220px;display:flex;flex-direction:column;gap:2px;
+  padding:6px;background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:0 10px 26px rgba(0,0,0,.5);animation:fadeIn .12s ease}
+.helpMenu[hidden]{display:none}
+.helpMenu button{display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;margin:0;padding:7px 10px;background:none;border:0;border-radius:5px;color:var(--fg);text-align:left;cursor:pointer;font:600 13px var(--mono)}
+.helpMenu button small{font:400 11px var(--sans,inherit);color:var(--muted);letter-spacing:0}
+.helpMenu button:hover,.helpMenu button:focus-visible{background:var(--panel2)}
+.helpMenu hr{border:0;border-top:1px solid var(--line);margin:4px 2px}
 #howtoOverlay{z-index:30}
 .htBox{width:min(600px,100%);display:flex;flex-direction:column;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px 16px;text-align:left;box-shadow:0 16px 40px rgba(0,0,0,.55)}
 .htTop{display:flex;align-items:center;gap:10px}
@@ -781,7 +788,13 @@ async function run(d){
   <div class="stat"><span class="k">⛨ Rig</span><span class="v" id="hBase">—</span><div class="bar"><i class="hp" id="hBaseBar" style="width:100%"></i></div></div>
   <div class="stat obj"><span class="k" id="hObjK">Veins</span><span class="v" id="hObj">—</span><div class="bar"><i id="hObjBar" style="width:0%"></i></div></div>
 </div>
-<button class="helpToggleBtn" id="helpToggleBtn" aria-label="Show controls">?</button>
+<button class="helpToggleBtn" id="helpToggleBtn" aria-label="Help" aria-haspopup="true">?</button>
+<div class="helpMenu" id="helpMenu" hidden role="menu">
+  <button id="hmBasics" role="menuitem">The Basics<small>How a stop works, start to finish</small></button>
+  <button id="hmCombat" role="menuitem">Combat Tips<small>Getting the most from your troops</small></button>
+  <button id="hmEnemies" role="menuitem">Enemies<small>What you'll meet in each zone</small></button>
+  <hr><button id="hmGuide" role="menuitem"><span id="hmGuideL">Show the guide</span><small id="hmGuideS">The next-step cards on the left</small></button>
+</div>
 <div class="toasts" id="toasts"></div>
 <div class="curCost" id="curCost" hidden></div>
 <div id="guide" hidden><div class="gk" id="guideK"><span>Guide · next step</span><button class="gx" id="guideX">Hide guide ✕</button></div></div>
@@ -893,7 +906,7 @@ async function run(d){
 <!-- v4: How to play — the game in a few animated steps; shown on a player's first run, and from the pause menu -->
 <div class="overlay" id="howtoOverlay" hidden>
   <div class="htBox" role="dialog" aria-labelledby="htTitle">
-    <div class="htTop"><span class="htKicker">How to play</span><span class="htStep" id="htStep"></span><button id="htClose" class="htX" aria-label="Close">×</button></div>
+    <div class="htTop"><span class="htKicker" id="htKicker">The Basics</span><span class="htStep" id="htStep"></span><button id="htClose" class="htX" aria-label="Close">×</button></div>
     <div class="htArtWrap" id="htArtWrap"></div>
     <h2 id="htTitle"></h2>
     <p id="htText"></p>
@@ -902,7 +915,7 @@ async function run(d){
 </div>
 
 <div class="overlay" id="pauseOverlay" hidden>
-  <h1>Paused</h1><p>The game is frozen — nothing is moving, drilling, or spawning.</p><button id="pauseResumeBtn">Resume</button><button id="pauseRestartBtn" class="secondary">Restart run</button><button id="pauseHowtoBtn" class="secondary">How to play</button><div class="ownedCards" id="pauseCards"></div>
+  <h1>Paused</h1><p>The game is frozen — nothing is moving, drilling, or spawning.</p><button id="pauseResumeBtn">Resume</button><button id="pauseRestartBtn" class="secondary">Restart run</button><button id="pauseHowtoBtn" class="secondary">The Basics</button><div class="ownedCards" id="pauseCards"></div>
 </div>
 
 <div class="overlay" id="drillSelectOverlay" hidden>
@@ -1685,7 +1698,7 @@ function loadMeta(){
         // every stored tier, whatever the key — listing them by hand here silently dropped any
         // upgrade added later (Rapid Loaders / Magnetic Collectors) on every page reload
         upgrades:Object.fromEntries(Object.entries(mu).map(([k,v])=>[k,v|0])),
-        recordingConsent:m.recordingConsent===true?true:m.recordingConsent===false?false:undefined,howtoSeen:!!m.howtoSeen,guideRuns:m.guideRuns|0,guideOff:!!m.guideOff,
+        recordingConsent:m.recordingConsent===true?true:m.recordingConsent===false?false:undefined,howtoSeen:!!m.howtoSeen,guideRuns:m.guideRuns|0,guideOff:!!m.guideOff,guideForce:!!m.guideForce,
         // v4: call-downs bought in the shop, and the two picked to start every run with (checked against CALLDOWNS in callLoadout)
         calls:Array.isArray(m.calls)?m.calls.filter(x=>typeof x==='string'):[],callLoadout:Array.isArray(m.callLoadout)?m.callLoadout.filter(x=>typeof x==='string').slice(0,2):[],
         // v4: the card shop — cards picked at least once in a run (cardSeen), bought (cardOwn), their upgrade tiers (cardLv),
@@ -4407,15 +4420,126 @@ const HOWTO=[
        ctx.beginPath();ctx.moveTo(146+(i%2)*4,y-2+(gap?-o*8:0));ctx.lineTo(162,y+4);ctx.lineTo(154+(i%3)*2,y+20+(gap?o*8:0));ctx.lineTo(140,y+12);ctx.closePath();ctx.fill();ctx.stroke();ctx.globalAlpha=1}
      if(brk){const u=Math.min(1,(f-0.45)/0.5);if(u>0)caRig(caLerp(70,226,u),78,0.3);else caRig(70,78,0.3,{laser:true});caTxt('→',196,70,caRgba('#f2b63c',0.6+0.4*Math.sin(t*5)),14)}else caRig(70,78,0.3,{laser:true})}},
 ];
-let htI=0,htFrom=null,htWasPaused=false;
-function htRender(){const st=HOWTO[htI],wrap=document.getElementById('htArtWrap');
-  document.getElementById('htStep')._tc=`${htI+1} / ${HOWTO.length}`;document.getElementById('htTitle')._tc=st.title;document.getElementById('htText').innerHTML=st.text;
-  document.getElementById('htPrev').style.visibility=htI?'visible':'hidden';document.getElementById('htNext')._tc=htI===HOWTO.length-1?(htFrom==='first'?'Start playing':'Done'):'Next';
-  const dots=document.getElementById('htDots');dots.innerHTML='';HOWTO.forEach((_,i)=>{const b=document.createElement('button');b.className=i===htI?'on':'';b.setAttribute('aria-label','Step '+(i+1));b.onclick=()=>{htI=i;htRender()};dots.appendChild(b)});
-  wrap.innerHTML='<canvas aria-hidden="true"></canvas>';
-  cardCanvas(wrap.firstChild,(g,t,dpr,w,h)=>{g.setTransform(dpr*w/214,0,0,dpr*h/122,0,0);caGround(htI*7+3);st.art(t)})}
-// from: 'first' (the first run), or 'pause' (the pause menu's button)
-function openHowTo(from){if(!S)return;htFrom=from;htI=0;htWasPaused=!!S.paused;S.paused=true;
+// ---- v4: Combat Tips and Enemies: two more slide decks in the How to play box, off the ? menu ----
+const HT_PAL='#9fb6d0',HT_TRP='#5ec8ff',HT_MRK='#c9e07a',HT_RKT='#ff8a4c',HT_GRN='#e0a050';
+// a Paladin for the slides: a unit with its shield of light out in front
+const htPal=(x,y,a,lit)=>{caUnit(x,y,a,1,HT_PAL);ctx.save();ctx.translate(x,y);ctx.rotate(a);ctx.strokeStyle=caRgba('#8fe3ff',lit?0.95:0.7);ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,0,8,-0.75,0.75);ctx.stroke();ctx.restore()};
+const htShot=(x0,y0,x1,y1,f,col='#ffe9a0')=>{const x=caLerp(x0,x1,f),y=caLerp(y0,y1,f),d=Math.hypot(x1-x0,y1-y0)||1;caLine([[x,y],[x-(x1-x0)/d*6,y-(y1-y0)/d*6]],col,1.6)};
+const COMBAT=[
+  {title:'Draw a battle line',
+   text:'Select your units and <b>right-click and drag</b>: the drag becomes their front line, facing away from where you started it. They sort themselves into ranks: <b>Paladins in front</b>, then Mechs and Troopers, with long-range units at the back.',
+   art(t){const f=(t*0.25)%1,L=Math.min(1,f/0.35);caLine([[132,24],[132,24+L*76]],caRgba('#f2b63c',0.9),1.2);
+     ctx.fillStyle='#e6ebf0';ctx.beginPath();const cx=132,cy=24+L*76;ctx.moveTo(cx,cy);ctx.lineTo(cx,cy+9);ctx.lineTo(cx+3,cy+6);ctx.lineTo(cx+7,cy+7);ctx.closePath();ctx.fill();
+     const u=Math.max(0,Math.min(1,(f-0.38)/0.4)),E=v=>v*v*(3-2*v);
+     for(let i=0;i<4;i++){const y=32+i*20;htPal(caLerp(40+i*6,128,E(u)),caLerp(60+i*3,y,E(u)),0,u>=1);caUnit(caLerp(30,110,E(u)),caLerp(70+i*4,y+4,E(u)),0,1,HT_TRP);caUnit(caLerp(20,90,E(u)),caLerp(64+i*5,y,E(u)),0,1,HT_MRK)}
+     for(let i=0;i<4;i++)caEnemy(196-Math.sin(t+i)*3,30+i*22,Math.PI,1)}},
+  {title:'Raise a shield wall',
+   text:'Paladins set in a line <b>link their shields</b> into one band of light. It <b>stops enemy shots</b> from the front, and their swings shove attackers back. Keep your Troopers <b>right behind</b> it to do the killing.',
+   art(t){const ys=[30,50,70,90];caLine([[124,24],[124,96]],caRgba('#8fe3ff',0.35+0.15*Math.sin(t*4)),5);caLine([[124,24],[124,96]],'#cdf6ff',1);
+     ys.forEach((y,i)=>{htPal(118,y,0,true);caUnit(96,y+6,0,1,HT_TRP);htShot(100,y+6,190,y+6,(t*1.6+i*0.27)%1)});
+     for(let i=0;i<5;i++){const f=(t*0.9+i*0.2)%1,y=28+i*17;if(f<0.85){const x=caLerp(190,126,f/0.85);ctx.fillStyle='#b9a6ff';ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+6,y-2);ctx.lineTo(x+6,y+2);ctx.fill()}else caGlow(126,y,6,'#cdf6ff',(1-f)*5)}
+     for(let i=0;i<3;i++)caEnemy(196,34+i*26,Math.PI,1.1)}},
+  {title:'Hold your ground',
+   text:'Press <kbd>X</kbd> and the selected units <b>plant where they stand</b>: they won’t chase or wander. Held units close together <b>back each other up</b>, firing up to 30% faster, and small swarmers that crowd right up against them get crushed.',
+   art(t){const P=[[96,52],[112,62],[96,72],[112,82]];caLine([P[0],P[1],P[3],P[2],P[0]],caRgba('#f2b63c',0.5),0.8);
+     P.forEach(([x,y],i)=>{caUnit(x,y,0,1,HT_TRP);caTxt('⚓',x,y-9,'#f2b63c',6);htShot(x+5,y,200,y,(t*2.2+i*0.3)%1)});
+     for(let i=0;i<8;i++){const f=(t*0.35+i/8)%1,a=i*0.8,x=caLerp(200,120,f),y=67+Math.sin(a)*40*(1-f);if(f<0.9)caEnemy(x,y,Math.PI,0.6,f>0.8);else caGlow(122,67+Math.sin(a)*4,7,'#ffd0c8',(1-f)*8)}
+     htKey('X',18,18,(t*0.5)%1<0.1)}},
+  {title:'Man the walls',
+   text:'Select units and <b>right-click a wall</b>: they line up behind it, facing out. Units manning a standing wall take <b>25% less damage</b>, and gunners shoot <b>15% further</b>. Draw walls across the way waves come, then man them.',
+   art(t){for(let y=24;y<=96;y+=12)caWall(132,y,1,1);const f=Math.min(1,((t*0.3)%1)/0.4),E=f*f*(3-2*f);
+     [30,50,70,90].forEach((y,i)=>{const x=caLerp(50+i*8,120,E);caUnit(x,caLerp(64,y,E),0,1,HT_TRP);if(f>=1)htShot(x+5,y,210,y,(t*2+i*0.25)%1)});
+     if(f>=1){caTxt('−25% damage',58,20,'#9ad36a',7);caTxt('+15% range',58,108,'#9ad36a',7)}
+     for(let i=0;i<4;i++)caEnemy(186+Math.sin(t*2+i)*4,30+i*20,Math.PI,1)}},
+  {title:'Pick the right tool',
+   text:'<b>Rocketeers</b> hit nests, Quakers and bosses 4× as hard. <b>Grenadiers</b> splash whole crowds. <b>Marksmen</b> pierce a line of enemies from far back. <b>Mechs</b> slow what they hit and hold a choke. Bring the mix the stop needs.',
+   art(t){const f=(t*0.6)%1;caUnit(30,34,0,1,HT_RKT);caGlow(178,34,16,'#be64ff',0.4);caEnemy(178,34,Math.PI,2.2,f>0.85);htShot(36,34,170,34,f,'#ff8a4c');caTxt('nests & bosses',107,22,'#ff8a4c',7);
+     caUnit(30,84,0,1,HT_GRN);const g=(t*0.5)%1,gx=caLerp(36,170,g),gy=84-Math.sin(g*Math.PI)*34;ctx.fillStyle='#e0a050';ctx.beginPath();ctx.arc(gx,gy,2.2,0,TAU2);ctx.fill();if(g>0.9)caGlow(170,84,22,'#ffb070',(1-g)*8);
+     for(let i=0;i<6;i++)caEnemy(162+(i%3)*10,78+Math.floor(i/3)*12,Math.PI,0.7);caTxt('crowds',107,108,'#e0a050',7)}},
+  {title:'Stay on the line',
+   text:'Past the Rim, units need a <b>cable</b> back to the Rig or a Relay. Out of reach, their <b>Sanity drains</b>, and if it runs out they turn on you. Chain <b>Relays</b> to push further out, and bring the wounded back inside the Rig’s ring to heal.',
+   art(t){caRig(34,84,0.3);caRelay(104,62,1.1);caCable([42,78],[104,58],6);[[146,40],[150,78]].forEach(([x,y])=>{caCable([104,58],[x,y],5);caUnit(x,y,0,1,HT_TRP)});
+     const f=(t*0.2)%1,x=caLerp(160,204,Math.min(1,f*2)),s=1-Math.max(0,f-0.4)/0.5;caUnit(x,104,0,1,s>0.25?HT_TRP:'#ff5c4d');
+     caRR(x-9,90,18,3,1,'#0b0e12',CA_OL);caRR(x-9,90,18*Math.max(0,s),3,1,s>0.25?'#8fe3ff':'#ff5c4d');caTxt('sanity',x,86,'#8fa3b5',6)}},
+  {title:'Pause and plan',
+   text:'<kbd>Space</kbd> freezes the fight while you keep giving orders: move units, draw lines, place walls and call-downs. <b>Shift-click</b> queues moves. <kbd>Ctrl</kbd>+<kbd>1</kbd>–<kbd>9</kbd> saves a selection as a group, and the number picks it again.',
+   art(t){caRig(40,80,0.3);[[90,48],[98,64],[90,80]].forEach(([x,y],i)=>{caUnit(x,y,0,1,HT_TRP);ctx.setLineDash([3,3]);caLine([[x,y],[x+60,y-10+i*8],[x+80,y+14]],caRgba('#f2b63c',0.7),1);ctx.setLineDash([])});
+     for(let i=0;i<3;i++)caEnemy(190,40+i*22,Math.PI,1);caTxt('PAUSED',107,18,caRgba('#f2b63c',0.55+0.45*Math.sin(t*3)),10);{const dn=(t*0.4)%1<0.08;caRR(89,101+(dn?1:0),36,13,2.5,dn?'#f2b63c':'#2a313a',CA_OL);caTxt('SPACE',107,110+(dn?1:0),dn?'#1a1200':'#e6ebf0',7)}}}
+];
+// Enemies: each slide draws the real enemy, with the game's own drawing, on the slide (S.t borrowed as its clock)
+const HT_ZONE={rim:['The Rim','#5ec8ff'],dense:['Dense Field','#b48bff'],core:['The Core','#ff5c4d']};
+const htE=o=>Object.assign({x:0,y:0,r:8,ang:Math.PI,da:Math.PI,seed:7,hp:10,maxHp:10,flashT:0,target:null,stunT:0,core:false,cd:0,links:[],kind:'wave'},o);
+// foes: [[make, draw, x, y, scale, wander]]
+// (prep runs before the slide's canvas starts drawing, so a nest can bake its sprite against the game's own canvas)
+function htFoes(foes,extra){const art=function(t){const T0=S.t;S.t=t;try{if(extra)extra(t);
+  (this._e||[]).forEach((e,i)=>{const [,draw,x,y,sc,wd]=foes[i];if(wd){e.x=Math.sin(t*0.9+i)*wd;e.y=Math.cos(t*0.7+i*2)*wd*0.4;e.ang=e.da=Math.PI+Math.sin(t*0.9+i)*0.4}
+    ctx.save();ctx.translate(x,y);ctx.scale(sc,sc);try{draw(e)}catch(err){}ctx.restore()})}finally{S.t=T0}};
+  art.prep=function(){if(this._e)return;this._e=foes.map(f=>f[0]());this._e.forEach(e=>{if(e.kind==='nest')try{e._spr=buildNestSprite(e)}catch(err){}})};return art}
+const htEcho=(x,y,sc,big)=>[()=>htE({kind:'wave',r:big?10:7,big:!!big,seed:x+y}),drawEcho,x,y,sc,3];
+const ENEMY_STEPS=[
+  {zone:'rim',title:'Nests',
+   text:'Every wave comes out of a <b>nest</b>, and drilling wakes them. Destroy one and its waves stop, it leaves <b>Dat</b>, and every fabricator gains a charge. <b>Rocketeers</b> hit nests 4× as hard.',
+   art:htFoes([[()=>htE({kind:'nest',size:'medium',r:22,seen:true,hp:300,maxHp:300,ph:0}),drawNest,78,64,1.3,0],htEcho(150,50,2),htEcho(170,82,2)])},
+  {zone:'rim',title:'Echo',
+   text:'The common enemy: a walking cluster of glass round a red core. Echoes come in <b>waves</b> while you drill and go for the Rig, your Stabilizers and your units. <b>Big Echoes</b> are taller and tougher.',
+   art:htFoes([htEcho(70,66,2.6),htEcho(140,62,2.2,true)])},
+  {zone:'rim',title:'Splinter',
+   text:'A dark core ringed by six shards. It stands off and <b>fires the whole ring</b> as a volley, then regrows it. Its shards <b>break on walls</b> and on a Paladin shield wall facing them.',
+   art:htFoes([[()=>htE({kind:'splinter',r:8,shards:6}),drawSplinter,107,64,2.6,3]])},
+  {zone:'rim',title:'Saboteurs',
+   text:'Tiny glass needles that swarm in while you drill and make straight for your <b>Relays</b>. One dies to a stray hit, but a pack left alone takes a Relay down. A Turret or a few units by your Relays stops them.',
+   art:htFoes([0,1,2,3,4].map(i=>[()=>htE({kind:'saboteur',r:4,seed:i*13}),drawSaboteur,60+i*24,50+(i%2)*26,2.4,4]))},
+  {zone:'rim',title:'Quaker',
+   text:'A great stone block that parks out past the Rig and <b>leaps and crashes down</b>, jolting your drill needle and shaking the Stabilizers. Get close and it bounds away. Send <b>Rocketeers</b> or Marksmen to bring it down.',
+   art:htFoes([[()=>htE({kind:'quaker',r:22,hp:600,maxHp:600}),drawQuaker,107,70,1.6,0]])},
+  {zone:'rim',title:'Corrupted units',
+   text:'Your own units, turned. A unit whose <b>Sanity runs out</b> goes over to the enemy, and some distress beacons are bait: a corrupted squad waiting to jump you. Keep your units on the cable.',
+   art(t){[[70,56],[96,74],[122,52],[146,76]].forEach(([x,y],i)=>{caUnit(x+Math.sin(t*6+i)*0.8,y,Math.PI,1.5,'#ff5c4d');caGlow(x,y,10,'#ff5c4d',0.25+0.15*Math.sin(t*3+i))})}},
+  {zone:'dense',title:'Choir',
+   text:'A humming tuning fork that hangs behind its pack. Red threads tie it to up to six Echoes: damage to any of them is <b>shared</b> across them all, and they move faster. It’s fragile: <b>kill the Choir first</b>.',
+   art:htFoes([[()=>htE({kind:'choir',r:8}),drawChoir,62,62,2.4,2],htEcho(140,44,2),htEcho(160,82,2)],t=>{[[140,44],[160,82]].forEach(([x,y])=>caLine([[62,56],[x,y]],caRgba('#ff3a3a',0.45+0.2*Math.sin(t*5)),1))})},
+  {zone:'dense',title:'Fracture',
+   text:'A heavy cracked cluster that glows hotter as it’s hurt and walks for your line. When it dies, or reaches a wall or a unit, it <b>bursts</b>: damage all round and a field of glass that slows your units. Kill it <b>at range</b>.',
+   art:htFoes([[()=>htE({kind:'fracture',r:12,hp:200,maxHp:200}),drawFracture,107,66,2.4,3]])},
+  {zone:'dense',title:'Burrower',
+   text:'A crack of light that runs <b>underground</b>, where nothing can hit it, for a Stabilizer or the Rig. It surfaces beside it as a ring of jaws, bites, then dives again. Keep units <b>near your Stabilizers</b> to punish it.',
+   art:htFoes([[()=>htE({kind:'burrower',r:11,upT:-99,biteEnd:1e9}),drawBurrower,107,70,2.4,0]])},
+  {zone:'dense',title:'Lance Splinter',
+   text:'The Dense Field’s artillery. It ignores your units, walks into range of a <b>Stabilizer</b>, spins up its shards and <b>lobs them over your walls</b>. Walls won’t save you: send units out to hunt it.',
+   art:htFoes([[()=>htE({kind:'lancer',r:10,charge:1.6,shards:6,grewT:-99}),drawLancer,107,74,2.2,0]])},
+  {zone:'core',title:'Stalker',
+   text:'Everything in the Core is tougher. The Stalker is slow and tall, and its long arms <b>reach past your front rank</b> to hit the unit behind it, or the one manning a wall. Its claws spread before each lunge.',
+   art:htFoes([[()=>htE({shard:'stalker',r:9,core:true}),drawShard,107,74,2.2,3]])},
+  {zone:'core',title:'Static',
+   text:'Small, fast and fragile. It moves in <b>blinks</b>, and a blink can carry it <b>over a wall</b>. It hunts your Harvesters and Builders first, so keep a few guns near them.',
+   art:htFoes([0,1,2].map(i=>[()=>htE({shard:'static',r:6,core:true,seed:i*9}),drawShard,64+i*40,66+(i%2)*10,2.4,5]))},
+  {zone:'core',title:'Husk',
+   text:'An armoured crawler. When its shell breaks, its <b>core runs for the nearest nest</b>, and if it gets there a fresh Husk grows. Finish the core off before it escapes.',
+   art:htFoes([[()=>htE({shard:'husk',r:10,core:true}),drawShard,107,70,2.4,3]])},
+  {zone:'core',title:'Lantern',
+   text:'It plants itself at range, splits its head open and fires a <b>beam through every unit in line</b>. Walls and rock stop the beam: fight Lanterns from <b>behind cover</b>, and don’t stand in a queue.',
+   art:htFoes([[()=>htE({shard:'lantern',r:9,core:true}),drawShard,107,74,2.4,0]])},
+  {zone:'core',title:'Split Hulk',
+   text:'A slow, heavy brute that charges what it sees. When it finally goes down it <b>bursts into a swarm</b> of small fighters. Have <b>Grenadiers</b> ready to clear them.',
+   art:htFoes([[()=>htE({kind:'brute',r:16,core:true,hp:300,maxHp:300}),drawBrute,107,74,1.8,3]])},
+  {zone:'core',title:'Colossus',
+   text:'The Core’s elite, one at a time while you drill. Its <b>black trail slows</b> your units and its fists slam everything round it. It loses a core at each third of its health: <b>burst all three</b>. Rocketeers help.',
+   art:htFoes([[()=>htE({shard:'colossus',r:24,core:true,cores:3,hp:1400,maxHp:1400}),drawShard,107,78,1.3,2]])},
+  {zone:'core',title:'The Shieldbearer',
+   text:'The boss that guards the <b>contract vein</b>. Two stone slabs block shots from the front, and every few seconds it throws them open to <b>breathe magma</b>. Flank it, and hit it while its chest is bare.',
+   art:htFoes([[()=>htE({kind:'boss',boss:true,r:42,sh:[1000,1000],brkT:[-9,-9],o:1,st:'idle',vent:0,wk:0,breathCd:3,hp:4500,maxHp:4500}),drawBoss,107,66,0.62,0]])}
+];
+const HT_DECKS={basics:{name:'The Basics',steps:HOWTO},combat:{name:'Combat Tips',steps:COMBAT},enemies:{name:'Enemies',steps:ENEMY_STEPS}};
+let htI=0,htFrom=null,htWasPaused=false,htDeck='basics';
+function htRender(){const D=HT_DECKS[htDeck],L=D.steps,st=L[htI],wrap=document.getElementById('htArtWrap'),Z=st.zone&&HT_ZONE[st.zone],k=document.getElementById('htKicker');
+  k._tc=Z?`${D.name} · ${Z[0]}`:D.name;k.style.color=Z?Z[1]:'';
+  document.getElementById('htStep')._tc=`${htI+1} / ${L.length}`;document.getElementById('htTitle')._tc=st.title;document.getElementById('htText').innerHTML=st.text;
+  document.getElementById('htPrev').style.visibility=htI?'visible':'hidden';document.getElementById('htNext')._tc=htI===L.length-1?(htFrom==='first'?'Start playing':'Done'):'Next';
+  const dots=document.getElementById('htDots');dots.innerHTML='';L.forEach((_,i)=>{const b=document.createElement('button');b.className=i===htI?'on':'';b.setAttribute('aria-label','Step '+(i+1));b.onclick=()=>{htI=i;htRender()};dots.appendChild(b)});
+  wrap.innerHTML='<canvas aria-hidden="true"></canvas>';if(st.art.prep)st.art.prep.call(st);
+  cardCanvas(wrap.firstChild,(g,t,dpr,w,h)=>{g.setTransform(dpr*w/214,0,0,dpr*h/122,0,0);caGround(htI*7+3+(htDeck==='basics'?0:htDeck==='combat'?40:80));st.art(t)})}
+// from: 'first' (the first run), 'pause' (the pause menu's button) or 'help' (the ? menu); deck: basics, combat, enemies
+function openHowTo(from,deck){if(!S)return;htFrom=from;htDeck=deck||'basics';htI=0;htWasPaused=!!S.paused;S.paused=true;
   if(from==='first'){meta.howtoSeen=true;saveMeta()}
   document.getElementById('pauseOverlay')._hd=true;document.getElementById('howtoOverlay')._hd=false;htRender()}
 function closeHowTo(){document.getElementById('howtoOverlay')._hd=true;document.getElementById('htArtWrap').innerHTML='';
@@ -4423,8 +4547,19 @@ function closeHowTo(){document.getElementById('howtoOverlay')._hd=true;document.
 const howtoOpen=()=>!document.getElementById('howtoOverlay').hidden;
 document.getElementById('htClose').onclick=closeHowTo;
 document.getElementById('htPrev').onclick=()=>{if(htI>0){htI--;htRender()}};
-document.getElementById('htNext').onclick=()=>{if(htI<HOWTO.length-1){htI++;htRender()}else closeHowTo()};
-document.getElementById('pauseHowtoBtn').onclick=()=>openHowTo('pause');
+document.getElementById('htNext').onclick=()=>{if(htI<HT_DECKS[htDeck].steps.length-1){htI++;htRender()}else closeHowTo()};
+document.getElementById('pauseHowtoBtn').onclick=()=>openHowTo('pause','basics');
+// v4: the ? button opens a menu: the three slide decks, and the guide switched back on (or off)
+function guideShown(){return guideOn()}
+function refreshHelpMenu(){const on=guideShown();document.getElementById('hmGuideL')._tc=on?'Hide the guide':'Show the guide';
+  document.getElementById('hmGuideS')._tc=on?'The next-step cards on the left':'Next-step cards on the left, until you hide them'}
+function helpMenu(open){const m=document.getElementById('helpMenu');if(open==null)open=m.hidden;if(open)refreshHelpMenu();m._hd=!open}
+document.getElementById('helpToggleBtn').onclick=e=>{e.stopPropagation();helpMenu();sfx.click()};
+[['hmBasics','basics'],['hmCombat','combat'],['hmEnemies','enemies']].forEach(([id,d])=>document.getElementById(id).onclick=()=>{helpMenu(false);openHowTo('help',d)});
+document.getElementById('hmGuide').onclick=()=>{if(guideShown()){meta.guideOff=true;meta.guideForce=false}else{meta.guideOff=false;meta.guideForce=true}saveMeta();refreshHelpMenu();if(S)S._guideT=-9;helpMenu(false)};
+addEventListener('pointerdown',e=>{const m=document.getElementById('helpMenu');if(!m.hidden&&!m.contains(e.target)&&e.target.id!=='helpToggleBtn')helpMenu(false)},true);
+addEventListener('keydown',e=>{if(e.key==='Escape'&&!document.getElementById('helpMenu').hidden){e.stopImmediatePropagation();helpMenu(false)}},true);
+
 // while it's up it takes the keyboard: ← → to page, Esc / Enter to close at the end; nothing reaches the game
 addEventListener('keydown',e=>{if(!howtoOpen())return;e.stopImmediatePropagation();
   if(e.key==='ArrowRight'||e.key==='Enter'){e.preventDefault();document.getElementById('htNext').click()}
@@ -7837,7 +7972,6 @@ mini.addEventListener('pointerdown',e=>{
   if(getComputedStyle(miniToggle).display!=='none'&&!miniWrap.classList.contains('expanded')){setMiniExpanded(true);return}
   const r=mini.getBoundingClientRect();cam.x=(e.clientX-r.left)/r.width*W;cam.y=(e.clientY-r.top)/r.height*H;clampCam()
 });
-document.getElementById('helpToggleBtn').onclick=()=>{const h=document.getElementById('help'),open=!h.hidden&&h.classList.contains('open');h._hd=open;h.classList.toggle('open',!open)};
 function closeProdMenu(){prodMenuOpen=false}
 // ---------- fabricators (v2) ----------
 function unitAlive(k){return S.troops.filter(t=>(t.kind||'troop')===k&&t.hp>0).length}
@@ -13259,7 +13393,7 @@ const $cache={}, $=id=>$cache[id]||($cache[id]=document.getElementById(id));
 // what to do next, read from the game's state, so someone who skipped the tutorial and How to play isn't
 // lost. Its Hide button turns it off for good (meta.guideOff).
 const GUIDE_RUNS=2;
-function guideOn(){return !!(RUN&&S&&!tutorial&&!tutorialMap&&!meta.guideOff&&(meta.guideRuns||0)>=1&&(meta.guideRuns||0)<=GUIDE_RUNS)}
+function guideOn(){return !!(RUN&&S&&!tutorial&&!tutorialMap&&!meta.guideOff&&(meta.guideForce||(meta.guideRuns||0)>=1&&(meta.guideRuns||0)<=GUIDE_RUNS))} // (meta.guideForce: switched back on from the ? menu)
 function guideStep(){const B=S.base,v=S.activeVein;
   if(S.megaNest&&!S.megaDone)return megaShelled()?['Destroy the <b>small nests</b> round the Mega Nest: they shield it.','Send your army in a group. Rocketeers hit nests hardest.']
     :['The Mega Nest is open: <b>send everything at it</b>.','Rocketeers hit it hardest.'];
@@ -13298,7 +13432,7 @@ function updateGuide(){const g=document.getElementById('guide');if(!g)return;
     feed.forEach((c,j)=>c.el.classList.toggle('old',j>0));
     while(feed.length>GUIDE_FEED){const c=feed.pop();c.el.classList.add('leaving');setTimeout(()=>c.el.remove(),200)}}
   const c=feed[0];if(c.s!==sub){c.s=sub;c.el.querySelector('.gs').innerHTML=sub}}
-document.getElementById('guideX').onclick=()=>{meta.guideOff=true;saveMeta();updateGuide()};
+document.getElementById('guideX').onclick=()=>{meta.guideOff=true;meta.guideForce=false;saveMeta();updateGuide()};
 function hud(){
   const B=S.base;updateGuide();updateCursorCost();
   $('hDat')._tc=Math.floor(S.dat);$('hLiving')._tc=S.living;$('hCondensed')._tc=S.condensed;
