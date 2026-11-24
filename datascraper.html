@@ -3735,6 +3735,11 @@ function megaExtras(m,n,patrol){const E=S.megaEruptInA,A=S.megaAssaults||1,dead=
   if(A>=2&&E===3)ks.push('burrow');
   let used=0;ks.forEach(k=>{if(used>=n&&k!=='burrow')return;megaSpawnKind(m,k,patrol);if(k!=='burrow')used++});return used}
 // in a lull, everything that isn't an Echo walks home to the pit too (Echoes do it on their patrol)
+// v4: enemies spread their attacks: picking which of your units to go for, each enemy already on a unit counts
+// as ENEMY_SPREAD more distance to it (so a wave fans out over your line instead of piling onto the first unit in
+// reach), and the unit an enemy is already on counts ENEMY_STICK closer, so it doesn't flick between targets
+const ENEMY_SPREAD=30,ENEMY_STICK=20;
+function enemyLoad(){if(S._ldT===S.t&&S._ld)return S._ld;const m=new Map();S.enemies.forEach(x=>{if(x.hp>0&&x.target)m.set(x.target,(m.get(x.target)||0)+1)});S._ld=m;S._ldT=S.t;return m}
 function megaHomeStep(e,dt){e.target=null;const h=e.patrol&&e.patrol.a;if(!h)return;if(dist(e,h)>12)moveToward(e,waypointFor(e,h.x,h.y),e.speed*0.8*enemyPace(e),dt)}
 // a rim crystal is destroyed (any unit can do it; Rocketeers' rockets hit it ROCKET_VS_BIG times as hard,
 // as on any nest, and MEGA_GLASS_ROCKET times that again)
@@ -11572,7 +11577,7 @@ function update(dt){
       tgt=bestR||B;
     } else {
       if(e.kind==='roam'||e.kind==='brute'){if(e._lhp!=null&&e.hp<e._lhp)e.provT=S.t+PROVOKE_T;e._lhp=e.hp;if(e.provT>S.t)bd=Math.max(bd,PROVOKE_R)}
-      allies.forEach(t=>{const d=dist(t,e);if(d<bd){bd=d;tgt=t}});
+      {const L=enemyLoad(),cur=e.target;let bs=Infinity;allies.forEach(t=>{const d=dist(t,e);if(d>=bd)return;const n=(L.get(t)||0)-(cur===t?1:0),sc=d+ENEMY_SPREAD*Math.max(0,n)-(cur===t?ENEMY_STICK:0);if(sc<bs){bs=sc;tgt=t}});if(tgt)bd=dist(tgt,e)}
       if(!tgt&&e.provT>S.t)S.turrets.forEach(tu=>{if(!tu.built||tu.hp<=0)return;const d=dist(tu,e);if(d<bd){bd=d;tgt=tu}});
     }
     if(e.kind==='roam'||e.kind==='brute'){
@@ -11595,6 +11600,7 @@ function update(dt){
         if(ls&&!(tgt&&tgt!==B&&tgt.kind!=='stabilizer'&&dist(e,tgt)<70))tgt=ls}
     }
     if(S.decoys.length&&e.kind!=='saboteur'){let dc=null,dd=DECOY_PULL;S.decoys.forEach(q=>{const d=dist(q,e);if(d<dd){dd=d;dc=q}});if(dc)tgt=dc}
+    if(e.target!==tgt&&S._ld&&S._ldT===S.t){const L=S._ld;if(e.target)L.set(e.target,(L.get(e.target)||1)-1);if(tgt)L.set(tgt,(L.get(tgt)||0)+1)} // (keep this frame's counts current, so a wave doesn't all switch at once)
     e.target=tgt;
     if(e.horde&&tgt){e._tT=S.t+rnd(0.25,0.45);hordeStep(e,tgt,dt);return}
     if(e.kind==='splinter'&&tgt){splinterStep(e,tgt,dt);return}
