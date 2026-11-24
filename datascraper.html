@@ -10731,7 +10731,9 @@ function drawRocketeer(t){if(kitOf(t)==='mortar'){drawMortarCrew(t);return}
 // can shell any marked enemy, and with Radar Mast relays anything a mast can see, wherever it is on the map.
 // It talks with the Artillery's voice.
 const MORTAR_RANGE=1.4,MORTAR_CD=ROCKET_CD*1.35,MORTAR_DMG=ROCKET_DMG*1.1,MORTAR_SPLASH=ROCKET_SPLASH_R*1.5,MORTAR_VS_BIG=2;
-function mortarReach(t,e,range){if(e.hp<=0||e.kind==='nest'&&!(e.seen||debugNoFog))return false;if(dist(t,e)<=range*MORTAR_RANGE&&visible(e))return true;
+function mortarReach(t,e,range){if(e.hp<=0||e.kind==='nest'&&!(e.seen||debugNoFog))return false;
+  // in range: anything anyone of yours can see (the crew needn't see it itself), and a nest you've found stays a target
+  if(dist(t,e)<=range*MORTAR_RANGE&&(visible(e)||e.kind==='nest'))return true;
   if(S.kits.marksman==='spotter'&&e.markT>0)return true;
   if(S.mods.relayDef==='radar'&&radarRelays().some(r=>dist(r,e)<RELAY_RADAR_VISION))return true;return false}
 function mortarTarget(t,range){const ord=t.state==='attack'&&t.target&&S.enemies.includes(t.target)&&mortarReach(t,t.target,range)?t.target:null;if(ord)return ord;
@@ -11420,7 +11422,8 @@ function update(dt){
     else if(t.state==='attack'){
       if(!t.target||t.target.hp<=0){t.target=null;t.state='idle';if(mech||brawl||t.hold)t.post={x:t.x,y:t.y};
         if(t.wallHome){const h=t.wallHome;t.wallHome=null;t.state='move';t.dest={x:h.x,y:h.y};t.wall=true;t.wallAng=h.ang;t.formAng=h.form;t.manning=h.man&&S.wallLines&&S.wallLines.includes(h.man)?h.man:null}}
-      else if(dist(t,t.target)-(brawl?t.target.r||0:0)>range-10){if(mech||brawl)t.ang=Math.atan2(t.target.y-t.y,t.target.x-t.x);const aim=waypointFor(t,t.target.x,t.target.y);moveToward(t,aim,speed*factor,dt)}
+      // (a mortar crew stays put to shell anything it can reach from where it is, and never walks off a hold)
+      else if(dist(t,t.target)-(brawl?t.target.r||0:0)>range-10&&!(rock&&kit==='mortar'&&(t.hold||mortarReach(t,t.target,range)))){if(mech||brawl)t.ang=Math.atan2(t.target.y-t.y,t.target.x-t.x);const aim=waypointFor(t,t.target.x,t.target.y);moveToward(t,aim,speed*factor,dt)}
     }
     else if(t.state==='guard')guardMove(t,range,speed*factor,dt);
     else if(frl&&t.state==='idle'){if(!t.post)t.post={x:t.x,y:t.y};if(dist(t,t.post)>6)moveToward(t,waypointFor(t,t.post.x,t.post.y),speed*factor,dt)}
@@ -13480,7 +13483,7 @@ function draw(){
       const dx=n.tx-n.x0,dy=n.ty-n.y0,L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L,len=14;
       ctx.strokeStyle=n.color||C.mech;ctx.lineWidth=2;ctx.beginPath();
       ctx.moveTo(n.x-ux*len,n.y-uy*len);ctx.lineTo(n.x,n.y);ctx.stroke();
-    }else if(n.style){if(n.style==='mortar'){const f=Math.min(1,n.t/n.dur),R=4+MORTAR_SPLASH*0.4*f;ctx.save();ctx.fillStyle='#000';ctx.globalAlpha=0.12+0.4*f*f;ctx.beginPath();ctx.ellipse(n.tx,n.ty,R,R*0.6,0,0,Math.PI*2);ctx.fill();ctx.restore()}drawArcRound(n)}
+    }else if(n.style){if(n.style==='mortar'){const f=Math.max(0,Math.min(1,n.t/n.dur)),R=4+MORTAR_SPLASH*0.4*f;ctx.save();ctx.fillStyle='#000';ctx.globalAlpha=0.12+0.4*f*f;ctx.beginPath();ctx.ellipse(n.tx,n.ty,R,R*0.6,0,0,Math.PI*2);ctx.fill();ctx.restore()}drawArcRound(n)}
     else{ctx.fillStyle=n.color||C.accent;ctx.beginPath();ctx.arc(n.x,n.y,n.big?6:4,0,Math.PI*2);ctx.fill()}
   });
   // harvesters
