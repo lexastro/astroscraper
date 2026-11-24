@@ -407,8 +407,8 @@ body.lowGfx #fogGrain{display:none}
 .curNote{position:fixed;z-index:30;pointer-events:none;background:rgba(11,14,18,0.9);border:1px solid var(--accent);color:var(--fg);font:600 12px var(--mono);padding:3px 8px;border-radius:3px;white-space:nowrap;transform:translate(14px,-130%);transition:opacity .25s}
 @media (max-width:720px){.banners{top:calc(env(safe-area-inset-top,0px) + 64px)}.banner{font-size:12px;padding:6px 10px}}
 /* v4: the run guide — on a player's first GUIDE_RUNS runs, a card on the left always says what to do next */
-/* v4: challenges sheet (top left, under the HUD) */
-#chSheet{position:absolute;left:max(16px,env(safe-area-inset-left,0px));top:calc(env(safe-area-inset-top,0px) + 76px);width:250px;max-width:calc(100vw - 32px);z-index:14;
+/* v4: challenges sheet (top right, under the Help button) */
+#chSheet{position:absolute;right:max(10px,env(safe-area-inset-right,0px));top:calc(env(safe-area-inset-top,0px) + 48px);width:250px;max-width:calc(100vw - 32px);z-index:14;
   background:rgba(11,14,18,0.88);border:1px solid var(--line);border-radius:6px;font-size:12px;line-height:1.35;color:var(--fg);box-shadow:0 4px 14px rgba(0,0,0,.4)}
 #chSheet[hidden]{display:none}
 #chHead{all:unset;box-sizing:border-box;display:flex;width:100%;align-items:center;gap:7px;padding:6px 10px;cursor:pointer;font:600 10px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
@@ -422,7 +422,7 @@ body.lowGfx #fogGrain{display:none}
 #chList .chRow.done .chT span:first-child{color:var(--ally)} #chList .chRow.done .chBar i{background:var(--ally)}
 #chList .chEmpty{color:var(--muted);font-size:11px}
 @media (max-width:720px){#chSheet{width:210px;font-size:11.5px}}
-#guide{position:absolute;left:max(16px,env(safe-area-inset-left,0px));top:max(calc(env(safe-area-inset-top,0px) + 150px),var(--chB,0px));width:290px;max-width:calc(100vw - 32px);
+#guide{position:absolute;left:max(16px,env(safe-area-inset-left,0px));top:calc(env(safe-area-inset-top,0px) + 150px);width:290px;max-width:calc(100vw - 32px);
   display:flex;flex-direction:column;gap:6px;z-index:15;font-size:12.5px;line-height:1.45;color:var(--fg);pointer-events:none}
 #guide[hidden]{display:none}
 #guide .gk{display:flex;justify-content:space-between;align-items:center;font:600 10px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--accent);padding:0 2px}
@@ -432,8 +432,8 @@ body.lowGfx #fogGrain{display:none}
 #guide .gc.leaving{animation:toastOut .18s ease forwards}
 #guide .gt b{color:var(--fg)} #guide .gs{color:var(--muted);margin-top:5px;font-size:11.5px} #guide .gs:empty{display:none}
 #guide kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--line);border-bottom-width:2px;border-radius:3px;padding:0 4px;background:var(--panel2);color:var(--fg)}
-@media (max-width:720px){#guide{top:max(calc(env(safe-area-inset-top,0px) + 68px),var(--chB,0px));width:220px;font-size:11.5px}}
-.toasts{position:absolute;left:max(16px,env(safe-area-inset-left,0px));top:max(calc(env(safe-area-inset-top,0px) + 150px),var(--chB,0px));
+@media (max-width:720px){#guide{top:calc(env(safe-area-inset-top,0px) + 68px);width:220px;font-size:11.5px}}
+.toasts{position:absolute;left:max(16px,env(safe-area-inset-left,0px));top:calc(env(safe-area-inset-top,0px) + 150px);
   display:flex;flex-direction:column;gap:8px;width:300px;max-width:calc(100vw - 32px);pointer-events:none;z-index:15}
 .toast{pointer-events:auto;display:flex;align-items:flex-start;gap:8px;background:var(--panel);border:1px solid var(--line);
   border-left:4px solid var(--fg);border-radius:6px;padding:9px 10px;box-shadow:0 2px 8px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.04);
@@ -454,7 +454,7 @@ body.lowGfx #fogGrain{display:none}
 @keyframes toastOut{to{opacity:0;transform:translateX(-14px)}}
 @media (max-width:720px),(max-height:500px){
   /* right under the (now single-row) top HUD strip, and noticeably smaller than desktop */
-  .toasts{top:max(calc(env(safe-area-inset-top,0px) + 68px),var(--chB,0px));width:200px;gap:5px}
+  .toasts{top:calc(env(safe-area-inset-top,0px) + 68px);width:200px;gap:5px}
   .toast{padding:6px 8px;gap:5px;border-left-width:3px}
   .toast .ti{font-size:11px}
   .toast .tx{font-size:10px;line-height:1.25}
@@ -579,7 +579,7 @@ body.lowGfx #fogGrain{display:none}
   .build button{min-height:0;padding:5px 10px;font-size:12px;gap:0}
   .build button .cost{display:block;font-size:10px}
   .tutPanel{top:calc(env(safe-area-inset-top,0px) + 52px);max-height:calc(100vh - 140px);overflow-y:auto}
-  .toasts{top:max(calc(env(safe-area-inset-top,0px) + 56px),var(--chB,0px))}
+  .toasts{top:calc(env(safe-area-inset-top,0px) + 56px)}
   .drillMeter{bottom:calc(68px + env(safe-area-inset-bottom,0px));padding:5px 8px 6px;width:min(420px,calc(100vw - 32px))}
   #dmHint{display:none} .dmFoot{min-height:0;margin-top:3px} .dmHead{margin-bottom:3px}
   .help.open{inset:6% 6%;max-height:88vh}
@@ -895,7 +895,7 @@ async function run(d){
 <div class="help" id="help" hidden>
   <button id="helpClose" aria-label="Close">×</button>
   <b>The run:</b> three stops, one map in each zone, each deeper and tougher than the last — the Rim, the Dense Field, and the Core's heart where the contract vein waits. A barrier (rift on the Rim, a crystal wall deeper in) cuts every map: drain the <b>breach vein</b> in front of it to break through, then walk the Rig off the far edge — which side that is changes from map to map, and you arrive on the opposite one. Everything you have carries on to the next stop.<br>
-<b>Healing:</b> units inside the Rig's dashed ring slowly regain health (Relays don't heal anyone). <b>Unit limits:</b> up to 5 Grenadiers, 4 Rocketeers (rockets that hit nests and Quakers 4× as hard) and 3 Mechs at once (the button shows how many you have). <b>Stock &amp; troopers:</b> nothing refills on its own any more — every fabricator, Stabilizer and Probe has a free stock, and once it's empty each use costs Dat (the price shows on the button). You have 6 Trooper slots (3 filled for free at the start — the button shows how many you have against the limit) and 8 Paladin slots (4 free to start); each new Trooper or Paladin costs Dat, and right-clicking any build button buys another charge of it, and an empty stock buys its next charge with Dat automatically. Challenges can raise the limit. <b>Wrecks</b> (derelict scrapers) lie hidden on every map, some beyond the barrier — park the Rig on one for 8s (or send units to stand on it — slower) to salvage it (it draws an ambush): Dat, refilled stocks or drones. <b>Challenges</b> (top left, click to fold) are side goals for each stop, like salvaging wrecks, destroying nests or tapping a seam: each pays free call-downs or troops. <b>Quakers</b> — big stone blocks — lumber in while you drill, keep their distance and slam the ground to jolt the drill needle and shake your Stabilizers: send units out to kill them. In the Dense Field (and the Core) waves, and the Mega Nest's attacks, bring three more: a <b>Choir</b>, a humming glass fork that hangs back and ties the Echoes round it together with red threads, so damage on one is shared by all of them until you break the fork; a <b>Fracture</b>, which glows hotter as you hurt it and bursts when it dies or reaches your line, leaving glass on the ground that slows and cuts your units; and on great waves a <b>Burrower</b>, a crack of light that runs under your walls and comes up beside a Stabilizer or the Rig to bite. It can't be hit underground, but it's rooted while it bites.<br>
+<b>Healing:</b> units inside the Rig's dashed ring slowly regain health (Relays don't heal anyone). <b>Unit limits:</b> up to 5 Grenadiers, 4 Rocketeers (rockets that hit nests and Quakers 4× as hard) and 3 Mechs at once (the button shows how many you have). <b>Stock &amp; troopers:</b> nothing refills on its own any more — every fabricator, Stabilizer and Probe has a free stock, and once it's empty each use costs Dat (the price shows on the button). You have 6 Trooper slots (3 filled for free at the start — the button shows how many you have against the limit) and 8 Paladin slots (4 free to start); each new Trooper or Paladin costs Dat, and right-clicking any build button buys another charge of it, and an empty stock buys its next charge with Dat automatically. Challenges can raise the limit. <b>Wrecks</b> (derelict scrapers) lie hidden on every map, some beyond the barrier — park the Rig on one for 8s (or send units to stand on it — slower) to salvage it (it draws an ambush): Dat, refilled stocks or drones. <b>Challenges</b> (top right, click to fold) are side goals for each stop, like salvaging wrecks, destroying nests or tapping a seam: each pays free call-downs or troops. <b>Quakers</b> — big stone blocks — lumber in while you drill, keep their distance and slam the ground to jolt the drill needle and shake your Stabilizers: send units out to kill them. In the Dense Field (and the Core) waves, and the Mega Nest's attacks, bring three more: a <b>Choir</b>, a humming glass fork that hangs back and ties the Echoes round it together with red threads, so damage on one is shared by all of them until you break the fork; a <b>Fracture</b>, which glows hotter as you hurt it and bursts when it dies or reaches your line, leaving glass on the ground that slows and cuts your units; and on great waves a <b>Burrower</b>, a crack of light that runs under your walls and comes up beside a Stabilizer or the Rig to bite. It can't be hit underground, but it's rooted while it bites.<br>
 <b>Goal:</b> the ground is cracked all over: <b>follow the pulses of energy</b> running through the cracks back to their source to find a vein, then park the Rig on its glowing centre and press <kbd>F</kbd> to lock on. Veins <b>emerge, ripen</b> a tier at a time, then go unstable and <b>collapse</b> — and new ones emerge elsewhere. Glowing <b>stray pockets</b> give a bearing toward the nearest vein when a unit reaches one; two bearings from different angles triangulate it. Locking on starts the <b>strike</b> at once: press <kbd>F</kbd> again to stop the needle on a good band of the strip (the thin sliver is a tier above the vein; red ruptures it) — the meter zooms in on where you hit and the drill starts; the first wave arrives about 20s later. While it drills, the needle drifts; Stabilizers hold it steady, and the tier you're paid is where it spends most of its time. If it drifts into the red, the vein ruptures and damages the Rig. Drain veins for rewards — after 3, the contract vein stirs: it gives off no pulses, so triangulate it with bearings from stray pockets, then drain it to win. In the heart of the Core the contract vein is guarded by <b>the Shieldbearer</b>: its slab shields stop direct fire from in front (lobbed rounds, rockets and call-downs come over the top), it opens them to breathe magma, and its chest is bare while it does. Flank it, crack the shields off, and bring it down before you can drill the contract.<br>
   <b>Controls:</b> drag to select · right-click to move/attack · right-click a friendly unit or building with combat units selected to <b>guard</b> it (escort it, fight off anything that comes near, then fall back) · <kbd>Ctrl</kbd>+<kbd>A</kbd> select all your units · <kbd>Z</kbd> select the Rig · <kbd>B</kbd> build menu · <kbd>U</kbd> units menu · <kbd>C</kbd> call-downs · <kbd>F</kbd> lock on to a vein / strike · <kbd>H</kbd> jump the camera to the Rig · <kbd>WASD</kbd> or middle-drag to pan, scroll to zoom<br>
   <b>Touch:</b> tap to select · three-finger tap to deselect · tap empty ground/an enemy/a wall to move/attack/man it · drag to pan · pinch to zoom · double-tap a unit to select all of its kind · hold still then drag: box-select (nothing selected) or lay out a formation (units selected) · hold on a friendly unit or building with units selected to guard it · hold a build button to buy another charge · the round buttons by the minimap: ⏸ tactical pause, ⌂ back to the Rig, ✕ cancel what you're placing, and your control groups (save one with ⧉ while units are selected)<br>
@@ -13631,7 +13631,7 @@ function guideStep(){const B=S.base,v=S.activeVein;
 // Each stop rolls side challenges, CH_SHOWN at a time and CH_PER_STOP in all (a finished one stays up a few
 // seconds ticked off, then makes room for a fresh one until the stop's run out). They're where free call-downs and extra troops come from
 // now: nests, wrecks, veins and the hives no longer hand those out. Each shows its reward up front; val
-// 2 (the harder ones) pays the bigger rewards. Shown in a collapsible sheet at the top left.
+// 2 (the harder ones) pays the bigger rewards. Shown in a collapsible sheet at the top right, under the Help button.
 const CH_SHOWN=3, CH_PER_STOP=5, CH_DONE_SHOW=3.5;
 const chVeins=()=>!megaStop()&&S.veins.some(v=>!v.done&&!v.contract);
 const chWrecksLeft=()=>(S.wrecks||[]).filter(w=>!w.done).length;
@@ -13660,8 +13660,8 @@ const CH_REWARDS={
             give:()=>{const n=raiseSquadCap(BARRACKS_SLOTS);return `a barracks module — ${n} Troopers join you and you can field ${S.squadCap} now`}},
   unitcap: {label:r=>`${UNIT_BARRACKS[r.u].name}: +${UNIT_BARRACKS[r.u].n} ${FABS[r.u].name} limit`,ok:r=>fabUnlocked(r.u)&&unitLimit(r.u)<UNIT_BARRACKS[r.u].max,
             give:r=>{const n=raiseUnitCap(r.u,UNIT_BARRACKS[r.u].n);return `${UNIT_BARRACKS[r.u].name} — ${n} ${n===1?FABS[r.u].name:unitPl(r.u)} join you and you can field ${unitLimit(r.u)} now`}},
-  recruit: {label:r=>`${r.n} ${r.n===1?FABS[r.u].name:unitPl(r.u)} (not unlocked yet)`,ok:r=>!fabUnlocked(r.u),
-            give:r=>{spawnFreeTroops(r.n,r.u);updateBuildBar();return `${r.n===1?'a':r.n} ${r.n===1?FABS[r.u].name:unitPl(r.u)} join${r.n===1?'s':''} you (unlock them to build more)`}}};
+  recruit: {label:r=>`${r.n} free ${r.n===1?FABS[r.u].name:unitPl(r.u)}`,ok:r=>!fabUnlocked(r.u),
+            give:r=>{spawnFreeTroops(r.n,r.u);updateBuildBar();return `${r.n===1?'a':r.n} ${r.n===1?FABS[r.u].name:unitPl(r.u)} join${r.n===1?'s':''} you`}}};
 function chRollReward(val){const opts=[];const add=(w,r)=>{if(CH_REWARDS[r.k].ok(r))opts.push([w,r])};
   if(val<2){add(3,{k:'calls',n:2});add(2,{k:'troops',n:3});add(1,{k:'drones',n:2})}
   else{add(2,{k:'calls',n:3});add(1,{k:'cache'});add(2,{k:'barracks'});
@@ -13695,8 +13695,11 @@ function updateChallenges(){const el=document.getElementById('chSheet');if(!el)r
   if(live&&!S.ch)chInit();
   const show=live&&!menuOpen&&!S.rewardChoice;
   el._hd=!show;
-  const hb=document.querySelector('.hud').getBoundingClientRect().bottom+8;if(el._top!==hb){el._top=hb;el.style.top=hb+'px'}
-  if(!show){document.documentElement.style.setProperty('--chB','0px');return}
+  // (under the Help button, or under the HUD where a narrow screen wraps it across the top right)
+  {const hp=document.querySelector('.helpToggleBtn'),hb=hp?hp.getBoundingClientRect().bottom:40,hr=document.querySelector('.hud').getBoundingClientRect();
+    const reach=[...document.querySelectorAll('.hud > *')].some(c=>c.getBoundingClientRect().right>innerWidth-270);
+    const top=Math.round(Math.max(hb,reach?hr.bottom:0)+8);if(el._top!==top){el._top=top;el.style.top=top+'px'}}
+  if(!show)return;
   const C=S.ch;
   C.list=C.list.filter(c=>c.doneT==null||S.t-c.doneT<CH_DONE_SHOW);chFill();
   el.classList.toggle('shut',chShut);
@@ -13706,8 +13709,7 @@ function updateChallenges(){const el=document.getElementById('chSheet');if(!el)r
     document.getElementById('chN').textContent=open?`${open} open${left>0?` · ${left} more`:''}`:'all done';
     document.getElementById('chList').innerHTML=C.list.length?C.list.map(c=>{const d=c.doneT!=null;
       return `<div class="chRow${d?' done':''}${d&&S.t-c.doneT>CH_DONE_SHOW-0.5?' gone':''}"><div class="chT"><span>${d?'✓ ':''}${c.text}</span><span class="chP">${c.got}/${c.n}</span></div><div class="chBar"><i style="width:${(100*c.got/c.n).toFixed(0)}%"></i></div><div class="chR">${d?'Done':'Reward'}: <b>${CH_REWARDS[c.rw.k].label(c.rw)}</b></div></div>`}).join('')
-      :'<div class="chEmpty">No challenges left on this stop.</div>'}
-  document.documentElement.style.setProperty('--chB',Math.round(el.getBoundingClientRect().bottom+8)+'px')}
+      :'<div class="chEmpty">No challenges left on this stop.</div>'}}
 // (a feed like the old alert cards: each new step slides in on top, the earlier ones dim below it, GUIDE_FEED at most;
 // a step that comes back moves to the top instead of showing twice)
 const GUIDE_FEED=3;
