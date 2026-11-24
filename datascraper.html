@@ -9796,7 +9796,7 @@ function explodeNade(n){
   if(n.kit==='fire')S.fires.push({x:n.tx,y:n.ty,r:splashR*0.9,t:FIRE_T});
   if(n.kit==='cluster'&&!n.sub)for(let i=0;i<CLUSTER_N;i++){const a=i/CLUSTER_N*Math.PI*2+0.6,d=rnd(22,34);launchProjectile({x:n.tx,y:n.ty},{x:n.tx+Math.cos(a)*d,y:n.ty+Math.sin(a)*d},{speed:160,minDur:0.3,dmg:dmg*CLUSTER_DMG,splashR:splashR*0.6,color:'#ffd28a',sub:true,kit:'cluster'})}
   burst(n.tx,n.ty,n.color||C.enemy,n.big?22:14,n.big?170:140,n.big?0.55:0.4);
-  sndAt(n.tx,n.ty,()=>sfx.explode());
+  if(n.style==='mortar'){if(sfxReady('mortarBlast',0.06))sndAt(n.tx,n.ty,mortarBlast)}else sndAt(n.tx,n.ty,()=>sfx.explode());
   shakeScreen(n.big?4:2,n.big?0.25:0.15);
 }
 // ---------- juice: particles, floating text, screen shake ----------
@@ -9864,6 +9864,26 @@ function noiseCrack(dur,gain,freq,delay){
   g.gain.setValueAtTime(gain,t0);g.gain.exponentialRampToValueAtTime(0.001,t0+dur);
   src.connect(f);f.connect(g);g.connect(so.node);src.start(t0);src.stop(t0+dur+0.02);
 }
+// filtered noise with an optional filter sweep (o: type, f0, f1, q, attack, delay, lin = hold then fade out)
+let noiseLong=null;
+function sndNoise(dur,gain,o){
+  const ac=ensureAudio();if(!ac)return;const so=sndOut(ac);if(!so)return;gain*=so.g;o=o||{};
+  if(!noiseLong){noiseLong=ac.createBuffer(1,Math.floor(ac.sampleRate*3),ac.sampleRate);const d=noiseLong.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1}
+  const t0=ac.currentTime+(o.delay||0),src=ac.createBufferSource(),f=ac.createBiquadFilter(),g=ac.createGain(),at=o.attack||0.003;
+  src.buffer=noiseLong;f.type=o.type||'bandpass';f.Q.value=o.q??0.9;f.frequency.setValueAtTime(o.f0||1000,t0);if(o.f1)f.frequency.exponentialRampToValueAtTime(Math.max(30,o.f1),t0+dur);
+  g.gain.setValueAtTime(0.0001,t0);g.gain.linearRampToValueAtTime(gain,t0+at);
+  if(o.lin){g.gain.setValueAtTime(gain,t0+Math.max(at,dur*0.7));g.gain.linearRampToValueAtTime(0.0001,t0+dur)}else g.gain.exponentialRampToValueAtTime(0.001,t0+dur);
+  src.connect(f);f.connect(g);g.connect(so.node);src.start(t0,Math.random()*1.5);src.stop(t0+dur+0.03)}
+// the Mortar Team's sounds: a heavy launch (a crack, a deep thump, a short rumble), the falling whistle of the shell
+// coming in (dur: how long until it lands), and a concussive blast (a hard slap, a sub thump, the pressure wave)
+function mortarLaunch(){sndNoise(0.05,0.11,{f0:1800,q:0.7});tone(95,0.4,'sine',0.17,0,38);sndNoise(0.75,0.08,{type:'lowpass',f0:260,attack:0.02})}
+function mortarWhistle(dur){const ac=ensureAudio();if(!ac)return;const so=sndOut(ac);if(!so)return;const gain=0.035*so.g,t0=ac.currentTime;
+  const x=ac.createOscillator(),g=ac.createGain(),v=ac.createOscillator(),vg=ac.createGain();
+  x.frequency.setValueAtTime(2300,t0);x.frequency.exponentialRampToValueAtTime(720,t0+dur);v.frequency.value=7;vg.gain.value=14;v.connect(vg);vg.connect(x.frequency);
+  g.gain.setValueAtTime(0.0001,t0);g.gain.exponentialRampToValueAtTime(gain,t0+dur*0.85);g.gain.linearRampToValueAtTime(0.0001,t0+dur);
+  x.connect(g);g.connect(so.node);x.start(t0);v.start(t0);x.stop(t0+dur+0.05);v.stop(t0+dur+0.05)}
+function mortarBlast(){sndNoise(0.12,0.16,{type:'highpass',f0:1500,attack:0.001});tone(85,0.55,'sine',0.19,0.01,30);sndNoise(0.7,0.08,{f0:600,f1:200,q:1.2,delay:0.05,attack:0.05})}
+const MORTAR_WHISTLE=1.8; // the whistle starts this long before the shell lands (or at launch, on a shorter flight)
 // v4: a derelict rig's distress call — a rising two-pulse sonar ping and a falling tail
 function distressPing(){tone(1175,0.16,'sine',0.07);tone(1175,0.16,'sine',0.07,0.26);tone(880,0.55,'sine',0.065,0.54,640)}
 const sfx={
@@ -10747,7 +10767,7 @@ function mortarTarget(t,range){const ord=t.state==='attack'&&t.target&&S.enemies
   let best=null,bs=-1e9;S.enemies.forEach(e=>{if(!mortarReach(t,e,range))return;const d=dist(t,e),sc=(e.markT>0?2000:0)+(isBigTarget(e)?800:0)-d;if(sc>bs){bs=sc;best=e}});return best}
 function fireMortar(t,e){t.ang=Math.atan2(e.y-t.y,e.x-t.x);t.shotT=S.t;const d=dist(t,e),ca=Math.cos(t.ang),sa=Math.sin(t.ang),m={x:t.x+ca*17,y:t.y+sa*17};
   launchProjectile(m,e,{speed:9999,minDur:1.2+Math.min(2.2,d/900),dmg:MORTAR_DMG*S.mods.troopDmgMult,splashR:MORTAR_SPLASH,color:'#ffb36b',big:true,vsBig:MORTAR_VS_BIG,style:'mortar',track:e,trackTo:0.55,kit:'mortar'});
-  /*VOX*/squadSay(t,'shell');if(sfxReady('mortar',0.08))sndAt(t.x,t.y,()=>{noiseCrack(0.14,0.08,420);tone(95,0.22,'sine',0.06,0,60)})}
+  /*VOX*/squadSay(t,'shell');if(sfxReady('mortar',0.08))sndAt(t.x,t.y,mortarLaunch)}
 // The mortar crew (after a real 81mm team): a round slotted baseplate, a long tube slanted up toward the target,
 // ribbed at its breech, flared at the muzzle, on a bipod with a sight and a traverse wheel, the crewman kneeling
 // beside it laying the sight. On the move it's packed: the tube slung across his back, the plate on top.
@@ -11968,7 +11988,7 @@ function update(dt){
   if(!S.fires)S.fires=[];if(!S.kits)S.kits={};updateKitEffects(dt);updateFieldRelays(dt);updateBoss(dt);updateBreaches(dt);updateBurrows(dt);updateCaltrops(dt);
   if(!S.smears)S.smears=[];updateSmears();
   S._nadeBirth=[]; // projectiles launched by an explosion (cluster bomblets) join after this pass
-  S.nades=S.nades.filter(n=>{n.t+=dt;if(n.track&&n.track.hp>0&&S.enemies.includes(n.track)&&!(n.trackTo&&n.t/n.dur>n.trackTo)){n.tx=n.track.x;n.ty=n.track.y}const pt=Math.min(1,n.t/n.dur);n.x=n.x0+(n.tx-n.x0)*pt;n.y=n.y0+(n.ty-n.y0)*pt;if(pt>=1){explodeNade(n);return false}return true});
+  S.nades=S.nades.filter(n=>{n.t+=dt;if(n.style==='mortar'&&!n.whistled&&n.t>=n.dur-MORTAR_WHISTLE&&n.t<n.dur-0.2){n.whistled=true;if(sfxReady('mortarWhistle',0.35))sndAt(n.tx,n.ty,()=>mortarWhistle(n.dur-n.t))}if(n.track&&n.track.hp>0&&S.enemies.includes(n.track)&&!(n.trackTo&&n.t/n.dur>n.trackTo)){n.tx=n.track.x;n.ty=n.track.y}const pt=Math.min(1,n.t/n.dur);n.x=n.x0+(n.tx-n.x0)*pt;n.y=n.y0+(n.ty-n.y0)*pt;if(pt>=1){explodeNade(n);return false}return true});
   S.nades.push(...S._nadeBirth);S._nadeBirth=null;
   debugPass();
   if(B.hp<=0){S.over='lose';sfx.lose();shakeScreen(10,0.6);burst(B.x,B.y,C.enemy,30,160,0.9);showOverlay('Rig destroyed','The crew and the crystal are lost to the zone. Try fortifying before you push deeper.',0.5)}
