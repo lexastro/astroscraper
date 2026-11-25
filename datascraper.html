@@ -3278,7 +3278,19 @@ function setExpedOn(on){EXPED_ON=!!on;try{localStorage.setItem(EXPED_KEY,EXPED_O
 function paintExpedBtn(){const b=document.getElementById('expedToggleBtn');if(b)b.textContent=`[Test] Expedition mode: ${EXPED_ON?'On':'Off'} — no Probes, start with a scanning Field Relay, veins keep their tier (new runs)`}
 const FRS_R=520, FRS_T=12, FRS_CD=25;
 const isFR=u=>u.kind==='mech'&&hasKit(u,'fieldrelay')&&u.hp>0;
+// losing the starting Field Relay: after FR_RECALL_T a new one can be called down to the Rig for FR_DAT
+const FR_RECALL_T=30, FR_DAT=100;
+const hasOwnFR=()=>S.troops.some(u=>u.fr&&u.hp>0);
+function tickFRRecall(dt){if(!S.exped)return;if(hasOwnFR()){S.frDownT=null;return}if(S.frDownT==null){S.frDownT=FR_RECALL_T;banner(`The Field Relay is down. A new one can be called to the Rig in ${FR_RECALL_T}s.`,'danger')}else S.frDownT=Math.max(0,S.frDownT-dt)}
+function callFR(){
+  if(S.frDownT>0){note(`A new Field Relay can be called in ${Math.ceil(S.frDownT)}s`);return}
+  if(S.dat<FR_DAT){note(`A new Field Relay costs ◆${FR_DAT}`);return}
+  S.dat-=FR_DAT;const B=S.base,a=rnd(0,Math.PI*2),p=nearestPlain(B.x+Math.cos(a)*(B.r+30),B.y+Math.sin(a)*(B.r+30));
+  const u=mkTroop(Date.now()+301,'mech');u.fr=true;u.x=p.x;u.y=p.y;S.troops.push(u);guardBastion(u);S.frDownT=null;
+  burst(u.x,u.y,'#7bd389',16,120,0.5);msg('A new Field Relay walks out of the Rig.');tone(392,0.12,'triangle',0.05);tone(587,0.3,'triangle',0.05,0.1);updateBuildBar();
+}
 function relayScan(){
+  if(!hasOwnFR()){callFR();return}
   const sel=S.troops.filter(u=>isFR(u)&&S.sel.troops.has(u)),all=S.troops.filter(isFR),m=sel[0]||all[0];
   if(!m){note('No Field Relay to scan from');return}
   if(S.frScanCd>0){note(`Scan recharging — ${Math.ceil(S.frScanCd)}s`);return}
@@ -4446,7 +4458,7 @@ const CUR_INFO={
 // v4: the same panel for every button on the build bar: what it does, what it does for your troops, where to put it
 const BI_B='#d8b36a',BI_U='#8fb8e0',BI_C='#ff9a5c';
 const BUILD_INFO={
-  relayscan:{n:'Relay Scan',c:BI_B,d:'Your Field Relay sends out a pulse: enemies within 520 of it show for 12s. Recharges in 25s. Uses the selected Field Relay if there is one.',p:'Before the team pushes on into the fog.'},
+  relayscan:{n:'Relay Scan',c:BI_B,d:'Your Field Relay sends out a pulse: enemies within 520 of it show for 12s. Recharges in 25s. Uses the selected Field Relay if there is one. If your Field Relay is destroyed, this button calls a new one to the Rig for ◆100, 30s after the loss.',p:'Before the team pushes on into the fog.'},
   turret:{n:'Turret',c:BI_B,d:'Automatic gun: quick fire, short reach.',p:'On the side waves come from. Snaps onto wall ends and corners.'},
   podturret:{n:'Missile Pod',c:BI_B,d:'Loads 8 missiles, then ripples them all into one cluster.',p:'Behind a wall, where waves bunch up against it.'},
   wall:{n:'Wall',c:BI_B,d:'Stops enemies. Your own units walk straight through.',t:'Units manning it take 25% less damage; gunners shoot 15% further.',p:'Across the side a wave banner names, between the nests and the Rig. Draw between two posts to mend it.'},
@@ -8765,8 +8777,9 @@ function updateBuildBar(){
     document.getElementById('cHeart')._tc=B.hfire?'':full?'ready':`${Math.floor((B.heart||0)*100)}%`}}}
   const pgb=document.getElementById('bPing');
   if(pgb){
-    if(S.exped){const has=S.troops.some(isFR);pgb._ds=!has;pgb.classList.toggle('dry',S.frScanCd>0);pgb.classList.remove('on');
-      document.getElementById('bPingLabel')._tc='Scan';document.getElementById('cProbe')._tc=!has?'no Relay':S.frScanCd>0?`${Math.ceil(S.frScanCd)}s`:'ready'}else{
+    if(S.exped){const has=hasOwnFR();pgb.classList.remove('on');
+      if(has){pgb._ds=false;pgb.classList.toggle('dry',S.frScanCd>0);document.getElementById('bPingLabel')._tc='Scan';document.getElementById('cProbe')._tc=S.frScanCd>0?`${Math.ceil(S.frScanCd)}s`:'ready'}
+      else{pgb._ds=S.frDownT>0;pgb.classList.toggle('dry',S.dat<FR_DAT);document.getElementById('bPingLabel')._tc='Call Relay';document.getElementById('cProbe')._tc=S.frDownT>0?`${Math.ceil(S.frDownT)}s`:`◆${FR_DAT}`}}else{
     pgb._ds=S.probeCharges<=0&&!probeMode;pgb.classList.remove('dry');
     pgb.classList.toggle('on',probeMode);
     document.getElementById('bPingLabel')._tc=probeMode?'Aim…':'Probe';
@@ -9183,6 +9196,7 @@ function probeDiscover(p){
 function updateProbes(dt){
   // v4: probes recharge on their own (one every PROBE_RECHARGE_T), not bought with Dat
   if(S.frScanCd>0)S.frScanCd=Math.max(0,S.frScanCd-dt);
+  tickFRRecall(dt);
   if(S.probeCharges<PROBE_CHARGES){S.probeRechargeT-=dt;if(S.probeRechargeT<=0){S.probeCharges++;S.probeRechargeT=S.probeCharges<PROBE_CHARGES?PROBE_RECHARGE_T:0}}
 
   S.probes=S.probes.filter(p=>{
