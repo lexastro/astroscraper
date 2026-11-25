@@ -36,20 +36,20 @@ footer{padding:16px 0 40px;color:var(--muted);font-size:12px}
 <body>
 <div class="wrap">
 <header>
-  <h1>LANCE CRATER WALLS <span>// heaved ground, not grey spikes</span></h1>
-  <p>Where the Lance Graft sets down, the ground round it should look like it was <b>broken by the landing</b>, in the same language as the <b>nest breaches</b>: plates of the ground itself, in the ground's own colour, <b>tipped up on edge</b> and lit from the top left, dark struck-glass cracks between them, and a molten middle that cools. The ring still has to read as a wall your units can stand behind.</p>
-  <p>Each scene loops: <b>heave</b> (the plates kick up), <b>hot</b> (seams glowing), <b>cooled</b>, then <b>hit</b> (enemies chew on the north-east side: plates crack, sag and break away).</p>
+  <h1>LANCE CRATER WALLS <span>// heaved ground, along the trench and round the crater</span></h1>
+  <p>Where the Lance Graft sets down, the ground round it should look like it was <b>broken by the landing</b>, in the same language as the <b>nest breaches</b>: plates of the ground itself, in the ground's own colour, <b>tipped up on edge</b> and lit from the top left, dark struck-glass cracks between them, and a molten middle that cools. The ring still has to read as a wall your units can stand behind. Walls now also line <b>both banks of the trench</b>, and the ring is <b>open where the trench comes in</b>, so the trench is a walled road into the crater.</p>
+  <p>Each scene loops: <b>heave</b> (the plates kick up), <b>hot</b> (seams glowing), <b>cooled</b>, then <b>hit</b> (enemies chew on the crater's north-east side and the far end of the trench's north bank: plates crack, sag and break away).</p>
   <div class="ctl">
     <label>ground <select id="gnd"><option value="0">Rim</option><option value="1" selected>Dense Field</option><option value="2">Core</option></select></label>
     <label>show <select id="frz"><option value="">loop</option><option value="0.35">heaving</option><option value="2.5">hot</option><option value="8">cooled</option><option value="13.5">damaged</option></select></label>
   </div>
 </header>
 <div id="designs"></div>
-<footer>Exploration sheet only. The crater is drawn at the game's size (ring radius 78) at 1.3× zoom.</footer>
+<footer>Exploration sheet only. The crater is drawn at the game's size (ring radius 78) at 1.08× zoom.</footer>
 </div>
 <script>
 'use strict';
-const TAU=Math.PI*2,DPR=Math.min(2,window.devicePixelRatio||1),LOOP=15,CR=78,SC=1.3;
+const TAU=Math.PI*2,DPR=Math.min(2,window.devicePixelRatio||1),LOOP=15,CR=78,SC=1.08;
 const GROUNDS=[[52,50,54],[40,42,48],[52,36,40]];
 const L3=[-0.62,-0.62,0.48];
 let ctx=null,GC=GROUNDS[1];
@@ -64,11 +64,38 @@ function ground(w,h){const key=GC.join(',')+w;if(groundCache[key])return groundC
   g.strokeStyle='rgba(10,10,12,0.55)';g.lineWidth=0.8;for(let i=0;i<26;i++){let x=H(i,5)*w,y=H(i,6)*h,a=H(i,7)*TAU;g.beginPath();g.moveTo(x,y);for(let s=0;s<9;s++){a+=(H(i,s,8)-0.5)*1.1;x+=Math.cos(a)*14;y+=Math.sin(a)*14;g.lineTo(x,y)}g.stroke()}
   return groundCache[key]=c}
 
-// ---- the trench running in from the west, as in the game now
-function trench(cx,cy){const pts=[];for(let i=0;i<=14;i++){const x=cx-CR-10-(14-i)*16,w=17*(i%2?0.6+H(i,1)*0.35:0.85+H(i,2)*0.4);pts.push([x,cy-6+Math.sin(i*0.6)*4,w])}
+// ---- the trench running in from the west and on into the crater through the ring's opening, as in the game now
+const TW=17,T_X0=-CR-230,T_X1=-CR+14,GAP=0.36;
+const tY=x=>Math.sin(x*0.035)*3;
+function trench(cx,cy){const pts=[];const n=16;for(let i=0;i<=n;i++){const x=T_X0+(T_X1-T_X0)*i/n,w=TW*(i%2?0.65+H(i,1)*0.3:0.85+H(i,2)*0.35);pts.push([cx+x,cy+tY(x),w])}
   ctx.fillStyle='rgba(14,8,6,0.94)';ctx.beginPath();pts.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]-p[2]):ctx.moveTo(p[0],p[1]-p[2]));for(let i=pts.length-1;i>=0;i--){const p=pts[i];ctx.lineTo(p[0],p[1]+p[2]*(0.8+H(i,9)*0.4))}ctx.closePath();ctx.fill();
   ctx.save();ctx.globalCompositeOperation='lighter';ctx.lineCap='round';ctx.beginPath();pts.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));
   ctx.globalAlpha=0.25;ctx.strokeStyle='#ff4a1a';ctx.lineWidth=16;ctx.stroke();ctx.globalAlpha=0.55;ctx.strokeStyle='#ff7a3a';ctx.lineWidth=4;ctx.stroke();ctx.restore()}
+// is an angle (or a span a0..a1) in the ring's opening, on the west where the trench comes in
+const angD=(a,b)=>Math.abs(((a-b)+Math.PI*3)%TAU-Math.PI);
+const inGap=(a0,a1)=>{const m=(a0+a1)/2,h=Math.abs(a1-a0)/2;return angD(m,Math.PI)<GAP+h*0.55};
+// walls along both sides of the trench: plates set along it (local frame: origin on the trench's centre line,
+// mid = the side's outward normal, rin..rout = distance out from the centre line), in rows
+function sideWalls(rows,seed){const out=[];[-1,1].forEach(sd=>rows.forEach((rw,ri)=>{const step=rw.len+rw.gap;for(let x=T_X0+8+(rw.off||0);x+rw.len<=-CR-6;x+=step){
+    const L=rw.len*(0.85+H(x|0,ri,seed)*0.3),xm=x+L/2,n=5,pts=[];
+    for(let i=0;i<=n;i++){const t=-L/2+L*i/n;pts.push([t,sd*rw.rout*(1+(H(i,x|0,seed+ri)-0.5)*0.14)])}
+    for(let i=n;i>=0;i--){const t=-L/2+L*i/n;pts.push([t,sd*rw.rin*(1+(H(i,x|0,seed+ri+7)-0.5)*0.12)])}
+    out.push({ox:xm,pts,mid:sd>0?Math.PI/2:-Math.PI/2,rin:rw.rin,rout:rw.rout,sd,h:H(x|0,sd+5,seed),h2:H(x|0,sd+9,seed),th:rw.th[0]+H(x|0,ri+3,seed)*(rw.th[1]-rw.th[0]),hinge:rw.hinge||'out',dim:rw.dim||1,row:ri})}}));return out}
+// side plates hinge on their far edge and lift the edge facing the trench
+function drawSide(cx,cy,P,list,sd,hotK){list.forEach(f=>{if(f.sd!==sd)return;const ox=cx+f.ox,oy=cy+tY(f.ox);const d=sideHurt(f,P.hit);if(d>0.92){rubble(ox,oy,f,(f.ox|0)+sd);return}
+  plate(ox,oy,f,f.th*P.heave*(1-0.45*d),{hinge:f.hinge,glow:(hotK||0.45)*P.hot,dmg:d,sag:d*3,dim:f.dim})})}
+// the far end of the north trench wall takes a few hits too
+function sideHurt(f,hit){if(f.sd>0)return 0;const w=Math.max(0,1-(f.ox-T_X0)/90);return Math.min(1,hit*w*(0.6+0.7*f.h))}
+// a glass spire forced up out of the ground (Shard Crown)
+function spire(bx,by,a,s,P,snap){const hh=s.h*SM((P.t-0.15)/0.6)*(snap?0.35:1);if(hh<0.5)return;
+  const tx=bx+Math.cos(a)*hh*s.lean,ty=by+Math.sin(a)*hh*s.lean-hh*0.9,px=-Math.sin(a)*s.w/2,py=Math.cos(a)*s.w/2*0.6;
+  ctx.fillStyle='rgba(0,0,0,0.35)';ctx.beginPath();ctx.moveTo(bx+px,by+py);ctx.lineTo(bx+hh*0.5,by+hh*0.35);ctx.lineTo(bx-px,by-py);ctx.fill();
+  const g=ctx.createLinearGradient(bx,by,tx,ty);g.addColorStop(0,`rgb(${90+120*P.hot|0},${30+40*P.hot|0},16)`);g.addColorStop(0.35,'#2a1c18');g.addColorStop(1,'#5a4a44');
+  ctx.fillStyle=g;ctx.beginPath();ctx.moveTo(bx+px,by+py);ctx.lineTo(tx,ty);ctx.lineTo(bx-px,by-py);ctx.closePath();ctx.fill();
+  ctx.fillStyle='rgba(255,220,200,0.18)';ctx.beginPath();ctx.moveTo(bx+px,by+py);ctx.lineTo(tx,ty);ctx.lineTo(bx+px*0.1,by+py*0.1);ctx.closePath();ctx.fill();
+  ctx.strokeStyle='rgba(255,200,170,0.5)';ctx.lineWidth=0.6;ctx.beginPath();ctx.moveTo(bx+px,by+py);ctx.lineTo(tx,ty);ctx.stroke();
+  if(snap){ctx.fillStyle='#ffb48a';ctx.globalAlpha=0.5;ctx.fillRect(tx-1,ty-1,2,2);ctx.globalAlpha=1}
+  if(P.hot>0.05)glowAt(bx,by,8,'255,120,50',0.6*P.hot)}
 
 // ---- a struck web: m rays and ring radii RR give fragments (sector k, ring j) as polygons round the middle
 function web(seed,m,RR,jit){const ang=[];for(let k=0;k<m;k++)ang.push(k/m*TAU+(H(k,seed)-0.5)*(jit||0.5)*TAU/m);ang.sort((a,b)=>a-b);const frags=[];
@@ -118,45 +145,45 @@ function floor(cx,cy,P,W,R){ // the cracked crater floor and the cooling middle
 const sortY=a=>a.slice().sort((p,q)=>Math.sin(p.mid)-Math.sin(q.mid));
 
 const DESIGNS=[
- {name:'Heaved Plates',kind:'the breach\'s tipped plates, in a ring',hook:'Ten big plates of ground kick up on edge all round, inner edges lifted, like a breach turned inside out. Hot seams glow between them; hits crack them, sag them, and finally knock one flat into rubble.',tags:['closest to breaches','reads as one wall','10 plates = 10 wall pieces'],
-  make(){const m=10,pl=[];for(let k=0;k<m;k++){const a0=k/m*TAU+0.03+(H(k,11)-0.5)*0.1,a1=(k+1)/m*TAU-0.03+(H(k+1,11)-0.5)*0.1;const f=band(a0,a1,CR-22,CR+20,k*7+1);f.a0=a0;f.a1=a1;f.h=H(k,12);f.th=0.55+H(k,13)*0.22;pl.push(f)}
-   return {pl,W:Object.assign(web(5,9,[20,40,CR-14]),{rings:3})}},
-  draw(cx,cy,P,D){floor(cx,cy,P,D.W,CR);
+ {name:'Heaved Plates',kind:'the breach\'s tipped plates, in a ring and down the trench',hook:'Big plates of ground kick up on edge all round, inner edges lifted, like a breach turned inside out, and a row of the same plates lines each side of the trench, tipped up toward it. The ring opens where the trench comes in. Hits crack them, sag them, and finally knock one flat into rubble.',tags:['closest to breaches','reads as one wall','plate = wall piece'],
+  make(){const m=11,pl=[];for(let k=0;k<m;k++){const a0=k/m*TAU+0.03+(H(k,11)-0.5)*0.08,a1=(k+1)/m*TAU-0.03+(H(k+1,11)-0.5)*0.08;if(inGap(a0,a1))continue;const f=band(a0,a1,CR-22,CR+20,k*7+1);f.a0=a0;f.a1=a1;f.h=H(k,12);f.th=0.55+H(k,13)*0.22;pl.push(f)}
+   return {pl,sides:sideWalls([{rin:TW+3,rout:TW+34,len:30,gap:5,th:[0.55,0.75]}],41),W:Object.assign(web(5,9,[20,40,CR-22]),{rings:3})}},
+  draw(cx,cy,P,D){floor(cx,cy,P,D.W,CR);drawSide(cx,cy,P,D.sides,-1);
    sortY(D.pl).forEach(f=>{const d=hurt(f,P.hit);if(d>0.92){rubble(cx,cy,f,f.mid*99|0);return}plate(cx,cy,f,f.th*P.heave*(1-0.45*d),{glow:0.55*P.hot,dmg:d,sag:d*3})});
-   glowAt(cx,cy,30,'255,100,50',0.6*P.hot);embers(cx,cy,40,14,P.t,0.7*P.hot,3)}},
- {name:'Struck Ring',kind:'the whole crater is one struck pane',hook:'The landing shatters the ground like a breach does: rays and rings out from the middle. The middle falls away into a glow that cools, and the plates in the outer ring stand up steep to make the wall, smaller ones leaning in behind them.',tags:['most "struck glass"','molten centre','many small plates'],
-  make(){const W=web(21,12,[16,32,50,CR-6,CR+16]);W.rings=5;return {W}},
-  draw(cx,cy,P,D){const W=D.W;
+   drawSide(cx,cy,P,D.sides,1);glowAt(cx,cy,30,'255,100,50',0.6*P.hot);embers(cx,cy,40,14,P.t,0.7*P.hot,3)}},
+ {name:'Struck Ring',kind:'the whole crater is one struck pane; the trench banks are shattered too',hook:'The landing shatters the ground like a breach does: rays and rings out from the middle, which falls away into a glow that cools. The plates in the outer ring stand up to make the wall, broken open where the trench runs in; down the trench, each bank is a strip of smaller struck plates, the ones on the lip tipped up highest.',tags:['most "struck glass"','molten centre','many small plates'],
+  make(){const W=web(21,12,[16,32,50,CR-6,CR+16]);W.rings=5;
+   return {W,sides:sideWalls([{rin:TW+2,rout:TW+16,len:16,gap:2,th:[0.6,0.85]},{rin:TW+17,rout:TW+32,len:20,gap:2,off:7,th:[0.15,0.35]}],55)}},
+  draw(cx,cy,P,D){const W=D.W,gapF=f=>f.ring>=3&&inGap(f.mid-0.2,f.mid+0.2);
    W.frags.forEach(f=>{if(f.ring<=1&&(f.ring===0||f.h<0.55))hole(cx,cy,f,P.hot*0.9+0.1,P.t)});
    cracks(cx,cy,W,CR+16,P.heave,'rgba(10,6,8,.95)',1.4,0);cracks(cx,cy,W,CR+16,P.heave,`rgba(255,110,60,${0.12+0.75*P.hot})`,0.6,5);
-   sortY(W.frags).forEach(f=>{if(f.ring<=1&&(f.ring===0||f.h<0.55))return;const wall=f.ring===4,d=wall?hurt(f,P.hit):0;if(wall&&d>0.92){rubble(cx,cy,f,f.sec*31);return}
+   drawSide(cx,cy,P,D.sides.filter(f=>f.row===1),-1,0.25);drawSide(cx,cy,P,D.sides.filter(f=>f.row===0),-1,0.5);
+   sortY(W.frags).forEach(f=>{if(f.ring<=1&&(f.ring===0||f.h<0.55))return;if(gapF(f))return;const wall=f.ring===4,d=wall?hurt(f,P.hit):0;if(wall&&d>0.92){rubble(cx,cy,f,f.sec*31);return}
      const th=f.ring===4?(0.62+f.h2*0.22):f.ring===3?0.3+f.h2*0.2:f.ring===2?0.1+f.h2*0.15:0.3;plate(cx,cy,f,th*P.heave*(1-0.45*d),{glow:(wall?0.5:0.3)*P.hot,dmg:d,sag:d*3})});
+   drawSide(cx,cy,P,D.sides.filter(f=>f.row===1),1,0.25);drawSide(cx,cy,P,D.sides.filter(f=>f.row===0),1,0.5);
    glowAt(cx,cy,26,'255,110,50',0.25+0.6*P.hot);embers(cx,cy,30,18,P.t,0.3+0.6*P.hot,7)}},
- {name:'Pressure Ridge',kind:'two rows of slabs shoved together',hook:'The landing shoves the ground outward and it buckles into a ridge: an inner row of slabs tipped up toward the middle and an outer row leaning against them, staggered, like pack ice. Lower and chunkier than the others; hits break the inner row first.',tags:['chunky silhouette','two-row depth','lowest profile'],
-  make(){const m=12,A=[],B2=[];for(let k=0;k<m;k++){const a0=k/m*TAU+0.02,a1=(k+1)/m*TAU-0.02;const f=band(a0,a1,CR-20,CR+6,k*3+2);f.a0=a0;f.a1=a1;f.h=H(k,21);f.th=0.6+H(k,22)*0.18;A.push(f);
-     const b0=(k+0.5)/m*TAU+0.02,b1=(k+1.5)/m*TAU-0.02,g=band(b0,b1,CR+2,CR+24,k*5+9);g.a0=b0;g.a1=b1;g.h=H(k,23);g.th=0.35+H(k,24)*0.15;B2.push(g)}
-   return {A,B:B2,W:Object.assign(web(9,8,[22,44,CR-12]),{rings:3})}},
-  draw(cx,cy,P,D){floor(cx,cy,P,D.W,CR);
+ {name:'Pressure Ridge',kind:'two rows of slabs shoved together, round the crater and along the trench',hook:'The heat shoves the ground outward and it buckles into a ridge: an inner row of slabs tipped up toward the middle and an outer row leaning against them, staggered, like pack ice. The same double ridge runs down both banks of the trench and parts where it enters the crater. Lower and chunkier than the others; hits break the inner row first.',tags:['chunky silhouette','two-row depth','lowest profile'],
+  make(){const m=12,A=[],B2=[];for(let k=0;k<m;k++){const a0=k/m*TAU+0.02,a1=(k+1)/m*TAU-0.02;if(!inGap(a0,a1)){const f=band(a0,a1,CR-20,CR+6,k*3+2);f.a0=a0;f.a1=a1;f.h=H(k,21);f.th=0.6+H(k,22)*0.18;A.push(f)}
+     const b0=(k+0.5)/m*TAU+0.02,b1=(k+1.5)/m*TAU-0.02;if(!inGap(b0,b1)){const g=band(b0,b1,CR+2,CR+24,k*5+9);g.a0=b0;g.a1=b1;g.h=H(k,23);g.th=0.35+H(k,24)*0.15;B2.push(g)}}
+   return {A,B:B2,sides:sideWalls([{rin:TW+12,rout:TW+34,len:26,gap:3,off:12,th:[0.35,0.5],hinge:'in',dim:0.88},{rin:TW+2,rout:TW+22,len:24,gap:3,th:[0.6,0.78]}],63),W:Object.assign(web(9,8,[22,44,CR-20]),{rings:3})}},
+  draw(cx,cy,P,D){floor(cx,cy,P,D.W,CR);drawSide(cx,cy,P,D.sides,-1,0.4);
    const all=D.B.map(f=>({f,o:true})).concat(D.A.map(f=>({f,o:false}))).sort((p,q)=>Math.sin(p.f.mid)*(p.f.rout)-Math.sin(q.f.mid)*(q.f.rout));
    all.forEach(({f,o})=>{const d=hurt(f,P.hit)*(o?0.6:1);if(d>0.92){rubble(cx,cy,f,f.mid*77|0);return}plate(cx,cy,f,f.th*P.heave*(1-0.4*d),{hinge:o?'in':'out',glow:(o?0.3:0.5)*P.hot,dmg:d,sag:d*2.5,dim:o?0.88:1})});
-   glowAt(cx,cy,28,'255,100,50',0.55*P.hot);embers(cx,cy,40,12,P.t,0.6*P.hot,5)}},
- {name:'Shard Crown',kind:'tipped plates with glass forced up between',hook:'Low tipped plates of ground with spires of dark, amber-hearted glass forced up through the gaps by the heat, the way red nest glass pushes through a breach. The glass glows at its roots while it cools; hits snap spires off and crack the plates.',tags:['glass like the nests','tallest silhouette','most "Lance" coloured'],
-  make(){const m=10,pl=[],sp=[];for(let k=0;k<m;k++){const a0=k/m*TAU+0.06,a1=(k+1)/m*TAU-0.06;const f=band(a0,a1,CR-10,CR+14,k*11+3);f.a0=a0;f.a1=a1;f.h=H(k,31);f.th=0.32+H(k,32)*0.18;pl.push(f);
-     const a=(k+1)/m*TAU,n=2+(H(k,33)<0.5?1:0);for(let i=0;i<n;i++)sp.push({mid:a+(H(k,i,34)-0.5)*0.12,r:CR+2+(H(k,i,35)-0.5)*14,h:18+H(k,i,36)*18,w:5+H(k,i,37)*3,lean:(H(k,i,38)-0.3)*0.5,h2:H(k,i,39)})}
-   return {pl,sp,W:Object.assign(web(13,9,[20,42,CR-10]),{rings:3})}},
+   drawSide(cx,cy,P,D.sides,1,0.4);glowAt(cx,cy,28,'255,100,50',0.55*P.hot);embers(cx,cy,40,12,P.t,0.6*P.hot,5)}},
+ {name:'Shard Crown',kind:'tipped plates with glass forced up between, ring and trench alike',hook:'Low tipped plates of ground with spires of dark, amber-hearted glass forced up through the gaps by the heat, the way red nest glass pushes through a breach. The trench banks get the same low plates and a line of spires; the crater\'s crown is open where the trench comes in. Hits snap spires off and crack the plates.',tags:['glass like the nests','tallest silhouette','most "Lance" coloured'],
+  make(){const m=10,pl=[],sp=[];for(let k=0;k<m;k++){const a0=k/m*TAU+0.06,a1=(k+1)/m*TAU-0.06;if(!inGap(a0,a1)){const f=band(a0,a1,CR-10,CR+14,k*11+3);f.a0=a0;f.a1=a1;f.h=H(k,31);f.th=0.32+H(k,32)*0.18;pl.push(f)}
+     const a=(k+1)/m*TAU;if(angD(a,Math.PI)<GAP+0.05)continue;const n=2+(H(k,33)<0.5?1:0);for(let i=0;i<n;i++)sp.push({mid:a+(H(k,i,34)-0.5)*0.12,r:CR+2+(H(k,i,35)-0.5)*14,h:18+H(k,i,36)*18,w:5+H(k,i,37)*3,lean:(H(k,i,38)-0.3)*0.5,h2:H(k,i,39)})}
+   const sides=sideWalls([{rin:TW+3,rout:TW+26,len:26,gap:9,th:[0.3,0.48]}],71),ss=[];
+   [-1,1].forEach(sd=>{for(let x=T_X0+4;x<=-CR-10;x+=35){const n=1+(H(x|0,sd,72)<0.6?1:0);for(let i=0;i<n;i++)ss.push({x:x+(H(i,x|0,73)-0.5)*6,d:TW+6+H(i,x|0,74)*16,sd,h:14+H(i,x|0,75)*14,w:4+H(i,x|0,76)*3,lean:0.15+H(i,x|0,77)*0.3,h2:H(i,x|0,78)})}});
+   return {pl,sp,sides,ss,W:Object.assign(web(13,9,[20,42,CR-10]),{rings:3})}},
   draw(cx,cy,P,D){floor(cx,cy,P,D.W,CR);
+   const side=sd=>{const it=D.sides.filter(f=>f.sd===sd).map(f=>({y:f.ox*0,k:0,f})).concat(D.ss.filter(s=>s.sd===sd).map(s=>({k:1,s})));
+     drawSide(cx,cy,P,D.sides,sd,0.4);D.ss.filter(s=>s.sd===sd).forEach(s=>{const a=sd>0?Math.PI/2:-Math.PI/2,snap=sd<0&&sideHurt({sd,ox:s.x,h:s.h2},P.hit)>0.55;spire(cx+s.x,cy+tY(s.x)+sd*s.d,a,s,P,snap)})};
+   side(-1);
    const items=D.pl.map(f=>({y:Math.sin(f.mid)*CR,f})).concat(D.sp.map(s=>({y:Math.sin(s.mid)*s.r,s}))).sort((a,b)=>a.y-b.y);
    items.forEach(it=>{if(it.f){const f=it.f,d=hurt(f,P.hit);if(d>0.95){rubble(cx,cy,f,f.mid*55|0);return}plate(cx,cy,f,f.th*P.heave*(1-0.4*d),{glow:0.45*P.hot,dmg:d,sag:d*2});return}
-     const s=it.s,d=hurt({mid:s.mid,h:s.h2},P.hit),snap=d>0.55,hh=s.h*SM((P.t-0.15)/0.6)*(snap?0.35:1);if(hh<0.5)return;
-     const bx=cx+Math.cos(s.mid)*s.r,by=cy+Math.sin(s.mid)*s.r,tx=bx+Math.cos(s.mid)*hh*s.lean,ty=by+Math.sin(s.mid)*hh*s.lean-hh*0.9,px=-Math.sin(s.mid)*s.w/2,py=Math.cos(s.mid)*s.w/2*0.6;
-     ctx.fillStyle='rgba(0,0,0,0.35)';ctx.beginPath();ctx.moveTo(bx+px,by+py);ctx.lineTo(bx+hh*0.5,by+hh*0.35);ctx.lineTo(bx-px,by-py);ctx.fill();
-     const g=ctx.createLinearGradient(bx,by,tx,ty);g.addColorStop(0,`rgb(${90+120*P.hot|0},${30+40*P.hot|0},16)`);g.addColorStop(0.35,'#2a1c18');g.addColorStop(1,'#5a4a44');
-     ctx.fillStyle=g;ctx.beginPath();ctx.moveTo(bx+px,by+py);ctx.lineTo(tx,ty);ctx.lineTo(bx-px,by-py);ctx.closePath();ctx.fill();
-     ctx.fillStyle='rgba(255,220,200,0.18)';ctx.beginPath();ctx.moveTo(bx+px,by+py);ctx.lineTo(tx,ty);ctx.lineTo(bx+px*0.1,by+py*0.1);ctx.closePath();ctx.fill();
-     ctx.strokeStyle='rgba(255,200,170,0.5)';ctx.lineWidth=0.6;ctx.beginPath();ctx.moveTo(bx+px,by+py);ctx.lineTo(tx,ty);ctx.stroke();
-     if(snap){ctx.fillStyle='#ffb48a';ctx.globalAlpha=0.5;ctx.fillRect(tx-1,ty-1,2,2);ctx.globalAlpha=1}
-     if(P.hot>0.05)glowAt(bx,by,8,'255,120,50',0.6*P.hot)});
-   glowAt(cx,cy,28,'255,100,50',0.55*P.hot);embers(cx,cy,40,12,P.t,0.6*P.hot,9)}},
+     const s=it.s,d=hurt({mid:s.mid,h:s.h2},P.hit);spire(cx+Math.cos(s.mid)*s.r,cy+Math.sin(s.mid)*s.r,s.mid,s,P,d>0.55)});
+   side(1);glowAt(cx,cy,28,'255,100,50',0.55*P.hot);embers(cx,cy,40,12,P.t,0.6*P.hot,9)}},
 ];
 
 const panels=[];
@@ -170,10 +197,10 @@ const t0=performance.now();
 function frame(){const raw=(performance.now()-t0)/1000,t=frz.value!==''?+frz.value:raw%LOOP,P=phase(t);P.t=frz.value!==''?raw:t;
   const seg=t<0.7?0:t<6?1:t<10?2:3;
   panels.forEach(p=>{const c=p.cv.getContext('2d');ctx=c;c.setTransform(DPR,0,0,DPR,0,0);c.drawImage(ground(560,320),0,0,560,320);
-    c.save();c.translate(280+60,160+6);c.scale(SC,SC);c.translate(-(280+60),-(160+6));const cx=280+60,cy=160+6;
+    c.save();c.translate(360,158);c.scale(SC,SC);c.translate(-360,-158);const cx=360,cy=158;
     trench(cx,cy);p.D.draw(cx,cy,P,p.data);
     // a few of your units manning the wall on the west side, for scale
-    [[-1,-0.35],[-1,0],[-1,0.35]].forEach(([s,o],i)=>{const a=Math.PI+o,x=cx+Math.cos(a)*(CR-20),y=cy+Math.sin(a)*(CR-20);c.fillStyle='rgba(0,0,0,0.35)';c.beginPath();c.ellipse(x+1,y+2,5,3,0,0,TAU);c.fill();c.fillStyle='#5ec8ff';c.beginPath();c.arc(x,y-3,4.5,0,TAU);c.fill();c.strokeStyle='#0b2030';c.lineWidth=1;c.stroke()});
+    [[-140,-6],[-110,6],[-CR+30,-4]].forEach(([dx,dy],i)=>{const x=cx+dx,y=cy+tY(dx)+dy;c.fillStyle='rgba(0,0,0,0.35)';c.beginPath();c.ellipse(x+1,y+2,5,3,0,0,TAU);c.fill();c.fillStyle='#5ec8ff';c.beginPath();c.arc(x,y-3,4.5,0,TAU);c.fill();c.strokeStyle='#0b2030';c.lineWidth=1;c.stroke()});
     c.restore();p.tl.forEach((s,i)=>s.classList.toggle('on',i===seg))});
   requestAnimationFrame(frame)}
 frame();
