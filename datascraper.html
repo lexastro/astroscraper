@@ -7432,7 +7432,7 @@ function mechEngage(t,range,speed,dt){
   // a Paladin in a shield wall holds its place: it only steps out to meet what's right at the line
   const wall=t.kind==='brawler'&&t.wall, eR=wall?BRAWL_WALL_ENGAGE:MECH_ENGAGE_R, leash=wall?BRAWL_WALL_LEASH:MECH_LEASH;
   let near=null,nd=eR;
-  S.enemies.forEach(e=>{if(!visible(e))return;const d=dist(e,t);if(d<nd&&dist(e,t.post)<leash+range){nd=d;near=e}});
+  enemiesNear(t.x,t.y,eR,e=>{const d=dist(e,t);if(d<nd&&visible(e)&&dist(e,t.post)<leash+range){nd=d;near=e}}); // (nearby ones only, sight checked last)
   if(near&&t.kind==='mech'&&hasKit(t,'breaker')){const sp=breakerSpot(near);
     if(sp&&dist(t,sp)>10&&nd<range+70&&terrainAt(sp.x,sp.y)!==2&&!wallAt(sp.x,sp.y)){t.ang=Math.atan2(near.y-t.y,near.x-t.x);moveToward(t,waypointFor(t,sp.x,sp.y),speed,dt);return}}
   if(near){
@@ -10415,6 +10415,36 @@ const JAM_SLOW=0.3,JAM_GAP=6,JAM_HOLD=0.3,JAM_DEPTH=2,ENEMY_FLOW_PEN=140,FLOW_RO
 const jammed=e=>e.jamT>S.t-JAM_HOLD,wallJammed=e=>e.wjT>S.t-JAM_HOLD,queued=e=>jammed(e)||e.qJamT>S.t-JAM_HOLD,
   jamDepth=e=>jammed(e)?0:e.qJamT>S.t-JAM_HOLD?(e.qD||1):99,onUnitJam=e=>jammed(e)?!wallJammed(e):!!e.qU,flowing=e=>e.flowT>S.t-0.6;
 function jamSlow(e){return e.qJamT>S.t-JAM_HOLD&&!jammed(e)&&!flowing(e)?JAM_SLOW:1}
+// v4 (performance): spatial grids for big fights. sepPair is one pair of the enemy separation pass (crowd
+// pressure, and the queue at a wall passing back); enemySepPass checks each enemy only against those in the
+// SEP_CELL cells round it (small ones each other, the few big ones, r > SEP_BIG_R, round themselves for
+// everything), instead of a sweep down a strip as wide as the biggest enemy on the map, which in a crowd of
+// a thousand held hundreds each. enemiesNear walks the EG_CELL grid built once a frame for units picking targets.
+const SEP_CELL=20,SEP_BIG_R=24,EG_CELL=64;
+const gKey=(cx,cy)=>(cx+200)*100000+(cy+200);
+function sepPair(a,b){const dx=b.x-a.x,dy=b.y-a.y,m=a.r+b.r,lim=m+JAM_GAP,d2=dx*dx+dy*dy;if(d2>=lim*lim||d2<=0.25)return;const d=Math.sqrt(d2),fx=dx/d,fy=dy/d;
+  // the queue at a wall passes back: one facing into a queued neighbour queues too
+  if(queued(a)&&Math.cos(b.ang)*-fx+Math.sin(b.ang)*-fy>0.3)jamPass(a,b);
+  if(queued(b)&&Math.cos(a.ang)*fx+Math.sin(a.ang)*fy>0.3)jamPass(b,a);
+  if(d<m){const an=a.kind==='nest'||wallJammed(a),bn=b.kind==='nest'||wallJammed(b); // (only a wall-blocked one stands firm; ones on a unit still jostle)
+    if(an&&bn)return;
+    const p=(m-d)/2*(an||bn?2:1);
+    const anx=an?a.x:a.x-fx*p,any=an?a.y:a.y-fy*p,bnx=bn?b.x:b.x+fx*p,bny=bn?b.y:b.y+fy*p;
+    if(!an&&!wallAt(anx,any,true)&&!wallAt((a.x+anx)/2,(a.y+any)/2,true)){a.x=anx;a.y=any}
+    if(!bn&&!wallAt(bnx,bny,true)&&!wallAt((b.x+bnx)/2,(b.y+bny)/2,true)){b.x=bnx;b.y=bny}}}
+function enemySepPass(){const es=S.enemies,C=SEP_CELL,g=new Map(),big=[];let rs=0;
+  for(let i=0;i<es.length;i++){const e=es[i];e._si=i;if(e.r>SEP_BIG_R){big.push(e);continue}if(e.r>rs)rs=e.r;
+    const k=gKey(Math.floor(e.x/C),Math.floor(e.y/C));let c=g.get(k);if(!c)g.set(k,c=[]);c.push(e)}
+  const near=(a,Rr,fn)=>{const x0=Math.floor((a.x-Rr)/C),x1=Math.floor((a.x+Rr)/C),y0=Math.floor((a.y-Rr)/C),y1=Math.floor((a.y+Rr)/C);
+    for(let cx=x0;cx<=x1;cx++)for(let cy=y0;cy<=y1;cy++){const c=g.get(gKey(cx,cy));if(c)for(let k=0;k<c.length;k++)fn(c[k])}};
+  for(let i=0;i<es.length;i++){const a=es[i];if(a.r>SEP_BIG_R)continue;near(a,a.r+rs+JAM_GAP,b=>{if(b._si>i)sepPair(a,b)})}
+  for(let i=0;i<big.length;i++){const a=big[i];near(a,a.r+rs+JAM_GAP,b=>sepPair(a,b));for(let j=i+1;j<big.length;j++)sepPair(a,big[j])}}
+let EG=null;
+function egBuild(){const m=new Map();for(const e of S.enemies){const k=gKey(Math.floor(e.x/EG_CELL),Math.floor(e.y/EG_CELL));let c=m.get(k);if(!c)m.set(k,c=[]);c.push(e)}EG=m}
+// every enemy whose middle might be within Rr of (x,y) (the caller still checks the distance); everything when Rr is map-wide
+function enemiesNear(x,y,Rr,fn){if(!EG||Rr>1500){S.enemies.forEach(fn);return}
+  const C=EG_CELL,x0=Math.floor((x-Rr)/C),x1=Math.floor((x+Rr)/C),y0=Math.floor((y-Rr)/C),y1=Math.floor((y+Rr)/C);
+  for(let cx=x0;cx<=x1;cx++)for(let cy=y0;cy<=y1;cy++){const c=EG.get(gKey(cx,cy));if(c)for(let k=0;k<c.length;k++)fn(c[k])}}
 // one facing into a queued neighbour: it joins the queue a rank further back, or (past JAM_DEPTH, behind a unit) flows round
 function jamPass(a,b){const da=jamDepth(a);if(da<JAM_DEPTH){const nd=da+1;if(!(b.qJamT===S.t&&b.qD<=nd)){b.qJamT=S.t;b.qD=nd;b.qU=onUnitJam(a)}}
   if(onUnitJam(a)&&da>=JAM_DEPTH&&da<99&&!jammed(b)){b.flowT=S.t;b.flowFrom=a.flowFrom&&a.qD>=JAM_DEPTH?a.flowFrom:(a.target||b.flowFrom)}}
@@ -11479,6 +11509,7 @@ function update(dt){
   S.builders=S.builders.filter(bu=>{if(bu.sanity<=0){releaseBuilderClaim(bu);corruptUnit(bu,'builder','A Builder');S.sel.bu.delete(bu.id);return false}return true});
   stat('lost',_uc0-(S.troops.length+S.harvesters.length+S.builders.length));
 
+  egBuild(); // (where the enemies are, for units picking targets: see enemiesNear)
   // troops (combat only — resource gathering is the harvesters' job). Severed troops still
   // fight and reveal vision — they just do it unpowered while their Sanity drains.
   // hold links: each held unit counts the held units beside it
@@ -11548,7 +11579,7 @@ function update(dt){
           if(c&&c.hp>0&&dist(t,c)<=range+(c.r||0)){const pane=kit==='rail'&&crossesShield(t,c),end=troopPierce(t,c,range*1.15,MARK_DMG*S.mods.troopDmgMult*(pane?1.5:1),kit==='rail'?99:MARK_PIERCE);tracer(gunMuzzle(t,16),end,pane?'#8fe3ff':'#bfefff',pane?5:3);t.shotT=S.t;if(kit==='spotter')c.markT=SPOT_T;
             sndAt(t.x,t.y,()=>sfx.rail())}
           t.cd=MARK_CD/squadFireRateMult();if(t.hold&&!t.dest)t.cd/=1+Math.min(HOLD_LINK_MAX,HOLD_LINK_BONUS*(t.holdLinks||0))}}
-      else if(t.cd<=0){let best=null,bd=range;S.enemies.forEach(e=>{if(e.hp<=0||!visible(e))return;const d=dist(e,t);if(d<bd){bd=d;best=e}});
+      else if(t.cd<=0){let best=null,bd=range;enemiesNear(t.x,t.y,range,e=>{if(e.hp<=0||!visible(e))return;const d=dist(e,t);if(d<bd){bd=d;best=e}});
         if(t.state==='attack'&&t.target&&t.target.hp>0&&S.enemies.includes(t.target)&&dist(t,t.target)<=range+(t.target.r||0))best=t.target; // your order first
         if(best){t.chargeT=MARK_CHARGE;t.chargeTgt=best;t.ang=Math.atan2(best.y-t.y,best.x-t.x);sndAt(t.x,t.y,()=>sfx.railCharge())}}
     }
@@ -11560,7 +11591,7 @@ function update(dt){
     if(kit==='lmg'||(rock&&kit==='mortar')){const tried=(t.x-px0)**2+(t.y-py0)**2>0.02;let tg=null,td=range;
       if(kit==='mortar')tg=mortarTarget(t,range);
       else if(t.state==='attack'&&t.target&&t.target.hp>0&&S.enemies.includes(t.target)&&dist(t,t.target)-(t.target.mega?t.target.r:0)<=range)tg=t.target;
-      else S.enemies.forEach(e=>{if(e.hp<=0)return;const d=dist(e,t);if(d<td){td=d;tg=e}});
+      else enemiesNear(t.x,t.y,range,e=>{if(e.hp<=0)return;const d=dist(e,t);if(d<td){td=d;tg=e}});
       if(tg)t.lmgSeen=S.t;
       // (planted in Hold position they set up and stay set up, kneeling with the gun ready, until moved on)
       const planted=t.hold&&!t.dest&&t.state!=='attack'&&!tried;
@@ -11575,9 +11606,9 @@ function update(dt){
     // a mortar crew: once it's set up, lobs a shell at whatever it can reach (see mortarTarget), no laser
     if(rock&&kit==='mortar'){if(t.cd<=0&&!movedNow&&(t.dep||0)>=1){const tg=mortarTarget(t,range);if(tg){fireMortar(t,tg);t.cd=MORTAR_CD/squadFireRateMult()}else t.cd=0.3}}
     else
-    if(t.cd<=0&&!mark&&!frl&&!(kit==='lmg'&&(movedNow||(t.dep||0)<1))){let best=null,bd=range;S.enemies.forEach(e=>{if(arty&&!visible(e))return;const d=dist(e,t)-(brawl?e.r||0:0);if(d<bd){bd=d;best=e}});
+    if(t.cd<=0&&!mark&&!frl&&!(kit==='lmg'&&(movedNow||(t.dep||0)<1))){let best=null,bd=range;enemiesNear(t.x,t.y,range+(brawl?60:0),e=>{if(arty&&!visible(e))return;const d=dist(e,t)-(brawl?e.r||0:0);if(d<bd){bd=d;best=e}});
       // a Rocketeer goes for the nearest nest or Quaker in reach before anything else
-      if(rock&&kit!=='flak'){let bb=null,bbd=range;S.enemies.forEach(e=>{if(!isBigTarget(e)||e.hp<=0)return;const d=dist(e,t);if(d<bbd){bbd=d;bb=e}});
+      if(rock&&kit!=='flak'){let bb=null,bbd=range;enemiesNear(t.x,t.y,range,e=>{if(!isBigTarget(e)||e.hp<=0)return;const d=dist(e,t);if(d<bbd){bbd=d;bb=e}});
         liveMegaGlass().forEach(g=>{const d=dist(g,t);if(d<range&&(!bb||!bb.megaGlass||d<bbd)){bbd=d;bb=g}}); // (a Mega Nest's rim crystals come first)
         if(bb){best=bb;bd=bbd}}
       if(rock&&kit==='flak'){const far=S.mods.relayDef==='radar'?range*2:range,rr=radarRelays();let sw=null,sd=far;
@@ -11945,19 +11976,8 @@ function update(dt){
     moveToward(e,aim,e.speed*factor*(e.linkT>S.t?CHOIR_HASTE:1)*jamSlow(e),dt);
   });
   // enemy separation — crowd pressure must not shove anyone clean through a wall
-  // (sort-and-sweep on x: only pairs whose x gap is under the largest possible overlap are checked)
-  {const es=S.enemies.slice().sort((p,q)=>p.x-q.x);let maxR=0;for(const e of es)if(e.r>maxR)maxR=e.r;
-  for(let i=0;i<es.length;i++)for(let j=i+1;j<es.length;j++){const a=es[i],b=es[j];if(b.x-a.x>a.r+maxR+JAM_GAP)break;const d=dist(a,b),m=a.r+b.r;
-    // the queue at a wall passes back: one facing into a queued neighbour queues too
-    if(d<m+JAM_GAP&&d>0.5){const fx=(b.x-a.x)/d,fy=(b.y-a.y)/d;
-      if(queued(a)&&Math.cos(b.ang)*-fx+Math.sin(b.ang)*-fy>0.3)jamPass(a,b);
-      if(queued(b)&&Math.cos(a.ang)*fx+Math.sin(a.ang)*fy>0.3)jamPass(b,a)}
-    if(d<m&&d>0.5){const an=a.kind==='nest'||wallJammed(a),bn=b.kind==='nest'||wallJammed(b); // (only a wall-blocked one stands firm; ones on a unit still jostle)if(an&&bn)continue;
-      const p=(m-d)/2*(an||bn?2:1),dx=(b.x-a.x)/d,dy=(b.y-a.y)/d;
-      const anx=an?a.x:a.x-dx*p,any=an?a.y:a.y-dy*p,bnx=bn?b.x:b.x+dx*p,bny=bn?b.y:b.y+dy*p;
-      if(!an&&!wallAt(anx,any,true)&&!wallAt((a.x+anx)/2,(a.y+any)/2,true)){a.x=anx;a.y=any}
-      if(!bn&&!wallAt(bnx,bny,true)&&!wallAt((b.x+bnx)/2,(b.y+bny)/2,true)){b.x=bnx;b.y=bny}
-    }}}
+  // (on a grid: see enemySepPass)
+  enemySepPass();
 
   cableLenPass(allies);
   cableSeverPass(allies.concat(S.relays.filter(r=>r.built)),dt);
