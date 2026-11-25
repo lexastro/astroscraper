@@ -2698,7 +2698,15 @@ function drawSteerPad(v){
     g.fillStyle='#6ff0ff';g.globalAlpha=pl;g.beginPath();g.moveTo(ax,c0);g.lineTo(ax-sd*9*dpr,c0-8*dpr);g.lineTo(ax-sd*9*dpr,c0+8*dpr);g.closePath();g.fill();g.globalAlpha=1}
   if(m.w){const [wx,wy]=P(m.w.x,m.w.y);
     g.fillStyle=C.accent;g.strokeStyle='#0b0e12';g.lineWidth=1.5*dpr;g.beginPath();g.arc(wx,wy,4.5*dpr,0,Math.PI*2);g.fill();g.stroke()}
-  else{g.fillStyle='#5d6874';g.font=`600 ${9*dpr}px ${css('--mono')}`;g.textAlign='center';g.textBaseline='middle';g.fillText('PIN 3',c0,c0)}
+  else{ // v4: under three Stabilizers the pad says what it needs: the empty hotspots ringed, and a note in the middle
+    (v.hot||[]).forEach(h=>{if(h.stab&&h.stab.built&&h.stab.hp>0)return;const [x,y]=P(h.x-v.x,h.y-v.y),pl=0.45+0.3*Math.sin(performance.now()/260);
+      g.strokeStyle=C.accent;g.globalAlpha=pl;g.lineWidth=1.2*dpr;g.setLineDash([2.5*dpr,2.5*dpr]);g.beginPath();g.arc(x,y,5.5*dpr,0,Math.PI*2);g.stroke();g.setLineDash([]);g.globalAlpha=1});
+    const n=sh.cs.length,fs=Math.max(9,Math.min(12,cssS/15))*dpr,lh=fs*1.35;
+    const lines=n?[`Pin ${3-n} more`,`Stabilizer${3-n===1?'':'s'} (E)`,'to steer the needle']:['Pin Stabilizers','on the hotspots (E)','to steady the needle'];
+    g.font=`600 ${fs}px ${css('--mono')}`;g.textAlign='center';g.textBaseline='middle';
+    const tw=Math.max(...lines.map(l=>g.measureText(l).width))+12*dpr,th=lh*lines.length+8*dpr;
+    g.fillStyle='rgba(11,15,20,0.85)';g.fillRect(c0-tw/2,c0-th/2,tw,th);
+    lines.forEach((l,i)=>{g.fillStyle=i===0?C.accent:'#aab6c2';g.fillText(l,c0,c0+(i-(lines.length-1)/2)*lh)})}
 }
 {const pad=document.getElementById('dmPad');let drag=false;
   const setW=e=>{const v=S.activeVein;if(!v||!v.meter||!v.meter.w)return;const sh=steerShape(v);if(sh.cs.length<3)return;
