@@ -8014,6 +8014,8 @@ const TETHER_DOCK_R=150; // v4: a unit this close to the Rig has its cable reset
 function tetherPass(units,speed,dt){
   const anchors=anchorsList();
   units.forEach(u=>{
+    // Expedition mode's starting Field Relay carries its own link: no cable back to the Rig, never cut off
+    if(u.fr){u.tetherOk=true;u.severed=false;u.trail=null;u.cableLen=0;u.cableMaxed=false;u.anchorRef=null;if(u.sanity<SANITY_MAX)u.sanity=Math.min(SANITY_MAX,u.sanity+SANITY_REGEN*dt);return}
     const band=bandAt(u.x,u.y);
     const tol=wirelessTol(band);
     let bestA=null,nd=Infinity;
