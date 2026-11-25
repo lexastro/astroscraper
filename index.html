@@ -6055,7 +6055,12 @@ function spawnChoir(x,y){const core=bandAt(x,y)==='core',hp=denseHp(CHOIR_HP,cor
   S.enemies.push({x,y,r:CHOIR_R,hp,maxHp:hp,speed:CHOIR_SPEED,dmg:0,cd:0,kind:'choir',core,target:null,aggro:1e9,home:{x,y},ang:rnd(0,Math.PI*2),faceT:9,stunT:0,links:[],linkCd:0,seed:rnd(0,100)})}
 function spawnFracture(x,y){const core=bandAt(x,y)==='core',hp=denseHp(FRAC_HP,core);
   S.enemies.push({x,y,r:FRAC_R,hp,maxHp:hp,speed:FRAC_SPEED*(RUN&&pressureOn('frenzy')?1.15:1),dmg:0,cd:0,kind:'fracture',core,target:null,aggro:1e9,home:{x,y},ang:rnd(0,Math.PI*2),faceT:9,stunT:0,seed:rnd(0,100)})}
-function spawnBurrow(x,y){const core=bandAt(x,y)==='core',hp=denseHp(BUR_HP,core);(S.burrows||(S.burrows=[])).push({x,y,hp,maxHp:hp,core,readyT:S.t+2,last:null,trailT:0})}
+function spawnBurrow(x,y,wall){const core=bandAt(x,y)==='core',hp=denseHp(BUR_HP,core);(S.burrows||(S.burrows=[])).push({x,y,hp,maxHp:hp,core,readyT:S.t+2,last:null,trailT:0,wall:!!wall})}
+// v4: Burrowers are the threat that gets inside (work for the units with no place on a wall). From wave BUR_FROM of a
+// drill every wave brings one; a great wave one more; from the third stop on, another from wave BUR_MORE_FROM (BUR_MAX at most).
+// Every other one goes for the units manning your walls instead of a Stabilizer (burrowTarget), which thins that wall's brace.
+const BUR_FROM=3, BUR_MORE_FROM=5, BUR_MAX=3, BUR_WARN_R=420;
+function burrowersFor(v,big){if((v.waveNo||0)<BUR_FROM)return big?1:0;return Math.min(BUR_MAX,1+(big?1:0)+(RUN&&RUN.stop>=2&&v.waveNo>=BUR_MORE_FROM?1:0))}
 // one Choir, Fractures and a Burrower join a drilling wave, from where the wave comes
 function denseSpecials(v,feeders,big){if(v.band!=='dense'&&v.band!=='core')return;
   const top=feeders.length?feeders.reduce((p,q)=>NEST[q.size].feed>NEST[p.size].feed?q:p):null,a=v.waveDir;
@@ -6065,7 +6070,7 @@ function denseSpecials(v,feeders,big){if(v.band!=='dense'&&v.band!=='core')retur
   if(v.waveNo>=CHOIR_FROM){const pool=shuffled(S.enemies.filter(x=>choirLinkable(x)&&x.kind==='wave'&&!x.pack)); // (no pack yet: this wave's own
     for(let i=0;i<(big?2:1);i++){const m=pool[i],p=m?nearestPlain(m.x+rnd(-12,12),m.y+rnd(-12,12)):at();spawnChoir(p.x,p.y)}} // (two with a great wave)
   if(v.waveNo>=FRAC_FROM)for(let i=0;i<(big?2:1);i++){const p=at();spawnFracture(p.x,p.y)}
-  if(big){const p=at();spawnBurrow(p.x,p.y)}}
+  for(let i=0,n=burrowersFor(v,big);i<n;i++){const p=at();spawnBurrow(p.x,p.y,((v.waveNo||0)+i)%2===1)}}
 // Choir: what it can link (Echoes and Big Echoes; not the horde's swarmlings). v4: only ones on the attack, a
 // wave's Echoes or a roamer that has a target, so a Choir no longer settles behind the guards idling at a nest
 // and sits there while the wave it came with marches off (they piled up there, one more each wave)
@@ -6105,15 +6110,19 @@ function updateCaltrops(dt){if(S.caltrops&&S.caltrops.length){S.caltrops=S.caltr
     S.troops.concat(S.harvesters,S.builders).forEach(u=>{if(u.hp>0&&inCaltrops(u.x,u.y,false)){u.hp-=CAL_DPS*dt;u.lastHitBy='enemy';if(Math.random()<dt*2)spark(u.x,u.y,'#ff8a7a',1)}})}
   if(S.fracFx&&S.fracFx.length)S.fracFx=S.fracFx.filter(f=>S.t-f.t0<0.8)}
 // Burrower, underground: run for a Stabilizer (one it hasn't just bitten, if it can) or the Rig
-function burrowTarget(b){let best=null,bd=Infinity;S.stabs.forEach(st=>{if(!st.built||st.hp<=0||st===b.last)return;const d=dist(b,st);if(d<bd){bd=d;best=st}});
+function burrowTarget(b){let best=null,bd=Infinity;
+  if(b.wall){S.troops.forEach(t=>{if(t.hp<=0||!t.manning||t===b.last)return;const d=dist(b,t);if(d<bd){bd=d;best=t}});if(best)return best}
+  S.stabs.forEach(st=>{if(!st.built||st.hp<=0||st===b.last)return;const d=dist(b,st);if(d<bd){bd=d;best=st}});
   if(!best&&b.last&&S.stabs.includes(b.last)&&b.last.hp>0)best=b.last;return best||S.base}
 function updateBurrows(dt){if(!S.burrows||!S.burrows.length){if(S.burrowTrail&&S.burrowTrail.length)S.burrowTrail=S.burrowTrail.filter(p=>S.t-p.t<8);return}
   const T=S.burrowTrail||(S.burrowTrail=[]);
-  S.burrows=S.burrows.filter(b=>{const tg=burrowTarget(b),reach=(tg===S.base?BASE_R:16)+BUR_R+4,d=dist(b,tg);b.ang=Math.atan2(tg.y-b.y,tg.x-b.x);
+  S.burrows=S.burrows.filter(b=>{const tg=burrowTarget(b),crew=tg!==S.base&&tg.sanity!=null,reach=(tg===S.base?BASE_R:crew?(tg.r||8):16)+BUR_R+4,d=dist(b,tg);b.ang=Math.atan2(tg.y-b.y,tg.x-b.x);
+    // 3. the warning: called out once as it closes in, with a marker over its head until it surfaces
+    if(!b.warned&&d<BUR_WARN_R){b.warned=true;b.warnT=S.t;if(!(S.t-(S.burWarnT||-99)<5)){S.burWarnT=S.t;banner(crew?'A Burrower is tunnelling for your wall crew.':tg===S.base?'A Burrower is tunnelling for the Rig.':'A Burrower is tunnelling for a Stabilizer.','danger');tone(110,0.3,'sawtooth',0.05,0,70);tone(110,0.3,'sawtooth',0.05,0.35,70)}}
     if(d>reach){const s=Math.min(d-reach,BUR_SPEED*dt);b.x+=Math.cos(b.ang)*s;b.y+=Math.sin(b.ang)*s}
     if((b.trailT-=dt)<=0){b.trailT=0.07;T.push({x:b.x+Math.sin(S.t*9+b.x)*2,y:b.y+Math.cos(S.t*7+b.y)*2,t:S.t})}
     if(d<=reach+2&&S.t>=b.readyT){const p=nearestPlain(b.x,b.y);
-      S.enemies.push({x:p.x,y:p.y,r:BUR_R,hp:b.hp,maxHp:b.maxHp,speed:0,dmg:BUR_BITE,cd:BUR_EMERGE,kind:'burrower',core:b.core,target:tg,aggro:0,home:{x:p.x,y:p.y},ang:b.ang,faceT:9,stunT:0,upT:S.t,biteEnd:S.t+BUR_EMERGE+BUR_BITE_T,seed:rnd(0,100)});
+      S.enemies.push({x:p.x,y:p.y,r:BUR_R,hp:b.hp,maxHp:b.maxHp,speed:0,dmg:BUR_BITE,cd:BUR_EMERGE,kind:'burrower',core:b.core,wallB:!!b.wall,target:tg,aggro:0,home:{x:p.x,y:p.y},ang:b.ang,faceT:9,stunT:0,upT:S.t,biteEnd:S.t+BUR_EMERGE+BUR_BITE_T,seed:rnd(0,100)});
       burst(p.x,p.y,'#a070e0',14,120,0.5);burst(p.x,p.y,'#ff6a4d',8,90,0.4);shakeScreen(3,0.25);sndAt(p.x,p.y,()=>tone(80,0.35,'sawtooth',0.06,0,40));
       if(!S.burrowSeen){S.burrowSeen=true;msg('A Burrower came up under your wall! It\'s rooted while it bites: send someone back.')}
       return false}
@@ -6126,7 +6135,7 @@ function burrowerStep(e,dt){let tg=e.target;
   if(tg&&S.t-e.upT>BUR_EMERGE&&S.t<e.biteEnd&&dist(e,tg)<=e.r+(tg===S.base?BASE_R:(tg.r||16))+10&&e.cd<=0){
     tg.hp-=structHit(tg,tg.kind?allyHit(tg,BUR_BITE*0.5,e):BUR_BITE*0.5,'melee',e);tg.lastHitBy='enemy';hitFlash(tg);spark(tg.x,tg.y,C.enemy,2);e.cd=0.5;e.atkT=S.t;
     if(tg===S.base){shakeScreen(2,0.12);sndAt(tg.x,tg.y,()=>sfx.damage())}}
-  if(S.t>=e.biteEnd+0.4){(S.burrows||(S.burrows=[])).push({x:e.x,y:e.y,hp:e.hp,maxHp:e.maxHp,core:e.core,readyT:S.t+BUR_RESURF,last:e.target===S.base?null:e.target,trailT:0});
+  if(S.t>=e.biteEnd+0.4){(S.burrows||(S.burrows=[])).push({x:e.x,y:e.y,hp:e.hp,maxHp:e.maxHp,core:e.core,readyT:S.t+BUR_RESURF,last:e.target===S.base?null:e.target,trailT:0,wall:!!e.wallB,warned:true,warnT:S.t});
     burst(e.x,e.y,'#a070e0',10,90,0.4);e.hp=0;e.silent=true}}
 
 // ---- drawing (the glass-spire kit) ----
@@ -6174,6 +6183,8 @@ function drawDenseGround(x0,y0,x1,y1){const t=S.t;
       const age=t-b.t;ctx.globalCompositeOperation='source-over';ctx.strokeStyle=`rgba(0,0,0,${0.5*Math.min(1,(8-age)/2)})`;ctx.lineWidth=2.2;ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();
       if(age<1.6){ctx.globalCompositeOperation='lighter';ctx.strokeStyle=`rgba(255,90,60,${0.9*(1-age/1.6)})`;ctx.lineWidth=1.3;ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke()}}
     ctx.restore()}
+  (S.burrows||[]).forEach(b=>{if(!b.warned)return;const f=(S.t*1.6)%1,z=1/cam.z;ctx.save();ctx.strokeStyle='#ff6a4d';ctx.lineWidth=2*z;ctx.globalAlpha=0.9*(1-f);ctx.beginPath();ctx.arc(b.x,b.y,(10+f*26),0,Math.PI*2);ctx.stroke();
+    ctx.globalAlpha=0.95;ctx.fillStyle='#ff6a4d';ctx.beginPath();ctx.moveTo(b.x,b.y-30*z);ctx.lineTo(b.x-7*z,b.y-42*z);ctx.lineTo(b.x+7*z,b.y-42*z);ctx.closePath();ctx.fill();ctx.restore()});
   (S.burrows||[]).forEach(b=>{if(b.x<x0-20||b.x>x1+20||b.y<y0-20||b.y>y1+20||(!debugNoFog&&!visible(b)))return;glUse();const ang=b.ang||0;
     const sp=[0,1].map(k=>{const bx=b.x-Math.cos(ang)*k*6,by=b.y-Math.sin(ang)*k*6;return glFaces([bx,by,0],[bx+Math.cos(ang)*3,by+Math.sin(ang)*3,7-k*2+Math.sin(t*12+k)],3.5,0.5,ang)});glSpires(sp,{col:GL_DEEP});
     for(let i=0;i<4;i++){const a=ang+Math.PI+(glHash(i,Math.floor(t*12),1)-0.5)*1.6,r=4+glHash(i,Math.floor(t*12),2)*7;ctx.fillStyle='rgba(160,85,235,.6)';ctx.fillRect(b.x+Math.cos(a)*r,b.y+Math.sin(a)*r*0.7-1,1.6,1.6)}});
