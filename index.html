@@ -5506,7 +5506,7 @@ function splinterStep(e,tgt,dt){
   const d=dist(e,tgt);e.ang=Math.atan2(tgt.y-e.y,tgt.x-e.x);
   if(e.shards<SPL_SHARDS&&!e.volley){e.regrowT+=dt;if(e.regrowT>=SPL_REGROW){e.regrowT=0;e.shards++;e.grewT=S.t}}
   const inRange=d<=SPL_RANGE+(tgt.r||12);
-  if(inRange&&!e.volley&&e.shards>=SPL_SHARDS){e.volley=true;e.volT=0}
+  if(inRange&&!e.volley&&e.shards>=SPL_SHARDS){e.volley=true;e.volT=0;/*SND*/ensSplinter(e)}
   if(e.volley){e.volT-=dt;if(e.volT<=0){
       if(e.shards>0&&inRange){e.shards--;e.volT=SPL_VOLLEY_GAP;const a=e.ang+rnd(-0.07,0.07);
         S.shardShots.push({src:e,x:e.x+Math.cos(a)*10,y:e.y+Math.sin(a)*10,vx:Math.cos(a)*SPL_SHOT_SPEED,vy:Math.sin(a)*SPL_SHOT_SPEED,life:SPL_RANGE*1.4/SPL_SHOT_SPEED,dmg:e.dmg,ang:a,spin:rnd(-12,12)});
@@ -6097,7 +6097,7 @@ function choirShare(e,d){const c=e.choir;if(!(e.linkT>S.t)||!c||c.hp<=0||!S.enem
   const m=c.links.filter(x=>x.hp>0&&x.linkT>S.t);if(m.length<2)return false;const k=d/m.length;
   m.forEach(x=>{x._share=true;damageEnemy(x,k);x._share=false});return true}
 // Fracture: burst on contact (or on death, from the deaths pass)
-function fractureBurst(e){const R=FRAC_BURST_R;
+function fractureBurst(e){const R=FRAC_BURST_R;/*SND*/ensFracBurst(e);
   burst(e.x,e.y,'#ff6a4d',26,190,0.6);burst(e.x,e.y,'#ffd0c0',10,120,0.4);shakeScreen(4,0.25);sndAt(e.x,e.y,()=>sfx.explode());
   const mine=[S.base].concat(S.troops,S.harvesters,S.builders,S.turrets.filter(t=>t.built),S.relays.filter(r=>r.built&&r.hp>0),S.stabs.filter(st=>st.built&&st.hp>0),S.depots.filter(de=>de.built&&de.hp>0));
   mine.forEach(u=>{const r=u===S.base?BASE_R:(u.r||10);if(dist(u,e)>R+r)return;const fd=FRAC_DMG*(e.sw?SWT_DMG:1);u.hp-=structHit(u,u.kind?allyHit(u,fd):fd,'blast',e);u.lastHitBy='enemy';hitFlash(u)});
@@ -6264,7 +6264,7 @@ function colossusSlam(e){const fx=e.x+Math.cos(e.ang)*(e.r+10),fy=e.y+Math.sin(e
   for(const rr of [8,28,48,66])for(let i=0;i<12;i++){const a=i/12*Math.PI*2,w=wallAt(fx+Math.cos(a)*rr,fy+Math.sin(a)*rr);if(w)hit.add(w)}
   hit.forEach(w=>damageWall(w,COL_WALL_DMG));e.ringAt=S.t;e.rx=fx;e.ry=fy;burst(fx,fy,'#3a0910',16,170,0.5);shakeScreen(5,0.3);sndAt(fx,fy,()=>sfx.explode())}
 function spawnColossus(v){const c0=waveSources(v)[0],cd=Math.hypot(v.x-c0.x,v.y-c0.y)||1,c={x:c0.x+(v.x-c0.x)/cd*70,y:c0.y+(v.y-c0.y)/cd*70},p=nearestPlain(Math.max(60,Math.min(W-60,c.x)),Math.max(60,Math.min(H-60,c.y)));spawnShard(p.x,p.y,'colossus','wave');
-  banner(`A Colossus is coming from the ${compassName(Math.atan2(p.y-v.y,p.x-v.x))||'dark'} — burst its three cores.`,'danger');sfx.wave()}
+  banner(`A Colossus is coming from the ${compassName(Math.atan2(p.y-v.y,p.x-v.x))||'dark'} — burst its three cores.`,'danger');sfx.wave();/*SND*/ensClip('roar',p.x,p.y,{far:true})}
 // the smear a Colossus leaves: slows your units while it lasts
 function updateSmears(){if(S.smears.length&&S.t-S.smears[0].t>SMEAR_LIFE)S.smears=S.smears.filter(p=>S.t-p.t<=SMEAR_LIFE)}
 function inSmear(x,y){const M=S.smears;for(let i=0;i<M.length;i++){const dx=M[i].x-x,dy=M[i].y-y;if(dx*dx+dy*dy<SMEAR_R*SMEAR_R)return true}return false}
@@ -10933,7 +10933,7 @@ function startWaveWarn(v,lead){
   S.waveWarn={src,t0:S.t,end:S.t+Math.max(0.5,lead),big};
   const c=src[0],side=compassName(Math.atan2(c.y-v.y,c.x-v.x))||'near side';
   if(big)banner(`Great wave from the ${side} in ${Math.round(lead)}s!`,'danger');
-  sfx.rumble(1);
+  sfx.rumble(1);/*SND*/ensClip('howl',c.x,c.y,{far:true,dur:3});
 }
 function updateWaveWarn(dt){
   const w=S.waveWarn;if(!w)return;
@@ -15034,6 +15034,96 @@ if(SQUAD.on)squadLoad();
   on.onclick=()=>{SQUAD.on=!SQUAD.on;squadSave();paint();if(SQUAD.on){startAudioEngine();squadLoad()}else squadHalt()};
   vol.oninput=()=>{SQUAD.vol=vol.value/100;squadSave()};
 })();
+// ---------- enemy sounds: making them menacing ----------
+// A few recorded sounds (vox/enemies.json, packed by tools/enemy_pack.py: the wave howl, the Colossus's
+// roar and footfall, a nest breathing) and some made here, timed to what the enemy is doing (a Splinter
+// spinning up, a Fracture crackling hotter, a Saboteur's skitter, a corrupted unit whispering its own
+// lines backwards). They play through the effects bus, positioned like every other sound, and at most
+// ENS_MAX at once so a big fight doesn't pile up.
+const ENS_KEY='astroscraper.enemySfx';
+let ENS={on:true,vol:0.8};try{Object.assign(ENS,JSON.parse(localStorage.getItem(ENS_KEY)||'{}'))}catch(e){}
+function ensSave(){try{localStorage.setItem(ENS_KEY,JSON.stringify(ENS))}catch(e){}}
+const ENS_PACK_V=1, ENS_MAX=6;
+const ENP={state:'none',bufs:{},out:null,live:0,nest:null,pos:new Map(),last:{},rev:{}};
+function ensLoad(){if(ENP.state!=='none'||!ENS.on)return;const b=audioBus();if(!b)return;ENP.state='loading';
+  fetch('vox/enemies.json?v='+ENS_PACK_V).then(r=>r.ok?r.json():Promise.reject(r.status)).then(j=>Promise.all(Object.entries(j.clips).map(([k,b64])=>{
+    const bin=atob(b64),u8=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);
+    return b.ac.decodeAudioData(u8.buffer).then(buf=>{ENP.bufs[k]=buf})}))).then(()=>{ENP.state='ready'}).catch(e=>{ENP.state='failed';console.info('enemy sounds: no pack',e)})}
+function ensOutNode(b){if(ENP.out&&ENP.out.context===b.ac)return ENP.out;ENP.out=b.ac.createGain();ENP.out.gain.value=ENS.vol;ENP.out.connect(b.sfx);return ENP.out}
+// where a sound sits: on the map (panned and quietened like sndAt), or far off toward a point ("far":
+// heard at a fixed level, muffled, from that direction)
+function ensMix(x,y,far){const m=sndMix(x,y);if(!far)return m;
+  const vw=Math.max(1,cv.clientWidth||innerWidth),z=cam.z||1;return {g:1,pan:Math.max(-1,Math.min(1,(x-cam.x)*z/(vw/2)))*0.85,fog:true}}
+// a voice slot: a gain + pan (+ muffle) into the enemy bus, or null when it's too quiet or too busy
+function ensSlot(x,y,o){if(!ENS.on||ENP.state!=='ready'||ENP.live>=ENS_MAX||document.hidden)return null;const b=audioBus();if(!b)return null;
+  const m=ensMix(x,y,o&&o.far);if(m.g<((o&&o.minG)||0.15))return null;const ac=b.ac,out=ensOutNode(b);
+  out.gain.setTargetAtTime(ENS.vol*(VOXQ.cur?0.7:1),ac.currentTime,0.05); // a little under Vesper
+  const g=ac.createGain();g.gain.value=m.g*((o&&o.gain)||1);let node=g;
+  if(ac.createStereoPanner){const p=ac.createStereoPanner();p.pan.value=m.pan;g.connect(p);p.connect(out)}else g.connect(out);
+  if(m.fog){const lp=ac.createBiquadFilter();lp.type='lowpass';lp.frequency.value=(o&&o.far)?2200:1100;lp.connect(g);node=lp}
+  ENP.live++;setTimeout(()=>{ENP.live--},((o&&o.dur)||1)*1000+100);return {ac,node,t:ac.currentTime+0.01}}
+function ensClip(id,x,y,o={}){const buf=ENP.bufs[id];if(!buf)return;const rate=(o.rate||1)*(0.94+Math.random()*0.12);
+  const s=ensSlot(x,y,{...o,dur:buf.duration/rate});if(!s)return;const src=s.ac.createBufferSource();src.buffer=buf;src.playbackRate.value=rate;src.connect(s.node);src.start(s.t)}
+// synth parts for the made sounds
+function ensOsc(s,type,f0,f1,t0,dur,g){const o=s.ac.createOscillator(),a=s.ac.createGain();o.type=type;o.frequency.setValueAtTime(f0,t0);if(f1)o.frequency.exponentialRampToValueAtTime(f1,t0+dur);
+  a.gain.setValueAtTime(0.0001,t0);a.gain.exponentialRampToValueAtTime(g,t0+Math.min(0.05,dur/4));a.gain.exponentialRampToValueAtTime(0.0001,t0+dur);o.connect(a);a.connect(s.node);o.start(t0);o.stop(t0+dur+0.02)}
+let ensNoiseBuf=null;
+function ensNoise(s,t0,dur,g,type,f0,f1,q){const ac=s.ac;if(!ensNoiseBuf||ensNoiseBuf.sampleRate!==ac.sampleRate){ensNoiseBuf=ac.createBuffer(1,ac.sampleRate,ac.sampleRate);const d=ensNoiseBuf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1}
+  const n=ac.createBufferSource();n.buffer=ensNoiseBuf;n.loop=true;const f=ac.createBiquadFilter();f.type=type;f.frequency.setValueAtTime(f0,t0);if(f1)f.frequency.exponentialRampToValueAtTime(f1,t0+dur);f.Q.value=q||1;
+  const a=ac.createGain();a.gain.setValueAtTime(0.0001,t0);a.gain.exponentialRampToValueAtTime(g,t0+0.015);a.gain.exponentialRampToValueAtTime(0.0001,t0+dur);n.connect(f);f.connect(a);a.connect(s.node);n.start(t0,Math.random()*0.8);n.stop(t0+dur+0.02)}
+// a Splinter's shards whirr up as its volley starts, then let fly
+function ensSplinter(e){const s=ensSlot(e.x,e.y,{dur:0.9});if(!s)return;const t=s.t;
+  for(let i=0;i<10;i++){const tt=t+0.55*(1-Math.pow(1-i/10,0.55));ensNoise(s,tt,0.05,0.22,'bandpass',2200+i*160,null,8)}
+  for(let k=0;k<4;k++)ensNoise(s,t+0.6+k*0.05,0.22,0.15,'highpass',4000,900,1)}
+// a hurt Fracture crackles and hisses, hotter the closer it is to bursting
+function ensFracCrackle(e,heat){const s=ensSlot(e.x,e.y,{dur:0.6,minG:0.3});if(!s)return;const t=s.t;
+  ensNoise(s,t,0.5,0.05+0.12*heat,'highpass',900+3000*heat,null,0.7);for(let i=0,n=3+Math.round(6*heat);i<n;i++)ensNoise(s,t+Math.random()*0.45,0.025,0.25,'bandpass',3000+Math.random()*3000,null,4)}
+function ensFracBurst(e){const s=ensSlot(e.x,e.y,{dur:0.8});if(!s)return;ensNoise(s,s.t,0.7,0.5,'lowpass',2500,200,1);ensOsc(s,'sawtooth',110,30,s.t,0.7,0.22)}
+// a Saboteur's needle-click run toward the drill
+function ensSkitter(e){const s=ensSlot(e.x,e.y,{dur:0.7,minG:0.3});if(!s)return;for(let i=0;i<14;i++)ensNoise(s,s.t+i*0.045+Math.random()*0.015,0.018,0.42,'bandpass',5000+Math.random()*2500,null,6)}
+// one of ours, gone wrong: one of its own class's barks, backwards and slowed, through a broken radio
+function ensWhisper(e){const cls=SQUAD_CLS[e.unit||'troop']||'trooper';
+  if(SQP.state==='none'){const was=SQUAD.on;SQUAD.on=true;squadLoad();SQUAD.on=was} // (the barks pack, even with unit voices off)
+  if(SQP.state!=='ready')return;const ids=Object.keys(SQP.clips).filter(k=>k.startsWith(cls+':'));if(!ids.length)return;const id=ids[Math.floor(Math.random()*ids.length)];
+  const go=rev=>{const s=ensSlot(e.x,e.y,{dur:rev.duration/0.72,minG:0.35,gain:0.8});if(!s)return;const ac=s.ac,src=ac.createBufferSource();src.buffer=rev;src.playbackRate.value=0.72;
+    const bp=ac.createBiquadFilter();bp.type='bandpass';bp.frequency.value=1100;bp.Q.value=1.4;const ws=ac.createWaveShaper(),cv2=new Float32Array(512);
+    for(let i=0;i<512;i++){const x=i/511*2-1;cv2[i]=Math.round(Math.tanh(5*x)*6)/6}ws.curve=cv2;const g=ac.createGain();g.gain.value=0.5;
+    src.connect(bp);bp.connect(ws);ws.connect(g);g.connect(s.node);src.start(s.t);ensNoise(s,s.t,rev.duration/0.72,0.05,'bandpass',2400,null,0.8)};
+  if(ENP.rev[id]){go(ENP.rev[id]);return}const b=audioBus();if(!b)return;
+  try{const bin=atob(SQP.clips[id]),u8=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);
+    b.ac.decodeAudioData(u8.buffer).then(buf=>{const r=b.ac.createBuffer(1,buf.length,buf.sampleRate),a=buf.getChannelData(0),d=r.getChannelData(0);for(let i=0;i<a.length;i++)d[i]=a[a.length-1-i];ENP.rev[id]=r;go(r)},()=>{})}catch(err){}}
+// the nest nearest the camera breathes, quicker while a wave is on its way
+function ensNest(){const b=audioBus();if(!b)return;let best=null,bg=0;
+  S.enemies.forEach(e=>{if(e.kind!=='nest'||!(e.hp>0))return;const m=sndMix(e.x,e.y);if(m.g>bg){bg=m.g;best={e,m}}});
+  let N=ENP.nest;if(!best||bg<0.08){if(N)N.g.gain.setTargetAtTime(0,b.ac.currentTime,0.6);return}
+  if(!N||N.ac!==b.ac){const ac=b.ac,src=ac.createBufferSource(),g=ac.createGain(),p=ac.createStereoPanner?ac.createStereoPanner():null;src.buffer=ENP.bufs.nest;src.loop=true;g.gain.value=0;
+    src.connect(g);if(p){g.connect(p);p.connect(ensOutNode(b))}else g.connect(ensOutNode(b));src.start();N=ENP.nest={ac,src,g,p}}
+  const t=b.ac.currentTime;N.g.gain.setTargetAtTime(0.55*bg,t,0.4);if(N.p)N.p.pan.setTargetAtTime(best.m.pan,t,0.3);N.src.playbackRate.setTargetAtTime(S.waveWarn?1.35:1,t,0.8)}
+function ensNestStop(){const N=ENP.nest;if(N){try{N.src.stop()}catch(e){}ENP.nest=null}}
+// watched every 200 ms: footfalls, crackling Fractures, skittering Saboteurs, whispering corrupted units
+setInterval(()=>{if(!ENS.on||ENP.state!=='ready'||typeof S==='undefined'||!S||!S.enemies||S.over||menuOpen||document.hidden){if(ENP.nest&&(!ENS.on||document.hidden||menuOpen))ensNestStop();return}
+  ensNest();const now=performance.now()/1000,L=ENP.last;
+  if(ENP.pos.size>400)ENP.pos.clear();
+  let sab=null,sabG=0.3,cor=null,corG=0.4;
+  for(const e of S.enemies){if(!(e.hp>0))continue;
+    if(e.shard==='colossus'||e.shard==='stalker'){const p=ENP.pos.get(e)||{x:e.x,y:e.y,d:0};p.d+=Math.hypot(e.x-p.x,e.y-p.y);p.x=e.x;p.y=e.y;ENP.pos.set(e,p);
+      const col=e.shard==='colossus';if(p.d>(col?42:30)){p.d=0;ensClip('step',e.x,e.y,{rate:col?0.85:1.3,gain:col?1:0.5,minG:0.2})}}
+    else if(e.kind==='fracture'){const heat=1-e.hp/e.maxHp;if(heat>0.35&&now-(e._crkT||0)>0.9-0.4*heat){e._crkT=now;ensFracCrackle(e,heat)}}
+    else if(e.kind==='saboteur'){const g=sndMix(e.x,e.y).g;if(g>sabG){sabG=g;sab=e}}
+    else if(e.kind==='corrupted'){const g=sndMix(e.x,e.y).g;if(g>corG){corG=g;cor=e}}}
+  if(sab&&now-(L.sab||0)>1.4){L.sab=now;ensSkitter(sab)}
+  if(cor&&now-(L.cor||0)>5+Math.random()*3){L.cor=now;ensWhisper(cor)}},200);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)ensNestStop()});
+if(ENS.on)['pointerdown','keydown'].forEach(ev=>addEventListener(ev,()=>ensLoad(),{once:true,passive:true}));
+// Settings rows, under the unit voices'
+(function ensSettings(){const above=document.getElementById('squadSettings')||document.getElementById('voxSettings');if(!above)return;
+  const box=document.createElement('div');box.className='volRows';box.id='ensSettings';
+  box.innerHTML='<label class="volRow"><span>Enemy sounds</span><button id="ensOn" class="secondary" style="flex:1;padding:4px 8px"></button></label>'+
+    '<label class="volRow"><span>Enemy vol</span><input type="range" id="ensVol" min="0" max="100"></label>';
+  above.after(box);const on=box.querySelector('#ensOn'),vol=box.querySelector('#ensVol');
+  const paint=()=>{on._tc=ENS.on?'On':'Off';vol.disabled=!ENS.on};vol.value=Math.round(ENS.vol*100);paint();
+  on.onclick=()=>{ENS.on=!ENS.on;ensSave();paint();if(ENS.on){startAudioEngine();ensLoad()}else ensNestStop()};
+  vol.oninput=()=>{ENS.vol=vol.value/100;ensSave();if(ENP.out)ENP.out.gain.value=ENS.vol}})();
 // ---------- end voice announcer ----------
 reset();refreshMenuMeta();requestAnimationFrame(frame);
 // Title-screen build marker: the live latest commit on master, not a hand-maintained string — a
