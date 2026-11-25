@@ -9982,6 +9982,8 @@ function visible(p){if(p._vt===S.t&&p._vS===S)return p._vv;const v=visibleNow(p)
 function inView(x,y,m){const V=S._view;return !V||(x>V.x0-m&&x<V.x1+m&&y>V.y0-m&&y<V.y1+m)}
 function radarRelays(){return S.mods.relayDef==='radar'?S.relays.filter(r=>r.built&&r.tetherOk):[]}
 function visibleNow(p){const vm=S.mods.visionMult;if(dist(p,S.base)<BASE_VISION*vm)return true;if(S.mods.relayDef==='radar'&&radarRelays().some(r=>dist(r,p)<RELAY_RADAR_VISION*vm))return true;if(S.pings.length&&inActivePing(p))return true;if(troopSees(p))return true;if(S.harvesters.some(h=>dist(h,p)<HARV_VISION*vm))return true;return S.builders.some(b=>dist(b,p)<BUILDER_VISION*vm)}
+const ROAM_HOME_R=34;
+const ENEMY_OWN_FACING={quaker:1,lancer:1,choir:1,splinter:1,burrower:1,huskcore:1};
 function moveToward(o,d,sp,dt){const dx=d.x-o.x,dy=d.y-o.y,L=Math.hypot(dx,dy);if(L<1)return 0;const s=Math.min(L,sp*dt);o.x+=dx/L*s;o.y+=dy/L*s;return L-s}
 function tracer(a,b,col,w){S.tracers.push({x1:a.x,y1:a.y,x2:b.x,y2:b.y,t:0.12,col,w})}
 function hitFlash(o){o.flashT=0.12}
@@ -10689,7 +10691,6 @@ function musterStep(e,dt){const P=e.pack,R=P.rally,d=dist(e,R);
   if(d>MUSTER_R*0.6){const ux=(R.x-e.x)/d,uy=(R.y-e.y)/d,sp=e.speed*enemyRoughFactor(e.x,e.y)*0.8*dt,nx=e.x+ux*sp,ny=e.y+uy*sp;
     if(!hordeBlocked(nx,ny)||hordeBlocked(e.x,e.y)){e.x=nx;e.y=ny}else if(!hordeBlocked(nx,e.y))e.x=nx;else if(!hordeBlocked(e.x,ny))e.y=ny;
     e.ang=Math.atan2(uy,ux)}
-  else{e.faceT-=dt;if(e.faceT<=0){e.ang=rnd(0,Math.PI*2);e.faceT=rnd(0.6,1.6)}}
 }
 function spawnHulks(v,n,src){src=src||waveSources(v)[0];
   for(let i=0;i<n;i++){const p=nearestPlain(Math.max(40,Math.min(W-40,src.x+rnd(-70,70))),Math.max(40,Math.min(H-40,src.y+rnd(-70,70))));
@@ -12137,6 +12138,7 @@ function update(dt){
   const DT0=dt;
   S.enemies.forEach(e=>{
     if(e.kind==='nest')return;
+    e._fx=e.x;e._fy=e.y; // (where it started this frame: it turns to face the way it moved, below)
     let dt=DT0;
     // v4 (performance): an idle roamer nobody can see (no target, out of every unit's sight, so nothing
     // is inside its aggro range either) only thinks IDLE_TICK times a second, taking the time in one step
@@ -12210,9 +12212,8 @@ function update(dt){
     if(e.kind==='splinter'&&tgt){splinterStep(e,tgt,dt);return}
     if(e.kind==='choir'&&tgt){choirStep(e,tgt,dt);return}
     if(e.shard&&tgt&&shardStep(e,tgt,dt))return;
-    // face whoever they're engaging; otherwise idle fidget with a random heading
+    // face whoever they're engaging (with nothing to fight they keep their heading; see the facing pass below)
     if(tgt)e.ang=Math.atan2(tgt.y-e.y,tgt.x-e.x);
-    else{e.faceT-=dt;if(e.faceT<=0){e.ang=rnd(0,Math.PI*2);e.faceT=rnd(1.5,3.5)}}
     if((e.kind==='roam'||e.kind==='brute')&&!tgt){
       const factor=enemyPace(e);
       if(e.patrol){
@@ -12220,7 +12221,7 @@ function update(dt){
         const aim=waypointFor(e,dest.x,dest.y);
         moveToward(e,aim,e.speed*0.55*factor,dt);
         if(P.dir>0&&dist(e,P.b)<40)P.dir=-1; else if(P.dir<0&&dist(e,P.a)<40)P.dir=1;
-      }else{
+      }else if(dist(e,e.home)>ROAM_HOME_R){ // (back home it stands its ground instead of shuffling into the others there)
         const aim=waypointFor(e,e.home.x,e.home.y);
         moveToward(e,aim,e.speed*0.5*factor,dt);
       }
@@ -12246,6 +12247,15 @@ function update(dt){
     const factor=enemyPace(e);
     moveToward(e,aim,e.speed*factor*(e.linkT>S.t?CHOIR_HASTE:1)*jamSlow(e),dt);
   });
+  // v4: every enemy faces the way it's going: whatever it's attacking when that's in reach, else the way it
+  // actually moved this frame (patrols, roamers heading home, waves walking round a wall), turning smoothly; one
+  // standing with nothing to fight keeps its heading. (Measured before the crowd pass, so jostling doesn't spin
+  // them; the kinds listed in ENEMY_OWN_FACING aim themselves.)
+  S.enemies.forEach(e=>{if(e._fx==null||e.kind==='nest'||e.boss||e.stunT>0||ENEMY_OWN_FACING[e.kind])return;
+    const dx=e.x-e._fx,dy=e.y-e._fy,tg=e.target;let want=null;
+    if(tg&&tg.hp>0&&dist(e,tg)<=e.r+(tg.r||12)+30)want=Math.atan2(tg.y-e.y,tg.x-e.x);
+    else if(Math.hypot(dx,dy)>Math.max(0.05,e.speed*DT0*0.25))want=Math.atan2(dy,dx);
+    if(want!=null)e.ang+=Math.atan2(Math.sin(want-e.ang),Math.cos(want-e.ang))*Math.min(1,DT0*14)});
   // enemy separation — crowd pressure must not shove anyone clean through a wall
   // (on a grid: see enemySepPass)
   enemySepPass();
