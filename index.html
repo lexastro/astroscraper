@@ -77,9 +77,11 @@ body.lowGfx #fogGrain{display:none}
 .rigStat{position:relative;pointer-events:auto;cursor:pointer;font:inherit;color:inherit;text-align:left}
 .rigStat:hover,.rigStat.open{border-color:#4fd1c5}
 .rigStat .kRow{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
-.rigStat .dr{font-size:10px;letter-spacing:.06em;color:#4fd1c5;font-family:var(--mono);white-space:nowrap}
+.rigStat .dr{font-size:10px;letter-spacing:.06em;color:#4fd1c5;font-family:var(--mono);white-space:nowrap;display:inline-flex;align-items:center;gap:4px}
+.rigStat .dr .wr{width:11px;height:11px;flex:none}
 .crewPanel{position:absolute;left:0;top:calc(100% + 6px);width:240px;padding:10px 12px;background:#12161b;border:1px solid var(--line);border-left:3px solid #4fd1c5;border-radius:6px;box-shadow:0 8px 20px rgba(0,0,0,.5);font-size:12px;line-height:1.4;color:var(--fg);cursor:default;z-index:20;text-transform:none;letter-spacing:0}
 .crewPanel[hidden]{display:none}
+.crewPanel b .wr{width:12px;height:12px;vertical-align:-2px}
 .crewPanel b{display:block;font-family:var(--mono);font-size:12px;letter-spacing:.04em;color:#4fd1c5;margin-bottom:6px}
 .crewPanel input{width:100%;accent-color:#4fd1c5;margin:6px 0 2px}
 .crewPanel .split{display:flex;justify-content:space-between;font-family:var(--mono);font-size:12px}
@@ -820,8 +822,8 @@ async function run(d){
     <span class="cur living"><span class="ci">❖</span><span class="v" id="hLiving">0</span></span>
     <span class="cur condensed"><span class="ci">⬢</span><span class="v" id="hCondensed">0</span></span>
   </div>
-  <div class="stat rigStat" id="rigStat" role="button" tabindex="0" aria-haspopup="true" aria-expanded="false" title="Repair drones — click to choose how many look after the Rig"><span class="kRow"><span class="k">⛨ Rig</span><span class="dr" id="hDrones">⬡ 0</span></span><span class="v" id="hBase">—</span><div class="bar"><i class="hp" id="hBaseBar" style="width:100%"></i></div>
-    <div class="crewPanel" id="crewPanel" hidden><b>Repair drones</b>
+  <div class="stat rigStat" id="rigStat" role="button" tabindex="0" aria-haspopup="true" aria-expanded="false" title="Repair drones — click to choose how many look after the Rig"><span class="kRow"><span class="k">⛨ Rig</span><span class="dr"><svg class="wr" viewBox="0 0 16 16" aria-hidden="true"><path d="M10.6 1.2a4.2 4.2 0 0 0-4.1 5.4L1.6 11.5a1.6 1.6 0 0 0 2.3 2.3l4.9-4.9a4.2 4.2 0 0 0 5.4-4.1l-2.4 2.4-2.1-.6-.6-2.1 2.4-2.4a4.2 4.2 0 0 0-.9-.1z" fill="currentColor"/></svg><span id="hDrones">0</span></span></span><span class="v" id="hBase">—</span><div class="bar"><i class="hp" id="hBaseBar" style="width:100%"></i></div>
+    <div class="crewPanel" id="crewPanel" hidden><b><svg class="wr" viewBox="0 0 16 16" aria-hidden="true"><path d="M10.6 1.2a4.2 4.2 0 0 0-4.1 5.4L1.6 11.5a1.6 1.6 0 0 0 2.3 2.3l4.9-4.9a4.2 4.2 0 0 0 5.4-4.1l-2.4 2.4-2.1-.6-.6-2.1 2.4-2.4a4.2 4.2 0 0 0-.9-.1z" fill="currentColor"/></svg> Repair drones</b>
       <div class="split"><span class="rg" id="crewRig">Rig 0</span><span id="crewElse">Everything else 0</span></div>
       <input type="range" id="crewSlider" min="0" max="0" step="1" value="0" aria-label="Drones kept on the Rig">
       <small id="crewNote"></small></div></div>
@@ -14399,7 +14401,7 @@ document.getElementById('guideX').onclick=()=>{meta.guideOff=true;meta.guideForc
 function hud(){
   const B=S.base;updateGuide();updateCursorCost();updateChallenges();
   $('hDat')._tc=Math.floor(S.dat);$('hLiving')._tc=S.living;$('hCondensed')._tc=S.condensed;
-  $('hBase')._tc=Math.ceil(B.hp)+' / '+B.maxHp;{const N=S.drones.length,n=droneRigN();$('hDrones')._tc=N?`⬡ ${N}${n?' · '+n+' on Rig':''}`:'⬡ 0';if(!$('crewPanel').hidden)crewPanelSync()}$('hBaseBar')._sw=(100*B.hp/B.maxHp).toFixed(1)+'%';
+  $('hBase')._tc=Math.ceil(B.hp)+' / '+B.maxHp;{const N=S.drones.length,n=droneRigN();$('hDrones')._tc=N?`${N}${n?' · '+n+' on Rig':''}`:'0';if(!$('crewPanel').hidden)crewPanelSync()}$('hBaseBar')._sw=(100*B.hp/B.maxHp).toFixed(1)+'%';
   $('hBaseBar').classList.toggle('low',B.hp/B.maxHp<0.25);
   if(B.locked&&S.activeVein){
     const v=S.activeVein;
