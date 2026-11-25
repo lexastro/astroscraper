@@ -5126,32 +5126,47 @@ function fireLance(w){setLanceMode(false);const why=lanceWhyNot();if(why){note('
   B.lance={x0:B.x,y0:B.y,x1:p.x,y1:p.y,t:0,T:Math.max(3,d/LG_SPEED),seg:{x:B.x,y:B.y}};B.dest=null;B.queue=null;B._path=null;B._pg=null;S.lanceReady=S.t+LG_CD;
   shakeScreen(4,0.3);sndAt(B.x,B.y,()=>sfx.wave());updateBuildBar()}
 function addTrench(a,b){const L=Math.hypot(b.x-a.x,b.y-a.y);if(L<4)return;const mx=(a.x+b.x)/2,my=(a.y+b.y)/2;if(terrainAt(mx,my)===2)return;const ux=(b.x-a.x)/L,uy=(b.y-a.y)/L;
-  const line={x0:a.x,y0:a.y,x1:b.x,y1:b.y,ux,uy,ang:Math.atan2(uy,ux),posts:[false,false],anchored:[false,false],raiseT0:S.t,slats:[],type:'std',relayRing:true,relay:null,trench:true,auto:true,end:S.t+LG_TRENCH_T,thick:LG_TRENCH_W};
+  const line={x0:a.x,y0:a.y,x1:b.x,y1:b.y,ux,uy,ang:Math.atan2(uy,ux),posts:[false,false],anchored:[false,false],raiseT0:S.t,slats:[],type:'std',relayRing:true,relay:null,trench:true,auto:true,end:S.t+LG_TRENCH_T,thick:LG_TRENCH_W,k:(S._lgK=(S._lgK||0)+1)};
   {const hw=LG_TRENCH_W/2,nx=-uy,ny=ux,n=6,side=sg=>{const P=[];for(let i=0;i<=n;i++){const t=i/n,e=i===0?-7:i===n?7:0,w=hw*(i%2?0.55+Math.random()*0.35:0.85+Math.random()*0.45);P.push({x:a.x+ux*(L*t+e)+nx*w*sg,y:a.y+uy*(L*t+e)+ny*w*sg})}return P};
    line.gash=side(1).concat(side(-1).reverse());line.cracks=[];
    for(const sg of[1,-1]){const k=1+(Math.random()<0.6?1:0);for(let j=0;j<k;j++){const t=Math.random(),px=a.x+ux*L*t+nx*hw*0.8*sg,py=a.y+uy*L*t+ny*hw*0.8*sg;line.cracks.push(...lgCrack(px,py,Math.atan2(ny*sg,nx*sg)+(Math.random()-0.5)*0.9,14+Math.random()*22))}}}
   line.slats.push({x:mx,y:my,half:L/2+3,hp:1e9,maxHp:1e9,up:1,vi:0,order:0,line,kind:'wallslat'});(S.wallLines||(S.wallLines=[])).push(line);S.wallDirty=true}
-function lanceCrater(x,y){const c={x,y,crater:true,ringR:LG_CRATER_R,manCap:10,t0:S.t,cracks:crackLines(Math.random,x,y,LG_CRATER_R+46,9,6,12,0.45)};(S.craters||(S.craters=[])).push(c);const n=LG_CRATER_N,R=LG_CRATER_R,P=[],hp=Math.round(wallSlatHp()*2);
-  for(let i=0;i<n;i++){const a=i/n*Math.PI*2+Math.PI/n;P.push({x:x+Math.cos(a)*R,y:y+Math.sin(a)*R})}
-  for(let i=0;i<n;i++){const a=P[i],b=P[(i+1)%n],L=Math.hypot(b.x-a.x,b.y-a.y),ux=(b.x-a.x)/L,uy=(b.y-a.y)/L,mx=(a.x+b.x)/2,my=(a.y+b.y)/2;if(terrainAt(mx,my)===2)continue;
-    const line={x0:a.x,y0:a.y,x1:b.x,y1:b.y,ux,uy,ang:Math.atan2(uy,ux),posts:[true,true],anchored:[true,true],raiseT0:S.t,slats:[],type:'std',relayRing:true,relay:c,crater:true,auto:true};
+// The crater (concepts/crater-walls.html, "Struck Ring"): the landing shatters the ground like a breach, rays and
+// rings out from the middle. Its walls are LG_CRATER_N pieces in a ring, open on the side the trench comes in
+// (gapA, LG_GAP either side); both banks of the trench get walls too (LG_BANK_SEG long, LG_BANK_OFF out from its
+// line), up to where they meet the ring. Banks man like any wall; the ring mans as a ring.
+const LG_GAP=0.29, LG_BANK_OFF=LG_TRENCH_W/2+12, LG_BANK_SEG=36;
+function lanceCrater(x,y,from){const gapA=from?Math.atan2(from.y-y,from.x-x):null,R=LG_CRATER_R,n=LG_CRATER_N+1,hp=Math.round(wallSlatHp()*2);
+  const c={x,y,crater:true,ringR:R,manCap:10,t0:S.t,gapA,cracks:crackLines(Math.random,x,y,R+46,9,6,12,0.45)};(S.craters||(S.craters=[])).push(c);
+  // the ring: segment n-1 is centred on the trench and left out
+  const base=gapA==null?Math.PI/n:gapA,P=[];for(let i=0;i<n;i++){const a=base+(i+0.5)/n*Math.PI*2;P.push({x:x+Math.cos(a)*R,y:y+Math.sin(a)*R})}
+  for(let i=0;i<n;i++){if(gapA!=null&&i===n-1)continue;const a=P[i],b=P[(i+1)%n],L=Math.hypot(b.x-a.x,b.y-a.y),ux=(b.x-a.x)/L,uy=(b.y-a.y)/L,mx=(a.x+b.x)/2,my=(a.y+b.y)/2;if(terrainAt(mx,my)===2)continue;
+    const line={x0:a.x,y0:a.y,x1:b.x,y1:b.y,ux,uy,ang:Math.atan2(uy,ux),posts:[true,true],anchored:[true,true],raiseT0:S.t,slats:[],type:'std',relayRing:true,relay:c,crater:true,auto:true,ringA:Math.atan2(my-y,mx-x)};
     line.slats.push({x:mx,y:my,half:L/2,hp,maxHp:hp,up:1,vi:i,order:0,line,kind:'wallslat'});(S.wallLines||(S.wallLines=[])).push(line)}
+  // the banks, from where the burn started to where they meet the ring
+  if(from){const D=dist(from,c),ux=(x-from.x)/D,uy=(y-from.y)/D,nx=-uy,ny=ux,off=LG_BANK_OFF,end=D-Math.sqrt(Math.max(0,R*R-off*off))+4,banks=[];
+    for(const sd of[-1,1]){const lines=[];for(let t=0;t+12<end;t+=LG_BANK_SEG){const t1=Math.min(end,t+LG_BANK_SEG),ax=from.x+ux*t+nx*off*sd,ay=from.y+uy*t+ny*off*sd,bx=from.x+ux*t1+nx*off*sd,by=from.y+uy*t1+ny*off*sd,mx=(ax+bx)/2,my=(ay+by)/2;
+        if(terrainAt(mx,my)===2){lines.push(null);continue}
+        const L=t1-t,line={x0:ax,y0:ay,x1:bx,y1:by,ux,uy,ang:Math.atan2(uy,ux),posts:[true,true],anchored:[true,true],raiseT0:S.t,slats:[],type:'std',relayRing:true,relay:null,crater:true,bank:c,auto:true};
+        line.slats.push({x:mx,y:my,half:L/2,hp:Math.round(hp*L/LG_BANK_SEG),maxHp:Math.round(hp*L/LG_BANK_SEG),up:1,vi:lines.length,order:0,line,kind:'wallslat'});(S.wallLines||(S.wallLines=[])).push(line);lines.push(line)}
+      banks.push({sd,lines})}
+    c.bank={x0:from.x,y0:from.y,ux,uy,nx,ny,len:end,banks,shards:lcBankShards(end,banks)}}
+  c.web=lcWeb(Math.floor(Math.random()*1e6),12,[16,32,50,R-6,R+16]);c.col=lcGroundCol(x,y);
   S.wallDirty=true}
 function updateLance(dt){const B=S.base,L=B.lance;
   if(S.wallLines&&S.wallLines.some(q=>q.trench&&S.t>q.end)){S.wallLines=S.wallLines.filter(q=>!(q.trench&&S.t>q.end));S.wallDirty=true}
-  if(S.craters&&S.craters.length)S.craters=S.craters.filter(c=>(S.wallLines||[]).some(q=>q.relay===c&&q.slats.some(sl=>!sl.dead)));
+  if(S.craters&&S.craters.length)S.craters=S.craters.filter(c=>(S.wallLines||[]).some(q=>(q.relay===c||q.bank===c)&&q.slats.some(sl=>!sl.dead)));
   if(!L){if(S.t<(B.lanceRest||0)&&(B.dest||B.queue)){B.dest=null;B.queue=null;if(S.t-(S._lrNote||-9)>2){S._lrNote=S.t;note(`The Rig is still cooling after the burn: ${Math.ceil(B.lanceRest-S.t)}s`)}}return}
   L.t+=dt;const u=Math.min(1,L.t/L.T),e=u*u*(3-2*u);B.x=L.x0+(L.x1-L.x0)*e;B.y=L.y0+(L.y1-L.y0)*e;B.dest=null;B.queue=null;
   B._alt=LG_ALT*Math.min(1,L.t/LG_LIFT)*Math.min(1,(L.T-L.t)/LG_SET+0.15);
   S.enemies.forEach(q=>{if(q.hp<=0||q.megaGlass||q.burrowed)return;if(dist(q,B)<LG_BEAM_R+(q.kind==='nest'?q.r*0.5:(q.r||8)))damageEnemy(q,LG_DPS*dt)});
   if(Math.random()<dt*30)burst(B.x+rnd(-1,1)*LG_BEAM_R*0.6,B.y+rnd(-1,1)*LG_BEAM_R*0.5,Math.random()<0.5?'#ff5a3a':'#ffd08a',2,70,0.45);
   if(dist(B,L.seg)>=LG_SEG){addTrench(L.seg,B);L.seg={x:B.x,y:B.y}}
-  if(u>=1){addTrench(L.seg,B);B._alt=0;B.lance=null;B.lanceRest=S.t+LG_REST;lanceCrater(B.x,B.y);shakeScreen(8,0.5);burst(B.x,B.y,'#ff6a3a',30,220,0.7);burst(B.x,B.y,'#3a2a22',24,160,0.9);
+  if(u>=1){addTrench(L.seg,B);B._alt=0;B.lance=null;B.lanceRest=S.t+LG_REST;lanceCrater(B.x,B.y,{x:L.x0,y:L.y0});shakeScreen(8,0.5);burst(B.x,B.y,'#ff6a3a',30,220,0.7);burst(B.x,B.y,'#3a2a22',24,160,0.9);
     sndAt(B.x,B.y,()=>sfx.explode());updateBuildBar()}}
-// the trench and the crater are shattered ground, like a vein's site or a nest's: a jagged gash with cracks
-// running off its sides, lit molten from below while it's fresh and cooling to embers, and the crater's
-// floor cracked out from where the Rig came down. Cracks spread out from where they start (drawn a prefix
-// at a time) and every crack is stored with its line, so it holds still.
+// ---- drawing the Lance's marks: the trench (a jagged gash; its floor a molten channel that flows and crusts
+// over as it cools), and the crater in the "Struck Ring" look (concepts/crater-walls.html): shattered ground
+// round a sunken middle, its outer plates heaved up on edge as the wall, and broken shards along both banks.
 function lgCrack(x,y,a,R){const L=crackLines(Math.random,0,0,R,1,4,8,0.35),ca=Math.cos(a),sa=Math.sin(a);
   return L.map(l=>({w:l.w,pts:l.pts.map(p=>({x:x+p.x*ca-p.y*sa,y:y+p.x*sa+p.y*ca}))}))}
 function lgCrackDraw(cs,grow,hot,f,wd){if(!cs)return;wd=wd||1.6;
@@ -5160,44 +5175,94 @@ function lgCrackDraw(cs,grow,hot,f,wd){if(!cs)return;wd=wd||1.6;
   cs.forEach(l=>{const n=Math.min(l.pts.length,Math.max(2,Math.ceil(l.pts.length*grow)));crackPath(l.pts,n);
     ctx.globalAlpha=f*hot*0.55;ctx.strokeStyle='#ff5a2a';ctx.lineWidth=2.6*l.w*wd/1.6;ctx.stroke();
     ctx.globalAlpha=f*hot*hot;ctx.strokeStyle='#ffd8a0';ctx.lineWidth=0.8*l.w;ctx.stroke()});ctx.restore()}
+// a struck web: m rays and ring radii RR give fragments (sector k, ring j) as polygons round the middle
+function lcWeb(seed,m,RR){const ang=[];for(let k=0;k<m;k++)ang.push(k/m*Math.PI*2+(brHash(k,seed)-0.5)*0.5*Math.PI*2/m);ang.sort((a,b)=>a-b);const frags=[];
+  for(let k=0;k<m;k++){const a0=ang[k],a1=k+1<m?ang[k+1]:ang[0]+Math.PI*2,rj=RR.map((R,j)=>R*(0.92+0.16*brHash(k*13+j,seed,1)));
+    for(let j=0;j<rj.length;j++){const rin=j?rj[j-1]:0,rout=rj[j],n=4,pts=[],jt=(q,r)=>r*(1+(brHash(q*100,r,seed)-0.5)*0.1);
+      for(let i=0;i<=n;i++){const a=a0+(a1-a0)*i/n;pts.push([Math.cos(a)*jt(a,rout),Math.sin(a)*jt(a,rout)])}
+      if(rin>0)for(let i=n;i>=0;i--){const a=a0+(a1-a0)*i/n;pts.push([Math.cos(a)*jt(a,rin),Math.sin(a)*jt(a,rin)])}else pts.push([0,0]);
+      frags.push({pts,mid:(a0+a1)/2,rin,rout,ring:j,sec:k,h:brHash(k*7+j,seed,3),h2:brHash(k*5+j,seed,9)})}}
+  return {ang,frags,R:RR[RR.length-1],rings:RR.length}}
+function lcGroundCol(x,y){let col=[40,40,44];try{const tc=terrainCv.getContext('2d'),ts=terrainCv.width/W,d=tc.getImageData(Math.max(0,(x-6)*ts)|0,Math.max(0,(y-6)*ts)|0,12,12).data;let r=0,g=0,b=0,n=0;for(let i=0;i<d.length;i+=4){r+=d[i];g+=d[i+1];b+=d[i+2];n++}col=[r/n,g/n,b/n]}catch(e){}return col.map(v=>v*1.45+20)}
+// a plate of ground tipped about its outer edge (pts round cx,cy; f.mid its outward direction): th>0 lifts the
+// inner edge (a wall), th<0 drops it (the sloping sides of the sunken middle). Lit from the top left.
+function lcPlate(cx,cy,f,th,col,o){o=o||{};const u0=Math.cos(f.mid),u1=Math.sin(f.mid),Rh=f.rout,sag=o.sag||0;
+  const Q=f.pts.map(p=>{const d=p[0]*u0+p[1]*u1,lx=p[0]-d*u0,ly=p[1]-d*u1,hd=Math.max(0,Rh-d),d2=Rh-hd*Math.cos(th),z=hd*Math.sin(th)-sag;return[cx+lx+d2*u0,cy+ly+d2*u1-z*0.85]});
+  const s=Math.sin(th),lit=0.55+0.75*Math.max(0,u0*s*BR_L[0]+u1*s*BR_L[1]+Math.cos(th)*BR_L[2]),path=()=>{ctx.beginPath();Q.forEach((q,i)=>i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]));ctx.closePath()};
+  if(th>0.05){ctx.fillStyle='#0d0a10';ctx.beginPath();Q.forEach((q,i)=>i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]));for(let i=Q.length-1;i>=0;i--)ctx.lineTo(Q[i][0],Q[i][1]+5);ctx.closePath();ctx.fill()}
+  ctx.fillStyle=`rgb(${col.map(v=>Math.max(0,Math.min(255,v*lit*(o.dim||1)))|0)})`;path();ctx.fill();
+  ctx.strokeStyle=lit>0.8?'rgba(255,240,235,.35)':'rgba(0,0,0,.55)';ctx.lineWidth=0.6;ctx.stroke();
+  if(o.glow>0.02){ctx.save();ctx.globalCompositeOperation='lighter';ctx.strokeStyle=`rgba(255,110,60,${o.glow})`;ctx.lineWidth=1;ctx.stroke();ctx.restore()}
+  if(o.dmg>0.05){const nC=1+Math.floor(o.dmg*4),sd=(f.mid*100)|0;ctx.strokeStyle='rgba(8,6,8,0.9)';ctx.lineWidth=0.8;for(let i=0;i<nC;i++){const A=Q[Math.floor(brHash(i,sd,4)*Q.length)],B2=Q[Math.floor(brHash(i,sd,5)*Q.length)],mx=(A[0]+B2[0])/2+(brHash(i,sd,6)-0.5)*4,my=(A[1]+B2[1])/2;ctx.beginPath();ctx.moveTo(A[0],A[1]);ctx.lineTo(mx,my);ctx.lineTo(B2[0]*0.6+mx*0.4,B2[1]*0.6+my*0.4);ctx.stroke()}}
+  if(o.flash){ctx.fillStyle='rgba(255,255,255,0.4)';path();ctx.fill()}}
+function lcRubble(cx,cy,f,col,seed){for(let i=0;i<5;i++){const p=f.pts[Math.floor(brHash(i,seed,1)*f.pts.length)],x=cx+p[0]*0.8,y=cy+p[1]*0.8,s=2+brHash(i,seed,3)*3;
+  ctx.fillStyle='rgba(0,0,0,0.35)';ctx.fillRect(x-s/2+1,y-s/2+1.5,s,s*0.7);ctx.fillStyle=`rgb(${col.map(v=>Math.min(255,v*(0.9+brHash(i,seed,4)*0.5))|0)})`;ctx.beginPath();ctx.moveTo(x-s/2,y);ctx.lineTo(x,y-s*0.7);ctx.lineTo(x+s/2,y);ctx.lineTo(x,y+s*0.3);ctx.closePath();ctx.fill()}}
+// the bank shards: irregular, overlapping, every size, each turned a little off the trench's line, set in the
+// trench's frame (t along it, r out from its line) and tied to the bank wall piece they stand on
+function lcBankShards(len,banks){const out=[],TW=LG_TRENCH_W/2;banks.forEach(bk=>{const sd=bk.sd;[{rin:TW+2,rout:TW+16,len:16,th:[0.6,0.85]},{rin:TW+17,rout:TW+32,len:20,th:[0.15,0.35],off:7}].forEach((rw,ri)=>{let t=(rw.off||0)-6,i=0;
+    while(t<len-4){const r=k=>Math.random(),big=r()<0.22?1.45:r()>0.8?0.6:1,L=rw.len*big*(0.65+r()*0.6),dep=(rw.rout-rw.rin)*(big>1?1.25:big<1?0.75:1)*(0.7+r()*0.6),
+        rin=rw.rin+(r()-0.35)*7,rot=(r()-0.5)*0.7,tm=t+L/2,cr=rin+dep/2,pts=[];
+      for(let k=0;k<7;k++){const a=k/7*Math.PI*2+(r()-0.5)*0.55,rr=0.72+r()*0.42,px=Math.cos(a)*L/2*rr,py=Math.sin(a)*dep/2*rr;pts.push([px*Math.cos(rot)-py*Math.sin(rot),Math.max(TW-1,cr+px*Math.sin(rot)+py*Math.cos(rot))])}
+      const ds=pts.map(p=>p[1]),li=Math.max(0,Math.min(bk.lines.length-1,Math.floor(tm/LG_BANK_SEG)));
+      out.push({t:tm,sd,pts,rot:rot*0.6,rin:Math.min(...ds),rout:Math.max(...ds),h:r(),th:(rw.th[0]+r()*(rw.th[1]-rw.th[0]))*(big<1?0.8:1),line:bk.lines[li],row:ri,dim:0.9+r()*0.2});
+      t+=L*(0.5+r()*0.3);i++}})});
+  return out}
+// the trench's floor: a channel of molten rock along its line, wavering, flowing back from the Rig in bright
+// pulses, then crusting over in dark plates with glowing seams as it cools
+function lcLava(Ls){const t=S.t,wob=(x,y,k)=>brHash(x*0.5,y*0.5,k)-0.5;
+  ctx.save();ctx.globalCompositeOperation='lighter';ctx.lineJoin='round';
+  Ls.forEach(q=>{const f=Math.min(1,(q.end-S.t)/2.5),age=S.t-q.raiseT0,hot=Math.max(0.2,1-age/6);if(f<=0)return;const nx=-q.uy,ny=q.ux,L=Math.hypot(q.x1-q.x0,q.y1-q.y0);
+    const pts=[];for(let i=0;i<=4;i++){const k=i/4,x=q.x0+(q.x1-q.x0)*k,y=q.y0+(q.y1-q.y0)*k,o=Math.sin(x*0.045+y*0.031)*3.4+wob(x,y,77)*1.6;pts.push([x+nx*o,y+ny*o,0.6+0.8*(wob(x,y,78)+0.5)])}
+    const path=()=>{ctx.beginPath();pts.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]))};
+    path();ctx.lineCap='butt';ctx.globalAlpha=f*hot*0.32;ctx.strokeStyle='#ff3a10';ctx.lineWidth=LG_TRENCH_W*0.62;ctx.stroke();
+    for(let i=0;i<4;i++){const a=pts[i],b=pts[i+1];ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.globalAlpha=f*hot*0.7;ctx.strokeStyle='#ff6a2a';ctx.lineWidth=4+5*(a[2]+b[2])/2;ctx.lineCap='butt';ctx.stroke()}
+    const fl=0.8+0.2*Math.sin(t*23+q.k*1.7),pulse=Math.pow(Math.max(0,Math.sin((q.k||0)*0.55+t*4.5)),4);
+    path();ctx.lineCap='round';ctx.globalAlpha=f*hot*hot*fl;ctx.strokeStyle='#ffe6b8';ctx.lineWidth=1.8;ctx.stroke();
+    if(pulse>0.02){ctx.globalAlpha=f*hot*pulse*0.8;ctx.strokeStyle='#fff4d8';ctx.lineWidth=4;ctx.stroke()}
+    q._lv=pts;q._lvh=hot;q._lvf=f;q._lvL=L});
+  ctx.restore();
+  // the crust: dark plates drifting together over the channel as it cools, seams still glowing
+  ctx.save();Ls.forEach(q=>{const age=S.t-q.raiseT0,cv=Math.min(1,Math.max(0,(age-2)/7)),f=q._lvf;if(!q._lv||cv<=0||!(f>0))return;
+    for(let i=0;i<3;i++){const k=(i+0.5)/3,p=q._lv[Math.min(4,Math.round(k*4))],x=q.x0+(q.x1-q.x0)*k,y=q.y0+(q.y1-q.y0)*k,sz=(4+5*brHash(x,y,80))*cv,a=brHash(x,y,81)*Math.PI;if(sz<1)continue;
+      ctx.globalAlpha=f;ctx.fillStyle='#1c120e';ctx.beginPath();for(let j=0;j<5;j++){const b=a+j/5*Math.PI*2,rr=sz*(0.7+0.5*brHash(x+j,y,82));j?ctx.lineTo(p[0]+Math.cos(b)*rr,p[1]+Math.sin(b)*rr*0.8):ctx.moveTo(p[0]+Math.cos(b)*rr,p[1]+Math.sin(b)*rr*0.8)}ctx.closePath();ctx.fill();
+      ctx.strokeStyle=`rgba(255,110,50,${0.6*q._lvh*f})`;ctx.lineWidth=0.8;ctx.stroke()}});ctx.restore()}
 function drawLanceScars(){const Ls=(S.wallLines||[]).filter(q=>q.trench);
   if(Ls.length){ctx.save();ctx.lineCap='round';ctx.lineJoin='round';
     Ls.forEach(q=>{const f=Math.min(1,(q.end-S.t)/2.5);if(f<=0||!q.gash)return;const age=S.t-q.raiseT0;
       ctx.globalAlpha=f;ctx.fillStyle='rgba(14,8,6,0.94)';ctx.beginPath();q.gash.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.closePath();ctx.fill();
       ctx.strokeStyle='rgba(70,52,44,0.55)';ctx.lineWidth=1.2;ctx.stroke();
       lgCrackDraw(q.cracks,Math.min(1,age/0.9),Math.max(0.2,1-age/5),f)});
-    ctx.globalCompositeOperation='lighter';
-    // the molten floor: pieces grouped by how hot they are, each group stroked as one path so the joins don't double up
-    {const grp=new Map();Ls.forEach(q=>{const f=Math.min(1,(q.end-S.t)/2.5),hot=Math.max(0.22,1-(S.t-q.raiseT0)/5);if(f<=0)return;const k=Math.round(f*hot*10);(grp.get(k)||grp.set(k,[]).get(k)).push(q)});
-     grp.forEach((qs,k)=>{const a=k/10,path=()=>{ctx.beginPath();qs.forEach(q=>{ctx.moveTo(q.x0,q.y0);ctx.lineTo(q.x1,q.y1)})};path();
-       ctx.globalAlpha=a*0.45;ctx.strokeStyle='#ff4a1a';ctx.lineWidth=LG_TRENCH_W*0.5;ctx.stroke();
-       ctx.globalAlpha=a;ctx.strokeStyle='#ff7a3a';ctx.lineWidth=4;ctx.stroke();
-       ctx.globalAlpha=a*a;ctx.strokeStyle='#ffd8a0';ctx.lineWidth=1.4;ctx.stroke()})}
-    ctx.restore()}
-  (S.craters||[]).forEach(c=>{const age=S.t-c.t0;ctx.save();const g=ctx.createRadialGradient(c.x,c.y,0,c.x,c.y,c.ringR+10);g.addColorStop(0,'rgba(10,6,5,0.75)');g.addColorStop(0.75,'rgba(30,20,16,0.55)');g.addColorStop(1,'rgba(30,20,16,0)');
-    ctx.fillStyle=g;ctx.beginPath();ctx.ellipse(c.x,c.y,c.ringR+10,(c.ringR+10)*0.9,0,0,Math.PI*2);ctx.fill();
-    ctx.lineCap='round';ctx.lineJoin='round';lgCrackDraw(c.cracks,Math.min(1,age/1.2),Math.max(0.12,1-age/8),1,2);
-    if(age<6){ctx.globalCompositeOperation='lighter';ctx.globalAlpha=0.5*(1-age/6);const h=ctx.createRadialGradient(c.x,c.y,0,c.x,c.y,c.ringR*0.7);h.addColorStop(0,'#ff7a3a');h.addColorStop(1,'rgba(255,90,40,0)');ctx.fillStyle=h;ctx.beginPath();ctx.arc(c.x,c.y,c.ringR*0.7,0,Math.PI*2);ctx.fill()}
-    ctx.restore()});
-  // the crater's walls: slabs of ground heaved up on edge, broken into jagged glassy shards, glowing in their
-  // seams while fresh and cracking further as they're hit
-  const Rs=(S.wallLines||[]).filter(q=>q.crater);if(!Rs.length)return;ctx.save();ctx.lineJoin='round';ctx.lineCap='round';
-  Rs.forEach(q=>q.slats.forEach(sl=>{if(sl.dead)return;const d=1-sl.hp/sl.maxHp,ux=q.ux,uy=q.uy,ax=sl.x-ux*sl.half,ay=sl.y-uy*sl.half,bx=sl.x+ux*sl.half,by=sl.y+uy*sl.half;
-    const age=S.t-q.raiseT0,rise=Math.min(1,age/0.5),hot=Math.max(0,1-age/6),rr=seededRng(sl.vi*31+7),cx=q.relay?q.relay.x:sl.x,cy=q.relay?q.relay.y:sl.y;
-    const nl=Math.hypot(sl.x-cx,sl.y-cy)||1,nx=(sl.x-cx)/nl,ny=(sl.y-cy)/nl;
-    ctx.globalAlpha=1;ctx.strokeStyle='rgba(0,0,0,0.4)';ctx.lineWidth=14;ctx.beginPath();ctx.moveTo(ax+3,ay+4);ctx.lineTo(bx+3,by+4);ctx.stroke();
-    ctx.strokeStyle='#15191e';ctx.lineWidth=10;ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);ctx.stroke();
-    const N=5;for(let k=0;k<N;k++){const f=(k+0.5)/N+(rr()-0.5)*0.08,px=ax+(bx-ax)*f+nx*(rr()-0.5)*5,py=ay+(by-ay)*f+ny*(rr()-0.5)*5,w=sl.half*2/N*(0.75+rr()*0.5),h=(9+rr()*12)*rise*(1-0.35*d),lean=(rr()-0.5)*6+nx*3;
-      const l={x:px-ux*w*0.6,y:py-uy*w*0.6+2},r={x:px+ux*w*0.6,y:py+uy*w*0.6+2},t={x:px+lean,y:py-h},m={x:px+lean*0.4+ux*w*0.12,y:py-h*0.45};
-      ctx.fillStyle=d>0.5?'#262c33':'#2e3740';ctx.beginPath();ctx.moveTo(l.x,l.y);ctx.lineTo(t.x,t.y);ctx.lineTo(r.x,r.y);ctx.closePath();ctx.fill();
-      ctx.fillStyle=d>0.5?'#3a434d':'#4a5866';ctx.beginPath();ctx.moveTo(l.x,l.y);ctx.lineTo(t.x,t.y);ctx.lineTo(m.x,m.y);ctx.closePath();ctx.fill();
-      ctx.strokeStyle='rgba(170,195,214,0.55)';ctx.lineWidth=0.7;ctx.beginPath();ctx.moveTo(l.x,l.y);ctx.lineTo(t.x,t.y);ctx.lineTo(r.x,r.y);ctx.stroke();
-      // seams up the shard: molten while fresh, then dark cracks (more of them as it's hurt)
-      const cs=1+Math.floor(d*3);for(let j=0;j<cs;j++){const s0=0.2+rr()*0.6,x0=l.x+(r.x-l.x)*s0,y0=l.y+(r.y-l.y)*s0,k2=0.4+rr()*0.4,x1=x0+(t.x-x0)*k2+(rr()-0.5)*3,y1=y0+(t.y-y0)*k2;
-        if(hot>0.02){ctx.save();ctx.globalCompositeOperation='lighter';ctx.globalAlpha=hot;ctx.strokeStyle='#ff7a3a';ctx.lineWidth=1.4;ctx.beginPath();ctx.moveTo(x0,y0);ctx.lineTo(x1,y1);ctx.stroke();ctx.restore()}
-        if(d>0.12||hot<=0.02){ctx.strokeStyle='rgba(8,10,12,0.85)';ctx.lineWidth=0.7;ctx.beginPath();ctx.moveTo(x0,y0);ctx.lineTo(x1,y1);ctx.stroke()}}}
-    if(sl.flashT>0){ctx.strokeStyle='rgba(255,255,255,0.45)';ctx.lineWidth=14;ctx.beginPath();ctx.moveTo(ax,ay-6);ctx.lineTo(bx,by-6);ctx.stroke()}}));
-  ctx.restore()}
+    ctx.restore();lcLava(Ls)}
+  (S.craters||[]).forEach(c=>{if(!c.web){c.web=lcWeb(Math.floor(c.x*7+c.y),12,[16,32,50,LG_CRATER_R-6,LG_CRATER_R+16]);c.col=lcGroundCol(c.x,c.y)} // (a crater from an older save)
+   const age=S.t-c.t0,heave=BR_SM(age/0.6),hot=Math.max(0,1-age/7),W=c.web,cx=c.x,cy=c.y,col=c.col,t=S.t;
+    const ring=(S.wallLines||[]).filter(q=>q.relay===c),gapF=f=>f.ring>=3&&c.gapA!=null&&Math.abs(((f.mid-c.gapA)+Math.PI*3)%(Math.PI*2)-Math.PI)<LG_GAP+0.12;
+    const lineOf=f=>{let b=null,bd=9;ring.forEach(q=>{const d=Math.abs(((f.mid-q.ringA)+Math.PI*3)%(Math.PI*2)-Math.PI);if(d<bd){bd=d;b=q}});return b};
+    ctx.save();ctx.lineJoin='round';ctx.lineCap='round';
+    // the sunken middle: a dark bowl, its upper-left inside in the rim's shadow and its lower-right inside catching the light
+    {const R=LG_CRATER_R,g=ctx.createRadialGradient(cx,cy+6,R*0.2,cx,cy,R+6);g.addColorStop(0,'rgba(8,5,6,0.85)');g.addColorStop(0.7,'rgba(14,10,10,0.6)');g.addColorStop(1,'rgba(20,14,12,0)');
+     ctx.fillStyle=g;ctx.beginPath();ctx.ellipse(cx,cy,R+6,(R+6)*0.92,0,0,Math.PI*2);ctx.fill()}
+    lgCrackDraw(c.cracks,Math.min(1,age/1.2),Math.max(0.1,hot),1,1.6);
+    W.frags.forEach(f=>{if(f.ring<=1&&(f.ring===0||f.h<0.55))brHole(cx,cy,f,0.1+0.9*hot,t)});
+    // the web's own cracks
+    const cr=(stroke,w,blur)=>{ctx.save();ctx.strokeStyle=stroke;ctx.lineWidth=w;if(blur){ctx.globalCompositeOperation='lighter';ctx.shadowColor=stroke;ctx.shadowBlur=blur}ctx.beginPath();
+      W.ang.forEach((a,k)=>{const L=W.R*Math.min(1,heave*1.3-k*0.02);if(L<=0)return;ctx.moveTo(cx,cy);for(let s=1;s<=6;s++){const r=L*s/6,j=(brHash(k,s,2)-0.5)*0.12;ctx.lineTo(cx+Math.cos(a+j)*r,cy+Math.sin(a+j)*r)}});
+      W.frags.forEach(f=>{const g=Math.max(0,Math.min(1,heave*1.6-f.ring*0.25));if(g<=0||f.ring>=W.rings-1)return;const o=f.pts.slice(0,5);ctx.moveTo(cx+o[0][0],cy+o[0][1]);o.forEach((p,i)=>{if(i/4<=g)ctx.lineTo(cx+p[0],cy+p[1])})});ctx.stroke();ctx.restore()};
+    cr('rgba(10,6,8,.95)',1.4,0);if(hot>0.02)cr(`rgba(255,110,60,${0.12+0.75*hot})`,0.6,5);
+    // plates, back to front: the inner rings slope down into the middle, the outer ring stands up as the wall
+    W.frags.slice().sort((p,q)=>Math.sin(p.mid)*p.rout-Math.sin(q.mid)*q.rout).forEach(f=>{if(f.ring<=1&&(f.ring===0||f.h<0.55))return;if(gapF(f))return;
+      const wall=f.ring===4,q=wall?lineOf(f):null,sl=q&&q.slats[0];if(wall&&(!sl||sl.dead)){lcRubble(cx,cy,f,col,f.sec*31+7);return}
+      const d=sl?1-sl.hp/sl.maxHp:0,th=f.ring===4?(0.62+f.h2*0.22):-(0.2+0.06*f.ring+f.h2*0.1); // (the rings inside slope down into the middle, darker the deeper they go)
+      lcPlate(cx,cy,f,th*heave*(1-0.45*d),col,{glow:(wall?0.32:0.14)*hot,dmg:d,sag:d*3,dim:wall?1:[0.5,0.5,0.62,0.78][f.ring],flash:sl&&sl.flashT>0})});
+    // the banks: each shard leaves a dark pit where it was torn up
+    const bk=c.bank;if(bk){const sh=bk.shards.slice().sort((p,q)=>{const yp=bk.y0+bk.uy*p.t+bk.ny*p.sd*(p.rin+p.rout)/2,yq=bk.y0+bk.uy*q.t+bk.ny*q.sd*(q.rin+q.rout)/2;return yp-yq});
+      sh.forEach(s=>{const ox=bk.x0+bk.ux*s.t,oy=bk.y0+bk.uy*s.t,P=s.pts.map(p=>[bk.ux*p[0]+bk.nx*p[1]*s.sd,bk.uy*p[0]+bk.ny*p[1]*s.sd]),f={pts:P,mid:Math.atan2(bk.ny*s.sd,bk.nx*s.sd)+s.rot*s.sd,rout:s.rout};
+        const sl=s.line&&s.line.slats[0];if(!sl||sl.dead){lcRubble(ox,oy,f,col,(s.t|0)+s.sd*7);return}const d=1-sl.hp/sl.maxHp;
+        if(heave>0.05){ctx.beginPath();P.forEach((p,i)=>i?ctx.lineTo(ox+p[0],oy+p[1]):ctx.moveTo(ox+p[0],oy+p[1]));ctx.closePath();ctx.fillStyle=`rgba(10,6,8,${0.92*heave})`;ctx.fill();
+          if(hot>0.05){ctx.save();ctx.globalCompositeOperation='lighter';ctx.strokeStyle=`rgba(255,90,40,${0.35*hot})`;ctx.lineWidth=1;ctx.stroke();ctx.restore()}}
+        lcPlate(ox,oy,f,s.th*heave*(1-0.45*d),col,{glow:(s.row?0.15:0.3)*hot,dmg:d,sag:d*3,dim:s.dim,flash:sl.flashT>0})})}
+    ctx.restore();
+    if(hot>0){brGlow(cx,cy,26,'255,110,50',0.6*hot);brRising(cx,cy,30,18,t,'#ff8a50',0.7*hot,1.4,c.t0*100|0)}});
+}
 function spawnEnemy(x,y,kind,opts){
   const core=(opts&&opts.core)||bandAt(x,y)==='core';
   // Brutes only ever show up as a rare roll on a Core roam spawn — never on a wave/saboteur/
@@ -9107,7 +9172,8 @@ function manRing(r,units){
   if(!join.length){note(`Ring full (${keep.length}/${cap})`);return}
   const all=keep.concat(join),n=all.length,ang=t=>Math.atan2(t.y-r.y,t.x-r.x),ord=all.slice().sort((a,b)=>ang(a)-ang(b)),a0=ang(ord[0]);
   const RR=r.ringR?r.ringR-MAN_OFFSET:RING_MAN_R;
-  ord.forEach((t,k)=>{const a=a0+k/n*Math.PI*2,x=r.x+Math.cos(a)*RR,y=r.y+Math.sin(a)*RR;
+  const gp=r.gapA!=null?LG_GAP+0.2:0; // (a Lance crater: spread round the ring, leaving its open side to the trench)
+  ord.forEach((t,k)=>{const a=gp?r.gapA+gp+(k+0.5)/n*(Math.PI*2-2*gp):a0+k/n*Math.PI*2,x=r.x+Math.cos(a)*RR,y=r.y+Math.sin(a)*RR;
     let best=lines[0],bd=1e9;lines.forEach(L=>{const d=Math.hypot((L.x0+L.x1)/2-x,(L.y0+L.y1)/2-y);if(d<bd){bd=d;best=L}});
     t.following=false;t.guard=null;t.pace=null;t.target=null;t.wallHome=null;t.state='move';
     t.dest={x,y};t.formAng=a;t.manning=best;t.wall=t.kind==='brawler';t.wallAng=a});
@@ -9360,11 +9426,21 @@ function drawRigTower(B){const dt=Math.max(0,Math.min(0.1,S.t-(B._rt??S.t)));B._
 // over the cables: the laser, the thrusters, the lamps; then the kit's shields and intercepts
 function drawRigTop(B){const m=B._m;if(m){SKO.x=B.x;SKO.y=B.y;SKO.s=1;SKO.lean=[0,0];SKO.shk=[0,0];
   const on=B._laser||0;if(on>0.02){const a=skPJ(m.lens),b=skPJ([m.lens[0],m.lens[1],0]),fl=0.85+0.15*Math.sin(S.t*41);ctx.save();ctx.globalCompositeOperation='lighter';ctx.lineCap='round';
-    [[9,`rgba(255,170,70,${0.18*on*fl})`],[4.2,`rgba(255,210,122,${0.55*on*fl})`],[1.6,`rgba(255,255,240,${0.95*on})`]].forEach(([lw,c])=>{ctx.strokeStyle=c;ctx.lineWidth=lw;ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke()});
+    if(B.lance)lanceBeam(a,b,on);
+    else [[9,`rgba(255,170,70,${0.18*on*fl})`],[4.2,`rgba(255,210,122,${0.55*on*fl})`],[1.6,`rgba(255,255,240,${0.95*on})`]].forEach(([lw,c])=>{ctx.strokeStyle=c;ctx.lineWidth=lw;ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke()});
     for(let i=0;i<9;i++){const f=((S.t*1.7+i/9)%1),an=i*2.39+Math.floor(S.t*1.7+i/9)*1.3,d=4+f*16,q=skPJ([Math.cos(an)*d,Math.sin(an)*d,Math.sin(Math.PI*f)*7]);ctx.fillStyle=`rgba(255,${180+60*(1-f)|0},90,${(1-f)*on})`;ctx.fillRect(q[0]-0.7,q[1]-0.7,1.4,1.4)}
     ctx.restore();skGlow([0,0,0.5],16,RC.LASER,0.45*on*fl)}
   skGlow(m.lens,7,RC.LASER,0.2+0.75*on);
-  // v4: the landing burn: a flame from each nozzle, the ground lit and the dust thrown out under it
+  // v4: the Lance Graft's beam (drawn additively, a = lens, b = ground): a wide heat haze, a body that swells and
+// thins as it pulses, a white-hot core, two strands of energy coiling down round it, and bright slugs of power
+// running down to the ground
+function lanceBeam(a,b,on){const t=S.t,N=14,dx=b[0]-a[0],dy=b[1]-a[1],L=Math.hypot(dx,dy)||1,px=-dy/L,py=dx/L,at=k=>[a[0]+dx*k,a[1]+dy*k];
+  ctx.lineCap='round';ctx.strokeStyle=`rgba(255,80,30,${0.12*on})`;ctx.lineWidth=22+3*Math.sin(t*9);ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke();
+  for(let i=0;i<N;i++){const k0=i/N,k1=(i+1)/N,w=5+2.2*Math.sin(t*26-i*0.9)+1.2*Math.sin(t*61+i*2.3),p=at(k0),q=at(k1+0.01);ctx.strokeStyle=`rgba(255,150,70,${0.55*on})`;ctx.lineWidth=w;ctx.beginPath();ctx.moveTo(p[0],p[1]);ctx.lineTo(q[0],q[1]);ctx.stroke()}
+  ctx.strokeStyle=`rgba(255,250,235,${0.95*on})`;ctx.lineWidth=1.8+0.5*Math.sin(t*47);ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke();
+  for(const ph of[0,Math.PI]){ctx.beginPath();for(let i=0;i<=24;i++){const k=i/24,p=at(k),w=(4+2*k)*Math.sin(k*L*0.16-t*14+ph);i?ctx.lineTo(p[0]+px*w,p[1]+py*w):ctx.moveTo(p[0]+px*w,p[1]+py*w)}ctx.strokeStyle=`rgba(255,200,130,${0.5*on})`;ctx.lineWidth=1;ctx.stroke()}
+  for(let i=0;i<3;i++){const k=(t*1.6+i/3)%1,p=at(k),g=ctx.createRadialGradient(p[0],p[1],0,p[0],p[1],7);g.addColorStop(0,`rgba(255,245,220,${0.9*on})`);g.addColorStop(1,'rgba(255,120,40,0)');ctx.fillStyle=g;ctx.beginPath();ctx.arc(p[0],p[1],7,0,Math.PI*2);ctx.fill()}}
+// v4: the landing burn: a flame from each nozzle, the ground lit and the dust thrown out under it
   if(S.landing&&!S.landing.touch&&S.landing.lit){const alt=B._alt||0,u=Math.min(1,S.landing.t/LAND_T),th=1-Math.max(0,(u-LAND_BURN)/(1-LAND_BURN)),pw=(0.75+0.25*Math.sin(performance.now()/23))*(0.45+0.55*th),len=14+90*th*th;
     ctx.save();ctx.globalCompositeOperation='lighter';ctx.lineCap='round';
     m.nozz.forEach((q,i)=>{const a=skPJ(q),b=skPJ([q[0]*1.25,q[1]*1.25,Math.max(0,q[2]-len*(0.9+0.2*Math.sin(performance.now()/31+i)))]);
