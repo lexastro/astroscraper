@@ -74,15 +74,29 @@ function trench(cx,cy){const pts=[];const n=16;for(let i=0;i<=n;i++){const x=T_X
 // is an angle (or a span a0..a1) in the ring's opening, on the west where the trench comes in
 const angD=(a,b)=>Math.abs(((a-b)+Math.PI*3)%TAU-Math.PI);
 const inGap=(a0,a1)=>{const m=(a0+a1)/2,h=Math.abs(a1-a0)/2;return angD(m,Math.PI)<GAP+h*0.55};
-// walls along both sides of the trench: plates set along it (local frame: origin on the trench's centre line,
-// mid = the side's outward normal, rin..rout = distance out from the centre line), in rows
-function sideWalls(rows,seed){const out=[];[-1,1].forEach(sd=>rows.forEach((rw,ri)=>{const step=rw.len+rw.gap;for(let x=T_X0+8+(rw.off||0);x+rw.len<=-CR-6;x+=step){
-    const L=rw.len*(0.85+H(x|0,ri,seed)*0.3),xm=x+L/2,n=5,pts=[];
-    for(let i=0;i<=n;i++){const t=-L/2+L*i/n;pts.push([t,sd*rw.rout*(1+(H(i,x|0,seed+ri)-0.5)*0.14)])}
-    for(let i=n;i>=0;i--){const t=-L/2+L*i/n;pts.push([t,sd*rw.rin*(1+(H(i,x|0,seed+ri+7)-0.5)*0.12)])}
-    out.push({ox:xm,pts,mid:sd>0?Math.PI/2:-Math.PI/2,rin:rw.rin,rout:rw.rout,sd,h:H(x|0,sd+5,seed),h2:H(x|0,sd+9,seed),th:rw.th[0]+H(x|0,ri+3,seed)*(rw.th[1]-rw.th[0]),hinge:rw.hinge||'out',dim:rw.dim||1,row:ri})}}));return out}
+// walls along both sides of the trench, as broken ground: irregular shards of every size, overlapping like
+// heaved-up slabs, each turned a little off the trench's line, sitting nearer or further from its edge, some
+// small ones tucked behind. Each row gives the mean shard (len along the trench, rin..rout out from its centre
+// line); every shard varies round that. Local frame: origin on the centre line, mid = the shard's lift direction.
+function sideWalls(rows,seed){const out=[];[-1,1].forEach(sd=>rows.forEach((rw,ri)=>{let x=T_X0+(rw.off||0)-10,i=0;
+    while(x<-CR-4){const r=k=>H(i*7+k,ri*31+sd*5,seed),big=r(1)<0.22?1.45:r(1)>0.8?0.6:1,L=rw.len*big*(0.65+r(2)*0.6),dep=(rw.rout-rw.rin)*(big>1?1.25:big<1?0.75:1)*(0.7+r(3)*0.6),
+        rin=rw.rin+(r(4)-0.35)*7,rot=(r(5)-0.5)*0.7,xm=x+L/2,cr=rin+dep/2,n=7,pts=[];
+      for(let k=0;k<n;k++){const a=k/n*TAU+(r(10+k)-0.5)*0.55,rr=0.72+r(20+k)*0.42;let px=Math.cos(a)*L/2*rr,py=cr+Math.sin(a)*dep/2*rr;
+        // turn it a little about its middle, then flip it to its side of the trench
+        const qx=px*Math.cos(rot)-(py-cr)*Math.sin(rot),qy=cr+px*Math.sin(rot)+(py-cr)*Math.cos(rot);pts.push([qx,sd*Math.max(TW-1,qy)])}
+      const ds=pts.map(p=>p[1]*sd);
+      out.push({ox:xm,pts,mid:(sd>0?Math.PI/2:-Math.PI/2)+rot*0.6*sd,rin:Math.min(...ds),rout:Math.max(...ds),sd,h:r(30),h2:r(31),th:(rw.th[0]+r(32)*(rw.th[1]-rw.th[0]))*(big<1?0.8:1),hinge:rw.hinge||'out',dim:(rw.dim||1)*(0.9+r(33)*0.2),row:ri});
+      // now and then a small chip of ground kicked up behind
+      if(r(40)<0.35){const cl=L*0.4,cd=dep*0.45,cx2=(r(41)-0.5)*L*0.6,cr2=rin+dep+cd*0.3,P2=[];for(let k=0;k<5;k++){const a=k/5*TAU+(r(50+k)-0.5)*0.6,rr=0.7+r(55+k)*0.4;P2.push([cx2+Math.cos(a)*cl/2*rr,sd*(cr2+Math.sin(a)*cd/2*rr)])}
+        const d2=P2.map(p=>p[1]*sd);out.push({ox:xm,pts:P2,mid:sd>0?Math.PI/2:-Math.PI/2,rin:Math.min(...d2),rout:Math.max(...d2),sd,h:r(42),h2:r(43),th:0.2+r(44)*0.25,hinge:'out',dim:0.85,row:ri})}
+      x+=L*(0.5+r(6)*0.3);i++}}));
+  // far ones first, so nearer shards overlap them
+  return out.sort((p,q)=>(p.sd*(p.rin+p.rout)/2)-(q.sd*(q.rin+q.rout)/2))}
 // side plates hinge on their far edge and lift the edge facing the trench
-function drawSide(cx,cy,P,list,sd,hotK){list.forEach(f=>{if(f.sd!==sd)return;const ox=cx+f.ox,oy=cy+tY(f.ox);const d=sideHurt(f,P.hit);if(d>0.92){rubble(ox,oy,f,(f.ox|0)+sd);return}
+function drawSide(cx,cy,P,list,sd,hotK){list.filter(f=>f.sd===sd).sort((p,q)=>sd*((p.rin+p.rout)-(q.rin+q.rout))||(p.ox-q.ox)).forEach(f=>{const ox=cx+f.ox,oy=cy+tY(f.ox);const d=sideHurt(f,P.hit);if(d>0.92){rubble(ox,oy,f,(f.ox|0)+sd);return}
+  // the pit it was torn out of, dark with a little heat at the bottom while fresh
+  if(P.heave>0.05){ctx.beginPath();f.pts.forEach((p,i)=>i?ctx.lineTo(ox+p[0],oy+p[1]):ctx.moveTo(ox+p[0],oy+p[1]));ctx.closePath();ctx.fillStyle=`rgba(10,6,8,${0.92*P.heave})`;ctx.fill();
+    if(P.hot>0.05){ctx.save();ctx.globalCompositeOperation='lighter';ctx.strokeStyle=`rgba(255,90,40,${0.35*P.hot})`;ctx.lineWidth=1;ctx.stroke();ctx.restore()}}
   plate(ox,oy,f,f.th*P.heave*(1-0.45*d),{hinge:f.hinge,glow:(hotK||0.45)*P.hot,dmg:d,sag:d*3,dim:f.dim})})}
 // the far end of the north trench wall takes a few hits too
 function sideHurt(f,hit){if(f.sd>0)return 0;const w=Math.max(0,1-(f.ox-T_X0)/90);return Math.min(1,hit*w*(0.6+0.7*f.h))}
