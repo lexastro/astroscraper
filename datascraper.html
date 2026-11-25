@@ -825,7 +825,7 @@ async function run(d){
   <div class="stat rigStat" id="rigStat" role="button" tabindex="0" aria-haspopup="true" aria-expanded="false" title="Repair drones — click to choose how many look after the Rig"><span class="kRow"><span class="k">⛨ Rig</span><span class="dr"><svg class="wr" viewBox="0 0 16 16" aria-hidden="true"><path d="M10.6 1.2a4.2 4.2 0 0 0-4.1 5.4L1.6 11.5a1.6 1.6 0 0 0 2.3 2.3l4.9-4.9a4.2 4.2 0 0 0 5.4-4.1l-2.4 2.4-2.1-.6-.6-2.1 2.4-2.4a4.2 4.2 0 0 0-.9-.1z" fill="currentColor"/></svg><span id="hDrones">0</span></span></span><span class="v" id="hBase">—</span><div class="bar"><i class="hp" id="hBaseBar" style="width:100%"></i></div>
     <div class="crewPanel" id="crewPanel" hidden><b><svg class="wr" viewBox="0 0 16 16" aria-hidden="true"><path d="M10.6 1.2a4.2 4.2 0 0 0-4.1 5.4L1.6 11.5a1.6 1.6 0 0 0 2.3 2.3l4.9-4.9a4.2 4.2 0 0 0 5.4-4.1l-2.4 2.4-2.1-.6-.6-2.1 2.4-2.4a4.2 4.2 0 0 0-.9-.1z" fill="currentColor"/></svg> Repair drones</b>
       <div class="split"><span class="rg" id="crewRig">Rig 0</span><span id="crewElse">Everything else 0</span></div>
-      <input type="range" id="crewSlider" min="0" max="0" step="1" value="0" aria-label="Drones kept on the Rig">
+      <input type="range" id="crewSlider" min="0" max="0" step="1" value="0" aria-label="Drones sent to everything else (the rest stay on the Rig)">
       <small id="crewNote"></small></div></div>
   <div class="stat obj"><span class="k" id="hObjK">Veins</span><span class="v" id="hObj">—</span><div class="bar"><i id="hObjBar" style="width:0%"></i></div></div>
 </div>
@@ -10672,7 +10672,7 @@ const DRONE_RIG_K0=0.25;
 function droneRigK(){const k=meta.droneRigK;return k==null?DRONE_RIG_K0:Math.max(0,Math.min(1,k))}
 function droneRigN(){return Math.round(droneRigK()*S.drones.length)}
 function crewPanelSync(){const N=S.drones.length,n=droneRigN(),sl=$('crewSlider');
-  if(+sl.max!==N)sl.max=N;if(document.activeElement!==sl&&+sl.value!==n)sl.value=n;sl.disabled=N===0;
+  if(+sl.max!==N)sl.max=N;if(document.activeElement!==sl&&+sl.value!==N-n)sl.value=N-n;sl.disabled=N===0;
   $('crewRig')._tc='Rig '+n;$('crewElse')._tc='Everything else '+(N-n);
   $('crewNote')._tc=N===0?'No repair drones yet — cards and wrecks add them.':n===0?'None kept back: the Rig is patched only when nothing else needs it.':`These ${n===1?'one goes':n+' go'} straight to the Rig whenever it's hurt, and help elsewhere while it's whole.`}
 function crewPanel(open){const p=$('crewPanel');open=open==null?p.hidden:open;p.hidden=!open;$('rigStat').classList.toggle('open',open);$('rigStat').setAttribute('aria-expanded',open);if(open)crewPanelSync()}
@@ -10680,7 +10680,7 @@ document.getElementById('rigStat').addEventListener('click',e=>{if(e.target.clos
 document.getElementById('rigStat').addEventListener('keydown',e=>{if(e.target===document.getElementById('rigStat')&&(e.key==='Enter'||e.key===' ')){e.preventDefault();crewPanel()}});
 document.getElementById('crewPanel').addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Escape')crewPanel(false)});
 ['pointerdown','mousedown','wheel'].forEach(t=>document.getElementById('crewPanel').addEventListener(t,e=>e.stopPropagation()));
-document.getElementById('crewSlider').addEventListener('input',e=>{const N=S.drones.length;if(!N)return;meta.droneRigK=+e.target.value/N;saveMeta();crewPanelSync()});
+document.getElementById('crewSlider').addEventListener('input',e=>{const N=S.drones.length;if(!N)return;meta.droneRigK=(N-e.target.value)/N;saveMeta();crewPanelSync()});
 addEventListener('pointerdown',e=>{if(!document.getElementById('crewPanel').hidden&&!e.target.closest('#rigStat'))crewPanel(false)},true);
 function droneJobAlive(o){
   if(!S.stabs.includes(o)&&(o.droneSkipUntil||0)>S.t)return false;
