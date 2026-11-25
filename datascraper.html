@@ -1409,23 +1409,26 @@ const ELEC_DMG=14, ELEC_STUN=0.7, RAZOR_DMG=10, GLASS_REGEN=3, GLASS_REGROW_T=25
 const wallType=()=>S.mods.wallType||'std';
 const wallSlatHp=t=>Math.round(WALL_SLAT_HP*WALL_TYPES[t||wallType()].hp);
 // v4: wall health cards (Reinforced Slats I and II): a wall is that much tougher WHILE UNITS MAN IT (damageWall divides
-// what it takes by S.mods.wallHpMult); an unmanned wall gets nothing. A Walled Relay's ring (or a crater) counts as
+// what it takes by up to S.mods.wallHpMult, in step with how many of its places are filled); an unmanned wall gets nothing. A Walled Relay's ring (or a crater) counts as
 // manned all round while anyone is in it. WALL_HP_CARD_MAX picks of
 // them in a run, between the two
 const WALL_HP_CARD_MAX=3;
 const wallHpOpen=()=>(S.mods.wallHpN||0)<WALL_HP_CARD_MAX;
 function wallHpCard(p){const k=1+p/100;S.mods.wallHpMult=(S.mods.wallHpMult||1)*k;S.mods.wallHpN=(S.mods.wallHpN||0)+1}
-// is this wall manned right now? (a unit assigned to it and standing at it; worked out once a frame per wall)
+// how fully is this wall manned right now, 0..1? Units assigned to it and standing at it, against how many it holds
+// (a ring or crater: everyone in it against the ring's places). Worked out once a frame per wall. The brace scales with it.
 const MAN_AT_R=34;
-function wallManned(L){if(!L)return false;if(L._mT===S.t)return L._mOn;L._mT=S.t;
-  const ring=L.relayRing&&L.relay?L.relay:null;
-  L._mOn=S.troops.some(t=>{const M=t.manning;if(!M||t.hp<=0)return false;if(M!==L&&!(ring&&M.relayRing&&M.relay===ring))return false;
-    return pointSegDist(t,{x:M.x0,y:M.y0},{x:M.x1,y:M.y1})<MAN_AT_R});
-  return L._mOn}
-const wallBraced=L=>(S.mods.wallHpMult||1)>1&&wallManned(L);
+function wallManned(L){if(!L)return 0;if(L._mT===S.t)return L._mOn;L._mT=S.t;
+  const ring=L.relayRing&&L.relay?L.relay:null;let n=0;
+  S.troops.forEach(t=>{const M=t.manning;if(!M||t.hp<=0)return;if(M!==L&&!(ring&&M.relayRing&&M.relay===ring))return;
+    if(pointSegDist(t,{x:M.x0,y:M.y0},{x:M.x1,y:M.y1})<MAN_AT_R)n++});
+  const cap=ring?(ring.manCap||RING_MAN_CAP):manCap(L);
+  return L._mOn=Math.min(1,n/Math.max(1,cap))}
+// what a hit on this wall is divided by: 1 unmanned, the full card bonus with every place filled
+const wallBrace=L=>{const m=S.mods.wallHpMult||1;return m>1?1+(m-1)*wallManned(L):1};
 // a braced wall shows it: a warm line pulsing along it, brighter when it's hit
 function drawBracedWalls(){if(!((S.mods.wallHpMult||1)>1))return;ctx.save();ctx.strokeStyle='#ffd27a';ctx.lineCap='round';ctx.lineWidth=2.2;const pu=0.5+0.25*Math.sin(S.t*3);
-  (S.wallLines||[]).forEach(L=>{if(L.trench||!wallManned(L))return;const c=Math.cos(L.ang),sn=Math.sin(L.ang);L.slats.forEach(sl=>{if(sl.dead||sl.up<1)return;const h=sl.half*0.8;ctx.globalAlpha=Math.min(1,pu*(S.t-(sl.hitT??-9)<0.4?1.5:0.8));ctx.beginPath();ctx.moveTo(sl.x-c*h,sl.y-sn*h);ctx.lineTo(sl.x+c*h,sl.y+sn*h);ctx.stroke()})});ctx.restore()}
+  (S.wallLines||[]).forEach(L=>{const fr=L.trench?0:wallManned(L);if(!fr)return;const c=Math.cos(L.ang),sn=Math.sin(L.ang);L.slats.forEach(sl=>{if(sl.dead||sl.up<1)return;const h=sl.half*0.8;ctx.globalAlpha=Math.min(1,(0.25+0.75*fr)*pu*(S.t-(sl.hitT??-9)<0.4?1.5:0.8));ctx.beginPath();ctx.moveTo(sl.x-c*h,sl.y-sn*h);ctx.lineTo(sl.x+c*h,sl.y+sn*h);ctx.stroke()})});ctx.restore()}
 const wallHpLeft=()=>`(${WALL_HP_CARD_MAX-(S&&S.mods&&S.mods.wallHpN||0)} of ${WALL_HP_CARD_MAX} wall health cards left this run)`;
 function wallCostMult(){return (S.mods.podTowers?3:S.mods.wallTowers?2:1)*WALL_TYPES[wallType()].cost}
 function setWallType(id){S.mods.wallType=id;const hp=wallSlatHp(id);
@@ -2165,11 +2168,11 @@ const UPGRADES={
     {id:'grenrate1',name:'Lubed Tubes I',up:1,get desc(){return `Grenadier fire rate +${upPct('grenrate1',10)}%.`},apply:()=>{S.mods.grenFireRateMult*=1+upPct('grenrate1',10)/100}},
     {id:'grensplash1',name:'Blast Power I',up:1,get desc(){return `Explosive blast radius +${upPct('grensplash1',10)}%.`},apply:()=>{S.mods.grenSplashMult*=1+upPct('grensplash1',10)/100}},
     {id:'vis1',name:"Surveyor's Eye",up:1,get desc(){return `Vision radius +${upPct('vis1',20)}% for every unit.`},apply:()=>{S.mods.visionMult*=1+upPct('vis1',20)/100}},
-    {id:'wallhp1',name:'Reinforced Slats I',up:1,get desc(){return `A wall your units are manning is ${upPct('wallhp1',15)}% tougher: it takes that much less damage while they stand at it. Unmanned walls get nothing. ${wallHpLeft()}`},has:()=>!wallHpOpen(),apply:()=>{wallHpCard(upPct('wallhp1',15))}},
+    {id:'wallhp1',name:'Reinforced Slats I',up:1,get desc(){return `A wall your units are manning is ${upPct('wallhp1',15)}% tougher: it takes that much less damage with every place on it filled, and a share of that when it is partly manned. Unmanned walls get nothing. ${wallHpLeft()}`},has:()=>!wallHpOpen(),apply:()=>{wallHpCard(upPct('wallhp1',15))}},
     {id:'drones1',name:'Spare Drones',up:1,get desc(){return `+${upN('drones1',2,1)} repair drones join the swarm.`},apply:()=>{addDrones(upN('drones1',2,1))}},
   ],
   Rare:[
-    {id:'wallhp2',name:'Reinforced Slats II',up:1,get desc(){return `A wall your units are manning is ${upPct('wallhp2',30)}% tougher: it takes that much less damage while they stand at it. Unmanned walls get nothing. ${wallHpLeft()}`},has:()=>!wallHpOpen(),apply:()=>{wallHpCard(upPct('wallhp2',30))}},
+    {id:'wallhp2',name:'Reinforced Slats II',up:1,get desc(){return `A wall your units are manning is ${upPct('wallhp2',30)}% tougher: it takes that much less damage with every place on it filled, and a share of that when it is partly manned. Unmanned walls get nothing. ${wallHpLeft()}`},has:()=>!wallHpOpen(),apply:()=>{wallHpCard(upPct('wallhp2',30))}},
     {id:'swarm2',name:'Additional Swarm',up:1,get desc(){return `A whole extra repair swarm: +${upN('swarm2',4,1)} repair drones.`},apply:()=>{addDrones(upN('swarm2',4,1))}},
     {id:'dmg2',name:'Battle Drills II',up:1,get desc(){return `Trooper damage +${upPct('dmg2',20)}%.`},apply:()=>{S.mods.troopDmgMult*=1+upPct('dmg2',20)/100}},
     {id:'grenrate2',name:'Lubed Tubes II',up:1,get desc(){return `Grenadier fire rate +${upPct('grenrate2',20)}%.`},apply:()=>{S.mods.grenFireRateMult*=1+upPct('grenrate2',20)/100}},
@@ -10542,7 +10545,7 @@ function rebuildWallGrid(){
     for(let gx=Math.floor((sl.x-r)/WALL_GRID);gx<=Math.floor((sl.x+r)/WALL_GRID);gx++)for(let gy=Math.floor((sl.y-r)/WALL_GRID);gy<=Math.floor((sl.y+r)/WALL_GRID);gy++){const k=key(gx,gy);if(!g.has(k))g.set(k,[]);g.get(k).push(sl)}}));
 }
 function damageWall(w,dmg){w.hitT=S.t;const L=w.line;if(L&&L.trench)return;
-  if(wallBraced(L))dmg/=S.mods.wallHpMult; // Reinforced Slats: only while manned
+  dmg/=wallBrace(L); // Reinforced Slats: only while manned, and in step with how full the wall is
   if(L&&L.type==='shield'){if(w.downT>0)return;w.hp-=dmg;hitFlash(w);if(w.hp<=0){w.hp=0;w.downT=SHIELD_DOWN_T;burst(w.x,w.y,C.ally,6,80,0.3);if(sfxReady('paneDown',0.2))tone(320,0.25,'sawtooth',0.035,0,90)}return}
   w.hp-=dmg;hitFlash(w);if(w.hp<=0&&!w.dead){w.dead=true;S.wallDirty=true;burst(w.x,w.y,L&&L.type==='glass'?'#a86af0':'#8d9aa8',6,90,0.35)}}
 // Two walls touching only at a shared corner (with the other two cells at that corner empty) should
