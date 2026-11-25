@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lance Crater Walls</title>
+<style>
+/* Exploration sheet only: walls for the Lance Graft's landing crater, in the same look as the nest breaches (tipped ground plates, struck-glass cracks, a molten middle). */
+:root{--bg:#0b0e12;--panel:#141a21;--fg:#d7dde5;--muted:#7f8b98;--line:#2a3440;--hot:#ff6a3a;--warm:#ffc09a;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;--sans:"IBM Plex Sans",system-ui,-apple-system,Segoe UI,sans-serif;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 var(--sans)}
+.wrap{max-width:1260px;margin:0 auto;padding:0 16px}
+header{padding:28px 0 10px}
+h1{font:600 22px var(--mono);letter-spacing:.04em;margin:0 0 6px}
+h1 span{color:var(--hot)}
+header p{margin:0 0 6px;color:var(--muted);max-width:980px}
+header p b{color:var(--fg);font-weight:600}
+#designs{display:grid;grid-template-columns:repeat(auto-fill,minmax(580px,1fr));gap:14px;padding:10px 0 6px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px;display:flex;flex-direction:column;gap:8px}
+canvas.scene{width:100%;aspect-ratio:560/320;display:block;border-radius:4px}
+h2{font:600 16px var(--mono);margin:0}
+h2 .no{color:var(--muted);margin-right:6px}
+.kind{font:12px var(--mono);color:var(--hot)}
+.panel p{margin:0;font-size:13px}
+.hook{color:var(--muted)}
+.tags{display:flex;flex-wrap:wrap;gap:6px;font:11px var(--mono)}
+.tags span{border:1px solid var(--line);border-radius:3px;padding:1px 6px;color:var(--muted)}
+.tl{display:flex;font:10px var(--mono);color:var(--muted)}.tl span{flex:1;border-top:2px solid var(--line);padding-top:2px}.tl span.on{border-color:var(--hot);color:var(--fg)}
+.ctl{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;font:12px var(--mono);color:var(--muted);margin:6px 0 2px}
+.ctl select{background:#1c242e;color:var(--fg);border:1px solid var(--line);border-radius:4px;font:12px var(--mono);padding:2px 6px}
+footer{padding:16px 0 40px;color:var(--muted);font-size:12px}
+@media (max-width:640px){#designs{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>LANCE CRATER WALLS <span>// heaved ground, not grey spikes</span></h1>
+  <p>Where the Lance Graft sets down, the ground round it should look like it was <b>broken by the landing</b>, in the same language as the <b>nest breaches</b>: plates of the ground itself, in the ground's own colour, <b>tipped up on edge</b> and lit from the top left, dark struck-glass cracks between them, and a molten middle that cools. The ring still has to read as a wall your units can stand behind.</p>
+  <p>Each scene loops: <b>heave</b> (the plates kick up), <b>hot</b> (seams glowing), <b>cooled</b>, then <b>hit</b> (enemies chew on the north-east side: plates crack, sag and break away).</p>
+  <div class="ctl">
+    <label>ground <select id="gnd"><option value="0">Rim</option><option value="1" selected>Dense Field</option><option value="2">Core</option></select></label>
+    <label>show <select id="frz"><option value="">loop</option><option value="0.35">heaving</option><option value="2.5">hot</option><option value="8">cooled</option><option value="13.5">damaged</option></select></label>
+  </div>
+</header>
+<div id="designs"></div>
+<footer>Exploration sheet only. The crater is drawn at the game's size (ring radius 78) at 1.3× zoom.</footer>
+</div>
+<script>
+'use strict';
+const TAU=Math.PI*2,DPR=Math.min(2,window.devicePixelRatio||1),LOOP=15,CR=78,SC=1.3;
+const GROUNDS=[[52,50,54],[40,42,48],[52,36,40]];
+const L3=[-0.62,-0.62,0.48];
+let ctx=null,GC=GROUNDS[1];
+function H(a,b,c){let h=(a*73856093)^(b*19349663)^((c||0)*83492791);h=Math.imul(h^(h>>>15),2246822507);h=Math.imul(h^(h>>>13),3266489909);h^=h>>>16;return (h>>>0)/4294967296}
+const SM=x=>x<=0?0:x>=1?1:x*x*(3-2*x);
+const rgb=(c,k,add)=>`rgb(${c.map(v=>Math.max(0,Math.min(255,v*k+(add||0)))|0)})`;
+
+// ---- the ground under every scene: the band colour, grain, and a few dead cracks
+const groundCache={};
+function ground(w,h){const key=GC.join(',')+w;if(groundCache[key])return groundCache[key];const c=document.createElement('canvas');c.width=w;c.height=h;const g=c.getContext('2d');
+  g.fillStyle=rgb(GC,1);g.fillRect(0,0,w,h);for(let i=0;i<w*h/30;i++){const x=H(i,1,3)*w,y=H(i,2,3)*h,k=0.75+H(i,3,3)*0.5;g.fillStyle=rgb(GC,k);g.fillRect(x,y,2,2)}
+  g.strokeStyle='rgba(10,10,12,0.55)';g.lineWidth=0.8;for(let i=0;i<26;i++){let x=H(i,5)*w,y=H(i,6)*h,a=H(i,7)*TAU;g.beginPath();g.moveTo(x,y);for(let s=0;s<9;s++){a+=(H(i,s,8)-0.5)*1.1;x+=Math.cos(a)*14;y+=Math.sin(a)*14;g.lineTo(x,y)}g.stroke()}
+  return groundCache[key]=c}
+
+// ---- the trench running in from the west, as in the game now
+function trench(cx,cy){const pts=[];for(let i=0;i<=14;i++){const x=cx-CR-10-(14-i)*16,w=17*(i%2?0.6+H(i,1)*0.35:0.85+H(i,2)*0.4);pts.push([x,cy-6+Math.sin(i*0.6)*4,w])}
+  ctx.fillStyle='rgba(14,8,6,0.94)';ctx.beginPath();pts.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]-p[2]):ctx.moveTo(p[0],p[1]-p[2]));for(let i=pts.length-1;i>=0;i--){const p=pts[i];ctx.lineTo(p[0],p[1]+p[2]*(0.8+H(i,9)*0.4))}ctx.closePath();ctx.fill();
+  ctx.save();ctx.globalCompositeOperation='lighter';ctx.lineCap='round';ctx.beginPath();pts.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));
+  ctx.globalAlpha=0.25;ctx.strokeStyle='#ff4a1a';ctx.lineWidth=16;ctx.stroke();ctx.globalAlpha=0.55;ctx.strokeStyle='#ff7a3a';ctx.lineWidth=4;ctx.stroke();ctx.restore()}
+
+// ---- a struck web: m rays and ring radii RR give fragments (sector k, ring j) as polygons round the middle
+function web(seed,m,RR,jit){const ang=[];for(let k=0;k<m;k++)ang.push(k/m*TAU+(H(k,seed)-0.5)*(jit||0.5)*TAU/m);ang.sort((a,b)=>a-b);const frags=[];
+  for(let k=0;k<m;k++){const a0=ang[k],a1=k+1<m?ang[k+1]:ang[0]+TAU,rj=RR.map((R,j)=>R*(0.9+0.2*H(k*13+j,seed,1)));
+    for(let j=0;j<rj.length;j++){const rin=j?rj[j-1]:0,rout=rj[j],n=4,pts=[],jt=(q,r)=>r*(1+(H(q*100|0,r|0,seed)-0.5)*0.1);
+      for(let i=0;i<=n;i++){const a=a0+(a1-a0)*i/n;pts.push([Math.cos(a)*jt(a,rout),Math.sin(a)*jt(a,rout)])}
+      if(rin>0)for(let i=n;i>=0;i--){const a=a0+(a1-a0)*i/n;pts.push([Math.cos(a)*jt(a,rin),Math.sin(a)*jt(a,rin)])}else pts.push([0,0]);
+      frags.push({pts,mid:(a0+a1)/2,a0,a1,rin,rout,ring:j,sec:k,h:H(k*7+j,seed,3),h2:H(k*5+j,seed,9)})}}
+  return {ang,frags}}
+// an arc-band plate between radii rin..rout and angles a0..a1, with jagged edges
+function band(a0,a1,rin,rout,seed){const n=5,pts=[];for(let i=0;i<=n;i++){const a=a0+(a1-a0)*i/n;const r=rout*(1+(H(i,seed,1)-0.5)*0.1);pts.push([Math.cos(a)*r,Math.sin(a)*r])}
+  for(let i=n;i>=0;i--){const a=a0+(a1-a0)*i/n;const r=rin*(1+(H(i,seed,2)-0.5)*0.12);pts.push([Math.cos(a)*r,Math.sin(a)*r])}return {pts,mid:(a0+a1)/2,rin,rout}}
+
+// ---- a ground plate tipped up about its outer edge (its inner edge lifts), lit like the breach plates.
+// th = tilt (0 flat .. ~1.3 near upright), hinge 'out' (inner edge rises) or 'in' (outer edge rises); glow lights its seams
+function plate(cx,cy,f,th,o){o=o||{};const u=[Math.cos(f.mid),Math.sin(f.mid)],out=o.hinge!=='in',Rh=out?f.rout:f.rin,sag=o.sag||0;
+  const P3=f.pts.map(p=>{const d=p[0]*u[0]+p[1]*u[1],lx=p[0]-d*u[0],ly=p[1]-d*u[1],hd=out?Math.max(0,Rh-d):Math.max(0,d-Rh),d2=out?Rh-hd*Math.cos(th):Rh+hd*Math.cos(th),z=hd*Math.sin(th)-sag;return[cx+lx+d2*u[0],cy+ly+d2*u[1],Math.max(-4,z)]});
+  const s=Math.sin(th)*(out?1:-1),n=[u[0]*s,u[1]*s,Math.cos(th)],lit=0.55+0.75*Math.max(0,n[0]*L3[0]+n[1]*L3[1]+n[2]*L3[2]),pj=p=>[p[0],p[1]-p[2]*0.85],Q=P3.map(pj);
+  // the plate's broken edge (its thickness), seen where it's lifted
+  if(th>0.05){ctx.fillStyle='#0d0a10';ctx.beginPath();Q.forEach((q,i)=>i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]));for(let i=P3.length-1;i>=0;i--)ctx.lineTo(Q[i][0],Q[i][1]+5);ctx.closePath();ctx.fill()}
+  const col=o.col||GC.map(v=>v/0.78+6);ctx.fillStyle=rgb(col,lit*(o.dim||1));ctx.beginPath();Q.forEach((q,i)=>i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]));ctx.closePath();ctx.fill();
+  ctx.strokeStyle=lit>0.8?'rgba(255,240,235,.35)':'rgba(0,0,0,.55)';ctx.lineWidth=0.6;ctx.stroke();
+  if(o.glow>0.02){ctx.save();ctx.globalCompositeOperation='lighter';ctx.strokeStyle=`rgba(255,110,60,${o.glow})`;ctx.lineWidth=1;ctx.stroke();ctx.restore()}
+  // damage: dark cracks across the face
+  if(o.dmg>0.05){const nC=1+Math.floor(o.dmg*4);ctx.strokeStyle='rgba(8,6,8,0.9)';ctx.lineWidth=0.8;for(let i=0;i<nC;i++){const A=Q[Math.floor(H(i,f.mid*100|0,4)*Q.length)],B2=Q[Math.floor(H(i,f.mid*100|0,5)*Q.length)],mx=(A[0]+B2[0])/2+(H(i,6)-0.5)*4,my=(A[1]+B2[1])/2;ctx.beginPath();ctx.moveTo(A[0],A[1]);ctx.lineTo(mx,my);ctx.lineTo(B2[0]*0.6+mx*0.4,B2[1]*0.6+my*0.4);ctx.stroke()}}
+  return Q}
+function hole(cx,cy,f,glow,t){ctx.save();ctx.beginPath();f.pts.forEach((p,i)=>i?ctx.lineTo(cx+p[0],cy+p[1]):ctx.moveTo(cx+p[0],cy+p[1]));ctx.closePath();ctx.fillStyle='#0a0406';ctx.fill();
+  if(glow>0.01){ctx.clip();const g=ctx.createRadialGradient(cx,cy+2,0,cx,cy,f.rout+6);g.addColorStop(0,`rgba(255,${140+60*Math.sin(t*4+f.sec)|0},80,${0.85*glow})`);g.addColorStop(0.6,`rgba(220,60,30,${0.5*glow})`);g.addColorStop(1,'rgba(40,6,0,0)');ctx.fillStyle=g;ctx.fillRect(cx-f.rout-10,cy-f.rout-10,f.rout*2+20,f.rout*2+20)}ctx.restore()}
+function cracks(cx,cy,W,R,grow,col,w,blur){ctx.save();ctx.lineCap='round';ctx.strokeStyle=col;ctx.lineWidth=w;if(blur){ctx.globalCompositeOperation='lighter';ctx.shadowColor=col;ctx.shadowBlur=blur}
+  ctx.beginPath();W.ang.forEach((a,k)=>{const L=R*Math.min(1,grow*1.3-k*0.02);if(L<=0)return;ctx.moveTo(cx,cy);for(let s=1;s<=6;s++){const r=L*s/6,j=(H(k,s,2)-0.5)*0.12;ctx.lineTo(cx+Math.cos(a+j)*r,cy+Math.sin(a+j)*r)}});
+  W.frags.forEach(f=>{const g=Math.max(0,Math.min(1,grow*1.6-f.ring*0.25));if(g<=0||f.ring>=W.rings-1)return;const o=f.pts.slice(0,5);ctx.moveTo(cx+o[0][0],cy+o[0][1]);o.forEach((p,i)=>{if(i/4<=g)ctx.lineTo(cx+p[0],cy+p[1])})});
+  ctx.stroke();ctx.restore()}
+function glowAt(x,y,r,col,a){if(a<=0.01)return;ctx.save();ctx.globalCompositeOperation='lighter';const g=ctx.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,`rgba(${col},${Math.min(1,a)})`);g.addColorStop(1,`rgba(${col},0)`);ctx.fillStyle=g;ctx.beginPath();ctx.ellipse(x,y,r,r*0.82,0,0,TAU);ctx.fill();ctx.restore()}
+function embers(x,y,spread,n,t,a0,seed){if(a0<=0.01)return;ctx.save();ctx.globalCompositeOperation='lighter';ctx.fillStyle='#ff8a50';for(let i=0;i<n;i++){const life=1+H(i,seed,1)*1.2,ph=H(seed,i,2)*life,f=((t+ph)%life)/life,k=Math.floor((t+ph)/life);
+  const ox=(H(i,k,seed)-0.5)*spread,oy=(H(k,i,seed)-0.5)*spread*0.6;ctx.globalAlpha=a0*(1-f)*Math.min(1,f*5);const s=1.2+H(i,4,seed)*1.4;ctx.fillRect(x+ox-s/2,y+oy-f*30-s/2,s,s)}ctx.restore()}
+// rubble from a broken-off plate: a few low chips in the ground colour
+function rubble(cx,cy,f,seed){for(let i=0;i<6;i++){const a=f.a0!=null?f.a0+(f.a1-f.a0)*H(i,seed,1):f.mid+(H(i,seed,1)-0.5)*0.5,r=f.rin+(f.rout-f.rin)*H(i,seed,2),x=cx+Math.cos(a)*r,y=cy+Math.sin(a)*r,s=2+H(i,seed,3)*3;
+  ctx.fillStyle='rgba(0,0,0,0.35)';ctx.fillRect(x-s/2+1,y-s/2+1.5,s,s*0.7);ctx.fillStyle=rgb(GC.map(v=>v/0.78),0.9+H(i,seed,4)*0.5);ctx.beginPath();ctx.moveTo(x-s/2,y);ctx.lineTo(x,y-s*0.7);ctx.lineTo(x+s/2,y);ctx.lineTo(x,y+s*0.3);ctx.closePath();ctx.fill()}}
+
+// the timeline: heave 0-0.7, hot to 6, cooled 6-10, hit 10-15
+function phase(t){const heave=SM(t/0.7),hot=t<0.7?1:Math.max(0,1-(t-0.7)/5.3),hit=t<10?0:SM((t-10)/4.5);return {heave,hot,hit,t}}
+// how hurt each plate is: the north-east side takes it, a couple break away
+function hurt(f,hit){const a=Math.atan2(Math.sin(f.mid),Math.cos(f.mid)),d=Math.abs(((a-(-0.7))+Math.PI*3)%TAU-Math.PI),w=Math.max(0,1-d/1.3);return Math.min(1,hit*w*(0.75+0.6*f.h))}
+function floor(cx,cy,P,W,R){ // the cracked crater floor and the cooling middle
+  ctx.save();const g=ctx.createRadialGradient(cx,cy,0,cx,cy,R);g.addColorStop(0,'rgba(10,6,5,0.6)');g.addColorStop(1,'rgba(20,14,12,0)');ctx.fillStyle=g;ctx.beginPath();ctx.ellipse(cx,cy,R,R*0.9,0,0,TAU);ctx.fill();ctx.restore();
+  cracks(cx,cy,W,R*0.8,P.heave,'rgba(10,6,8,.9)',1.3,0);cracks(cx,cy,W,R*0.8,P.heave,`rgba(255,110,60,${0.12+0.7*P.hot})`,0.6,5)}
+const sortY=a=>a.slice().sort((p,q)=>Math.sin(p.mid)-Math.sin(q.mid));
+
+const DESIGNS=[
+ {name:'Heaved Plates',kind:'the breach\'s tipped plates, in a ring',hook:'Ten big plates of ground kick up on edge all round, inner edges lifted, like a breach turned inside out. Hot seams glow between them; hits crack them, sag them, and finally knock one flat into rubble.',tags:['closest to breaches','reads as one wall','10 plates = 10 wall pieces'],
+  make(){const m=10,pl=[];for(let k=0;k<m;k++){const a0=k/m*TAU+0.03+(H(k,11)-0.5)*0.1,a1=(k+1)/m*TAU-0.03+(H(k+1,11)-0.5)*0.1;const f=band(a0,a1,CR-22,CR+20,k*7+1);f.a0=a0;f.a1=a1;f.h=H(k,12);f.th=0.55+H(k,13)*0.22;pl.push(f)}
+   return {pl,W:Object.assign(web(5,9,[20,40,CR-14]),{rings:3})}},
+  draw(cx,cy,P,D){floor(cx,cy,P,D.W,CR);
+   sortY(D.pl).forEach(f=>{const d=hurt(f,P.hit);if(d>0.92){rubble(cx,cy,f,f.mid*99|0);return}plate(cx,cy,f,f.th*P.heave*(1-0.45*d),{glow:0.55*P.hot,dmg:d,sag:d*3})});
+   glowAt(cx,cy,30,'255,100,50',0.6*P.hot);embers(cx,cy,40,14,P.t,0.7*P.hot,3)}},
+ {name:'Struck Ring',kind:'the whole crater is one struck pane',hook:'The landing shatters the ground like a breach does: rays and rings out from the middle. The middle falls away into a glow that cools, and the plates in the outer ring stand up steep to make the wall, smaller ones leaning in behind them.',tags:['most "struck glass"','molten centre','many small plates'],
+  make(){const W=web(21,12,[16,32,50,CR-6,CR+16]);W.rings=5;return {W}},
+  draw(cx,cy,P,D){const W=D.W;
+   W.frags.forEach(f=>{if(f.ring<=1&&(f.ring===0||f.h<0.55))hole(cx,cy,f,P.hot*0.9+0.1,P.t)});
+   cracks(cx,cy,W,CR+16,P.heave,'rgba(10,6,8,.95)',1.4,0);cracks(cx,cy,W,CR+16,P.heave,`rgba(255,110,60,${0.12+0.75*P.hot})`,0.6,5);
+   sortY(W.frags).forEach(f=>{if(f.ring<=1&&(f.ring===0||f.h<0.55))return;const wall=f.ring===4,d=wall?hurt(f,P.hit):0;if(wall&&d>0.92){rubble(cx,cy,f,f.sec*31);return}
+     const th=f.ring===4?(0.62+f.h2*0.22):f.ring===3?0.3+f.h2*0.2:f.ring===2?0.1+f.h2*0.15:0.3;plate(cx,cy,f,th*P.heave*(1-0.45*d),{glow:(wall?0.5:0.3)*P.hot,dmg:d,sag:d*3})});
+   glowAt(cx,cy,26,'255,110,50',0.25+0.6*P.hot);embers(cx,cy,30,18,P.t,0.3+0.6*P.hot,7)}},
+ {name:'Pressure Ridge',kind:'two rows of slabs shoved together',hook:'The landing shoves the ground outward and it buckles into a ridge: an inner row of slabs tipped up toward the middle and an outer row leaning against them, staggered, like pack ice. Lower and chunkier than the others; hits break the inner row first.',tags:['chunky silhouette','two-row depth','lowest profile'],
+  make(){const m=12,A=[],B2=[];for(let k=0;k<m;k++){const a0=k/m*TAU+0.02,a1=(k+1)/m*TAU-0.02;const f=band(a0,a1,CR-20,CR+6,k*3+2);f.a0=a0;f.a1=a1;f.h=H(k,21);f.th=0.6+H(k,22)*0.18;A.push(f);
+     const b0=(k+0.5)/m*TAU+0.02,b1=(k+1.5)/m*TAU-0.02,g=band(b0,b1,CR+2,CR+24,k*5+9);g.a0=b0;g.a1=b1;g.h=H(k,23);g.th=0.35+H(k,24)*0.15;B2.push(g)}
+   return {A,B:B2,W:Object.assign(web(9,8,[22,44,CR-12]),{rings:3})}},
+  draw(cx,cy,P,D){floor(cx,cy,P,D.W,CR);
+   const all=D.B.map(f=>({f,o:true})).concat(D.A.map(f=>({f,o:false}))).sort((p,q)=>Math.sin(p.f.mid)*(p.f.rout)-Math.sin(q.f.mid)*(q.f.rout));
+   all.forEach(({f,o})=>{const d=hurt(f,P.hit)*(o?0.6:1);if(d>0.92){rubble(cx,cy,f,f.mid*77|0);return}plate(cx,cy,f,f.th*P.heave*(1-0.4*d),{hinge:o?'in':'out',glow:(o?0.3:0.5)*P.hot,dmg:d,sag:d*2.5,dim:o?0.88:1})});
+   glowAt(cx,cy,28,'255,100,50',0.55*P.hot);embers(cx,cy,40,12,P.t,0.6*P.hot,5)}},
+ {name:'Shard Crown',kind:'tipped plates with glass forced up between',hook:'Low tipped plates of ground with spires of dark, amber-hearted glass forced up through the gaps by the heat, the way red nest glass pushes through a breach. The glass glows at its roots while it cools; hits snap spires off and crack the plates.',tags:['glass like the nests','tallest silhouette','most "Lance" coloured'],
+  make(){const m=10,pl=[],sp=[];for(let k=0;k<m;k++){const a0=k/m*TAU+0.06,a1=(k+1)/m*TAU-0.06;const f=band(a0,a1,CR-10,CR+14,k*11+3);f.a0=a0;f.a1=a1;f.h=H(k,31);f.th=0.32+H(k,32)*0.18;pl.push(f);
+     const a=(k+1)/m*TAU,n=2+(H(k,33)<0.5?1:0);for(let i=0;i<n;i++)sp.push({mid:a+(H(k,i,34)-0.5)*0.12,r:CR+2+(H(k,i,35)-0.5)*14,h:18+H(k,i,36)*18,w:5+H(k,i,37)*3,lean:(H(k,i,38)-0.3)*0.5,h2:H(k,i,39)})}
+   return {pl,sp,W:Object.assign(web(13,9,[20,42,CR-10]),{rings:3})}},
+  draw(cx,cy,P,D){floor(cx,cy,P,D.W,CR);
+   const items=D.pl.map(f=>({y:Math.sin(f.mid)*CR,f})).concat(D.sp.map(s=>({y:Math.sin(s.mid)*s.r,s}))).sort((a,b)=>a.y-b.y);
+   items.forEach(it=>{if(it.f){const f=it.f,d=hurt(f,P.hit);if(d>0.95){rubble(cx,cy,f,f.mid*55|0);return}plate(cx,cy,f,f.th*P.heave*(1-0.4*d),{glow:0.45*P.hot,dmg:d,sag:d*2});return}
+     const s=it.s,d=hurt({mid:s.mid,h:s.h2},P.hit),snap=d>0.55,hh=s.h*SM((P.t-0.15)/0.6)*(snap?0.35:1);if(hh<0.5)return;
+     const bx=cx+Math.cos(s.mid)*s.r,by=cy+Math.sin(s.mid)*s.r,tx=bx+Math.cos(s.mid)*hh*s.lean,ty=by+Math.sin(s.mid)*hh*s.lean-hh*0.9,px=-Math.sin(s.mid)*s.w/2,py=Math.cos(s.mid)*s.w/2*0.6;
+     ctx.fillStyle='rgba(0,0,0,0.35)';ctx.beginPath();ctx.moveTo(bx+px,by+py);ctx.lineTo(bx+hh*0.5,by+hh*0.35);ctx.lineTo(bx-px,by-py);ctx.fill();
+     const g=ctx.createLinearGradient(bx,by,tx,ty);g.addColorStop(0,`rgb(${90+120*P.hot|0},${30+40*P.hot|0},16)`);g.addColorStop(0.35,'#2a1c18');g.addColorStop(1,'#5a4a44');
+     ctx.fillStyle=g;ctx.beginPath();ctx.moveTo(bx+px,by+py);ctx.lineTo(tx,ty);ctx.lineTo(bx-px,by-py);ctx.closePath();ctx.fill();
+     ctx.fillStyle='rgba(255,220,200,0.18)';ctx.beginPath();ctx.moveTo(bx+px,by+py);ctx.lineTo(tx,ty);ctx.lineTo(bx+px*0.1,by+py*0.1);ctx.closePath();ctx.fill();
+     ctx.strokeStyle='rgba(255,200,170,0.5)';ctx.lineWidth=0.6;ctx.beginPath();ctx.moveTo(bx+px,by+py);ctx.lineTo(tx,ty);ctx.stroke();
+     if(snap){ctx.fillStyle='#ffb48a';ctx.globalAlpha=0.5;ctx.fillRect(tx-1,ty-1,2,2);ctx.globalAlpha=1}
+     if(P.hot>0.05)glowAt(bx,by,8,'255,120,50',0.6*P.hot)});
+   glowAt(cx,cy,28,'255,100,50',0.55*P.hot);embers(cx,cy,40,12,P.t,0.6*P.hot,9)}},
+];
+
+const panels=[];
+DESIGNS.forEach((D,i)=>{const el=document.createElement('div');el.className='panel';
+  el.innerHTML=`<canvas class="scene" width="${560*DPR}" height="${320*DPR}"></canvas><div class="tl"><span>heave</span><span>hot</span><span>cooled</span><span>hit</span></div>
+  <h2><span class="no">${String.fromCharCode(65+i)}</span>${D.name}</h2><div class="kind">${D.kind}</div><p class="hook">${D.hook}</p><div class="tags">${D.tags.map(t=>`<span>${t}</span>`).join('')}</div>`;
+  document.getElementById('designs').appendChild(el);panels.push({D,cv:el.querySelector('canvas'),tl:[...el.querySelectorAll('.tl span')],data:D.make()})});
+const gnd=document.getElementById('gnd'),frz=document.getElementById('frz');
+gnd.onchange=()=>{GC=GROUNDS[+gnd.value]};
+const t0=performance.now();
+function frame(){const raw=(performance.now()-t0)/1000,t=frz.value!==''?+frz.value:raw%LOOP,P=phase(t);P.t=frz.value!==''?raw:t;
+  const seg=t<0.7?0:t<6?1:t<10?2:3;
+  panels.forEach(p=>{const c=p.cv.getContext('2d');ctx=c;c.setTransform(DPR,0,0,DPR,0,0);c.drawImage(ground(560,320),0,0,560,320);
+    c.save();c.translate(280+60,160+6);c.scale(SC,SC);c.translate(-(280+60),-(160+6));const cx=280+60,cy=160+6;
+    trench(cx,cy);p.D.draw(cx,cy,P,p.data);
+    // a few of your units manning the wall on the west side, for scale
+    [[-1,-0.35],[-1,0],[-1,0.35]].forEach(([s,o],i)=>{const a=Math.PI+o,x=cx+Math.cos(a)*(CR-20),y=cy+Math.sin(a)*(CR-20);c.fillStyle='rgba(0,0,0,0.35)';c.beginPath();c.ellipse(x+1,y+2,5,3,0,0,TAU);c.fill();c.fillStyle='#5ec8ff';c.beginPath();c.arc(x,y-3,4.5,0,TAU);c.fill();c.strokeStyle='#0b2030';c.lineWidth=1;c.stroke()});
+    c.restore();p.tl.forEach((s,i)=>s.classList.toggle('on',i===seg))});
+  requestAnimationFrame(frame)}
+frame();
+</script>
+</body>
+</html>
