@@ -1990,6 +1990,7 @@ const KITS={
   cryo:{kind:'grenadier',name:'Cryo Shells',tier:'Rare',col:'#8fe3ff',solo:'Blasts freeze: enemies caught are slowed to a crawl for 3 seconds.',pair:'Sonic Deterrent relays',pairTxt:'the relay horns shatter frozen enemies, for heavy damage',on:()=>S.mods.relayOff==='sonic',relay:'sonic'},
   fire:{kind:'grenadier',name:'Incendiary',tier:'Epic',col:'#ff8a4c',solo:'Blasts leave the ground burning for 4 seconds.',pair:'Razor Line walls',pairTxt:'fire that reaches the wire runs along the whole line, which burns red-hot for 4 seconds',on:()=>S.mods.wallType==='razor',wall:'razor'},
   spotter:{kind:'marksman',name:'Spotter',tier:'Rare',col:'#f2b84b',solo:'Its target is marked for 6 seconds and takes +25% damage from everyone.',pair:'Radar Mast relays',pairTxt:'Marksmen near a Radar Mast get +40% range',on:()=>S.mods.relayDef==='radar',relay:'radar'},
+  amr:{kind:'marksman',name:'Anti-Materiel',tier:'Epic',col:'#e0c06a',solo:'Your Marksmen trade the rail rifle for an anti-materiel rifle carried folded on the back: one huge round every 7 seconds, 25% further, triple damage against Hulks, Quakers, Colossi, nests and bosses, and every hit staggers them. They go for armour first. No pierce. They set up on a tripod before firing (1.2 s), pack up before moving, and walk 15% slower.',pair:'Heavy Armour walls',pairTxt:'a Marksman manning one is set up at once, and each hit cracks the armour: +30% damage from everyone for 6 seconds',on:()=>S.mods.wallType==='heavy',wall:'heavy'},
   rail:{kind:'marksman',name:'Rail Pierce',tier:'Epic',col:'#dff7ff',solo:'Each shot goes through every enemy in its line.',pair:'Shield Pane walls',pairTxt:'a shot fired through your own Shield Pane comes out charged: +50% damage',on:()=>S.mods.wallType==='shield',wall:'shield'},
   cluster:{kind:'rocket',name:'Cluster Rockets',tier:'Epic',col:'#ff8a4c',solo:'Each rocket splits into four bomblets over the target.',pair:'Fortified Relays',pairTxt:'relay turrets near the target lob a rocket at it too',on:()=>S.mods.relayOff==='armored',relay:'armored'},
   mortar:{kind:'rocket',name:'Mortar Team',tier:'Epic',col:'#ffb36b',solo:'Your Rocketeers become mortar crews: no laser, they set a mortar up when they stop and lob a heavy shell high over walls and rock, 40% further, with a bigger blast. Slower to fire, and the shell takes a moment to come down.',pair:'Spotter Marksmen or Radar Mast relays',pairTxt:'they shell any enemy a Spotter has marked or a Radar Mast can see, at any range',on:()=>S.kits.marksman==='spotter'||S.mods.relayDef==='radar',relay:'radar'},
@@ -2025,6 +2026,10 @@ const LMG_DMG=2.5/7;
 const SHOCK_STUN=0.3, SHOCK_CHAIN_R=90, LMG_RATE=7, LMG_RANGE=0.8, LMG_SPEED=0.75, LMG_MISS=0.25;
 // v4: setting the gun up to fire, packing it away to move, and how long it stays up once nothing's in reach (seconds)
 const LMG_DEPLOY=0.5, LMG_STOW=0.4, LMG_LINGER=0.6;
+// Anti-Materiel (a Marksman kit): one heavy round, set up on a tripod first (AMR_DEPLOY) and packed away to move (AMR_STOW).
+// It aims for AMR_AIM (a red warning line) before each shot; armour (amrArmoured) takes AMR_VS_ARMOUR× and is staggered.
+const AMR_DMG=140, AMR_CD=7, AMR_AIM=0.9, AMR_VS_ARMOUR=3, AMR_STAGGER=0.5, AMR_RANGE=1.25, AMR_SPEED=0.85, AMR_DEPLOY=1.2, AMR_STOW=0.6, AMR_CRACK_T=6, AMR_CRACK=1.3;
+const amrArmoured=e=>isBigTarget(e)||e.kind==='brute';
 // (the pose a packed-up gun is carried in: below the rifles' ready angle, slung low across the body)
 const LMG_LOW=-0.35;
 const BLEED_T=4, BLEED_DPS=4, CRYO_T=3, CRYO_SLOW=0.3, CRYO_SHATTER=60, FIRE_T=4, FIRE_DPS=8, FIRE_LINE_T=4;
@@ -2049,7 +2054,7 @@ function updateFieldRelays(dt){fieldRelays().forEach(m=>{const inCombat=u=>S.ene
 function updateKitEffects(dt){
   S.enemies.forEach(e=>{if(e.hp<=0)return;
     if(e.bleedT>0){e.bleedT-=dt;e.hp-=BLEED_DPS*dt}
-    if(e.markT>0)e.markT-=dt;
+    if(e.markT>0)e.markT-=dt;if(e.crackT>0)e.crackT-=dt;
     if(e.slowT>0)e.slowT-=dt;if(e.supT>0)e.supT-=dt;
     const sm=(e.slowT>0?CRYO_SLOW:1)*(e.supT>0?GAT_SLOW:1);if(sm<1){if(e._spd==null)e._spd=e.speed;e.speed=e._spd*sm}else if(e._spd!=null){e.speed=e._spd;e._spd=null}});
   if(S.fires.length){S.fires=S.fires.filter(q=>{q.t-=dt;S.enemies.forEach(e=>{if(e.hp>0&&e.kind!=='nest'&&dist(e,q)<q.r+(e.r||8))e.hp-=FIRE_DPS*dt});
@@ -2064,6 +2069,7 @@ function drawKitEffects(){const t=S.t;
   S.enemies.forEach(e=>{if(e.hp<=0||e.kind==='nest'||(!debugNoFog&&!visible(e)))return;
     if(e.slowT>0){ctx.save();ctx.globalAlpha=Math.min(1,e.slowT);ctx.fillStyle='rgba(180,230,255,0.3)';ctx.strokeStyle='rgba(220,245,255,0.85)';ctx.lineWidth=1;ctx.beginPath();for(let i=0;i<6;i++){const a=i/6*Math.PI*2;ctx.lineTo(e.x+Math.cos(a)*(e.r+4),e.y+Math.sin(a)*(e.r+4))}ctx.closePath();ctx.fill();ctx.stroke();ctx.restore()}
     if(e.bleedT>0){ctx.fillStyle='#d4202a';for(let i=0;i<2;i++){const f=((t*1.5+i/2)%1);ctx.globalAlpha=1-f;ctx.beginPath();ctx.arc(e.x-2+i*4,e.y+e.r*0.6+f*8,1.2,0,Math.PI*2);ctx.fill()}ctx.globalAlpha=1}
+    if(e.crackT>0){ctx.save();ctx.strokeStyle='#e0c06a';ctx.globalAlpha=Math.min(1,e.crackT)*0.85;ctx.lineWidth=1;ctx.beginPath();const r=(e.r||8)*0.7;ctx.moveTo(e.x-r,e.y-r*0.4);ctx.lineTo(e.x-r*0.2,e.y-r*0.1);ctx.lineTo(e.x+r*0.1,e.y-r*0.6);ctx.lineTo(e.x+r*0.7,e.y+r*0.2);ctx.moveTo(e.x-r*0.2,e.y-r*0.1);ctx.lineTo(e.x-r*0.1,e.y+r*0.6);ctx.stroke();ctx.restore()}
     if(e.markT>0){const y=e.y-e.r-12;ctx.strokeStyle='#f2b84b';ctx.lineWidth=1.3;ctx.beginPath();ctx.moveTo(e.x,y-6);ctx.lineTo(e.x+6,y);ctx.lineTo(e.x,y+6);ctx.lineTo(e.x-6,y);ctx.closePath();ctx.stroke()}});
   // Field Relay: a soft ring where it heals
   fieldRelays().forEach(m=>{ctx.save();ctx.strokeStyle='#7bd389';ctx.globalAlpha=0.18;ctx.lineWidth=1.5/cam.z;ctx.setLineDash([5/cam.z,6/cam.z]);ctx.beginPath();ctx.arc(m.x,m.y,FR_R,0,Math.PI*2);ctx.stroke();ctx.restore()})}
@@ -2155,7 +2161,7 @@ const UPGRADES={
     barracksCard('brawler'),barracksCard('grenadier'),
   ],
   Epic:[
-    kitCard('warden'),kitCard('fire'),kitCard('rail'),kitCard('cluster'),kitCard('mortar'),kitCard('fieldrelay'),
+    kitCard('warden'),kitCard('fire'),kitCard('rail'),kitCard('amr'),kitCard('cluster'),kitCard('mortar'),kitCard('fieldrelay'),
     callCard('droppod'),callCard('carpet'),callCard('overclock'),callCard('gravity'),
     {id:'callPrice',name:'Bulk Contract',up:1,get desc(){return `Call-downs cost ${upPct('callPrice',35,0.15)}% less Dat.`},has:()=>S.mods.callPriceMult<1,apply:()=>{S.mods.callPriceMult=1-upPct('callPrice',35,0.15)/100}},
     {id:'callEcho',name:'Echo Strike',up:1,get desc(){return `Each call-down has a ${upPct('callEcho',30)}% chance to land a second time close by.`},has:()=>S.mods.callEcho>0,apply:()=>{S.mods.callEcho=upPct('callEcho',30)/100}},
@@ -9825,7 +9831,7 @@ function revealCircle(x,y,r){
   fogX.fillStyle=g;fogX.beginPath();fogX.arc(x/FOG_S,y/FOG_S,r/FOG_S,0,Math.PI*2);fogX.fill();
 }
 // src: who fired, for direct fire only (the Shieldbearer's shields stop it from in front)
-function damageEnemy(e,d,src){if(e.boss){if(src){if(bossBlock(e,src,d))return}else d*=BOSS_SPLASH_TAKE}if(e.mega&&megaShelled()){shellPing(e);return}if(!e._share&&e.choir&&choirShare(e,d))return;if(e.markT>0)d*=SPOT_MULT;e.hp-=d;/*VOX*/if(src&&src.kind==='marksman'&&e.hp<=0&&e.hp+d>0)squadSay(src,'kill');hitFlash(e);spark(e.x,e.y,C.accent,2)}
+function damageEnemy(e,d,src){if(e.boss){if(src){if(bossBlock(e,src,d))return}else d*=BOSS_SPLASH_TAKE}if(e.mega&&megaShelled()){shellPing(e);return}if(!e._share&&e.choir&&choirShare(e,d))return;if(e.markT>0)d*=SPOT_MULT;if(e.crackT>0)d*=AMR_CRACK;e.hp-=d;/*VOX*/if(src&&src.kind==='marksman'&&e.hp<=0&&e.hp+d>0)squadSay(src,'kill');hitFlash(e);spark(e.x,e.y,C.accent,2)}
 // Grenadier round: travels to where the target is right now (not a lead/intercept shot) and
 // explodes there, splashing every enemy within GREN_SPLASH_R of the landing point.
 // Shared by Grenadier rounds and the Big Guns artillery shell — opts lets a shell carry its own
@@ -10635,7 +10641,7 @@ function unitPoseKey(t){
   const k=t.kind||'troop',since=S.t-(t.shotT??-9),aq=Math.round((t.aimV??RIFLE_READY)*5),TAU=Math.PI*2,q=(v,st,n)=>Math.min(n,Math.max(0,Math.floor(v/st)));
   const walk=n=>t.moving?'w'+(((Math.floor(S.t*7/TAU*n))%n)+n)%n:'';
   if(k==='troop')return 't'+aq+(since<0.3?'s'+q(since,0.05,5):'');
-  if(k==='marksman'){if(t.chargeT>0||since<0.9)return null;return 'm'+aq+(t.moving?'w':'')+(((Math.floor((S.t*3+(t.id||0))/TAU*3)%3)+3)%3)}
+  if(k==='marksman'){if(t.chargeT>0||since<0.9||kitOf(t)==='amr')return null;return 'm'+aq+(t.moving?'w':'')+(((Math.floor((S.t*3+(t.id||0))/TAU*3)%3)+3)%3)}
   if(k==='brawler'){const p=palState(t);return 'p'+Math.round(p.pitch*6)+','+Math.round(p.h[0]*2)+','+Math.round(p.h[1]*2)+','+Math.round(p.bash*6)+','+Math.round(Math.min(1,p.flare)*4)}
   if(k==='grenadier'){const a=S.t-(t.podShotT??-9),g=S.t-(t.podGrewT??-9);return 'g'+(t.pods??GREN_PODS)+(a<0.35?'a'+q(a,0.07,4):'')+(g<0.35?'b'+q(g,0.07,4):'')}
   if(k==='rocket'){if(t.paintT>0||kitOf(t)==='mortar')return null; // (a mortar crew is drawn live: its tube reaches past the sprite, and it sets up and packs away)
@@ -11005,7 +11011,91 @@ function drawRifleman(t){
   ctx.restore();
   if(since<0.06){const m=gunMuzzle(t,hasKit(t,'lmg')?18:11);ctx.save();ctx.translate(m.x,m.y);ctx.rotate(t.ang+Math.PI/2);rifleFlash(0,0,0.9);ctx.restore()}
 }
-function drawMarksman(t){
+// v4: the Anti-Materiel Marksman (a kit). It carries the rifle folded in half down its back with a tripod beside it;
+// setting up (t.dep 0 → 1) it swings the rifle round, the barrel unfolds and locks, and the tripod legs spread.
+const AM_TAU=Math.PI*2,AM_SM=x=>x<=0?0:x>=1?1:x*x*(3-2*x),AM_CL=x=>Math.max(0,Math.min(1,x)),AM_GOLD='#e0c06a',AM_GUN='#3d4248',AM_GUN2='#5a636c',AM_GUND='#24282d',AM_RL=26;
+function amHH(a,b){let h=(a*73856093)^(b*19349663);h=Math.imul(h^(h>>>15),2246822507);h=Math.imul(h^(h>>>13),3266489909);h^=h>>>16;return (h>>>0)/4294967296}
+function amToW(t,lx,ly){const r=t.ang+Math.PI/2,c=Math.cos(r),s=Math.sin(r);return {x:t.x+lx*c-ly*s,y:t.y+lx*s+ly*c}}
+// the muzzle when set up (the rifle along the aim, butt at (2.2,-0.8))
+const amrMuzzle=t=>amToW(t,2.2,-0.8-AM_RL);
+// what it shoots: what you told it to, else the nearest armour it can see, else the nearest anything
+function amrTarget(t,range){
+  if(t.state==='attack'&&t.target&&t.target.hp>0&&S.enemies.includes(t.target)&&dist(t,t.target)-(t.target.mega?t.target.r:0)<=range)return t.target;
+  let best=null,bs=-1e9;enemiesNear(t.x,t.y,range,e=>{if(e.hp<=0||!visible(e))return;const d=dist(e,t);if(d>range+(e.r||0))return;const sc=(amrArmoured(e)?2000:0)-d;if(sc>bs){bs=sc;best=e}});return best}
+function amrFire(t,c,onWall){const arm=amrArmoured(c),m=amrMuzzle(t);
+  damageEnemy(c,AMR_DMG*S.mods.troopDmgMult*(arm?AMR_VS_ARMOUR:1),t);
+  if(arm&&c.kind!=='nest')c.stunT=Math.max(c.stunT||0,c.boss?AMR_STAGGER*0.5:AMR_STAGGER);
+  if(onWall&&t.manning&&t.manning.type==='heavy')c.crackT=AMR_CRACK_T;
+  t.shotT=S.t;(S.amFx||(S.amFx=[])).push({m,x:c.x,y:c.y,ang:t.ang,t:0});shakeScreen(1.5,0.12);
+  sndAt(t.x,t.y,amrShot);sndAt(c.x,c.y,()=>amrHit(0.14));sndAt(t.x,t.y,()=>amrBolt(0.7))}
+// the rifle, drawn from the butt at (0,0) along -y; fold 0..1 swings the barrel back along the stock
+function amRifle(fold){
+  rP([[-1.3,0],[1.3,0],[1.1,-5],[-1.1,-5]],AM_GUND,0.5);rP([[-0.5,0.2],[0.5,0.2],[0.5,-1.2],[-0.5,-1.2]],'#5d4a2e',0.3);
+  rP([[-1.6,-5],[1.6,-5],[1.6,-11.5],[-1.6,-11.5]],AM_GUN,0.5);
+  rP([[1.6,-7],[3.4,-7.3],[3.4,-9.6],[1.6,-9.8]],AM_GUND,0.4);
+  ctx.save();ctx.translate(fold*2.6,-11.5);ctx.rotate(fold*Math.PI);
+  rP([[-0.75,0],[0.75,0],[0.6,-(AM_RL-14)],[-0.6,-(AM_RL-14)]],AM_GUN2,0.4);
+  rP([[-1.7,-(AM_RL-14)],[1.7,-(AM_RL-14)],[1.7,-(AM_RL-11.5)],[-1.7,-(AM_RL-11.5)]],AM_GUND,0.4);
+  ctx.strokeStyle='rgba(200,210,220,.35)';ctx.lineWidth=0.35;for(let i=0;i<2;i++){ctx.beginPath();ctx.moveTo(-1.6,-(AM_RL-13.4)-i*1.1);ctx.lineTo(1.6,-(AM_RL-13.4)-i*1.1);ctx.stroke()}
+  ctx.restore();
+  rP([[-0.9,-5.6],[0.9,-5.6],[0.9,-12.6],[-0.9,-12.6]],'#2a2f35',0.4);rO(0,-12.6,1.15,'#2a2f35',0.3);ctx.fillStyle=AM_GOLD;ctx.globalAlpha=0.8;ctx.fillRect(-0.5,-13.2,1,0.5);ctx.globalAlpha=1}
+function drawAMR(t){
+  const fl=t.flashT>0,since=S.t-(t.shotT??-9),kick=since<0.35?Math.max(0,1-since/0.35):0,d=AM_CL(t.dep??0),e=AM_SM(d),L=(a,b)=>a+(b-a)*e;
+  const AL=fl?'#fff':C.ally,MC=fl?'#fff':ROLE_COL.marksman,MD=fl?'#fff':ROLE_COL.marksmanDark,LC=fl?'#fff':'#3f7392';
+  // where the rifle sits: folded down the back when packed, along the aim when set up
+  const bx=L(1.6,2.2),by=L(-0.4,-0.8),rot=L(-Math.PI,0),fold=1-AM_SM(AM_CL((d-0.15)/0.7));
+  const rl=(x,y)=>[bx+x*Math.cos(rot)-y*Math.sin(rot),by+x*Math.sin(rot)+y*Math.cos(rot)];
+  ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2);ctx.translate(0,kick*2);
+  // the tripod's legs spread under the rifle
+  {const k=AM_CL((e-0.25)/0.75),P=rl(0,-12);if(k>0){ctx.globalAlpha=k;[[-6.5,-17],[8,-15.5],[P[0],-2.5]].forEach(f=>rLimb([P,[P[0]+(f[0]-P[0])*k,P[1]+(f[1]-P[1])*k]],0.9,'#4a5058'));ctx.globalAlpha=1}}
+  // kneeling: the trailing shin and the front knee
+  if(e>0.3){const k=AM_CL((e-0.3)/0.7);rLimb([[1.2,2],[2.4+1.4*k,2+7*k]],2.6,LC);rO(2.4+1.4*k,2.4+7.4*k,1.4,fl?'#fff':'#2a2f36');rLimb([[-2.6,1],[-3.4,1-3.6*k]],2.4,LC);rO(-3.4,1-3.6*k,1.3,LC)}
+  // the ghillie cape, the torso
+  {const w=Math.sin(S.t*3+(t.id||0))*0.4,pts=[[-5.4,-0.4],[-6.6,4],[-4.2+w,9.5]];for(let i=1;i<5;i++)pts.push([-4.2+w+i*2.1,9.5+(i%2?-1.3:0.5)]);pts.push([4.6-w,9.1],[6.6,4],[5.4,-0.4]);rP(pts,MC,0.5);
+    ctx.strokeStyle=MD;ctx.lineWidth=0.6;ctx.beginPath();ctx.moveTo(-2,2);ctx.lineTo(-2.6,8.1);ctx.moveTo(1.6,2);ctx.lineTo(2.2,8.1);ctx.stroke()}
+  rP([[-5,0.6],[-3.8,-2],[3.8,-2],[5,0.6],[3.8,2.6],[-3.8,2.6]],AL,0.6);
+  // the tripod folded flat on the back, and its cradle under the rifle once set up
+  if(e<0.6){ctx.globalAlpha=1-e/0.6;[-4.6,-3.7,-2.8].forEach(x=>rLimb([[x,0.6],[x,9.2]],0.8,'#4a5058'));rP([[-5.2,0.2],[-2.2,0.2],[-2.2,2],[-5.2,2]],AM_GUND,0.4);ctx.globalAlpha=1}
+  if(e>0.5){const P=rl(0,-12);ctx.globalAlpha=(e-0.5)*2;rP([[P[0]-2,P[1]-1.2],[P[0]+2,P[1]-1.2],[P[0]+2,P[1]+1.2],[P[0]-2,P[1]+1.2]],AM_GUND,0.4);ctx.globalAlpha=1}
+  // the rifle
+  ctx.save();ctx.translate(bx,by);ctx.rotate(rot);ctx.translate(0,-kick*0.6);amRifle(fold);ctx.restore();
+  // arms: hanging when packed, on the rifle when set up; the right hand works the bolt after each shot
+  const bolt=since>0.7&&since<1.6?Math.sin((since-0.7)/0.9*Math.PI):0,grip=rl(0.4+2.4*bolt,-5.2-3*bolt),fore=rl(-0.3,L(-12.8,-11));
+  rLimb([[4.4,-0.2],[L(5.6,(4.4+grip[0])/2+1.4),L(2.6,(-0.2+grip[1])/2)],[L(5,grip[0]),L(4.6,grip[1])]],1.9,AL);
+  rLimb([[-4.4,0.2],[L(-5.6,(-4.4+fore[0])/2-1.6),L(2.6,(0.2+fore[1])/2)],[L(-5,fore[0]),L(4.6,fore[1])]],1.9,AL);
+  // the head: cheek down on the stock when set up
+  const hx=L(0,bx-0.6),hy=L(-0.4,-2);rO(hx,hy,2.8,MC,0.6);ctx.fillStyle=MD;ctx.beginPath();ctx.arc(hx,hy+0.4,2,Math.PI*0.05,Math.PI*0.95);ctx.fill();ctx.fillStyle=C.accent;ctx.fillRect(hx-0.4,hy-2.3,2.2,0.9);
+  // the spent case flicked out to the right
+  if(since>1.0&&since<1.7){const k=(since-1)/0.7,p=rl(2.4+k*9,-8+k*2-Math.sin(k*Math.PI)*3);ctx.save();ctx.translate(p[0],p[1]);ctx.rotate(k*12);ctx.fillStyle=AM_GOLD;ctx.globalAlpha=1-k*0.5;ctx.fillRect(-0.4,-1.2,0.8,2.4);ctx.restore();ctx.globalAlpha=1}
+  ctx.restore();
+  // the red warning line while it aims
+  if(t.chargeT>0&&t.chargeTgt)amAimLine(amrMuzzle(t),t.chargeTgt,1-t.chargeT/AMR_AIM)}
+// ---- the shot: the warning line, a heavy tracer, the muzzle-brake blast, the armour cracking ----
+function amAimLine(m,tg,k){ctx.save();ctx.strokeStyle='#ff6a4a';ctx.globalAlpha=0.25+0.45*k;ctx.lineWidth=0.9;ctx.setLineDash([3,2]);ctx.beginPath();ctx.moveTo(m.x,m.y);ctx.lineTo(m.x+(tg.x-m.x)*Math.min(1,k*1.5),m.y+(tg.y-m.y)*Math.min(1,k*1.5));ctx.stroke();ctx.setLineDash([]);
+  if(k>0.66&&Math.floor(S.t*10)%2){ctx.fillStyle='#ff6a4a';ctx.globalAlpha=0.9;ctx.beginPath();ctx.arc(tg.x,tg.y-2,1.3,0,AM_TAU);ctx.fill()}ctx.restore()}
+function amBrake(m,ang,k){if(k<0||k>1)return;const c=Math.cos(ang),s=Math.sin(ang);ctx.save();
+  ctx.fillStyle=`rgba(150,140,120,${0.35*(1-k)})`;ctx.beginPath();ctx.ellipse(m.x-c*3,m.y-s*3,4+k*16,3+k*11,ang,0,AM_TAU);ctx.fill();
+  ctx.globalCompositeOperation='lighter';[-1,1].forEach(sd=>{const px=-s*sd,py=c*sd,L=(4+10*k)*(1-k*0.3);ctx.fillStyle=`rgba(255,210,140,${0.9*(1-k)})`;ctx.beginPath();ctx.moveTo(m.x+c*0.5,m.y+s*0.5);ctx.lineTo(m.x+px*L-c*L*0.35+py*1.5,m.y+py*L-s*L*0.35-px*1.5);ctx.lineTo(m.x+px*L-c*L*0.35-py*1.5,m.y+py*L-s*L*0.35+px*1.5);ctx.closePath();ctx.fill()});
+  if(k<0.3){ctx.fillStyle=`rgba(255,240,200,${1-k/0.3})`;ctx.beginPath();ctx.arc(m.x+c*2,m.y+s*2,3.5,0,AM_TAU);ctx.fill()}ctx.restore()}
+function amTracer(m,tg,k){if(k<0||k>1)return;ctx.save();ctx.globalCompositeOperation='lighter';
+  const g=ctx.createLinearGradient(m.x,m.y,tg.x,tg.y);g.addColorStop(0,`rgba(255,220,150,${(1-k)*0.25})`);g.addColorStop(1,`rgba(255,240,200,${1-k})`);ctx.strokeStyle=g;ctx.lineWidth=2.4*(1-k*0.5);ctx.lineCap='round';ctx.beginPath();ctx.moveTo(m.x,m.y);ctx.lineTo(tg.x,tg.y);ctx.stroke();
+  ctx.globalCompositeOperation='source-over';for(let i=1;i<10;i++){const f=i/10,x=m.x+(tg.x-m.x)*f,y=m.y+(tg.y-m.y)*f;ctx.fillStyle=`rgba(190,195,200,${0.22*(1-k)})`;ctx.beginPath();ctx.arc(x+Math.sin(i*3+k*4)*k*3,y-k*5,1+k*3,0,AM_TAU);ctx.fill()}ctx.restore()}
+function amSpall(tg,ang,k){if(k<0||k>1)return;ctx.save();ctx.globalCompositeOperation='lighter';for(let i=0;i<12;i++){const a=ang+(amHH(i,7)-0.5)*1.6,v=10+amHH(i,8)*22,x=tg.x+Math.cos(a)*v*k,y=tg.y+Math.sin(a)*v*k-2;ctx.strokeStyle=`rgba(255,${180+amHH(i,2)*60|0},110,${1-k})`;ctx.lineWidth=1.1;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x-Math.cos(a)*3.5,y-Math.sin(a)*3);ctx.stroke()}
+  if(k<0.33){ctx.fillStyle=`rgba(255,230,180,${0.8*(1-k*3)})`;ctx.beginPath();ctx.arc(tg.x,tg.y-2,5*(1-k),0,AM_TAU);ctx.fill()}ctx.restore()}
+// ---- its sounds (picked on the concept sheet): scope clicks while it aims, a thunderclap shot, a meaty thwack on the
+// target, the bolt and the case pinging off the ground, and the tripod unfolding and packing away ----
+const AMG=0.23,amClick=(f,g,d)=>sndNoise(0.022,g*AMG,{f0:f,q:4,attack:0.001,delay:d||0});
+function amrScope(){[0,0.17,0.3].forEach(d=>sndNoise(0.014,0.28*AMG,{f0:4200,q:6,attack:0.001,delay:d}));sndNoise(0.55,0.035*AMG,{type:'lowpass',f0:700,attack:0.25,delay:0.25})}
+function amrShot(){sndNoise(0.11,0.85*AMG,{type:'highpass',f0:1500,attack:0.001});tone(72,0.6,'sine',0.9*AMG,0,32);sndNoise(1.4,0.32*AMG,{f0:520,f1:150,q:0.8,attack:0.02,delay:0.03});sndNoise(0.08,0.18*AMG,{type:'highpass',f0:1800,delay:0.24})}
+function amrHit(d){tone(150,0.28,'sine',0.85*AMG,d,48);sndNoise(0.12,0.6*AMG,{type:'lowpass',f0:1200,f1:250,attack:0.001,delay:d});sndNoise(0.3,0.2*AMG,{f0:400,q:1,delay:d+0.02})}
+function amrBolt(d){amClick(2800,0.45,d);sndNoise(0.1,0.15*AMG,{f0:1400,q:1.5,delay:d+0.04});
+  [[0.25,1],[0.43,0.55],[0.53,0.3]].forEach(([p,k])=>{tone(3400,0.14*k+0.04,'sine',0.06*k*AMG,d+p);tone(5150,0.1*k+0.03,'sine',0.03*k*AMG,d+p)});
+  amClick(2000,0.5,d+0.7);tone(700,0.02,'square',0.06*AMG,d+0.7);amClick(3300,0.25,d+0.78)}
+function amrUnfold(){sndNoise(0.28,0.09*AMG,{type:'lowpass',f0:500,f1:1600,attack:0.12});amClick(2300,0.45,0.3);tone(900,0.025,'square',0.06*AMG,0.3);
+  [0.55,0.68,0.8].forEach(d=>{tone(170,0.08,'sine',0.32*AMG,d,85);sndNoise(0.025,0.22*AMG,{f0:1300,q:2,delay:d})});amClick(3200,0.35,1.0);amClick(3000,0.3,1.08)}
+function amrFold(){amClick(3000,0.3,0);sndNoise(0.25,0.1*AMG,{f0:900,q:1.5,delay:0.05,attack:0.05});amClick(2600,0.3,0.32);amClick(2400,0.25,0.37);
+  amClick(1800,0.45,0.52);tone(620,0.025,'square',0.05*AMG,0.52);sndNoise(0.14,0.3*AMG,{type:'lowpass',f0:300,delay:0.72})}
+function drawMarksman(t){if(kitOf(t)==='amr'){drawAMR(t);return}
   const since=S.t-(t.shotT??-9),kick=since<0.4?Math.max(0,1-since/0.4):0,a=t.aimV??RIFLE_READY,fl=t.flashT>0,charge=t.chargeT>0?1-t.chargeT/MARK_CHARGE:0,kneel=!t.moving;
   ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang+Math.PI/2);
   ctx.fillStyle='rgba(0,0,0,0)';ctx.beginPath();ctx.ellipse(1,2,6,5,0,0,Math.PI*2);ctx.fill();
@@ -11524,8 +11614,8 @@ function update(dt){
     const onWall=!brawl&&t.manning&&!t.dest&&S.wallLines&&S.wallLines.includes(t.manning);
     const kit=kitOf(t),brk=mech&&kit==='breaker',frl=mech&&kit==='fieldrelay';
     const radarBoost=mark&&kit==='spotter'&&S.mods.relayDef==='radar'&&radarRelays().some(r=>dist(r,t)<SPOT_RADAR_R)?SPOT_RADAR_RANGE:1;
-    const range=brawl?BRAWL_RANGE:brk?BRK_RANGE:(arty?ARTY_RANGE:gren?GREN_RANGE:mech?(kit?MECH_RANGE:GAT_RANGE):rock?ROCKET_RANGE:mark?MARK_RANGE:TROOP_RANGE)*S.mods.squadRangeMult*(onWall?1+MAN_RANGE_BONUS:1)*(kit==='lmg'?LMG_RANGE:1)*radarBoost;
-    let speed=(arty?ARTY_SPEED:mech?MECH_SPEED:rock?ROCKET_SPEED:brawl?BRAWL_SPEED:mark?MARK_SPEED:TROOP_SPEED)*(kit==='lmg'?LMG_SPEED:1)*(mech&&!kit&&(t.spin||0)>0.5?GAT_MOVE:1);
+    const range=brawl?BRAWL_RANGE:brk?BRK_RANGE:(arty?ARTY_RANGE:gren?GREN_RANGE:mech?(kit?MECH_RANGE:GAT_RANGE):rock?ROCKET_RANGE:mark?MARK_RANGE:TROOP_RANGE)*S.mods.squadRangeMult*(onWall?1+MAN_RANGE_BONUS:1)*(kit==='lmg'?LMG_RANGE:1)*(kit==='amr'?AMR_RANGE:1)*radarBoost;
+    let speed=(arty?ARTY_SPEED:mech?MECH_SPEED:rock?ROCKET_SPEED:brawl?BRAWL_SPEED:mark?MARK_SPEED:TROOP_SPEED)*(kit==='lmg'?LMG_SPEED:1)*(kit==='amr'?AMR_SPEED:1)*(mech&&!kit&&(t.spin||0)>0.5?GAT_MOVE:1);
     if(mech&&!kit){if(S.t-(t.gatShotT??-9)>0.6)t.spin=Math.max(0,(t.spin||0)-dt/GAT_SPINDOWN);t.barrel=(t.barrel||0)+dt*(2+(t.spin||0)*34)}
     const px0=t.x,py0=t.y;
     if(t.pace&&t.state==='move')speed=Math.min(speed,t.pace); // v4: a group move keeps to its slowest unit's pace
@@ -11576,7 +11666,7 @@ function update(dt){
           if(t.wall&&rnd(0,1)<BRAWL_KB_CHANCE)brawlerShove(t);
           burst(c.x,c.y,'#bfefff',5,90,0.25)}}}
     // a Marksman charges its rail for MARK_CHARGE on a target it can see, then fires one piercing bolt
-    if(mark){
+    if(mark&&kit!=='amr'){
       if(t.chargeT>0){t.chargeT-=dt;const c=t.chargeTgt;if(c&&c.hp>0)t.ang=Math.atan2(c.y-t.y,c.x-t.x);
         if(t.chargeT<=0){t.chargeT=0;t.chargeTgt=null;
           if(c&&c.hp>0&&dist(t,c)<=range+(c.r||0)){const pane=kit==='rail'&&crossesShield(t,c),end=troopPierce(t,c,range*1.15,MARK_DMG*S.mods.troopDmgMult*(pane?1.5:1),kit==='rail'?99:MARK_PIERCE);tracer(gunMuzzle(t,16),end,pane?'#8fe3ff':'#bfefff',pane?5:3);t.shotT=S.t;if(kit==='spotter')c.markT=SPOT_T;
@@ -11591,22 +11681,32 @@ function update(dt){
     // nothing telling them to go, and back down once they're told to move or nothing's been in reach for
     // LMG_LINGER. While it's above 0 they stand where they are, turned to the target.
     // (a Mortar Team crew sets up and packs its mortar the same way, for anything it can shell)
-    if(kit==='lmg'||(rock&&kit==='mortar')){const tried=(t.x-px0)**2+(t.y-py0)**2>0.02;let tg=null,td=range;
-      if(kit==='mortar')tg=mortarTarget(t,range);
+    // (so does an Anti-Materiel Marksman, slower, on a tripod; one manning a Heavy Armour wall is set up at once)
+    if(kit==='lmg'||(rock&&kit==='mortar')||(mark&&kit==='amr')){const tried=(t.x-px0)**2+(t.y-py0)**2>0.02;let tg=null,td=range;const DEP=kit==='amr'?AMR_DEPLOY:LMG_DEPLOY,STO=kit==='amr'?AMR_STOW:LMG_STOW;
+      if(kit==='mortar')tg=mortarTarget(t,range);else if(kit==='amr')tg=amrTarget(t,range);
       else if(t.state==='attack'&&t.target&&t.target.hp>0&&S.enemies.includes(t.target)&&dist(t,t.target)-(t.target.mega?t.target.r:0)<=range)tg=t.target;
       else enemiesNear(t.x,t.y,range,e=>{if(e.hp<=0)return;const d=dist(e,t);if(d<td){td=d;tg=e}});
       if(tg)t.lmgSeen=S.t;
       // (planted in Hold position they set up and stay set up, kneeling with the gun ready, until moved on)
       const planted=t.hold&&!t.dest&&t.state!=='attack'&&!tried;
-      let dep=t.dep||0;
-      if(dep<=0){if((tg||planted)&&!tried)dep=dt/LMG_DEPLOY}
-      else if(tried||(!planted&&S.t-(t.lmgSeen??-9)>LMG_LINGER))dep-=dt/LMG_STOW;
-      else if(tg||planted)dep+=dt/LMG_DEPLOY;
+      let dep=t.dep||0;const dep0=dep;
+      if(dep<=0){if((tg||planted)&&!tried)dep=dt/DEP}
+      else if(tried||(!planted&&S.t-(t.lmgSeen??-9)>LMG_LINGER))dep-=dt/STO;
+      else if(tg||planted)dep+=dt/DEP;
+      if(kit==='amr'&&onWall&&t.manning.type==='heavy'&&(tg||planted)&&!tried)dep=1;
       t.dep=Math.max(0,Math.min(1,dep));
+      if(kit==='amr'){const dir=t.dep>dep0?1:t.dep<dep0?-1:0;if(dir&&dir!==t._depDir){t._depDir=dir;if(dir>0?dep0<=0&&t.dep<1:dep0>=1)sndAt(t.x,t.y,dir>0?amrUnfold:amrFold)}}
       if(t.dep>0){t.x=px0;t.y=py0;if(tg)t.ang=Math.atan2(tg.y-t.y,tg.x-t.x);else if(planted&&t.formAng!=null&&S.t-(t.shotT??-9)>1.4)t.ang=t.formAng}}
     const movedNow=(t.x-px0)**2+(t.y-py0)**2>0.02;
     const ord=t.state==='attack'&&t.target&&t.target.hp>0&&S.enemies.includes(t.target)&&dist(t,t.target)-(brawl||t.target.mega?t.target.r||0:0)<=range?t.target:null; // what you told it to shoot (a Mega Nest from the edge of its mountain)
     // a mortar crew: once it's set up, lobs a shell at whatever it can reach (see mortarTarget), no laser
+    // Anti-Materiel: once set up, it aims (the warning line) for AMR_AIM, then fires one heavy round
+    if(mark&&kit==='amr'){
+      if(t.chargeT>0){const c=t.chargeTgt;t.chargeT-=dt;
+        if(!c||c.hp<=0||movedNow||(t.dep||0)<1||dist(t,c)>range+(c.r||0)+20){t.chargeT=0;t.chargeTgt=null;t.cd=Math.min(t.cd,0.3)}
+        else{t.ang=Math.atan2(c.y-t.y,c.x-t.x);if(t.chargeT<=0){t.chargeT=0;t.chargeTgt=null;amrFire(t,c,onWall);
+          t.cd=AMR_CD/squadFireRateMult();if(isHeld(t))t.cd/=1+Math.min(HOLD_LINK_MAX,HOLD_LINK_BONUS*(t.holdLinks||0))}}}
+      else if(t.cd<=0&&!movedNow&&(t.dep||0)>=1){const tg=amrTarget(t,range);if(tg){t.chargeT=AMR_AIM;t.chargeTgt=tg;t.ang=Math.atan2(tg.y-t.y,tg.x-t.x);sndAt(t.x,t.y,amrScope)}else t.cd=0.3}}
     if(rock&&kit==='mortar'){if(t.cd<=0&&!movedNow&&(t.dep||0)>=1){const tg=mortarTarget(t,range);if(tg){fireMortar(t,tg);t.cd=MORTAR_CD/squadFireRateMult()}else t.cd=0.3}}
     else
     if(t.cd<=0&&!mark&&!frl&&!(kit==='lmg'&&(movedNow||(t.dep||0)<1))){let best=null,bd=range;enemiesNear(t.x,t.y,range+(brawl?60:0),e=>{if(arty&&!visible(e))return;const d=dist(e,t)-(brawl?e.r||0:0);if(d<bd){bd=d;best=e}});
@@ -12063,7 +12163,7 @@ function update(dt){
   // v4: nothing walks through glass crystal — push anything that's stepped into a shard back out
   if(S.glassB){S.troops.forEach(u=>glassPush(u,u.r*0.8));S.harvesters.forEach(u=>glassPush(u,u.r*0.8));S.builders.forEach(u=>glassPush(u,u.r*0.8));
     S.enemies.forEach(e=>{if(e.kind!=='nest'&&!(e.air>0))glassPush(e,(e.r||8)*0.8)})}
-  S.tracers=S.tracers.filter(t=>(t.t-=dt)>0);
+  S.tracers=S.tracers.filter(t=>(t.t-=dt)>0);if(S.amFx)S.amFx=S.amFx.filter(f=>(f.t+=dt)<0.6);
   if(!S.shardShots)S.shardShots=[];updateShardShots(dt);
   if(!S.lances)S.lances=[];updateLances(dt);updatePointDefence(dt);
   if(!S.fires)S.fires=[];if(!S.kits)S.kits={};updateKitEffects(dt);updateFieldRelays(dt);updateBoss(dt);updateBreaches(dt);updateBurrows(dt);updateCaltrops(dt);
@@ -13650,6 +13750,7 @@ function draw(){
   if(S.shardShots)drawShardShots();
   drawLances();
   S.tracers.forEach(t=>{ctx.strokeStyle=t.col;ctx.globalAlpha=t.t/0.12;ctx.lineWidth=t.w||1.5;ctx.beginPath();ctx.moveTo(t.x1,t.y1);ctx.lineTo(t.x2,t.y2);ctx.stroke()});ctx.globalAlpha=1;
+  (S.amFx||[]).forEach(f=>{amTracer(f.m,f,f.t/0.5);amBrake(f.m,f.ang,f.t/0.45);amSpall(f,f.ang,f.t/0.5)});
   // Energy Surge rings: a bright front with a soft glow behind it, fading as it reaches full size
   S.surgeWaves.forEach(w=>{
     const f=w.r/ENERGY_SURGE_R, a=Math.max(0,1-f);
