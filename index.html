@@ -1072,6 +1072,7 @@ async function run(d){
       <label class="volRow"><span>Effects</span><input type="range" id="volSfx" min="0" max="100"></label>
     </div>
     <button id="recordingToggleBtn" class="metaUnlock secondary"></button>
+    <button id="expedToggleBtn" class="metaUnlock secondary"></button>
     <button id="debugUnlockAllBtn" class="metaUnlock secondary">[Debug] Unlock everything free</button>
     <button id="debugWipeUpgradesBtn" class="metaUnlock secondary">[Debug] Wipe upgrades</button>
   </div>
@@ -2019,8 +2020,8 @@ const KITS={
   breaker:{kind:'mech',name:'Breaker',tier:'Legendary',col:'#c79a4a',solo:'Your Mechs become Breakers: no gun, two huge fists. Punches splash round the target; it works round a group so a wall is behind them, then a haymaker throws them all, and anything that hits a wall takes heavy damage.',pair:'any wall type',pairTxt:'each wall type adds a twist: Electric Fence stuns, Razor Line bleeds, Glass Ridge throws shards, Heavy Armour doubles the impact, Shield Pane bounces them back',on:()=>!!(S.wallLines&&S.wallLines.length),anyWall:true},
   fieldrelay:{kind:'mech',name:'Field Relay',tier:'Epic',col:'#7bd389',solo:'Your Mechs become Field Relays: no gun, a relay mast. Up to 6 units can tether to one as it walks, and it heals the units round it while they are out of combat.',pair:'Repair Cradle relays',pairTxt:'it heals them in combat too',on:()=>S.mods.relayDef==='repair',relay:'repair'},
 };
-const kitOf=t=>{const k=S.kits&&S.kits[t.kind||'troop'];return k||null};
-const hasKit=(t,id)=>S.kits&&S.kits[t.kind||'troop']===id;
+const kitOf=t=>{if(t.fr)return 'fieldrelay';const k=S.kits&&S.kits[t.kind||'troop'];return k||null};
+const hasKit=(t,id)=>t.fr?id==='fieldrelay':!!(S.kits&&S.kits[t.kind||'troop']===id);
 function setKit(id){const K=KITS[id];S.kits[K.kind]=id;S.troops.forEach(u=>{if((u.kind||'troop')===K.kind){u._bkPunch=0}});updateBuildBar()}
 function kitCard(id){const K=KITS[id],nm=FABS[K.kind]?FABS[K.kind].name:'Trooper';
   return {id:'kit_'+id,name:K.name,kit:id,get desc(){const cur=S&&S.kits&&S.kits[K.kind],on=K.on();
@@ -2249,7 +2250,7 @@ function ripePeakT(v){return ripeStart(veinLadder(v).length-1)}
 function ripeTier(v){return veinLadder(v)[ripeIdx(v)]}
 // 0 while still ripening; climbs 0→1 across the unstable phase at the peak.
 // (never unstable: the contract vein, and every vein in the tutorial — those just hold at their peak)
-function holdsAtPeak(v){return v.contract||v.hive||v.breach||v.rig||(tutorialMap&&!v.tutDemo)}
+function holdsAtPeak(v){return v.contract||v.hive||v.breach||v.rig||(tutorialMap&&!v.tutDemo)||!!(S&&S.exped)}
 // Stabilizers pinned on a vein stretch its unstable phase (and so its whole life) by STAB_LIFE_BONUS each.
 function unstableDur(v){return UNSTABLE_T+(v.lifeBonus||0)}
 function unstableFrac(v){if(holdsAtPeak(v))return 0;const over=(v.ripeT||0)-ripePeakT(v);return over<0?0:Math.min(1,over/unstableDur(v))}
@@ -2602,6 +2603,7 @@ function fillSurvey(el,v){
     return `<i title="${tierName(t)} — ${i===last&&hold?'holds':Math.round(dur(i))+'s'}" style="flex:${dur(i)} 1 0"><b style="width:${(f*100).toFixed(1)}%;background:${col}"></b></i>`}).join('');
   let line;
   if(locked)line=`Locked on at ${tierName(ripeTier(v))} — ripening is frozen while you drill.`;
+  else if(S.exped&&!v.contract&&!v.hive&&!v.breach&&!v.rig)line=`A ${tierName(ripeTier(v))} vein — it keeps this tier until you drill it.`;
   else if(holdsAtPeak(v))line=idx<L.length-1?`Ripens to ${tierName(L[idx+1])} in ${fmtT(ripeStart(idx+1)-(v.ripeT||0))}. Holds at its peak — it never collapses.`:'At its peak — it never collapses.';
   else if(idx<L.length-1)line=`Ripens to ${tierName(L[idx+1])} in ${fmtT(ripeStart(idx+1)-(v.ripeT||0))} · collapses in ${fmtT(ripePeakT(v)+unstableDur(v)-(v.ripeT||0))}.`;
   else line=`<span class="warn">Unstable</span> at its peak — collapses in <span class="warn">${fmtT(ripePeakT(v)+unstableDur(v)-(v.ripeT||0))}</span>.`;
@@ -2857,6 +2859,7 @@ function emergeVein(site,o){
     mine:{x:site.x+Math.cos(ang)*rad,y:site.y+Math.sin(ang)*rad,found:false},
     site,ripeT:o.ripeT||0,crackedT:0,seen:false,collapsed:false,goneT:0,pulsePh:rnd(0,PULSE_PERIOD),
     haze:o.haze||rollHaze(),opening:!!o.opening};
+  if(S.exped&&!o.contract&&!o.hive&&!o.breach&&!o.rig&&!o.opening)v.ripeT=expedTierT(v);
   v.hot=mkHotspots(v);
   site.vein=v; S.veins.push(v);
   // index the network around it: its zone (what lights up as the vein) and, for ordinary veins,
@@ -2896,6 +2899,7 @@ function updateVeinLife(dt){
     // the pulse clock counts waves, so changing the rate (tier up, going unstable) never jumps
     if(!v.contract&&veinAlive(v))v.pulseClock=(v.pulseClock||0)+dt/pulseTiming(v).period;
     if(!veinAlive(v)||S.activeVein===v)return;
+    if(S.exped&&!v.contract&&!v.hive&&!v.breach&&!v.rig)return; // Expedition mode: it keeps its tier
     if(holdsAtPeak(v)){v.ripeT=Math.min((v.ripeT||0)+dt,ripePeakT(v));return}
     v.ripeT=(v.ripeT||0)+dt;
     if(v.ripeT>=ripePeakT(v)+unstableDur(v)){collapseVein(v);return}
@@ -3264,6 +3268,25 @@ function setMapSize(f){
   W=H=w; TGX=Math.ceil(W/TCELL); TGY=Math.ceil(H/TCELL); EXIT_X=W-200;
   [fogC,dimC,fogMaskC].forEach(c=>{c.width=W/FOG_S;c.height=H/FOG_S});
 }
+// ---------- Expedition mode (a test, set in Settings, read when a run starts) ----------
+// No Probes. Every run starts with a Field Relay (a Mech that is always a Field Relay, whatever Mech kit
+// you take, and doesn't count against the Mech limit); the Probe button becomes its Scan: a pulse that
+// shows enemies round the Relay for a while. Ordinary veins emerge at a fixed tier and keep it — no
+// ripening, no collapsing — until you drill them.
+const EXPED_KEY='datascraper_expedition';let EXPED_ON=false;try{EXPED_ON=localStorage.getItem(EXPED_KEY)==='1'}catch(e){}
+function setExpedOn(on){EXPED_ON=!!on;try{localStorage.setItem(EXPED_KEY,EXPED_ON?'1':'0')}catch(e){}paintExpedBtn()}
+function paintExpedBtn(){const b=document.getElementById('expedToggleBtn');if(b)b.textContent=`[Test] Expedition mode: ${EXPED_ON?'On':'Off'} — no Probes, start with a scanning Field Relay, veins keep their tier (new runs)`}
+const FRS_R=520, FRS_T=12, FRS_CD=25;
+const isFR=u=>u.kind==='mech'&&hasKit(u,'fieldrelay')&&u.hp>0;
+function relayScan(){
+  const sel=S.troops.filter(u=>isFR(u)&&S.sel.troops.has(u)),all=S.troops.filter(isFR),m=sel[0]||all[0];
+  if(!m){note('No Field Relay to scan from');return}
+  if(S.frScanCd>0){note(`Scan recharging — ${Math.ceil(S.frScanCd)}s`);return}
+  S.pings.push({x:m.x,y:m.y,r:FRS_R,t:FRS_T,probe:true});S.pingRing={x:m.x,y:m.y,t:0,dur:1.1,r:FRS_R};S.frScanCd=FRS_CD;
+  tone(440,0.1,'sine',0.05);tone(660,0.5,'sine',0.04,0.08,880);updateBuildBar();
+}
+// a fixed tier for a vein that won't ripen: the common rungs are likelier (weights L, L-1, … 1)
+function expedTierT(v){const L=veinLadder(v).length;let tot=0;for(let i=0;i<L;i++)tot+=L-i;let r=rnd(0,tot);for(let i=0;i<L;i++){r-=L-i;if(r<0)return ripeStart(i)}return 0}
 function reset(landing){
   setMapSize(STOP_BAND?(STOP_SPLIT?(MAP_SIZE_BY_BAND.rim+MAP_SIZE_BY_BAND.dense)/2:MAP_SIZE_BY_BAND[STOP_BAND]*(megaStop()?MEGA_MAP:1)):1);
   // Map layout comes first, entirely from the map seed and independent of where the Rig lands:
@@ -3291,9 +3314,11 @@ function reset(landing){
     // the shared unit/structure code paths keep working untouched.
     fab:{},fabShots:[],drones:[],droneNoDatMsgT:-99,runUnlock:{},nestSproutT:NEST_SPROUT_T};
   Object.keys(FABS).forEach(k=>{S.fab[k]={n:FABS[k].charges,rt:0}});
+  S.exped=!tutorialMap&&!!(RUN&&RUN.exped);S.frScanCd=0;
   addDrones(tutorialMap?TUT_DRONES:DRONE_COUNT);
   for(let i=0;i<(pressureOn('lean')?4:SQUAD_START_N);i++){const u=mkTroop(i);S.troops.push(u);guardBastion(u)}
   if(!pressureOn('lean'))for(let i=0;i<(tutorialMap?4:BRAWL_START_N);i++){ /* the tutorial gets a few Paladins to show the shield wall */const u=mkTroop(100+i,'brawler');S.troops.push(u);guardBastion(u)}
+  if(S.exped){const u=mkTroop(300,'mech');u.fr=true;S.troops.push(u);guardBastion(u)}
   prodMenuOpen=false;
 
   S.mapSeed=mapSeed; S.mapType=mapType.id; S.mapLayout=mapLayout.id;
@@ -3501,7 +3526,7 @@ function openBreach(v,why){
 function captureCarry(){
   return {cards:(S.cards||[]).map(c=>({...c})),dat:S.dat,living:S.living,condensed:S.condensed,rerollCount:S.rerollCount,mods:{...S.mods},runUnlock:{...S.runUnlock},
     fab:JSON.parse(JSON.stringify(S.fab)),stabCharges:S.stabCharges,probeCharges:S.probeCharges,calls:{...S.calls},callUnlock:{...S.callUnlock},capAdd:{...S.capAdd},kits:{...S.kits},
-    hp:S.base.hp,maxHp:S.base.maxHp,drones:S.drones.length,squadCap:S.squadCap,troops:S.troops.map(t=>({kind:t.kind||'troop',hp:t.hp,maxHp:t.maxHp,grp:t.grp}))};
+    hp:S.base.hp,maxHp:S.base.maxHp,drones:S.drones.length,squadCap:S.squadCap,troops:S.troops.map(t=>({kind:t.kind||'troop',hp:t.hp,maxHp:t.maxHp,grp:t.grp,fr:!!t.fr}))};
 }
 function applyCarry(c){
   if(!c)return;
@@ -3510,7 +3535,7 @@ function applyCarry(c){
   S.mods={...S.mods,...c.mods};S.runUnlock={...c.runUnlock};S.fab=c.fab;S.calls={...(c.calls||{})};S.callUnlock={...(c.callUnlock||{})};S.capAdd={...(c.capAdd||{})};S.kits={...(c.kits||{})};
   S.base.hp=c.hp;S.base.maxHp=c.maxHp;S.squadCap=c.squadCap||SQUAD_CAP_START;
   S.drones=[];addDrones(c.drones);
-  S.troops=[];c.troops.forEach((t,i)=>{const u=mkTroop(Date.now()+i,t.kind);u.hp=t.hp;u.maxHp=t.maxHp;if(t.grp!=null)u.grp=t.grp;S.troops.push(u);guardBastion(u)});
+  S.troops=[];c.troops.forEach((t,i)=>{const u=mkTroop(Date.now()+i,t.kind);u.hp=t.hp;u.maxHp=t.maxHp;if(t.grp!=null)u.grp=t.grp;if(t.fr)u.fr=true;S.troops.push(u);guardBastion(u)});
   updateBuildBar();
 }
 function pressureNote(){return RUN&&RUN.pressure&&RUN.pressure.ids.length?` Pressure on: ${RUN.pressure.ids.map(id=>PRESSURE.find(p=>p.id===id).name).join(', ')} (+${Math.round(RUN.pressure.bonus*100)}% rewards).`:''}
@@ -3518,7 +3543,7 @@ function pressureNote(){return RUN&&RUN.pressure&&RUN.pressure.ids.length?` Pres
 // Pressure and Loadout, and everything carried into the stop (cards, Dat, units, call-downs, kits).
 // Resume (main menu) rebuilds that stop from there. It's cleared when the run ends.
 const RUN_SAVE_KEY='astroscraper_v4_run';
-function saveRun(carry){if(!RUN||tutorialMap)return;try{localStorage.setItem(RUN_SAVE_KEY,JSON.stringify({v:1,t:Date.now(),run:{stop:RUN.stop,pressure:RUN.pressure,loadout:RUN.loadout,exit:RUN.exit,stats:RUN.stats||{},sector:RUN.sector||null,path:RUN.path||null},carry:carry||null}))}catch(e){}}
+function saveRun(carry){if(!RUN||tutorialMap)return;try{localStorage.setItem(RUN_SAVE_KEY,JSON.stringify({v:1,t:Date.now(),run:{stop:RUN.stop,pressure:RUN.pressure,loadout:RUN.loadout,exit:RUN.exit,stats:RUN.stats||{},sector:RUN.sector||null,path:RUN.path||null,exped:!!RUN.exped},carry:carry||null}))}catch(e){}}
 // v4: the live save — the whole stop as it stands, so Resume puts you back mid-fight. The map itself is
 // built again from its seed (same spawn, same stop directions), then everything that changes in play is
 // laid back over it: units, enemies, veins and the drill, walls, Relays, Turrets, Stabilizers, nests,
@@ -3563,7 +3588,7 @@ addEventListener('pagehide',liveSave);addEventListener('beforeunload',liveSave);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')liveSave()});
 // build the same stop again and lay the saved state over it
 function resumeLive(d){const L=d.live;
-  RUN={stop:d.run.stop,carry:null,pressure:d.run.pressure||{ids:[],bonus:0},loadout:d.run.loadout||callLoadout(),exit:d.run.exit,stopCarry:d.carry||null,stats:d.run.stats||{},sector:d.run.sector||null,path:d.run.path||null};
+  RUN={stop:d.run.stop,carry:null,pressure:d.run.pressure||{ids:[],bonus:0},loadout:d.run.loadout||callLoadout(),exit:d.run.exit,stopCarry:d.carry||null,stats:d.run.stats||{},sector:d.run.sector||null,path:d.run.path||null,exped:!!d.run.exped};
   menuOpen=false;['mainMenuOverlay','prepOverlay','unlocksOverlay','pressureOverlay','loadoutOverlay','settingsOverlay','stopOverlay','sectorOverlay'].forEach(id=>document.getElementById(id)._hd=true);
   STOP_BAND=RUN_STOPS[RUN.stop].band;STOP_SPLIT=!!RUN_STOPS[RUN.stop].split;ENTRY_EDGE=L.entry;EXIT_DIR=L.exitDir;
   mapSeed=L.mapSeed;reset();reset(L.spawn);S._spawn=L.spawn;
@@ -3585,13 +3610,13 @@ function loadRunSave(){try{const d=JSON.parse(localStorage.getItem(RUN_SAVE_KEY)
 function clearRunSave(){try{localStorage.removeItem(RUN_SAVE_KEY)}catch(e){}}
 function resumeRun(){const d=loadRunSave();if(!d)return;
   if(d.v===2&&d.live){try{resumeLive(d);return}catch(e){console.warn('live resume failed, going back to the start of the stop',e)}}
-  RUN={stop:d.run.stop,carry:d.carry,pressure:d.run.pressure||{ids:[],bonus:0},loadout:d.run.loadout||callLoadout(),exit:d.run.exit,stats:d.run.stats||{},sector:d.run.sector||null,path:d.run.path||null};
+  RUN={stop:d.run.stop,carry:d.carry,pressure:d.run.pressure||{ids:[],bonus:0},loadout:d.run.loadout||callLoadout(),exit:d.run.exit,stats:d.run.stats||{},sector:d.run.sector||null,path:d.run.path||null,exped:!!d.run.exped};
   menuOpen=false;['mainMenuOverlay','prepOverlay','unlocksOverlay','pressureOverlay','loadoutOverlay','settingsOverlay','stopOverlay','sectorOverlay'].forEach(id=>document.getElementById(id)._hd=true);
   buildStop(d.carry);msg(`Run resumed — back at the start of stop ${RUN.stop+1} of ${RUN_STOPS.length}.`)}
 // Restart (pause menu): a fresh run with the same Pressure (already paid for, so not charged again)
 function restartRun(){const p=RUN&&RUN.pressure;document.getElementById('pauseOverlay')._hd=true;
   if(tutorial||tutorialMap){startTutorial();return}
-  if(!RUN)return;clearRunSave();RUN={stop:0,carry:null,pressure:p||{ids:[],bonus:0},loadout:callLoadout()};RUN.sector=genSector();RUN.path=[];showSector(0,'Sector map')}
+  if(!RUN)return;clearRunSave();RUN={stop:0,carry:null,pressure:p||{ids:[],bonus:0},loadout:callLoadout(),exped:EXPED_ON};RUN.sector=genSector();RUN.path=[];showSector(0,'Sector map')}
 function buildStop(carry){
   STOP_BAND=RUN_STOPS[RUN.stop].band;STOP_SPLIT=!!RUN_STOPS[RUN.stop].split;
   pickStopDirs();
@@ -4138,7 +4163,7 @@ function startRun(){
   // (Pressure is switched off for now: PRESSURE_ON. Its button is hidden and no run starts under it.)
   const ids=[];if(PRESSURE_ON)meta.pressure.forEach(id=>{if(PRESSURE.some(p=>p.id===id)&&pressureCost([...ids,id])<=meta.condensedBank)ids.push(id)});
   meta.condensedBank-=pressureCost(ids);saveMeta();
-  RUN={stop:0,carry:null,pressure:{ids,bonus:pressureBonus(ids)},loadout:callLoadout()};
+  RUN={stop:0,carry:null,pressure:{ids,bonus:pressureBonus(ids)},loadout:callLoadout(),exped:EXPED_ON};
   menuOpen=false;
   ['mainMenuOverlay','prepOverlay','unlocksOverlay','pressureOverlay','loadoutOverlay','settingsOverlay','stopOverlay','sectorOverlay'].forEach(id=>document.getElementById(id)._hd=true);
   RUN.sector=genSector();RUN.path=[];showSector(0,'Sector map');
@@ -4421,6 +4446,7 @@ const CUR_INFO={
 // v4: the same panel for every button on the build bar: what it does, what it does for your troops, where to put it
 const BI_B='#d8b36a',BI_U='#8fb8e0',BI_C='#ff9a5c';
 const BUILD_INFO={
+  relayscan:{n:'Relay Scan',c:BI_B,d:'Your Field Relay sends out a pulse: enemies within 520 of it show for 12s. Recharges in 25s. Uses the selected Field Relay if there is one.',p:'Before the team pushes on into the fog.'},
   turret:{n:'Turret',c:BI_B,d:'Automatic gun: quick fire, short reach.',p:'On the side waves come from. Snaps onto wall ends and corners.'},
   podturret:{n:'Missile Pod',c:BI_B,d:'Loads 8 missiles, then ripples them all into one cluster.',p:'Behind a wall, where waves bunch up against it.'},
   wall:{n:'Wall',c:BI_B,d:'Stops enemies. Your own units walk straight through.',t:'Units manning it take 25% less damage; gunners shoot 15% further.',p:'Across the side a wave banner names, between the nests and the Rig. Draw between two posts to mend it.'},
@@ -4440,7 +4466,7 @@ const CALL_PLACE={orbital:'On a nest, a Colossus or the thickest clump.',stasis:
   droppod:'Where your line is thin and needs bodies now.',bulwark:'Round units or a Stabilizer under attack, or across a gap in your wall.',carpet:'Along the path a wave is marching in on.',
   minefield:'On the route a wave will take, before it gets there.',overclock:'Over your main line or Turrets during a big wave.',gravity:'Just ahead of your line, then follow with blasts.',
   decoy:'Away from the Rig and Stabilizers, to pull a wave off them.'};
-function buildInfoOf(b){const k=b.dataset.mode||b.dataset.unit||(b.id==='bPing'?'probe':null);
+function buildInfoOf(b){const k=b.dataset.mode||b.dataset.unit||(b.id==='bPing'?(S&&S.exped?'relayscan':'probe'):null);
   if(k){const id=k==='mech'&&S&&S.kits&&(S.kits.mech==='breaker'||S.kits.mech==='fieldrelay')?S.kits.mech:k;return BUILD_INFO[id]||null}
   if(b.dataset.call&&typeof CALLDOWNS!=='undefined'){const K=CALLDOWNS[b.dataset.call];return K?{n:K.name,c:BI_C,d:K.desc,p:CALL_PLACE[b.dataset.call]}:null}
   if(b.dataset.tip){const l=b.querySelector('span:not(.icon):not(.cost):not(.key)');return {n:(l?l.textContent:'').replace(/\s*▴$/,''),c:'#a9b4c0',d:b.dataset.tip}}
@@ -4760,6 +4786,7 @@ document.getElementById('consentAllowBtn').onclick=()=>setRecordingConsent(true)
 document.getElementById('consentDisableBtn').onclick=()=>setRecordingConsent(false);
 // Lets the player flip their choice anytime from the main menu, not just at the first-run gate.
 document.getElementById('recordingToggleBtn').onclick=()=>setRecordingConsent(!meta.recordingConsent);
+document.getElementById('expedToggleBtn').onclick=()=>setExpedOn(!EXPED_ON);paintExpedBtn();
 [['volMusic','music'],['volAmb','amb'],['volSfx','sfx']].forEach(([id,k])=>{const el=document.getElementById(id);el.value=Math.round(AUD[k]*100);el.oninput=()=>{startAudioEngine();setAudVol(k,el.value/100);if(k==='sfx'&&sfxReady('volTest',0.15))tone(660,0.08,'triangle',0.06)}});
 // Opens the main menu again after a run ends — Play then rolls a fresh map.
 function openMainMenu(){
@@ -8542,7 +8569,7 @@ mini.addEventListener('pointerdown',e=>{
 });
 function closeProdMenu(){prodMenuOpen=false}
 // ---------- fabricators (v2) ----------
-function unitAlive(k){return S.troops.filter(t=>(t.kind||'troop')===k&&t.hp>0).length}
+function unitAlive(k){return S.troops.filter(t=>(t.kind||'troop')===k&&t.hp>0&&!t.fr).length}
 function fabUnlocked(k){const f=FABS[k];if(f.disabled)return false;return dbgGod||!f.unlock||!!meta[f.unlock]}
 function fabPips(k){const f=FABS[k],st=S.fab[k],n=Math.max(0,Math.min(f.charges,st.n));return '●'.repeat(n)+'○'.repeat(f.charges-n)+(st.n<=0?` ◆${FAB_DAT[k]}`:'')+(f.cap?` · ${unitAlive(k)} / ${unitLimit(k)}`:'')}
 function unitPips(k){const n=unitHave(k),c=unitLimit(k);return `${n} / ${c}`+(n<c?`  ◆${unitPrice(k)}`:'')}
@@ -8728,10 +8755,12 @@ function updateBuildBar(){
     document.getElementById('cHeart')._tc=B.hfire?'':n>=HEART_BEAMS?'ready':`${n}/${HEART_BEAMS}`}}}
   const pgb=document.getElementById('bPing');
   if(pgb){
+    if(S.exped){const has=S.troops.some(isFR);pgb._ds=!has;pgb.classList.toggle('dry',S.frScanCd>0);pgb.classList.remove('on');
+      document.getElementById('bPingLabel')._tc='Scan';document.getElementById('cProbe')._tc=!has?'no Relay':S.frScanCd>0?`${Math.ceil(S.frScanCd)}s`:'ready'}else{
     pgb._ds=S.probeCharges<=0&&!probeMode;pgb.classList.remove('dry');
     pgb.classList.toggle('on',probeMode);
     document.getElementById('bPingLabel')._tc=probeMode?'Aim…':'Probe';
-    document.getElementById('cProbe')._tc='●'.repeat(S.probeCharges)+'○'.repeat(PROBE_CHARGES-S.probeCharges)+(S.probeCharges<PROBE_CHARGES?` ${Math.ceil(S.probeRechargeT)}s`:'');
+    document.getElementById('cProbe')._tc='●'.repeat(S.probeCharges)+'○'.repeat(PROBE_CHARGES-S.probeCharges)+(S.probeCharges<PROBE_CHARGES?` ${Math.ceil(S.probeRechargeT)}s`:'')}
   }
   const selCount=S.sel.troops.size+S.sel.harv.size+S.sel.bu.size;
   const fb=document.getElementById('bFollow');
@@ -9115,6 +9144,7 @@ function probeRange(){return PROBE_RANGE}
 function probeR(){return PROBE_R*probeWidthMult()}
 function setProbeMode(on){probeMode=on;if(on)callMode=null;updateBuildBar()}
 function tryProbe(){
+  if(S&&S.exped){relayScan();return}
   if(probeMode){setProbeMode(false);return}
   if(S.probeCharges<=0){note(`No probes — one back every ${PROBE_RECHARGE_T}s`);return}
   setBuild(null); setProbeMode(true);
@@ -9142,6 +9172,7 @@ function probeDiscover(p){
 }
 function updateProbes(dt){
   // v4: probes recharge on their own (one every PROBE_RECHARGE_T), not bought with Dat
+  if(S.frScanCd>0)S.frScanCd=Math.max(0,S.frScanCd-dt);
   if(S.probeCharges<PROBE_CHARGES){S.probeRechargeT-=dt;if(S.probeRechargeT<=0){S.probeCharges++;S.probeRechargeT=S.probeCharges<PROBE_CHARGES?PROBE_RECHARGE_T:0}}
 
   S.probes=S.probes.filter(p=>{
