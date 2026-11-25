@@ -72,6 +72,19 @@ body.lowGfx #fogGrain{display:none}
 .cur,.crystalIcon,.crystalIcon~.v{cursor:help}
 .hud .cur{pointer-events:auto} /* (the HUD lets clicks through to the map; the currencies take the hover) */
 .bar{height:5px;background:var(--panel2);border-radius:2px;overflow:hidden;margin-top:3px}
+/* v4: the Rig's health box doubles as the repair-drone button: it shows the swarm's size, and a click opens the
+   Rig crew panel, a slider splitting the drones between the Rig and everything else */
+.rigStat{position:relative;pointer-events:auto;cursor:pointer;font:inherit;color:inherit;text-align:left}
+.rigStat:hover,.rigStat.open{border-color:#4fd1c5}
+.rigStat .kRow{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.rigStat .dr{font-size:10px;letter-spacing:.06em;color:#4fd1c5;font-family:var(--mono);white-space:nowrap}
+.crewPanel{position:absolute;left:0;top:calc(100% + 6px);width:240px;padding:10px 12px;background:#12161b;border:1px solid var(--line);border-left:3px solid #4fd1c5;border-radius:6px;box-shadow:0 8px 20px rgba(0,0,0,.5);font-size:12px;line-height:1.4;color:var(--fg);cursor:default;z-index:20;text-transform:none;letter-spacing:0}
+.crewPanel[hidden]{display:none}
+.crewPanel b{display:block;font-family:var(--mono);font-size:12px;letter-spacing:.04em;color:#4fd1c5;margin-bottom:6px}
+.crewPanel input{width:100%;accent-color:#4fd1c5;margin:6px 0 2px}
+.crewPanel .split{display:flex;justify-content:space-between;font-family:var(--mono);font-size:12px}
+.crewPanel .split .rg{color:#4fd1c5}
+.crewPanel small{display:block;color:var(--muted);font-size:11px;margin-top:6px}
 .bar i{display:block;height:100%;background:var(--ally)}
 .bar i.hp{background:var(--accent)}
 /* buildBar and unitActions stack in this wrapper so a margin between them (and above the bottom
@@ -807,7 +820,11 @@ async function run(d){
     <span class="cur living"><span class="ci">❖</span><span class="v" id="hLiving">0</span></span>
     <span class="cur condensed"><span class="ci">⬢</span><span class="v" id="hCondensed">0</span></span>
   </div>
-  <div class="stat"><span class="k">⛨ Rig</span><span class="v" id="hBase">—</span><div class="bar"><i class="hp" id="hBaseBar" style="width:100%"></i></div></div>
+  <div class="stat rigStat" id="rigStat" role="button" tabindex="0" aria-haspopup="true" aria-expanded="false" title="Repair drones — click to choose how many look after the Rig"><span class="kRow"><span class="k">⛨ Rig</span><span class="dr" id="hDrones">⬡ 0</span></span><span class="v" id="hBase">—</span><div class="bar"><i class="hp" id="hBaseBar" style="width:100%"></i></div>
+    <div class="crewPanel" id="crewPanel" hidden><b>Repair drones</b>
+      <div class="split"><span class="rg" id="crewRig">Rig 0</span><span id="crewElse">Everything else 0</span></div>
+      <input type="range" id="crewSlider" min="0" max="0" step="1" value="0" aria-label="Drones kept on the Rig">
+      <small id="crewNote"></small></div></div>
   <div class="stat obj"><span class="k" id="hObjK">Veins</span><span class="v" id="hObj">—</span><div class="bar"><i id="hObjBar" style="width:0%"></i></div></div>
 </div>
 <button class="helpToggleBtn" id="helpToggleBtn" aria-haspopup="true">Help</button>
@@ -10431,6 +10448,24 @@ function droneJobs(){
   if(B.hp<B.maxHp)jobs.push({o:B,pri:3});
   return jobs;
 }
+// v4: Rig crew — the player sets how many of the swarm look after the Rig (meta.droneRigK, a share of the
+// swarm, so it holds as drones join). Those drones go straight to the Rig whenever it's hurt, dropping any
+// other job; with the Rig whole they help everywhere else like the rest. The others treat the Rig as their
+// last job, as before.
+const DRONE_RIG_K0=0.25;
+function droneRigK(){const k=meta.droneRigK;return k==null?DRONE_RIG_K0:Math.max(0,Math.min(1,k))}
+function droneRigN(){return Math.round(droneRigK()*S.drones.length)}
+function crewPanelSync(){const N=S.drones.length,n=droneRigN(),sl=$('crewSlider');
+  if(+sl.max!==N)sl.max=N;if(document.activeElement!==sl&&+sl.value!==n)sl.value=n;sl.disabled=N===0;
+  $('crewRig')._tc='Rig '+n;$('crewElse')._tc='Everything else '+(N-n);
+  $('crewNote')._tc=N===0?'No repair drones yet — cards and wrecks add them.':n===0?'None kept back: the Rig is patched only when nothing else needs it.':`These ${n===1?'one goes':n+' go'} straight to the Rig whenever it's hurt, and help elsewhere while it's whole.`}
+function crewPanel(open){const p=$('crewPanel');open=open==null?p.hidden:open;p.hidden=!open;$('rigStat').classList.toggle('open',open);$('rigStat').setAttribute('aria-expanded',open);if(open)crewPanelSync()}
+document.getElementById('rigStat').addEventListener('click',e=>{if(e.target.closest('#crewPanel'))return;crewPanel()});
+document.getElementById('rigStat').addEventListener('keydown',e=>{if(e.target===document.getElementById('rigStat')&&(e.key==='Enter'||e.key===' ')){e.preventDefault();crewPanel()}});
+document.getElementById('crewPanel').addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Escape')crewPanel(false)});
+['pointerdown','mousedown','wheel'].forEach(t=>document.getElementById('crewPanel').addEventListener(t,e=>e.stopPropagation()));
+document.getElementById('crewSlider').addEventListener('input',e=>{const N=S.drones.length;if(!N)return;meta.droneRigK=+e.target.value/N;saveMeta();crewPanelSync()});
+addEventListener('pointerdown',e=>{if(!document.getElementById('crewPanel').hidden&&!e.target.closest('#rigStat'))crewPanel(false)},true);
 function droneJobAlive(o){
   if(!S.stabs.includes(o)&&(o.droneSkipUntil||0)>S.t)return false;
   if(unseenAttacker(o))return false;
@@ -10444,9 +10479,11 @@ function updateDrones(dt){
   const B=S.base, noDat=false; // v4: repairs are free, so the swarm never grounds for lack of Dat
   const jobs=droneJobs();
   const load=new Map();
-  S.drones.forEach(d=>{if(d.hidden)return;if(d.target&&(noDat||!droneJobAlive(d.target))){d.target=null;d.state='dock'}if(d.target)load.set(d.target,(load.get(d.target)||0)+1)});
+  const rigN=droneRigN(),rigHurt=B.hp<B.maxHp&&!unseenAttacker(B);S.drones.forEach((d,i)=>d.rigDuty=i<rigN);
+  S.drones.forEach(d=>{if(d.hidden)return;if(d.target&&(noDat||!droneJobAlive(d.target)||(d.rigDuty&&rigHurt&&d.target!==B))){d.target=null;d.state='dock'}if(d.target)load.set(d.target,(load.get(d.target)||0)+1)});
   S.drones.forEach(d=>{
     if(d.hidden)return; // still aboard the Rig after a landing
+    if(!d.target&&d.rigDuty&&rigHurt){const nOn=load.get(B)||0;d.target=B;d.state='fly';d.workAng=rnd(0,Math.PI*2);d.workZ=STAB_DRONE_LEVELS[nOn%STAB_DRONE_LEVELS.length]+16+rnd(-6,6);load.set(B,nOn+1)}
     if(!d.target&&jobs.length){
       let best=null,bs=Infinity;
       jobs.forEach(j=>{const sc=j.pri*1e5+(load.get(j.o)||0)*450+dist(d,j.o);if(sc<bs){bs=sc;best=j.o}});
@@ -14362,7 +14399,7 @@ document.getElementById('guideX').onclick=()=>{meta.guideOff=true;meta.guideForc
 function hud(){
   const B=S.base;updateGuide();updateCursorCost();updateChallenges();
   $('hDat')._tc=Math.floor(S.dat);$('hLiving')._tc=S.living;$('hCondensed')._tc=S.condensed;
-  $('hBase')._tc=Math.ceil(B.hp)+' / '+B.maxHp;$('hBaseBar')._sw=(100*B.hp/B.maxHp).toFixed(1)+'%';
+  $('hBase')._tc=Math.ceil(B.hp)+' / '+B.maxHp;{const N=S.drones.length,n=droneRigN();$('hDrones')._tc=N?`⬡ ${N}${n?' · '+n+' on Rig':''}`:'⬡ 0';if(!$('crewPanel').hidden)crewPanelSync()}$('hBaseBar')._sw=(100*B.hp/B.maxHp).toFixed(1)+'%';
   $('hBaseBar').classList.toggle('low',B.hp/B.maxHp<0.25);
   if(B.locked&&S.activeVein){
     const v=S.activeVein;
