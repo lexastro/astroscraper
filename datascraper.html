@@ -1230,6 +1230,9 @@ const MARK_R=7, MARK_HP=55, MARK_SPEED=105, MARK_RANGE=400, MARK_CD=3.2, MARK_DM
 // HOLD_LINK_R of each other back each other up: each neighbour adds HOLD_LINK_BONUS to fire rate, to
 // at most HOLD_LINK_MAX. Swarmers that get right up against a held unit are crushed at HOLD_CRUSH_DPS.
 const HOLD_LINK_R=60, HOLD_LINK_BONUS=0.1, HOLD_LINK_MAX=0.3, HOLD_CRUSH_DPS=10;
+// (a unit manning a standing wall counts as holding: it backs up and is backed up by its neighbours the same way)
+const manningWall=t=>!!(t.manning&&!t.dest&&S.wallLines&&S.wallLines.includes(t.manning));
+const isHeld=t=>(t.hold||manningWall(t))&&!t.dest&&t.state!=='attack';
 // Grenadier: a squad variant that lobs an explosive round instead of firing instantly — tankier
 // and slower-firing than a plain Trooper, but the round splashes every enemy near where it lands.
 const GREN_HP=100, GREN_RANGE=190, GREN_DMG=14, GREN_CD=1.3, GREN_SPLASH_R=70, GREN_PROJ_SPEED=320;
@@ -4518,13 +4521,13 @@ const COMBAT=[
      for(let i=0;i<5;i++){const f=(t*0.9+i*0.2)%1,y=24+i*17;if(f<0.85){const x=caLerp(190,136,f/0.85);ctx.fillStyle='#b9a6ff';ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+6,y-2);ctx.lineTo(x+6,y+2);ctx.fill()}else caGlow(136,y,6,'#cdf6ff',(1-f)*5)}
      for(let i=0;i<3;i++)htFoe(o,'s'+i,{kind:'splinter',r:8,shards:6},drawSplinter,200,30+i*30)})},
   {title:'Hold your ground',
-   text:'Press <kbd>X</kbd> and the selected units <b>plant where they stand</b>: they won’t chase or wander. Held units close together <b>back each other up</b>: held <b>Troopers and Marksmen</b> fire up to 30% faster (gold chevrons over them show how much), and small swarmers that crowd right up against any held unit get crushed.',
+   text:'Press <kbd>X</kbd> and the selected units <b>plant where they stand</b>: they won’t chase or wander. Held units close together <b>back each other up</b>: held <b>Troopers and Marksmen</b> fire up to 30% faster (gold chevrons over them show how much), and small swarmers that crowd right up against any held unit get crushed. Units manning a wall count as holding.',
    art:htLive(function(t,o){const P=[[92,46],[112,58],[92,72],[112,84]];const us=P.map(([x,y],i)=>{const fp=(t*2+i*0.3)%1;const u=htUnit(o,'t'+i,'troop',x,y,0,{hold:true,shotT:fp<0.1?t:-9});htShot(x+6,y,206,y,fp);return u});htHoldMarks(us);
      us.forEach(u=>{u.holdLinks=us.filter(v=>v!==u&&dist(u,v)<HOLD_LINK_R).length;drawHoldPips(u,u.y-17)});
      for(let i=0;i<9;i++){const f=(t*0.32+i/9)%1,a=i*0.8,x=caLerp(206,126,f),y=66+Math.sin(a)*42*(1-f);if(f<0.9)htFoe(o,'w'+i,{kind:'swarm',r:3,horde:true,seed:i*7},drawSwarm,x,y);else caGlow(124,66+Math.sin(a)*4,6,'#ffd0c8',(1-f)*8)}
      htKey('X',16,16,(t*0.5)%1<0.1)})},
   {title:'Man the walls',
-   text:'Select units and <b>right-click a wall</b>: they line up behind it, facing out. Units manning a standing wall take <b>25% less damage</b>, and gunners shoot <b>15% further</b>. Draw walls across the way waves come, then man them.',
+   text:'Select units and <b>right-click a wall</b>: they line up behind it, facing out. Units manning a standing wall take <b>25% less damage</b>, gunners shoot <b>15% further</b>, and they back each other up like held units. Draw walls across the way waves come, then man them.',
    art:htLive(function(t,o){htWall(o,'w',140,14,140,108);const f=htEase(((t*0.28)%1)/0.4);
      [26,48,70,92].forEach((y,i)=>{const done=f>=1,fp=(t*1.8+i*0.25)%1;htUnit(o,'t'+i,'troop',caLerp(44+i*8,126,f),caLerp(62,y,f),0,{shotT:done&&fp<0.1?t:-9});if(done)htShot(132,y,210,y,fp)});
      if(f>=1){caTxt('−25% damage',62,14,'#9ad36a',7);caTxt('+15% range',62,114,'#9ad36a',7)}
@@ -10454,7 +10457,7 @@ function hordeStep(e,tgt,dt){
   // HORDE_STUCK_T — and that nobody can see quietly goes away, rather than piling up for the rest of the stop
   {const dd=tgt===B?db:dist(e,tgt);if(e._sT==null||S.t<e._sT){e._sT=S.t;e._sD=dd}else if(S.t-e._sT>HORDE_STUCK_T){if(e._sD-dd<HORDE_STUCK_GAIN&&dd>150&&!visible(e)){e.hp=0;e.silent=true;return}e._sT=S.t;e._sD=dd}}
   if(db<BASE_R+e.r+6){e.hp-=HORDE_STOMP_DPS*dt;if(e.hp<=0)return}
-  if(tgt.hold&&dist(e,tgt)<(tgt.r||8)+e.r+6){e.hp-=HOLD_CRUSH_DPS*dt;if(e.hp<=0)return}
+  if(isHeld(tgt)&&dist(e,tgt)<(tgt.r||8)+e.r+6){e.hp-=HOLD_CRUSH_DPS*dt;if(e.hp<=0)return}
   const reach=e.r+(tgt.r||12)+4,d=tgt===B?db:dist(e,tgt);
   if(d<=reach){if(tgt!==B)e.jamT=S.t;if(e.cd<=0){tgt.hp-=structHit(tgt,allyHit(tgt,e.dmg,e),'melee',e);tgt.lastHitBy='enemy';hitFlash(tgt);spark(tgt.x,tgt.y,C.enemy,1);e.cd=0.8;if(tgt===S.base){shakeScreen(2,0.12);sndAt(tgt.x,tgt.y,()=>sfx.damage())}}e.ang=Math.atan2(tgt.y-e.y,tgt.x-e.x);return}
   let ux,uy;
@@ -11513,7 +11516,7 @@ function update(dt){
   // troops (combat only — resource gathering is the harvesters' job). Severed troops still
   // fight and reveal vision — they just do it unpowered while their Sanity drains.
   // hold links: each held unit counts the held units beside it
-  {const hd=S.troops.filter(t=>t.hold&&!t.dest&&t.state!=='attack');S.troops.forEach(t=>{t.holdLinks=0});
+  {const hd=S.troops.filter(isHeld);S.troops.forEach(t=>{t.holdLinks=0});
    for(let i=0;i<hd.length;i++)for(let j=i+1;j<hd.length;j++)if(dist(hd[i],hd[j])<HOLD_LINK_R){hd[i].holdLinks++;hd[j].holdLinks++}}
   S.troops.forEach(t=>{
     t.cd-=dt;
@@ -11578,7 +11581,7 @@ function update(dt){
         if(t.chargeT<=0){t.chargeT=0;t.chargeTgt=null;
           if(c&&c.hp>0&&dist(t,c)<=range+(c.r||0)){const pane=kit==='rail'&&crossesShield(t,c),end=troopPierce(t,c,range*1.15,MARK_DMG*S.mods.troopDmgMult*(pane?1.5:1),kit==='rail'?99:MARK_PIERCE);tracer(gunMuzzle(t,16),end,pane?'#8fe3ff':'#bfefff',pane?5:3);t.shotT=S.t;if(kit==='spotter')c.markT=SPOT_T;
             sndAt(t.x,t.y,()=>sfx.rail())}
-          t.cd=MARK_CD/squadFireRateMult();if(t.hold&&!t.dest)t.cd/=1+Math.min(HOLD_LINK_MAX,HOLD_LINK_BONUS*(t.holdLinks||0))}}
+          t.cd=MARK_CD/squadFireRateMult();if(isHeld(t))t.cd/=1+Math.min(HOLD_LINK_MAX,HOLD_LINK_BONUS*(t.holdLinks||0))}}
       else if(t.cd<=0){let best=null,bd=range;enemiesNear(t.x,t.y,range,e=>{if(e.hp<=0||!visible(e))return;const d=dist(e,t);if(d<bd){bd=d;best=e}});
         if(t.state==='attack'&&t.target&&t.target.hp>0&&S.enemies.includes(t.target)&&dist(t,t.target)<=range+(t.target.r||0))best=t.target; // your order first
         if(best){t.chargeT=MARK_CHARGE;t.chargeTgt=best;t.ang=Math.atan2(best.y-t.y,best.x-t.x);sndAt(t.x,t.y,()=>sfx.railCharge())}}
@@ -11643,7 +11646,7 @@ function update(dt){
           if(kit==='shock'){best.stunT=Math.max(best.stunT||0,SHOCK_STUN);
             if(onWall&&t.manning.type==='elec'){let n2=null,nd2=SHOCK_CHAIN_R;S.enemies.forEach(e=>{if(e===best||e.hp<=0||e.kind==='nest')return;const d=dist(e,best);if(d<nd2){nd2=d;n2=e}});
               if(n2){damageEnemy(n2,TROOP_DMG*0.7*S.mods.troopDmgMult);n2.stunT=Math.max(n2.stunT||0,SHOCK_STUN);(S.zaps||(S.zaps=[])).push({x0:best.x,y0:best.y,x1:n2.x,y1:n2.y,t:0,seed:Math.floor(Math.random()*999)})}}}}
-        if(t.hold&&!t.dest)t.cd/=1+Math.min(HOLD_LINK_MAX,HOLD_LINK_BONUS*(t.holdLinks||0));
+        if(isHeld(t))t.cd/=1+Math.min(HOLD_LINK_MAX,HOLD_LINK_BONUS*(t.holdLinks||0));
         if(t.state==='idle'&&bd>range*0.7)t.target=best;
       }
     }
@@ -13556,10 +13559,10 @@ function draw(){
   if(B.dest){ctx.strokeStyle='rgba(94,200,255,0.5)';ctx.setLineDash([6,6]);ctx.beginPath();ctx.moveTo(B.x,B.y);ctx.lineTo(B.dest.x,B.dest.y);(B.queue||[]).forEach(p=>ctx.lineTo(p.x,p.y));ctx.stroke();ctx.setLineDash([]);
     if(B.queue&&B.queue.length){ctx.fillStyle='rgba(94,200,255,0.7)';[B.dest,...B.queue].forEach(p=>{ctx.beginPath();ctx.arc(p.x,p.y,4,0,Math.PI*2);ctx.fill()})}}
   // hold: a link line between held units backing each other up, and corner brackets on each
-  {const hd=S.troops.filter(t=>t.hold&&!t.dest&&t.state!=='attack');ctx.save();ctx.strokeStyle=C.accent;ctx.lineWidth=1.5;ctx.globalAlpha=0.45;ctx.setLineDash([3,4]);ctx.beginPath();
+  {const hd=S.troops.filter(isHeld);ctx.save();ctx.strokeStyle=C.accent;ctx.lineWidth=1.5;ctx.globalAlpha=0.45;ctx.setLineDash([3,4]);ctx.beginPath();
    for(let i=0;i<hd.length;i++)for(let j=i+1;j<hd.length;j++)if(dist(hd[i],hd[j])<HOLD_LINK_R){ctx.moveTo(hd[i].x,hd[i].y);ctx.lineTo(hd[j].x,hd[j].y)}
    ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=0.85;ctx.beginPath();
-   hd.forEach(t=>{const r=(t.r||7)+6,q=4;[[-1,-1],[1,-1],[1,1],[-1,1]].forEach(([sx,sy])=>{ctx.moveTo(t.x+sx*r,t.y+sy*(r-q));ctx.lineTo(t.x+sx*r,t.y+sy*r);ctx.lineTo(t.x+sx*(r-q),t.y+sy*r)})});
+   hd.forEach(t=>{if(!t.hold)return;const r=(t.r||7)+6,q=4;[[-1,-1],[1,-1],[1,1],[-1,1]].forEach(([sx,sy])=>{ctx.moveTo(t.x+sx*r,t.y+sy*(r-q));ctx.lineTo(t.x+sx*r,t.y+sy*r);ctx.lineTo(t.x+sx*(r-q),t.y+sy*r)})});
    ctx.stroke();ctx.restore()}
   (S.shoves||[]).forEach(f=>{const k=f.t/0.3;ctx.save();ctx.globalAlpha=0.5*(1-k);ctx.fillStyle=BRAWL_COLOR;ctx.beginPath();ctx.moveTo(f.x,f.y);ctx.arc(f.x,f.y,BRAWL_KB_R*(0.5+0.5*k),f.a-BRAWL_KB_ARC/2,f.a+BRAWL_KB_ARC/2);ctx.closePath();ctx.fill();ctx.restore()});
   // troops
@@ -13568,7 +13571,8 @@ function draw(){
     if(t.hp<t.maxHp)hpbar(t.x,t.y-14,16,t.hp/t.maxHp);
     if(sel&&t.grp!=null){ctx.fillStyle='#bfe6ff';ctx.font='bold 9px monospace';ctx.textAlign='center';ctx.fillText(t.grp,t.x,t.y-20);ctx.textAlign='start'}
     if(t.sanity<SANITY_MAX)sanityBar(t.x,t.y-10,16,t.sanity/SANITY_MAX);
-    drawHoldPips(t,t.y-(sel&&t.grp!=null?26:17));
+    const manIc=t.manning&&!t.dest,pipIc=holdTier(t)>0;
+    drawHoldPips(t,t.y-(sel&&t.grp!=null?26:17),manIc?7:0);
     if(!t.tetherOk)drawCutGlyph(t.x,t.y); if(t.following)drawFollowGlyph(t.x,t.y);
     if(t.state==='guard'&&t.guard){
       drawGuardGlyph(t.x,t.y);
@@ -13577,7 +13581,7 @@ function draw(){
         ctx.beginPath();ctx.moveTo(t.x,t.y);ctx.lineTo(g.x,g.y);ctx.stroke();
         ctx.beginPath();ctx.arc(g.x,g.y,guardRadius(g)+9,0,Math.PI*2);ctx.stroke();ctx.setLineDash([])}
     }
-    if(t.manning&&!t.dest){const y=t.y-(t.r||7)-9;ctx.fillStyle=C.accent;ctx.globalAlpha=0.9;ctx.fillRect(t.x-6,y+2,12,2.5);ctx.fillRect(t.x-6,y-1,3,3);ctx.fillRect(t.x-1.5,y-1,3,3);ctx.fillRect(t.x+3,y-1,3,3);ctx.globalAlpha=1}
+    if(manIc){const y=t.y-(t.r||7)-9,x=t.x-(pipIc?6:0);ctx.fillStyle=C.accent;ctx.globalAlpha=0.9;ctx.fillRect(x-6,y+2,12,2.5);ctx.fillRect(x-6,y-1,3,3);ctx.fillRect(x-1.5,y-1,3,3);ctx.fillRect(x+3,y-1,3,3);ctx.globalAlpha=1}
     if(sel&&t.dest)drawRoute(t,'rgba(94,200,255,0.35)')});
   drawPaladinWall();
   // grenades/artillery shells in flight — a Mech pellet instead draws as a short tracer line
@@ -13753,9 +13757,9 @@ function drawWaveWarn(vw,vh){
 // (up to HOLD_LINK_MAX: three), paler for one, gold for two, and glowing gold for the full three
 const HOLD_PIP_COL=['#f4e3a6','#f2b63c','#ffcf4d'];
 // (only Troopers and Marksmen fire faster for it: any held unit counts as a neighbour, but the rest get nothing)
-function holdTier(t){const k=t.kind||'troop';return (k==='troop'||k==='marksman')&&t.hold&&!t.dest?Math.min(Math.round(HOLD_LINK_MAX/HOLD_LINK_BONUS),t.holdLinks||0):0}
+function holdTier(t){const k=t.kind||'troop';return (k==='troop'||k==='marksman')&&isHeld(t)?Math.min(Math.round(HOLD_LINK_MAX/HOLD_LINK_BONUS),t.holdLinks||0):0}
 const HOLD_PIP_SC=0.65; // the chevrons' size
-function drawHoldPips(t,y){const n=holdTier(t);if(!n)return;const c=HOLD_PIP_COL[n-1];ctx.save();ctx.translate(t.x,y);ctx.scale(HOLD_PIP_SC,HOLD_PIP_SC);
+function drawHoldPips(t,y,dx=0){const n=holdTier(t);if(!n)return;const c=HOLD_PIP_COL[n-1];ctx.save();ctx.translate(t.x+dx,y);ctx.scale(HOLD_PIP_SC,HOLD_PIP_SC);
   if(n>=3){ctx.globalAlpha=0.2+0.1*Math.sin(S.t*5);ctx.fillStyle=c;ctx.beginPath();ctx.arc(0,-n*1.6,5.2,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1}
   ctx.lineCap='round';ctx.lineJoin='round';
   for(let i=0;i<n;i++){const yy=-i*3.2;ctx.strokeStyle='rgba(11,14,18,0.85)';ctx.lineWidth=2.8;ctx.beginPath();ctx.moveTo(-3.4,yy+1.6);ctx.lineTo(0,yy-1.4);ctx.lineTo(3.4,yy+1.6);ctx.stroke();
