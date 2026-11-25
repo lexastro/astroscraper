@@ -5110,7 +5110,9 @@ function drawMawFx(){if(!S.mawFx||!S.mawFx.length)return;const B=S.base;S.mawFx=
 // Lance Graft: the Rig flies (straight, over anything) to a spot within LG_MAX, its laser burning straight down:
 // LG_DPS to everything within LG_BEAM_R of it, and a trench behind it, enemy-proof for LG_TRENCH_T. It lands in a
 // crater (a ring of LG_CRATER_N earthen walls your units can man) and can't move for LG_REST; again after LG_CD.
-const LG_CD=45, LG_SPEED=170, LG_MAX=520, LG_ALT=90, LG_BEAM_R=30, LG_DPS=420, LG_TRENCH_T=15, LG_REST=10, LG_SEG=26, LG_CRATER_R=78, LG_CRATER_N=10;
+// v4: a slow, heavy burn: LG_SPEED is crawling pace, the beam is wide and the trench LG_TRENCH_W across (it blocks
+// enemies across all of that); LG_LIFT s to climb to LG_ALT and LG_SET s to settle at the end
+const LG_CD=45, LG_SPEED=70, LG_MAX=520, LG_ALT=90, LG_BEAM_R=46, LG_DPS=260, LG_TRENCH_T=15, LG_REST=10, LG_SEG=26, LG_CRATER_R=78, LG_CRATER_N=10, LG_TRENCH_W=34, LG_LIFT=1.4, LG_SET=1.1;
 let lanceMode=false;
 function setLanceMode(on){lanceMode=on;if(on){callMode=null;probeMode=false;pingMode=false;buildMode=null}updateBuildBar()}
 function lanceWhyNot(){const B=S.base;if(!S.mods.lanceGraft)return 'no Lance Graft';if(S.landing&&!S.landing.touch)return 'still landing';if(B.lance)return 'already in flight';
@@ -5121,12 +5123,15 @@ function tryLance(){if(lanceMode){setLanceMode(false);return}const why=lanceWhyN
 function lanceAim(w){const B=S.base;let dx=w.x-B.x,dy=w.y-B.y,L=Math.hypot(dx,dy)||1;if(L>LG_MAX){dx*=LG_MAX/L;dy*=LG_MAX/L}
   let p={x:Math.max(60,Math.min(W-60,B.x+dx)),y:Math.max(60,Math.min(H-60,B.y+dy))};if(plainBlocked(p.x,p.y))p=nearestPlain(p.x,p.y);return p}
 function fireLance(w){setLanceMode(false);const why=lanceWhyNot();if(why){note('Lance Graft: '+why);return}const B=S.base,p=lanceAim(w),d=dist(B,p);if(d<40){note('Lance Graft: pick a spot further off');return}
-  B.lance={x0:B.x,y0:B.y,x1:p.x,y1:p.y,t:0,T:Math.max(1.2,d/LG_SPEED),seg:{x:B.x,y:B.y}};B.dest=null;B.queue=null;B._path=null;B._pg=null;S.lanceReady=S.t+LG_CD;
+  B.lance={x0:B.x,y0:B.y,x1:p.x,y1:p.y,t:0,T:Math.max(3,d/LG_SPEED),seg:{x:B.x,y:B.y}};B.dest=null;B.queue=null;B._path=null;B._pg=null;S.lanceReady=S.t+LG_CD;
   shakeScreen(4,0.3);sndAt(B.x,B.y,()=>sfx.wave());updateBuildBar()}
 function addTrench(a,b){const L=Math.hypot(b.x-a.x,b.y-a.y);if(L<4)return;const mx=(a.x+b.x)/2,my=(a.y+b.y)/2;if(terrainAt(mx,my)===2)return;const ux=(b.x-a.x)/L,uy=(b.y-a.y)/L;
-  const line={x0:a.x,y0:a.y,x1:b.x,y1:b.y,ux,uy,ang:Math.atan2(uy,ux),posts:[false,false],anchored:[false,false],raiseT0:S.t,slats:[],type:'std',relayRing:true,relay:null,trench:true,auto:true,end:S.t+LG_TRENCH_T};
+  const line={x0:a.x,y0:a.y,x1:b.x,y1:b.y,ux,uy,ang:Math.atan2(uy,ux),posts:[false,false],anchored:[false,false],raiseT0:S.t,slats:[],type:'std',relayRing:true,relay:null,trench:true,auto:true,end:S.t+LG_TRENCH_T,thick:LG_TRENCH_W};
+  {const hw=LG_TRENCH_W/2,nx=-uy,ny=ux,n=6,side=sg=>{const P=[];for(let i=0;i<=n;i++){const t=i/n,e=i===0?-7:i===n?7:0,w=hw*(i%2?0.55+Math.random()*0.35:0.85+Math.random()*0.45);P.push({x:a.x+ux*(L*t+e)+nx*w*sg,y:a.y+uy*(L*t+e)+ny*w*sg})}return P};
+   line.gash=side(1).concat(side(-1).reverse());line.cracks=[];
+   for(const sg of[1,-1]){const k=1+(Math.random()<0.6?1:0);for(let j=0;j<k;j++){const t=Math.random(),px=a.x+ux*L*t+nx*hw*0.8*sg,py=a.y+uy*L*t+ny*hw*0.8*sg;line.cracks.push(...lgCrack(px,py,Math.atan2(ny*sg,nx*sg)+(Math.random()-0.5)*0.9,14+Math.random()*22))}}}
   line.slats.push({x:mx,y:my,half:L/2+3,hp:1e9,maxHp:1e9,up:1,vi:0,order:0,line,kind:'wallslat'});(S.wallLines||(S.wallLines=[])).push(line);S.wallDirty=true}
-function lanceCrater(x,y){const c={x,y,crater:true,ringR:LG_CRATER_R,manCap:10,t0:S.t};(S.craters||(S.craters=[])).push(c);const n=LG_CRATER_N,R=LG_CRATER_R,P=[],hp=Math.round(wallSlatHp()*2);
+function lanceCrater(x,y){const c={x,y,crater:true,ringR:LG_CRATER_R,manCap:10,t0:S.t,cracks:crackLines(Math.random,x,y,LG_CRATER_R+46,9,6,12,0.45)};(S.craters||(S.craters=[])).push(c);const n=LG_CRATER_N,R=LG_CRATER_R,P=[],hp=Math.round(wallSlatHp()*2);
   for(let i=0;i<n;i++){const a=i/n*Math.PI*2+Math.PI/n;P.push({x:x+Math.cos(a)*R,y:y+Math.sin(a)*R})}
   for(let i=0;i<n;i++){const a=P[i],b=P[(i+1)%n],L=Math.hypot(b.x-a.x,b.y-a.y),ux=(b.x-a.x)/L,uy=(b.y-a.y)/L,mx=(a.x+b.x)/2,my=(a.y+b.y)/2;if(terrainAt(mx,my)===2)continue;
     const line={x0:a.x,y0:a.y,x1:b.x,y1:b.y,ux,uy,ang:Math.atan2(uy,ux),posts:[true,true],anchored:[true,true],raiseT0:S.t,slats:[],type:'std',relayRing:true,relay:c,crater:true,auto:true};
@@ -5137,33 +5142,61 @@ function updateLance(dt){const B=S.base,L=B.lance;
   if(S.craters&&S.craters.length)S.craters=S.craters.filter(c=>(S.wallLines||[]).some(q=>q.relay===c&&q.slats.some(sl=>!sl.dead)));
   if(!L){if(S.t<(B.lanceRest||0)&&(B.dest||B.queue)){B.dest=null;B.queue=null;if(S.t-(S._lrNote||-9)>2){S._lrNote=S.t;note(`The Rig is still cooling after the burn: ${Math.ceil(B.lanceRest-S.t)}s`)}}return}
   L.t+=dt;const u=Math.min(1,L.t/L.T),e=u*u*(3-2*u);B.x=L.x0+(L.x1-L.x0)*e;B.y=L.y0+(L.y1-L.y0)*e;B.dest=null;B.queue=null;
-  B._alt=LG_ALT*Math.min(1,L.t/0.5)*Math.min(1,(L.T-L.t)/0.5+0.15);
+  B._alt=LG_ALT*Math.min(1,L.t/LG_LIFT)*Math.min(1,(L.T-L.t)/LG_SET+0.15);
   S.enemies.forEach(q=>{if(q.hp<=0||q.megaGlass||q.burrowed)return;if(dist(q,B)<LG_BEAM_R+(q.kind==='nest'?q.r*0.5:(q.r||8)))damageEnemy(q,LG_DPS*dt)});
-  if(Math.random()<dt*30)burst(B.x+rnd(-8,8),B.y+rnd(-6,6),Math.random()<0.5?'#ff5a3a':'#ffd08a',2,90,0.3);
+  if(Math.random()<dt*30)burst(B.x+rnd(-1,1)*LG_BEAM_R*0.6,B.y+rnd(-1,1)*LG_BEAM_R*0.5,Math.random()<0.5?'#ff5a3a':'#ffd08a',2,70,0.45);
   if(dist(B,L.seg)>=LG_SEG){addTrench(L.seg,B);L.seg={x:B.x,y:B.y}}
   if(u>=1){addTrench(L.seg,B);B._alt=0;B.lance=null;B.lanceRest=S.t+LG_REST;lanceCrater(B.x,B.y);shakeScreen(8,0.5);burst(B.x,B.y,'#ff6a3a',30,220,0.7);burst(B.x,B.y,'#3a2a22',24,160,0.9);
     sndAt(B.x,B.y,()=>sfx.explode());updateBuildBar()}}
-// the trench (a glowing scar that cools and closes) and the crater (scorched ground and a rim of thrown-up rock)
+// the trench and the crater are shattered ground, like a vein's site or a nest's: a jagged gash with cracks
+// running off its sides, lit molten from below while it's fresh and cooling to embers, and the crater's
+// floor cracked out from where the Rig came down. Cracks spread out from where they start (drawn a prefix
+// at a time) and every crack is stored with its line, so it holds still.
+function lgCrack(x,y,a,R){const L=crackLines(Math.random,0,0,R,1,4,8,0.35),ca=Math.cos(a),sa=Math.sin(a);
+  return L.map(l=>({w:l.w,pts:l.pts.map(p=>({x:x+p.x*ca-p.y*sa,y:y+p.x*sa+p.y*ca}))}))}
+function lgCrackDraw(cs,grow,hot,f,wd){if(!cs)return;wd=wd||1.6;
+  ctx.strokeStyle='rgba(8,6,6,0.9)';cs.forEach(l=>{const n=Math.min(l.pts.length,Math.max(2,Math.ceil(l.pts.length*grow)));ctx.globalAlpha=f;ctx.lineWidth=wd*l.w;crackPath(l.pts,n);ctx.stroke()});
+  if(hot<=0.02)return;ctx.save();ctx.globalCompositeOperation='lighter';
+  cs.forEach(l=>{const n=Math.min(l.pts.length,Math.max(2,Math.ceil(l.pts.length*grow)));crackPath(l.pts,n);
+    ctx.globalAlpha=f*hot*0.55;ctx.strokeStyle='#ff5a2a';ctx.lineWidth=2.6*l.w*wd/1.6;ctx.stroke();
+    ctx.globalAlpha=f*hot*hot;ctx.strokeStyle='#ffd8a0';ctx.lineWidth=0.8*l.w;ctx.stroke()});ctx.restore()}
 function drawLanceScars(){const Ls=(S.wallLines||[]).filter(q=>q.trench);
-  if(Ls.length){ctx.save();ctx.lineCap='round';
-    Ls.forEach(q=>{const f=Math.min(1,(q.end-S.t)/2.5);if(f<=0)return;
-      ctx.globalAlpha=f;ctx.strokeStyle='rgba(18,8,6,0.92)';ctx.lineWidth=18;ctx.beginPath();ctx.moveTo(q.x0,q.y0);ctx.lineTo(q.x1,q.y1);ctx.stroke();
-      ctx.strokeStyle='rgba(60,24,14,0.9)';ctx.lineWidth=11;ctx.stroke()});
+  if(Ls.length){ctx.save();ctx.lineCap='round';ctx.lineJoin='round';
+    Ls.forEach(q=>{const f=Math.min(1,(q.end-S.t)/2.5);if(f<=0||!q.gash)return;const age=S.t-q.raiseT0;
+      ctx.globalAlpha=f;ctx.fillStyle='rgba(14,8,6,0.94)';ctx.beginPath();q.gash.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.closePath();ctx.fill();
+      ctx.strokeStyle='rgba(70,52,44,0.55)';ctx.lineWidth=1.2;ctx.stroke();
+      lgCrackDraw(q.cracks,Math.min(1,age/0.9),Math.max(0.2,1-age/5),f)});
     ctx.globalCompositeOperation='lighter';
-    Ls.forEach(q=>{const f=Math.min(1,(q.end-S.t)/2.5),hot=Math.max(0.28,1-(S.t-q.raiseT0)/3);if(f<=0)return;
-      ctx.globalAlpha=f*hot;ctx.strokeStyle='#ff5a2a';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(q.x0,q.y0);ctx.lineTo(q.x1,q.y1);ctx.stroke();
-      ctx.globalAlpha=f*hot*hot;ctx.strokeStyle='#ffd8a0';ctx.lineWidth=1.6;ctx.stroke()});ctx.restore()}
+    // the molten floor: pieces grouped by how hot they are, each group stroked as one path so the joins don't double up
+    {const grp=new Map();Ls.forEach(q=>{const f=Math.min(1,(q.end-S.t)/2.5),hot=Math.max(0.22,1-(S.t-q.raiseT0)/5);if(f<=0)return;const k=Math.round(f*hot*10);(grp.get(k)||grp.set(k,[]).get(k)).push(q)});
+     grp.forEach((qs,k)=>{const a=k/10,path=()=>{ctx.beginPath();qs.forEach(q=>{ctx.moveTo(q.x0,q.y0);ctx.lineTo(q.x1,q.y1)})};path();
+       ctx.globalAlpha=a*0.45;ctx.strokeStyle='#ff4a1a';ctx.lineWidth=LG_TRENCH_W*0.5;ctx.stroke();
+       ctx.globalAlpha=a;ctx.strokeStyle='#ff7a3a';ctx.lineWidth=4;ctx.stroke();
+       ctx.globalAlpha=a*a;ctx.strokeStyle='#ffd8a0';ctx.lineWidth=1.4;ctx.stroke()})}
+    ctx.restore()}
   (S.craters||[]).forEach(c=>{const age=S.t-c.t0;ctx.save();const g=ctx.createRadialGradient(c.x,c.y,0,c.x,c.y,c.ringR+10);g.addColorStop(0,'rgba(10,6,5,0.75)');g.addColorStop(0.75,'rgba(30,20,16,0.55)');g.addColorStop(1,'rgba(30,20,16,0)');
     ctx.fillStyle=g;ctx.beginPath();ctx.ellipse(c.x,c.y,c.ringR+10,(c.ringR+10)*0.9,0,0,Math.PI*2);ctx.fill();
+    ctx.lineCap='round';ctx.lineJoin='round';lgCrackDraw(c.cracks,Math.min(1,age/1.2),Math.max(0.12,1-age/8),1,2);
     if(age<6){ctx.globalCompositeOperation='lighter';ctx.globalAlpha=0.5*(1-age/6);const h=ctx.createRadialGradient(c.x,c.y,0,c.x,c.y,c.ringR*0.7);h.addColorStop(0,'#ff7a3a');h.addColorStop(1,'rgba(255,90,40,0)');ctx.fillStyle=h;ctx.beginPath();ctx.arc(c.x,c.y,c.ringR*0.7,0,Math.PI*2);ctx.fill()}
     ctx.restore()});
-  const Rs=(S.wallLines||[]).filter(q=>q.crater);if(!Rs.length)return;ctx.save();ctx.lineCap='round';
-  Rs.forEach(q=>q.slats.forEach(sl=>{if(sl.dead)return;const d=1-sl.hp/sl.maxHp,ax=sl.x-q.ux*sl.half,ay=sl.y-q.uy*sl.half,bx=sl.x+q.ux*sl.half,by=sl.y+q.uy*sl.half;
-    ctx.strokeStyle='rgba(0,0,0,0.35)';ctx.lineWidth=15;ctx.beginPath();ctx.moveTo(ax+3,ay+4);ctx.lineTo(bx+3,by+4);ctx.stroke();
-    ctx.strokeStyle=d>0.5?'#4a3a30':'#5e4a3c';ctx.lineWidth=13;ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);ctx.stroke();
-    ctx.strokeStyle='#8a715c';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(ax,ay-4);ctx.lineTo(bx,by-4);ctx.stroke();
-    if(sl.flashT>0){ctx.strokeStyle='rgba(255,255,255,0.5)';ctx.lineWidth=13;ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);ctx.stroke()}
-    const rr=seededRng(sl.vi*31+7);ctx.fillStyle='#6e5a4a';for(let k=0;k<4;k++){const f=rr(),x=ax+(bx-ax)*f+(rr()-0.5)*8,y=ay+(by-ay)*f+(rr()-0.5)*8-3;ctx.beginPath();ctx.arc(x,y,2+rr()*2.5,0,Math.PI*2);ctx.fill()}}));
+  // the crater's walls: slabs of ground heaved up on edge, broken into jagged glassy shards, glowing in their
+  // seams while fresh and cracking further as they're hit
+  const Rs=(S.wallLines||[]).filter(q=>q.crater);if(!Rs.length)return;ctx.save();ctx.lineJoin='round';ctx.lineCap='round';
+  Rs.forEach(q=>q.slats.forEach(sl=>{if(sl.dead)return;const d=1-sl.hp/sl.maxHp,ux=q.ux,uy=q.uy,ax=sl.x-ux*sl.half,ay=sl.y-uy*sl.half,bx=sl.x+ux*sl.half,by=sl.y+uy*sl.half;
+    const age=S.t-q.raiseT0,rise=Math.min(1,age/0.5),hot=Math.max(0,1-age/6),rr=seededRng(sl.vi*31+7),cx=q.relay?q.relay.x:sl.x,cy=q.relay?q.relay.y:sl.y;
+    const nl=Math.hypot(sl.x-cx,sl.y-cy)||1,nx=(sl.x-cx)/nl,ny=(sl.y-cy)/nl;
+    ctx.globalAlpha=1;ctx.strokeStyle='rgba(0,0,0,0.4)';ctx.lineWidth=14;ctx.beginPath();ctx.moveTo(ax+3,ay+4);ctx.lineTo(bx+3,by+4);ctx.stroke();
+    ctx.strokeStyle='#15191e';ctx.lineWidth=10;ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);ctx.stroke();
+    const N=5;for(let k=0;k<N;k++){const f=(k+0.5)/N+(rr()-0.5)*0.08,px=ax+(bx-ax)*f+nx*(rr()-0.5)*5,py=ay+(by-ay)*f+ny*(rr()-0.5)*5,w=sl.half*2/N*(0.75+rr()*0.5),h=(9+rr()*12)*rise*(1-0.35*d),lean=(rr()-0.5)*6+nx*3;
+      const l={x:px-ux*w*0.6,y:py-uy*w*0.6+2},r={x:px+ux*w*0.6,y:py+uy*w*0.6+2},t={x:px+lean,y:py-h},m={x:px+lean*0.4+ux*w*0.12,y:py-h*0.45};
+      ctx.fillStyle=d>0.5?'#262c33':'#2e3740';ctx.beginPath();ctx.moveTo(l.x,l.y);ctx.lineTo(t.x,t.y);ctx.lineTo(r.x,r.y);ctx.closePath();ctx.fill();
+      ctx.fillStyle=d>0.5?'#3a434d':'#4a5866';ctx.beginPath();ctx.moveTo(l.x,l.y);ctx.lineTo(t.x,t.y);ctx.lineTo(m.x,m.y);ctx.closePath();ctx.fill();
+      ctx.strokeStyle='rgba(170,195,214,0.55)';ctx.lineWidth=0.7;ctx.beginPath();ctx.moveTo(l.x,l.y);ctx.lineTo(t.x,t.y);ctx.lineTo(r.x,r.y);ctx.stroke();
+      // seams up the shard: molten while fresh, then dark cracks (more of them as it's hurt)
+      const cs=1+Math.floor(d*3);for(let j=0;j<cs;j++){const s0=0.2+rr()*0.6,x0=l.x+(r.x-l.x)*s0,y0=l.y+(r.y-l.y)*s0,k2=0.4+rr()*0.4,x1=x0+(t.x-x0)*k2+(rr()-0.5)*3,y1=y0+(t.y-y0)*k2;
+        if(hot>0.02){ctx.save();ctx.globalCompositeOperation='lighter';ctx.globalAlpha=hot;ctx.strokeStyle='#ff7a3a';ctx.lineWidth=1.4;ctx.beginPath();ctx.moveTo(x0,y0);ctx.lineTo(x1,y1);ctx.stroke();ctx.restore()}
+        if(d>0.12||hot<=0.02){ctx.strokeStyle='rgba(8,10,12,0.85)';ctx.lineWidth=0.7;ctx.beginPath();ctx.moveTo(x0,y0);ctx.lineTo(x1,y1);ctx.stroke()}}}
+    if(sl.flashT>0){ctx.strokeStyle='rgba(255,255,255,0.45)';ctx.lineWidth=14;ctx.beginPath();ctx.moveTo(ax,ay-6);ctx.lineTo(bx,by-6);ctx.stroke()}}));
   ctx.restore()}
 function spawnEnemy(x,y,kind,opts){
   const core=(opts&&opts.core)||bandAt(x,y)==='core';
@@ -9292,12 +9325,21 @@ function drawRigTower(B){const dt=Math.max(0,Math.min(0.1,S.t-(B._rt??S.t)));B._
   const onRift=terrainAt(B.x,B.y)===RIFT;
   B._dep=B.legDep??1; // the legs are driven by the game (update), not by the drawing
   app('_plant',B.locked?1:0,1.2);app('_charge',B.locked?1:0,0.9);
-  const v=S.activeVein,drilling=!!(B.locked&&v&&v.meter&&v.meter.phase==='drill'&&!v.paused&&dist(B,v.mine||v)<BASE_R+40);app('_laser',drilling||B.lance?1:0,B.lance?6:2.5);laserSound(B._laser);
+  const v=S.activeVein,drilling=!!(B.locked&&v&&v.meter&&v.meter.phase==='drill'&&!v.paused&&dist(B,v.mine||v)<BASE_R+40);app('_laser',drilling||B.lance?1:0,B.lance?2.2:2.5);laserSound(B._laser);
   const sq=B._touchT?Math.min(1,(performance.now()-B._touchT)/500):1,dep=B._dep*B._dep*(3-2*B._dep),hov=(1-dep)*(RIG_HOV+Math.sin(S.t*2.2)*1.4)+(B._alt||0)-(sq<1?Math.sin(Math.PI*sq)*(1-sq)*5:0);B._hov=hov;
   SKO.x=B.x;SKO.y=B.y;SKO.s=1;SKO.lean=[0,0];SKO.shk=[0,0];
   if(B._laser>0.02){const col=B.lance?'#ff4a2a':v?veinEnergy(v).col:'#be64ff',P=skPJ([0,0,0]);ctx.save();ctx.globalCompositeOperation='lighter';
     const g=ctx.createRadialGradient(P[0],P[1],0,P[0],P[1],30);g.addColorStop(0,col);g.addColorStop(1,'rgba(0,0,0,0)');ctx.globalAlpha=0.3*B._laser;ctx.fillStyle=g;ctx.beginPath();ctx.ellipse(P[0],P[1],30,27,0,0,Math.PI*2);ctx.fill();
-    ctx.globalAlpha=0.4*B._laser;ctx.strokeStyle='#ffc878';ctx.lineWidth=1;for(let k=0;k<2;k++){const f=(S.t*0.6+k/2)%1;ctx.globalAlpha=0.4*B._laser*(1-f);ctx.beginPath();ctx.ellipse(P[0],P[1],4+f*20,(4+f*20)*0.9,0,0,Math.PI*2);ctx.stroke()}ctx.restore()}
+    ctx.globalAlpha=0.4*B._laser;ctx.strokeStyle='#ffc878';ctx.lineWidth=1;for(let k=0;k<2;k++){const f=(S.t*0.6+k/2)%1;ctx.globalAlpha=0.4*B._laser*(1-f);ctx.beginPath();ctx.ellipse(P[0],P[1],4+f*20,(4+f*20)*0.9,0,0,Math.PI*2);ctx.stroke()}
+    if(B.lance){const Rb=LG_BEAM_R,g2=ctx.createRadialGradient(P[0],P[1],0,P[0],P[1],Rb*1.35);g2.addColorStop(0,'#ffb070');g2.addColorStop(0.45,'rgba(255,74,30,0.55)');g2.addColorStop(1,'rgba(0,0,0,0)');
+      ctx.globalAlpha=0.55*B._laser;ctx.fillStyle=g2;ctx.beginPath();ctx.ellipse(P[0],P[1],Rb*1.35,Rb*1.2,0,0,Math.PI*2);ctx.fill();
+      // the ground splitting under the beam: a star of molten cracks that spreads out, then breaks anew
+      if(!B._lfx||S.t-B._lfx.t0>0.7)B._lfx={t0:S.t,c:crackLines(Math.random,0,0,Rb*1.5,7,5,9,0.35)};
+      const gr=Math.min(1,(S.t-B._lfx.t0)/0.45),fl=0.75+0.25*Math.random();ctx.lineCap='round';
+      B._lfx.c.forEach(l=>{const n=Math.min(l.pts.length,Math.max(2,Math.ceil(l.pts.length*gr)));ctx.beginPath();for(let k=0;k<n;k++){const p=l.pts[k];k?ctx.lineTo(P[0]+p.x,P[1]+p.y*0.9):ctx.moveTo(P[0]+p.x,P[1]+p.y*0.9)}
+        ctx.globalAlpha=0.6*B._laser*fl;ctx.strokeStyle='#ff5a2a';ctx.lineWidth=3*l.w;ctx.stroke();ctx.globalAlpha=0.9*B._laser*fl;ctx.strokeStyle='#ffe0b0';ctx.lineWidth=1*l.w;ctx.stroke()});
+      for(let k=0;k<3;k++){const f=(S.t*0.45+k/3)%1;ctx.globalAlpha=0.5*B._laser*(1-f);ctx.strokeStyle='#ff8a4a';ctx.lineWidth=1.6;ctx.beginPath();ctx.ellipse(P[0],P[1],Rb*(0.3+f),Rb*(0.3+f)*0.9,0,0,Math.PI*2);ctx.stroke()}}
+    ctx.restore()}
   if(hov>0.5)skGlow([0,0,0.4],34,'#8fe3ff',0.16*(1-dep));
   if(S.mods.riftShield&&onRift){const P=skPJ([0,0,0]),low=(B.riftSan??1)<0.25;ctx.save();ctx.globalCompositeOperation='lighter';ctx.lineWidth=1.4;
     for(let i=0;i<3;i++){const rr=40*(0.55+i*0.22);ctx.setLineDash([6,5]);ctx.lineDashOffset=S.t*(i%2?-16:16);ctx.strokeStyle=`rgba(${i%2?'190,100,255':'143,227,255'},${(0.5-i*0.1)*(low&&Math.random()<0.5?0.15:1)})`;ctx.beginPath();ctx.ellipse(P[0],P[1],rr,rr*0.9,0,0,Math.PI*2);ctx.stroke()}ctx.restore()}
@@ -10178,14 +10220,14 @@ function wallAt(x,y,foe){
   if(S.wallDirty||!S.wallGrid)rebuildWallGrid();
   const b=S.wallGrid.get(key(Math.floor(x/WALL_GRID),Math.floor(y/WALL_GRID)));if(!b)return undefined;
   for(const sl of b){if(sl.dead||sl.up<0.6||sl.downT>0)continue;const L=sl.line;if(L.type==='shield'&&!L.powered)continue;if(foe&&L.powered===false)continue;const rx=x-sl.x,ry=y-sl.y,al=rx*L.ux+ry*L.uy,pp=rx*-L.uy+ry*L.ux;
-    if(Math.abs(al)<=sl.half+2&&Math.abs(pp)<=WALL_THICK/2+(L.type==='heavy'?5:3))return sl}
+    if(Math.abs(al)<=sl.half+2&&Math.abs(pp)<=(L.thick||WALL_THICK)/2+(L.type==='heavy'?5:3))return sl}
   return undefined;
 }
 // slats bucketed on a coarse grid (each into every cell its footprint touches) so wallAt stays cheap
 const WALL_GRID=40;
 function rebuildWallGrid(){
   const g=new Map();S.wallDirty=false;S.wallGrid=g;
-  (S.wallLines||[]).forEach(L=>L.slats.forEach(sl=>{if(sl.dead)return;const r=sl.half+WALL_THICK;
+  (S.wallLines||[]).forEach(L=>L.slats.forEach(sl=>{if(sl.dead)return;const r=sl.half+(L.thick||WALL_THICK);
     for(let gx=Math.floor((sl.x-r)/WALL_GRID);gx<=Math.floor((sl.x+r)/WALL_GRID);gx++)for(let gy=Math.floor((sl.y-r)/WALL_GRID);gy<=Math.floor((sl.y+r)/WALL_GRID);gy++){const k=key(gx,gy);if(!g.has(k))g.set(k,[]);g.get(k).push(sl)}}));
 }
 function damageWall(w,dmg){w.hitT=S.t;const L=w.line;if(L&&L.trench)return;
