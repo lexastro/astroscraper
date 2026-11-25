@@ -3161,6 +3161,7 @@ function bandAt(x,y){if(STOP_BAND)return STOP_SPLIT&&splitRim(x,y)?'rim':STOP_BA
 
 function mkTroop(id,kind){kind=kind||'troop';const baseHp=kind==='artillery'?ARTY_HP:kind==='grenadier'?GREN_HP:kind==='mech'?MECH_HP:kind==='rocket'?ROCKET_HP:kind==='brawler'?BRAWL_HP:kind==='marksman'?MARK_HP:70;const hp=Math.round(baseHp*unitHpMult());const r=kind==='artillery'?ARTY_R:kind==='mech'?MECH_R:kind==='rocket'?ROCKET_R:kind==='brawler'?BRAWL_R:kind==='marksman'?MARK_R:TROOP_R;return {id,kind,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp,maxHp:hp,r,dest:null,target:null,state:'idle',cd:0,ang:-Math.PI/2,mechSide:false,tetherOk:true,severed:false,sanity:SANITY_MAX,trail:null,cableHp:0,cableLen:0,cableMaxed:false,following:false,followAng:0,followDist:0}}
 function mkHarv(id){return {id,x:S.base.x+rnd(-60,60),y:S.base.y+rnd(-60,60),hp:50,maxHp:50,r:HARV_R,dest:null,node:null,carry:0,state:'idle',autoLoop:true,hv:0,tetherOk:true,severed:false,sanity:SANITY_MAX,trail:null,cableHp:0,cableLen:0,cableMaxed:false,following:false,followAng:0,followDist:0}}
+const DRONE_PICK_R=6; // v4: how close a repair drone has to pass over dropped Dat to scoop it up (plus the pickup bonus)
 function mkDrone(){const a=rnd(0,Math.PI*2);return {x:S.base.x+Math.cos(a)*20,y:S.base.y+Math.sin(a)*20,orbit:a,orbitR:rnd(18,30),idleZ:rnd(55,120),target:null,state:'dock',ang:a,beamT:0}}
 function addDrones(n){for(let i=0;i<n;i++)S.drones.push(mkDrone())}
 function mkBuilder(id){return {id,x:S.base.x+rnd(-30,30),y:S.base.y+rnd(-30,30),hp:40,maxHp:40,r:BUILDER_R,dest:null,state:'idle',autoRepair:true,target:null,tetherOk:true,severed:false,sanity:SANITY_MAX,trail:null,cableHp:0,cableLen:0,cableMaxed:false,following:false,followAng:0,followDist:0}}
@@ -10144,7 +10145,7 @@ function updateDrones(dt){
     }
     // nothing to repair: go and fetch a dropped Dat Crystal that no other drone is already after
     if(!d.target){
-      if(d.loot&&!(d.loot.amt>0)&&!S.shards.includes(d.loot))d.loot=null;
+      if(d.loot&&!S.shards.includes(d.loot)&&!(S.nodes.includes(d.loot)&&d.loot.amt>0))d.loot=null;
       if(d.loot&&dist(d.loot,B)>DRONE_SCAVENGE_R)d.loot=null;
       if(!d.loot){
         const claimed=new Set(S.drones.map(o=>o.loot).filter(Boolean));let best=null,bs=Infinity;
@@ -12151,12 +12152,14 @@ function update(dt){
   // v4: units within the Rig's ring slowly mend (the Rig only — Relays don't do this)
   S.troops.concat(S.harvesters).forEach(u=>{if(u.hp>0&&u.hp<u.maxHp&&dist(u,B)<=UNIT_REGEN_R)u.hp=Math.min(u.maxHp,u.hp+u.maxHp*UNIT_REGEN_PCT*dt)});
   // Dat Crystal shards dropped by dead enemies — any unit walking over one scoops it up straight
-  // into the stockpile, no trip back to the Rig needed.
+  // into the stockpile, no trip back to the Rig needed. v4: repair drones out of the Rig scoop up any they
+  // fly over too, so Dat gets picked up on the way to and from repairs.
   if(S.shards.length){
-    const looters=S.troops.concat(S.harvesters).concat(S.builders);
+    const looters=S.troops.concat(S.harvesters).concat(S.builders).concat(S.drones.filter(d=>!d.hidden&&dist(d,B)>B.r));
+    const reach=u=>(u.r||DRONE_PICK_R)+10*pickupRangeMult();
     S.shards=S.shards.filter(sh=>{
-      const got=looters.some(u=>dist(u,sh)<u.r+10*pickupRangeMult());
-      if(got){S.dat+=sh.amt;floatText(sh.x,sh.y-10,'+'+sh.amt,C.dat);sndAt(sh.x,sh.y,()=>sfx.gather());datPickupFx(sh,sh.amt,looters.find(u=>dist(u,sh)<u.r+10*pickupRangeMult()));updateBuildBar()}
+      const got=looters.some(u=>dist(u,sh)<reach(u));
+      if(got){S.dat+=sh.amt;floatText(sh.x,sh.y-10,'+'+sh.amt,C.dat);sndAt(sh.x,sh.y,()=>sfx.gather());datPickupFx(sh,sh.amt,looters.find(u=>dist(u,sh)<reach(u)));updateBuildBar()}
       return !got;
     });
   }
