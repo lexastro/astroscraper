@@ -2222,7 +2222,7 @@ const UPGRADES={
     {id:'fracRounds',name:'Fracture Rounds',desc:'Grenade and rocket blasts that kill leave a patch of glass caltrops: enemies in it are slowed and cut. <b>Price:</b> your own units are slowed by it too.',has:()=>!!S.mods.fracRounds,apply:()=>{S.mods.fracRounds=true;bloodTaken()}},
     {id:'broodPact',name:'Brood Pact',get desc(){return `Now and then an enemy killed near your units rises as a crimson brood thrall that fights for you for ${BP_T} s. <b>Price:</b> each one that rises drains Sanity from your nearest unit.`},has:()=>!!S.mods.broodPact,apply:()=>{S.mods.broodPact=true;bloodTaken()}},
     {id:'hiveMaw',name:'Hive Maw',desc:'The Rig grows a maw: enemies right up against it get bitten, and every bite heals the Rig. <b>Price:</b> enemies near the Rig go for it first.',has:()=>!!S.mods.hiveMaw,apply:()=>{S.mods.hiveMaw=true;bloodTaken()}},
-    {id:'lanternHeart',name:'Lantern Heart',get desc(){return `The Rig grafts on a Lantern's heart. A Lantern beam that hits the Rig is soaked up instead of hurting it and fills the Heart's tank (${HEART_BEAMS} beams). Once it's full, fire it (button or K): set a radius round the Rig and a beam from its head sweeps a ring of fire at that distance, burning everything it crosses for ${HEART_DMG} and scorching a trench in the ground. <b>Price:</b> while the Heart is filling, Lanterns go for the Rig first.`},has:()=>!!S.mods.lanternHeart,apply:()=>{S.mods.lanternHeart=true;bloodTaken();updateBuildBar()}},
+    {id:'lanternHeart',name:'Lantern Heart',get desc(){return `The Rig grafts on a Lantern's heart. A Lantern beam that hits the Rig is soaked up instead of hurting it and fills the Heart's tank (${HEART_BEAMS} beams). Any other damage the Rig takes fills it too, more slowly. Once it's full, fire it (button or K): set a radius round the Rig and a beam from its head sweeps a ring of fire at that distance, burning everything it crosses for ${HEART_DMG} and scorching a trench in the ground. <b>Price:</b> while the Heart is filling, Lanterns go for the Rig first.`},has:()=>!!S.mods.lanternHeart,apply:()=>{S.mods.lanternHeart=true;bloodTaken();updateBuildBar()}},
     {id:'lanceGraft',name:'Lance Graft',get desc(){return `The Rig can take off (button or J): it flies to a spot with its laser burning straight down, doing huge damage to anything under the beam, and cuts a trench behind it that enemies can't cross for ${LG_TRENCH_T} s (your units can). Where it lands it leaves a crater your units can man. Recharges in ${LG_CD} s. <b>Price:</b> after landing the Rig can't move for ${LG_REST} s.`},has:()=>!!S.mods.lanceGraft,apply:()=>{S.mods.lanceGraft=true;bloodTaken();updateBuildBar()}},
   ],
 };
@@ -5162,6 +5162,8 @@ function drawMawFx(){if(!S.mawFx||!S.mawFx.length)return;const B=S.base;S.mawFx=
 // ring round the Rig over HEART_SWEEP, a little irregular, HEART_DMG to every enemy it crosses (once each, within
 // HEART_W), scoring the Lance's trench into the ground (no wall). While it fills, Lanterns within HEART_PULL go
 // for the Rig.
+// any other damage the Rig takes also fills it: HEART_FILL_HP of it fills the tank (8 Lantern beams are ~180)
+const HEART_FILL_HP=400;
 const HEART_BEAMS=8, HEART_DMG=240, HEART_W=20, HEART_RMIN=70, HEART_RMAX=340, HEART_OPEN=0.6, HEART_SWEEP=2.6, HEART_CLOSE=0.6, HEART_SEG=26, HEART_PULL=600;
 const HEART_PZ=140, HEART_PANEL_A=[-Math.PI/2,Math.PI/6,Math.PI*5/6], HEART_TANK_A=Math.PI/2-0.6, HEART_TANK=[66,122,4.8];
 const HEART_HOT='#ff3a24';
@@ -5170,7 +5172,7 @@ const heartAngD=(a,b)=>Math.abs(Math.atan2(Math.sin(a-b),Math.cos(a-b)));
 const heartTankR=()=>RIG_R+6.2+(S.mods.heavyArmour?2.5:0);
 function setHeartMode(on){heartMode=on;if(on){lanceMode=false;callMode=null;probeMode=false;pingMode=false;buildMode=null}updateBuildBar()}
 function heartWhyNot(){const B=S.base;if(!S.mods.lanternHeart)return 'no Lantern Heart';if(S.landing&&!S.landing.touch)return 'still landing';if(B.hfire)return 'already firing';
-  if(B.lance)return 'the Rig is in flight';const n=Math.round((B.heart||0)*HEART_BEAMS);if(n<HEART_BEAMS)return `not full yet: ${n}/${HEART_BEAMS} Lantern beams soaked up`;return null}
+  if(B.lance)return 'the Rig is in flight';if((B.heart||0)<1-1e-6)return `not full yet: ${Math.floor((B.heart||0)*100)}%`;return null}
 function tryHeart(){if(heartMode){setHeartMode(false);return}const why=heartWhyNot();if(why){note('Lantern Heart: '+why);return}
   setHeartMode(true);note('Move to set the radius, click to fire: the beam sweeps one ring round the Rig · Esc cancels');sfx.click()}
 function heartR(w){return Math.max(HEART_RMIN,Math.min(HEART_RMAX,dist(S.base,w)))}
@@ -5190,21 +5192,25 @@ function heartAim(hf,th){const B=S.base,dev=Math.min(HEART_DEV,hf.R*0.3),c=[];
 function heartPt(hf,th,r){const B=S.base;r=r??hf.R;
   return {x:Math.max(4,Math.min(W-4,B.x+Math.cos(th)*r)),y:Math.max(4,Math.min(H-4,B.y+Math.sin(th)*r))}}
 // a Lantern's beam reaching the Rig: soaked up if the Heart has room. Returns where it landed (world, as drawn).
+function heartAdd(k){const B=S.base,was=B.heart||0;B.heart=Math.min(1,was+k);
+  if(was<1-1e-6&&B.heart>=1-1e-6){B.heart=1;sndAt(B.x,B.y,()=>{tone(330,0.18,'sine',0.05,0.25);tone(495,0.3,'sine',0.05,0.38)});note('Lantern Heart is full: press K to set a radius and fire')}
+  if(Math.floor(was*100)!==Math.floor(B.heart*100))updateBuildBar()}
 function heartSoak(e){const B=S.base;if(!S.mods.lanternHeart||B.hfire||(B.heart||0)>=1-1e-6)return null;
-  B.heart=Math.min(1,(B.heart||0)+1/HEART_BEAMS);
+  heartAdd(1/HEART_BEAMS);
   const a=Math.atan2(e.y-B.y,e.x-B.x),z=72+Math.random()*70;let p=null;
   for(const pa of HEART_PANEL_A)if(heartAngD(pa,a)<0.5){p=[Math.cos(pa)*22,Math.sin(pa)*22,HEART_PZ-5+Math.random()*10];break}
   if(!p&&heartAngD(HEART_TANK_A,a)<0.4&&z>HEART_TANK[0]&&z<HEART_TANK[1]){const r=heartTankR()+HEART_TANK[2]*0.8;p=[Math.cos(HEART_TANK_A)*r,Math.sin(HEART_TANK_A)*r,z]}
   if(!p){const r=RIG_R*(1-0.1*Math.max(0,Math.min(1,(z-40)/110)))+0.6;p=[Math.cos(a)*r,Math.sin(a)*r,z]}
   (B.heartHits||(B.heartHits=[])).push({t:S.t,p});
   sndAt(B.x,B.y,()=>{tone(170,0.3,'sine',0.07,0,360);tone(520,0.14,'triangle',0.02,0.04,900)});
-  if(B.heart>=1-1e-6){B.heart=1;sndAt(B.x,B.y,()=>{tone(330,0.18,'sine',0.05,0.25);tone(495,0.3,'sine',0.05,0.38)});note('Lantern Heart is full: press K to set a radius and fire')}
   updateBuildBar();const hv=B._hov||0;return {x:B.x+p[0],y:B.y+p[1]-(p[2]+hv)*SK_TILT}}
 function heartScar(a,b){const L=Math.hypot(b.x-a.x,b.y-a.y);if(L<4)return;if(terrainAt((a.x+b.x)/2,(a.y+b.y)/2)===2)return;const ux=(b.x-a.x)/L,uy=(b.y-a.y)/L;
   const line={x0:a.x,y0:a.y,x1:b.x,y1:b.y,ux,uy,ang:Math.atan2(uy,ux),raiseT0:S.t,end:S.t+LG_TRENCH_T,thick:LG_TRENCH_W,k:(S._lgK=(S._lgK||0)+1),heart:true};
   lgGash(line,a,L,ux,uy);(S.heartScars||(S.heartScars=[])).push(line)}
 function heartSegD(q,a,b){const dx=b.x-a.x,dy=b.y-a.y,l2=dx*dx+dy*dy;let t=l2?((q.x-a.x)*dx+(q.y-a.y)*dy)/l2:0;t=Math.max(0,Math.min(1,t));return Math.hypot(q.x-a.x-dx*t,q.y-a.y-dy*t)}
 function heartStep(dt){const B=S.base;
+  // the Rig's health dropping (any damage but a soaked beam, which doesn't hurt it) fills the Heart slowly
+  if(S.mods.lanternHeart){if(B._hhp!=null&&B.hp<B._hhp&&!B.hfire)heartAdd((B._hhp-B.hp)/HEART_FILL_HP);B._hhp=B.hp}
   if(S.heartScars&&S.heartScars.some(q=>q.end<S.t))S.heartScars=S.heartScars.filter(q=>q.end>=S.t);
   if(B.heartHits&&B.heartHits.length)B.heartHits=B.heartHits.filter(h=>S.t-h.t<0.6);
   const hf=B.hfire;if(!hf)return;hf.t+=dt;B.dest=null;B.queue=null;
@@ -8750,9 +8756,9 @@ function updateBuildBar(){
   {const lb=document.getElementById('bLance');if(lb){lb.hidden=!S.mods.lanceGraft;if(S.mods.lanceGraft){const B=S.base,rest=Math.max(0,(B.lanceRest||0)-S.t),cd=Math.max(0,(S.lanceReady||0)-S.t);
     lb.classList.toggle('on',lanceMode);lb.classList.toggle('dry',!!(B.lance||cd>0||rest>0||B.locked));document.getElementById('bLanceLabel')._tc=lanceMode?'Aim…':B.lance?'Flying…':'Lance';
     document.getElementById('cLance')._tc=B.lance?'':rest>0?`rest ${Math.ceil(rest)}s`:cd>0?`${Math.ceil(cd)}s`:'ready'}}}
-  {const hb=document.getElementById('bHeart');if(hb){hb.hidden=!S.mods.lanternHeart;if(S.mods.lanternHeart){const B=S.base,n=Math.round((B.heart||0)*HEART_BEAMS);
-    hb.classList.toggle('on',heartMode);hb.classList.toggle('dry',!!(B.hfire||n<HEART_BEAMS||B.lance));document.getElementById('bHeartLabel')._tc=heartMode?'Aim…':B.hfire?'Firing…':'Heart';
-    document.getElementById('cHeart')._tc=B.hfire?'':n>=HEART_BEAMS?'ready':`${n}/${HEART_BEAMS}`}}}
+  {const hb=document.getElementById('bHeart');if(hb){hb.hidden=!S.mods.lanternHeart;if(S.mods.lanternHeart){const B=S.base,full=(B.heart||0)>=1-1e-6;
+    hb.classList.toggle('on',heartMode);hb.classList.toggle('dry',!!(B.hfire||!full||B.lance));document.getElementById('bHeartLabel')._tc=heartMode?'Aim…':B.hfire?'Firing…':'Heart';
+    document.getElementById('cHeart')._tc=B.hfire?'':full?'ready':`${Math.floor((B.heart||0)*100)}%`}}}
   const pgb=document.getElementById('bPing');
   if(pgb){
     if(S.exped){const has=S.troops.some(isFR);pgb._ds=!has;pgb.classList.toggle('dry',S.frScanCd>0);pgb.classList.remove('on');
