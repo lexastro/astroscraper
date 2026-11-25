@@ -2222,7 +2222,7 @@ const UPGRADES={
     {id:'fracRounds',name:'Fracture Rounds',desc:'Grenade and rocket blasts that kill leave a patch of glass caltrops: enemies in it are slowed and cut. <b>Price:</b> your own units are slowed by it too.',has:()=>!!S.mods.fracRounds,apply:()=>{S.mods.fracRounds=true;bloodTaken()}},
     {id:'broodPact',name:'Brood Pact',get desc(){return `Now and then an enemy killed near your units rises as a crimson brood thrall that fights for you for ${BP_T} s. <b>Price:</b> each one that rises drains Sanity from your nearest unit.`},has:()=>!!S.mods.broodPact,apply:()=>{S.mods.broodPact=true;bloodTaken()}},
     {id:'hiveMaw',name:'Hive Maw',desc:'The Rig grows a maw: enemies right up against it get bitten, and every bite heals the Rig. <b>Price:</b> enemies near the Rig go for it first.',has:()=>!!S.mods.hiveMaw,apply:()=>{S.mods.hiveMaw=true;bloodTaken()}},
-    {id:'lanternHeart',name:'Lantern Heart',get desc(){return `The Rig grafts on a Lantern's heart. A Lantern beam that hits the Rig is soaked up instead of hurting it and fills the Heart's tank (${HEART_BEAMS} beams). Any other damage the Rig takes fills it too, more slowly. Once it's full, fire it (button or K): set a radius round the Rig and a beam from its head sweeps a ring of fire at that distance, burning everything it crosses for ${HEART_DMG} and scorching a trench in the ground. <b>Price:</b> while the Heart is filling, Lanterns go for the Rig first.`},has:()=>!!S.mods.lanternHeart,apply:()=>{S.mods.lanternHeart=true;bloodTaken();updateBuildBar()}},
+    {id:'lanternHeart',name:'Lantern Heart',get desc(){return `The Rig grafts on a Lantern's heart. A Lantern beam that hits the Rig is soaked up, doing only ${Math.round(HEART_SOAK_TAKE*100)}% of its damage, and fills the Heart's tank (${HEART_BEAMS} beams). Any other damage the Rig takes fills it too, more slowly. Once it's full, fire it (button or K): set a radius round the Rig and a beam from its head sweeps a ring of fire at that distance, burning everything it crosses for ${HEART_DMG} and scorching a trench in the ground. <b>Price:</b> while the Heart is filling, Lanterns go for the Rig first.`},has:()=>!!S.mods.lanternHeart,apply:()=>{S.mods.lanternHeart=true;bloodTaken();updateBuildBar()}},
     {id:'lanceGraft',name:'Lance Graft',get desc(){return `The Rig can take off (button or J): it flies to a spot with its laser burning straight down, doing huge damage to anything under the beam, and cuts a trench behind it that enemies can't cross for ${LG_TRENCH_T} s (your units can). Where it lands it leaves a crater your units can man. Recharges in ${LG_CD} s. <b>Price:</b> after landing the Rig can't move for ${LG_REST} s.`},has:()=>!!S.mods.lanceGraft,apply:()=>{S.mods.lanceGraft=true;bloodTaken();updateBuildBar()}},
   ],
 };
@@ -5164,6 +5164,8 @@ function drawMawFx(){if(!S.mawFx||!S.mawFx.length)return;const B=S.base;S.mawFx=
 // for the Rig.
 // any other damage the Rig takes also fills it: HEART_FILL_HP of it fills the tank (8 Lantern beams are ~180)
 const HEART_FILL_HP=400;
+// a soaked Lantern beam still hurts the Rig, but only HEART_SOAK_TAKE of its damage (and that part doesn't also count as filling damage)
+const HEART_SOAK_TAKE=0.35;
 const HEART_BEAMS=8, HEART_DMG=240, HEART_W=20, HEART_RMIN=70, HEART_RMAX=340, HEART_OPEN=0.6, HEART_SWEEP=2.6, HEART_CLOSE=0.6, HEART_SEG=26, HEART_PULL=600;
 const HEART_PZ=140, HEART_PANEL_A=[-Math.PI/2,Math.PI/6,Math.PI*5/6], HEART_TANK_A=Math.PI/2-0.6, HEART_TANK=[66,122,4.8];
 const HEART_HOT='#ff3a24';
@@ -6214,7 +6216,7 @@ function shardStep(e,tgt,dt){const k=e.shard;if(k==='husk')return false;
   return false}
 function lanternFire(e){const ux=Math.cos(e.ang),uy=Math.sin(e.ang),hx=e.x+ux*5.4,hy=e.y+uy*5.4,B=S.base;let L=0,ex=hx,ey=hy;
   for(;L<LANT_LEN;L+=6){ex=hx+ux*L;ey=hy+uy*L;if(ex<0||ey<0||ex>W||ey>H)break;const w=wallAt(ex,ey,true);if(w){damageWall(w,LANT_WALL_DMG);spark(ex,ey,'#8d9aa8',4);break}if(terrainAt(ex,ey)===2)break}
-  let soak=null;{const rx=B.x-hx,ry=B.y-hy,al=rx*ux+ry*uy;if(B.hp>0&&al>=0&&al<=L&&Math.abs(rx*uy-ry*ux)<BASE_R+4){const q=heartSoak(e);if(q){soak=q;L=al}}}
+  let soak=null;{const rx=B.x-hx,ry=B.y-hy,al=rx*ux+ry*uy;if(B.hp>0&&al>=0&&al<=L&&Math.abs(rx*uy-ry*ux)<BASE_R+4){const q=heartSoak(e);if(q){soak=q;L=al;const hp0=B.hp;shardHit(B,e.dmg*HEART_SOAK_TAKE,e);if(B._hhp!=null)B._hhp-=hp0-B.hp}}}
   [B].concat(S.troops,S.harvesters,S.builders,S.turrets.filter(t=>t.built),S.relays.filter(r=>r.built&&r.hp>0),S.stabs.filter(st=>st.built&&st.hp>0),S.depots.filter(de=>de.built&&de.hp>0)).forEach(u=>{if(u.hp<=0||(soak&&u===B))return;
     const rx=u.x-hx,ry=u.y-hy,al=rx*ux+ry*uy;if(al<0||al>L)return;if(Math.abs(rx*uy-ry*ux)<(u===B?BASE_R:(u.r||10))+4)shardHit(u,e.dmg,e)});
   if(soak){ex=soak.x;ey=soak.y}
