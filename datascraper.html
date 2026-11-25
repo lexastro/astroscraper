@@ -5015,9 +5015,18 @@ function swarmSweep(){const E=S.enemies,n0=E.length;
     if(!swarmTest||e.kind==='nest'||e.kind==='corrupted'||e.megaGlass||e.hp<=0){e.sw=0;continue}
     e.sw=1;if(e.kind!=='boss'){e.maxHp=Math.max(1,Math.round(e.maxHp*SWT_HP));e.hp=Math.min(e.hp,e.maxHp);if(e.lastHp!=null)e.lastHp=e.hp}
     if(e.dmg)e.dmg*=SWT_DMG;
-    if(SWT_TWIN.has(e.kind)&&!e.boss){const t={...e};for(const k in t){if(k[0]==='_')delete t[k];else if(Array.isArray(t[k]))t[k]=t[k].slice()}if(Array.isArray(t.links))t.links=[];t.sw=2;t.target=null;t.home={...e.home};
+    if(SWT_TWIN.has(e.kind)&&!e.boss&&!e.noTwin){const t={...e};for(const k in t){if(k[0]==='_')delete t[k];else if(Array.isArray(t[k]))t[k]=t[k].slice()}if(Array.isArray(t.links))t.links=[];t.sw=2;t.target=null;t.home={...e.home};
       for(let k=0;k<6;k++){const a=rnd(0,Math.PI*2),d=rnd(8,18),x=e.x+Math.cos(a)*d,y=e.y+Math.sin(a)*d;if(!plainBlocked(x,y)){t.x=x;t.y=y;break}}
       t.ang=rnd(0,Math.PI*2);if(t.seed!=null)t.seed=rnd(0,100);E.push(t)}}}
+// v4: stranded walkers (no nest left standing, no patrol, nothing to fight) just stand where they are for the
+// rest of the stop. Every STRAND_SWEEP_T seconds, past STRAND_CAP of them, the ones out of sight are cleared
+// away, farthest from the Rig first, so they can't pile up and drag the frame rate down
+const STRAND_CAP=60,STRAND_SWEEP_T=3;
+function strandSweep(){if(S.t-(S._strandT??-99)<STRAND_SWEEP_T)return;S._strandT=S.t;
+  const B=S.base,st=S.enemies.filter(e=>e.kind==='roam'&&e.hp>0&&!e.patrol&&!e.target&&!e.recall&&!(e.nest&&e.nest.hp>0&&S.enemies.includes(e.nest)));
+  if(st.length<=STRAND_CAP)return;
+  const out=st.filter(e=>!visibleNow(e)).sort((a,b)=>dist(b,B)-dist(a,B)).slice(0,st.length-STRAND_CAP);
+  if(out.length){const gone=new Set(out);S.enemies=S.enemies.filter(e=>!gone.has(e))}}
 function setSwarmTest(on){swarmTest=on;try{localStorage.setItem(SWT_KEY,on?'1':'0')}catch(e){}if(typeof dbgSwarmBtn!=='undefined')dbgSwarmBtn.textContent='Swarm test: '+(on?'on':'off');
   msg(on?'Swarm test on: twice the enemies, half their damage, 80% health (for enemies that spawn from now on)':'Swarm test off')}
 function spawnEnemy(x,y,kind,opts){
@@ -5708,7 +5717,7 @@ const SHARD={stalker:{hp:90,r:9,speed:50,dmg:10},static:{hp:22,r:6,speed:40,dmg:
 const COL_DRAW_SC=1.5;
 const SHARD_WAVE=[['stalker',0.14],['static',0.14],['husk',0.16],['lantern',0.07]],SHARD_ROAM=[['stalker',0.2],['husk',0.25],['static',0.1]];
 const STALK_REACH=30,STALK_LUNGE=0.5,STALK_CD=1.5,STATIC_HOP=46,STATIC_CD=0.6,STATIC_HUNT_R=520;
-const HUSKCORE_HP=14,HUSKCORE_SPEED=150,HUSKCORE_LIFE=9;
+const HUSKCORE_HP=14,HUSKCORE_SPEED=150,HUSKCORE_LIFE=9,HUSK_REGROW_CAP=4;
 const LANT_RANGE=300,LANT_CHARGE=1.4,LANT_LOCK=0.4,LANT_CD=2.6,LANT_LEN=440,LANT_WALL_DMG=25;
 const COL_SLAM=0.8,COL_CD=2.8,COL_SLAM_R=70,COL_WALL_DMG=45,COL_FIRST=70,COL_EVERY=80,COL_PER_VEIN=2,COL_DAT=40;
 const SMEAR_LIFE=12,SMEAR_R=17,SMEAR_SLOW=0.55,SMEAR_STEP=12;
@@ -5771,7 +5780,12 @@ function spawnHuskCore(p){const hp=Math.round(HUSKCORE_HP*(RUN?stopHpMult():1));
 function huskCoreStep(e,dt){e._enemy=true;e.life+=dt;let n=null,nd=Infinity;liveNests().forEach(q=>{const d=dist(q,e);if(d<nd){nd=d;n=q}});
   const B=S.base,to=n||{x:e.x+(e.x-B.x),y:e.y+(e.y-B.y)},aim=n?waypointFor(e,n.x,n.y):to,a=Math.atan2(aim.y-e.y,aim.x-e.x)+Math.sin(e.life*9+e.seed)*0.5;
   const sp=e.speed*enemyPace(e)*dt,nx=e.x+Math.cos(a)*sp,ny=e.y+Math.sin(a)*sp;if(nx>10&&ny>10&&nx<W-10&&ny<H-10&&terrainAt(nx,ny)!==2&&!wallAt(nx,ny,true)){e.x=nx;e.y=ny}e.ang=a;
-  if(n&&nd<n.r+16){e.hp=0;e.silent=true;const h=spawnShard(e.x,e.y,'husk','roam');h.home={x:n.x,y:n.y};burst(e.x,e.y,SH_HOT,10,90,0.4);return}
+  // v4: a nest only keeps HUSK_REGROW_CAP regrown Husks about it (past that the core just burns out), the one that
+  // regrows joins the nest's brood, and swarm mode never twins it: before, every Husk killed came back as two,
+  // doubling each time they died, until a nest stood in a pool of hundreds of idle Husks
+  if(n&&nd<n.r+16){e.hp=0;e.silent=true;
+    if(S.enemies.filter(q=>q.regrown===n&&q.hp>0).length>=HUSK_REGROW_CAP){burst(e.x,e.y,SH_HOT,6,60,0.3);return}
+    const h=spawnShard(e.x,e.y,'husk','roam');h.home={x:n.x,y:n.y};h.nest=n;h.regrown=n;h.noTwin=true;burst(e.x,e.y,SH_HOT,10,90,0.4);return}
   if(e.life>HUSKCORE_LIFE){e.hp=0;e.silent=true;burst(e.x,e.y,SH_HOT,6,60,0.3)}}
 function drawShard(e){const k=e.shard||'huskcore',t=S.t+e.seed%50,fl=e.flashT>0,sm=x=>x<=0?0:x>=1?1:x*x*(3-2*x);
   const mv=Math.hypot(e.x-(e._lx==null?e.x:e._lx),e.y-(e._ly==null?e.y:e._ly));e._lx=e.x;e._ly=e.y;e.wk=(e.wk||0)+((mv>0.03?1:0)-(e.wk||0))*0.15;
@@ -11289,7 +11303,7 @@ function update(dt){
   if(S.over||S.rewardChoice||S.paused)return;
   if(S.tacPause){const ps=520/cam.z*dt;if(keys['w']||keys['arrowup'])cam.y-=ps;if(keys['s']||keys['arrowdown'])cam.y+=ps;if(keys['a']||keys['arrowleft'])cam.x-=ps;if(keys['d']||keys['arrowright'])cam.x+=ps;clampCam();return}
   S.t+=dt;stat('time',dt);
-  swarmSweep();
+  swarmSweep();strandSweep();
   {const h=Math.max(0,S.base.hp);if(S._statHp!=null&&h<S._statHp)stat('rigDmg',S._statHp-h);S._statHp=h}
   if(S.shoves)S.shoves=S.shoves.filter(f=>(f.t+=dt)<0.3);
   const B=S.base;
