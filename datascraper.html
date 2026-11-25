@@ -5150,9 +5150,17 @@ function heartR(w){return Math.max(HEART_RMIN,Math.min(HEART_RMAX,dist(S.base,w)
 function fireHeart(w){setHeartMode(false);const why=heartWhyNot();if(why){note('Lantern Heart: '+why);return}const B=S.base;
   B.hfire={t:0,R:heartR(w),th0:Math.atan2(w.y-B.y,w.x-B.x),ph:[rnd(0,6.3),rnd(0,6.3),rnd(0,6.3)],id:(S._hfId=(S._hfId||0)+1)};B.heart=0;B.dest=null;B.queue=null;B._path=null;B._pg=null;
   sndAt(B.x,B.y,()=>{tone(220,HEART_OPEN,'sawtooth',0.04,0,880);tone(440,HEART_OPEN,'triangle',0.02,0,1500)});updateBuildBar()}
-// the ring it cuts: a little uneven, so it isn't a perfect circle
+// the ring it cuts: it bends in and out (up to HEART_DEV, or 30% of the radius) to catch the enemies just ahead
+// of the beam near the ring. heartAim picks the radius where the most of them line up (nearer ones count more)
+// and the beam eases towards it, so it hunts along the circle rather than drawing a perfect one.
+const HEART_DEV=70;
 const heartTh=(hf,s)=>hf.th0+Math.PI*2*(s*s*(3-2*s));
-function heartPt(hf,th){const B=S.base,r=hf.R*(1+0.055*Math.sin(3*th+hf.ph[0])+0.035*Math.sin(5*th+hf.ph[1])+0.02*Math.sin(9*th+hf.ph[2]));
+function heartAim(hf,th){const B=S.base,dev=Math.min(HEART_DEV,hf.R*0.3),c=[];
+  S.enemies.forEach(q=>{if(q.hp<=0||q.megaGlass||q.burrowed||q._hfid===hf.id)return;const d=Math.hypot(q.x-B.x,q.y-B.y);if(Math.abs(d-hf.R)>dev)return;
+    let da=Math.atan2(q.y-B.y,q.x-B.x)-th;da=Math.atan2(Math.sin(da),Math.cos(da));if(da<-0.05||da>0.5)return;c.push({d,w:1-da/0.6})});
+  if(!c.length)return hf.R*(1+0.02*Math.sin(3*th+hf.ph[0]));
+  let best=hf.R,bs=0;c.forEach(a=>{let sw=0,sd=0;c.forEach(b=>{if(Math.abs(a.d-b.d)<HEART_W){sw+=b.w;sd+=b.d*b.w}});if(sw>bs){bs=sw;best=sd/sw}});return best}
+function heartPt(hf,th,r){const B=S.base;r=r??hf.R;
   return {x:Math.max(4,Math.min(W-4,B.x+Math.cos(th)*r)),y:Math.max(4,Math.min(H-4,B.y+Math.sin(th)*r))}}
 // a Lantern's beam reaching the Rig: soaked up if the Heart has room. Returns where it landed (world, as drawn).
 function heartSoak(e){const B=S.base;if(!S.mods.lanternHeart||B.hfire||(B.heart||0)>=1-1e-6)return null;
@@ -5175,7 +5183,8 @@ function heartStep(dt){const B=S.base;
   const hf=B.hfire;if(!hf)return;hf.t+=dt;B.dest=null;B.queue=null;
   const s=(hf.t-HEART_OPEN)/HEART_SWEEP;
   if(s>0&&!hf.done){if(!hf.lit){hf.lit=true;shakeScreen(5,0.4);sndAt(B.x,B.y,()=>{tone(150,1.2,'sawtooth',0.07,0,70);noiseCrack(0.5,0.18,520)})}
-    const p=heartPt(hf,heartTh(hf,Math.min(1,s)));if(!hf.prev){hf.prev=p;hf.seg=p}
+    const th=heartTh(hf,Math.min(1,s));if(hf.r==null)hf.r=heartAim(hf,th);hf.r+=(heartAim(hf,th)-hf.r)*Math.min(1,dt*7);
+    const p=heartPt(hf,th,hf.r);if(!hf.prev){hf.prev=p;hf.seg=p}
     S.enemies.forEach(q=>{if(q.hp<=0||q.megaGlass||q.burrowed||q._hfid===hf.id)return;const r=q.kind==='nest'?q.r*0.5:(q.r||8);
       if(heartSegD(q,hf.prev,p)<HEART_W+r){q._hfid=hf.id;damageEnemy(q,HEART_DMG);burst(q.x,q.y,'#ff6a3a',8,120,0.4)}});
     if(dist(hf.seg,p)>=HEART_SEG){heartScar(hf.seg,p);hf.seg=p}
@@ -5227,7 +5236,7 @@ function drawHeartTop(B,m,lanceBeam){const hv=B._hov||0,hf=B.hfire,lv=B._hlv||0,
   ctx.save();ctx.globalCompositeOperation='lighter';
   if(s<=0){// the head splitting: the ring it's about to cut, traced faintly
     const k=Math.min(1,hf.t/HEART_OPEN);ctx.globalAlpha=0.5*k;ctx.strokeStyle='#ff6a5a';ctx.lineWidth=1.4;ctx.setLineDash([8,6]);ctx.beginPath();
-    for(let i=0;i<=64;i++){const p=heartPt(hf,hf.th0+i/64*Math.PI*2);i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y)}ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1;skGlow(head,20+20*k,'#ffd0a0',0.6*k)}
+    ctx.arc(S.base.x,S.base.y,hf.R,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1;skGlow(head,20+20*k,'#ffd0a0',0.6*k)}
   else if(hf.cur){const on=hf.done?Math.max(0,1-(hf.t-HEART_OPEN-HEART_SWEEP)/0.25):Math.min(1,s*20),b=[hf.cur.x,hf.cur.y];
     if(on>0){lanceBeam(a,b,on);
       const g=ctx.createRadialGradient(b[0],b[1],0,b[0],b[1],HEART_W*1.8);g.addColorStop(0,'#ffb070');g.addColorStop(0.45,'rgba(255,74,30,0.55)');g.addColorStop(1,'rgba(0,0,0,0)');
